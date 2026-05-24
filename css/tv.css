@@ -1,0 +1,197 @@
+/* ============================================================
+   TV & ULTRA-WIDE DISPLAYS
+   Full HD 1920 · QHD 2560 · 4K UHD 3840
+   ============================================================ */
+
+@media (min-width:1920px){
+  :root{
+    --maxw:1680px;
+    --pad-x:88px;
+    --section-y:88px;
+    --head-gap:48px;
+    --hero-col-text:620px;
+    --hero-frame-w:520px;
+    --hero-frame-h:650px;
+    --hero-col-gap:72px;
+    --hero-notch-r:40px;
+  }
+  html{scroll-padding-top:112px}
+  body{font-size:17px;line-height:1.75}
+  .site-grid{background-size:64px 64px}
+
+  /* Nav */
+  .nav{width:calc(100% - 48px);max-width:1520px}
+  .nav-inner{padding:9px 9px 9px 28px}
+  .brand-logo{height:64px}
+  .nav-link{font-size:16px;padding:11px 16px}
+  .nav-cta{font-size:16px;padding:13px 24px}
+  .dd{min-width:300px}
+  .dd a{font-size:15px;padding:11px 14px}
+
+  /* Typography */
+  .h2{font-size:52px}
+  .label{font-size:12px;margin-bottom:18px}
+  .lead{font-size:19px;max-width:720px}
+  .section-head .h2{max-width:880px}
+  .section-head .lead{max-width:720px}
+
+  /* Homepage hero */
+  .h1{font-size:88px}
+  .h1-line > span{font-size:88px;letter-spacing:-2.2px}
+  .hero-sub{font-size:19px;max-width:720px}
+  .hero{padding-top:148px}
+  .hero-inner{padding-bottom:96px}
+  .viz{width:560px;height:560px}
+  .viz .orbit{transform-origin:280px 280px}
+
+  /* Homepage services scroll */
+  .section.services{
+    --svc-card-w:860px;
+    --svc-card-h:480px;
+    --svc-gap:28px;
+  }
+  .services-title{font-size:52px}
+  .svc-card__body{padding:40px 36px 40px 40px}
+  .svc-card__title{font-size:28px}
+  .svc-card__desc{font-size:17px}
+
+  /* Stats & cards */
+  .stat-num{font-size:56px}
+  .stat-label{font-size:14px}
+  .cases-grid{gap:28px}
+  .news{--news-card-w:min(680px,42vw);--news-card-h:min(520px,58vh)}
+
+  /* Service / case pages (shared.css) */
+  .svc-hero{padding-top:140px;padding-bottom:56px}
+  .svc-hero__title{font-size:clamp(40px,2.8vw,58px)}
+  .svc-hero__icon{width:80px;height:80px;font-size:34px;border-radius:20px}
+  .svc-cap{padding:32px;border-radius:20px}
+  .svc-cap h3{font-size:20px}
+  .svc-cap p{font-size:15px}
+  .cs-hero__title{font-size:clamp(36px,2.6vw,52px)}
+
+  /* Enterprise software hero */
+  .hero h1{font-size:clamp(36px,2.6vw,52px)}
+  .hero-sub{font-size:17px}
+  .hero-checklist li{font-size:16px}
+  .btn-pill{font-size:14px;min-height:44px;padding:12px 24px}
+  .section-head h2,.problem h2,.cases-head h2,.cta-headline{font-size:52px}
+  .problem p,.section-head p{font-size:19px}
+  .feature-block h3{font-size:19px}
+  .feature-block p{font-size:16px}
+
+  /* Footer */
+  .footer-logo{height:clamp(112px,10vw,144px)}
+  .footer-col h4{font-size:14px}
+  .footer-col a,.footer-contact a{font-size:14px}
+}
+
+@media (min-width:2560px){
+  :root{
+    --maxw:1960px;
+    --pad-x:112px;
+    --section-y:104px;
+    --head-gap:56px;
+    --hero-col-text:680px;
+    --hero-frame-w:580px;
+    --hero-frame-h:725px;
+    --hero-col-gap:80px;
+    --hero-notch-r:44px;
+  }
+  html{scroll-padding-top:128px}
+  body{font-size:18px}
+  .site-grid{background-size:72px 72px}
+
+  .nav{width:calc(100% - 64px);max-width:1760px}
+  .brand-logo{height:72px}
+  .nav-link{font-size:17px;padding:12px 18px}
+  .nav-cta{font-size:17px;padding:14px 28px}
+
+  .h2{font-size:58px}
+  .lead{font-size:20px;max-width:800px}
+  .h1{font-size:96px}
+  .h1-line > span{font-size:96px;letter-spacing:-2.4px}
+  .hero-sub{font-size:20px;max-width:800px}
+  .viz{width:640px;height:640px}
+  .viz .orbit{transform-origin:320px 320px}
+
+  .section.services{
+    --svc-card-w:980px;
+    --svc-card-h:540px;
+    --svc-gap:32px;
+  }
+  .services-title{font-size:58px}
+  .stat-num{font-size:64px}
+  .news{--news-card-w:min(780px,40vw);--news-card-h:min(580px,56vh)}
+
+  .svc-hero__title{font-size:clamp(44px,2.4vw,64px)}
+  .hero h1{font-size:clamp(40px,2.2vw,58px)}
+  .hero-sub{font-size:18px}
+  .section-head h2,.problem h2,.cases-head h2,.cta-headline{font-size:58px}
+}
+
+@media (min-width:3840px){
+  :root{
+    --maxw:2280px;
+    --pad-x:144px;
+    --section-y:120px;
+    --head-gap:64px;
+    --hero-col-text:760px;
+    --hero-frame-w:640px;
+    --hero-frame-h:800px;
+    --hero-col-gap:96px;
+    --hero-notch-r:48px;
+  }
+  html{scroll-padding-top:148px}
+  body{font-size:20px;line-height:1.8}
+  .site-grid{background-size:88px 88px}
+
+  .nav{width:calc(100% - 80px);max-width:2040px;top:28px}
+  .nav.scrolled{top:20px}
+  .nav-inner{padding:10px 10px 10px 32px}
+  .brand-logo{height:80px}
+  .nav-link{font-size:18px;padding:13px 20px}
+  .nav-cta{font-size:18px;padding:16px 32px;min-height:52px}
+
+  .h2{font-size:64px;letter-spacing:-1.2px}
+  .label{font-size:13px;letter-spacing:0.12em}
+  .lead{font-size:22px;max-width:920px}
+  .h1{font-size:112px}
+  .h1-line > span{font-size:112px;letter-spacing:-3px;line-height:1.06}
+  .hero-sub{font-size:22px;max-width:920px}
+  .hero{padding-top:168px}
+  .viz{width:720px;height:720px}
+  .viz .orbit{transform-origin:360px 360px}
+  .viz-center{width:96px;height:96px}
+
+  .section.services{
+    --svc-card-w:1120px;
+    --svc-card-h:600px;
+    --svc-gap:36px;
+  }
+  .services-title{font-size:64px}
+  .svc-card__title{font-size:32px}
+  .svc-card__desc{font-size:19px}
+  .stat-num{font-size:72px}
+  .news{--news-card-w:min(920px,38vw);--news-card-h:min(640px,54vh)}
+
+  .svc-hero{padding-top:168px}
+  .svc-hero__title{font-size:clamp(48px,2vw,72px)}
+  .svc-hero__icon{width:92px;height:92px;font-size:38px}
+  .svc-cap{padding:36px;border-radius:22px}
+  .svc-cap h3{font-size:22px}
+  .svc-cap p{font-size:17px}
+
+  .hero h1{font-size:clamp(44px,1.8vw,64px)}
+  .hero-sub{font-size:20px}
+  .hero-checklist li{font-size:18px}
+  .hero-check{width:24px;height:24px}
+  .btn-pill{font-size:15px;min-height:48px;padding:14px 28px}
+  .section-head h2,.problem h2,.cases-head h2,.cta-headline{font-size:64px}
+  .problem p,.section-head p{font-size:20px}
+  .feature-icon{width:58px;height:58px;border-radius:16px}
+  .feature-icon i{font-size:26px}
+
+  .footer-logo{height:clamp(128px,8vw,168px)}
+  .mobile-nav a,.mobile-nav details summary{font-size:22px;min-height:52px}
+}
