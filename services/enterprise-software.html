@@ -1,922 +1,17 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en" class="nav-shown">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Enterprise Software Solutions | Digital Hub S.A.E</title>
 <meta name="description" content="Secure, scalable, integration-ready digital platforms for Egyptian and Gulf enterprises — custom applications, legacy modernization, DevOps, and system integration." />
-<link rel="canonical" href="/services/enterprise-software.html" />
+<link rel="canonical" href="enterprise-software.html" />
 <meta name="theme-color" content="#0A1628" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css" />
-<style>
-:root{
-  --blue:#1A9AD6;
-  --blue-light:#36B0E5;
-  --blue-dim:rgba(26,154,214,0.16);
-  --orange:#F4970B;
-  --orange-dark:#d47d00;
-  --orange-light:rgba(244,151,11,0.12);
-  --teal:#22B884;
-  --bg:#0A1628;
-  --bg-alt:#0D1C30;
-  --bg-dark:#050B16;
-  --surface:#122139;
-  --surface-2:#172B49;
-  --text:#E6EEF8;
-  --text-1:#E6EEF8;
-  --text-2:rgba(230,238,248,0.65);
-  --text-3:rgba(230,238,248,0.42);
-  --border:rgba(255,255,255,0.08);
-  --shadow:0 4px 24px rgba(0,0,0,0.28);
-  --card-shadow:0 1px 2px rgba(0,0,0,0.35),0 12px 32px rgba(0,0,0,0.28);
-  --glass-bg:rgba(255,255,255,0.08);
-  --glass-bg-hover:rgba(255,255,255,0.11);
-  --glass-border:rgba(255,255,255,0.16);
-  --glass-border-hover:rgba(255,255,255,0.20);
-  --glass-blur:blur(32px) saturate(160%);
-  --glass-shadow:0 4px 24px rgba(0,0,0,0.16),inset 0 1px 0 rgba(255,255,255,0.12);
-  --glass-shadow-hover:0 8px 32px rgba(0,0,0,0.22),inset 0 1px 0 rgba(255,255,255,0.14);
-  --ease:cubic-bezier(0.22,1,0.36,1);
-  --ease-nav:cubic-bezier(0.71,0,0.19,1);
-  --maxw:1440px;
-  --pad-x:64px;
-  --section-y:72px;
-  --head-gap:40px;
-  --hero-col-text:565px;
-  --hero-frame-w:480px;
-  --hero-frame-h:600px;
-  --hero-col-gap:64px;
-  --hero-stack-gap:24px;
-  --hero-gap-cta:32px;
-  --hero-gap-list:56px;
-  --hero-notch-r:36px;
-  --hero-notch-left-y:32%;
-  --hero-notch-right-y:68%;
-}
-*,*::before,*::after{box-sizing:border-box}
-html{scroll-behavior:auto;-webkit-text-size-adjust:100%;scroll-padding-top:96px;overflow-x:clip}
-body{
-  margin:0;font-family:'Poppins',system-ui,sans-serif;font-size:16px;line-height:1.7;
-  color:var(--text-1);background:var(--bg);-webkit-font-smoothing:antialiased;overflow-x:hidden;
-}
-a{color:inherit;text-decoration:none}
-img,svg{display:block;max-width:100%}
-button,input,select,textarea{font:inherit;color:inherit}
-button{cursor:pointer;border:0;background:none}
-.nav,main,footer,.mobile-nav{position:relative;z-index:1}
-main{max-width:100%;overflow-x:clip}
-
-.site-bg{
-  position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;background:var(--bg);
-}
-.site-grid{
-  position:absolute;inset:0;
-  background-image:linear-gradient(rgba(255,255,255,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.04) 1px,transparent 1px);
-  background-size:56px 56px;
-  mask-image:linear-gradient(to bottom,rgba(0,0,0,.6),rgba(0,0,0,.25) 60%,transparent);
-  -webkit-mask-image:linear-gradient(to bottom,rgba(0,0,0,.6),rgba(0,0,0,.25) 60%,transparent);
-}
-.site-waves{position:absolute;inset:0}
-.wave{
-  position:absolute;left:0;width:200%;height:100%;
-  display:block;animation-timing-function:linear;animation-iteration-count:infinite;
-}
-.wave svg{width:100%;height:100%;display:block}
-@keyframes wave-scroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
-.wave-1{top:0;animation:wave-scroll 28s linear infinite}
-.wave-2{top:0;animation:wave-scroll 22s linear infinite;animation-delay:-7s}
-.wave-3{top:0;animation:wave-scroll 35s linear infinite}
-.wave-4{top:0;animation:wave-scroll 18s linear infinite}
-.wave-5{top:0;animation:wave-scroll 24s linear infinite;animation-delay:-9s}
-.wave-6{top:0;animation:wave-scroll 40s linear infinite}
-
-.glass-surface{
-  background:var(--glass-bg);border:1px solid var(--glass-border);
-  backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
-  box-shadow:var(--glass-shadow);
-}
-
-.nav{z-index:1000}
-
-/* Nav — dark glass pill (homepage) */
-.nav{
-  position:fixed;left:50%;top:20px;transform:translateX(-50%);
-  width:calc(100% - 36px);max-width:1280px;z-index:1000;
-  transition:top .35s var(--ease-nav);
-}
-.nav.scrolled{top:14px}
-.nav.scrolled .nav-inner{
-  background:var(--glass-bg-hover);border-color:var(--glass-border-hover);box-shadow:var(--glass-shadow-hover);
-}
-.nav-inner{
-  display:flex;align-items:center;justify-content:space-between;gap:14px;
-  padding:8px 8px 8px 24px;border-radius:999px;overflow:visible;
-  transition:background .35s var(--ease-nav),border-color .35s var(--ease-nav),box-shadow .35s var(--ease-nav);
-}
-.brand{display:inline-flex;align-items:center;flex-shrink:0}
-.brand-logo{height:56px;width:auto;object-fit:contain;mix-blend-mode:screen}
-.nav-links{display:flex;align-items:center;gap:4px;list-style:none;margin:0;padding:0;flex:1;justify-content:center}
-.nav-link{
-  display:inline-flex;align-items:center;gap:5px;font-weight:500;font-size:15px;
-  color:rgba(255,255,255,0.82);padding:10px 14px;border-radius:999px;white-space:nowrap;
-  transition:color .2s var(--ease),background .2s var(--ease);
-}
-.nav-link i{font-size:14px;opacity:.55}
-.nav-link:hover,.nav-link.is-active{color:#fff;background:rgba(255,255,255,0.08)}
-.nav-cta{
-  display:inline-flex;align-items:center;gap:8px;flex-shrink:0;
-  background:linear-gradient(135deg,var(--blue),var(--blue-light));color:#fff;
-  font-weight:500;font-size:15px;padding:12px 22px;border-radius:999px;margin:2px;
-  transition:transform .4s var(--ease),box-shadow .4s var(--ease);
-}
-.nav-cta:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(244,151,11,0.32)}
-.has-dd{position:relative;z-index:1002}
-.has-dd:hover,.has-dd:focus-within,.has-dd.open{z-index:1003}
-.dd{
-  position:absolute;top:calc(100% + 10px);left:50%;transform:translateX(-50%) translateY(-8px) scale(0.97);
-  min-width:280px;background:rgba(255,255,255,0.10);backdrop-filter:blur(32px) saturate(160%);
-  -webkit-backdrop-filter:blur(32px) saturate(160%);
-  border:1px solid rgba(255,255,255,0.16);border-radius:16px;padding:8px;
-  opacity:0;visibility:hidden;pointer-events:none;z-index:1004;
-  transition:opacity .26s var(--ease),transform .26s var(--ease),visibility 0s .26s;
-}
-.dd::before{content:'';position:absolute;bottom:100%;left:-10px;right:-10px;height:18px}
-.has-dd:hover .dd,.has-dd:focus-within .dd,.has-dd.open .dd{
-  opacity:1;visibility:visible;pointer-events:auto;transform:translateX(-50%) translateY(0) scale(1);transition-delay:0s;
-}
-.dd a{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;font-size:14px;color:rgba(255,255,255,0.78);transition:background .2s var(--ease),color .2s var(--ease)}
-.dd a i{color:var(--blue-light);font-size:16px}
-.dd a:hover,.dd a.is-active{background:rgba(255,255,255,0.08);color:#fff}
-.nav-burger{
-  display:none;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;
-  color:rgba(255,255,255,0.9);background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.10);flex-shrink:0;
-}
-.mobile-nav{
-  position:fixed;inset:0;background:rgba(6,12,24,0.96);backdrop-filter:blur(24px);
-  -webkit-backdrop-filter:blur(24px);z-index:999;padding:96px var(--pad-x) 40px;
-  display:none;flex-direction:column;gap:4px;overflow-y:auto;
-}
-.mobile-nav.open{display:flex}
-.mobile-nav a,.mobile-nav details summary{
-  font-size:20px;font-weight:500;color:rgba(255,255,255,0.92);padding:16px 0;
-  border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:space-between;cursor:pointer;list-style:none;
-}
-.mobile-nav details summary::-webkit-details-marker{display:none}
-.mobile-nav .sub{padding:6px 0 6px 12px;display:flex;flex-direction:column;gap:2px}
-.mobile-nav .sub a{font-size:15px;color:rgba(255,255,255,0.65);border-bottom:0;padding:8px 0}
-.mobile-nav .mn-cta{margin-top:24px;background:var(--orange);color:#fff;font-weight:500;padding:14px 22px;border-radius:999px;justify-content:center;border:0}
-
-/* Shared */
-.label{display:block;font-size:12px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:var(--orange);margin-bottom:12px}
-.section-pad{padding-left:var(--pad-x);padding-right:var(--pad-x)}
-.container{max-width:var(--maxw);margin:0 auto;width:100%}
-.section-alt{background:transparent}
-.accent{color:var(--orange);font-weight:500}
-[data-reveal]{opacity:0;transform:translateY(28px);transition:opacity .7s var(--ease),transform .7s var(--ease)}
-[data-reveal].in{opacity:1;transform:none}
-
-/* Hero — JISR-style split layout */
-.hero{
-  position:relative;padding:120px var(--pad-x) 0;overflow:hidden;background:transparent;
-}
-@media (min-width:841px){
-  .hero{min-height:min(860px,100vh);padding-top:140px}
-}
-.hero::before{
-  content:'';position:absolute;inset:0;pointer-events:none;z-index:0;
-  background-image:repeating-linear-gradient(
-    90deg,
-    rgba(255,255,255,0.025) 0,
-    rgba(255,255,255,0.025) 1px,
-    transparent 1px,
-    transparent calc(100% / 14)
-  );
-  mask-image:linear-gradient(to bottom,rgba(0,0,0,0.55),transparent 85%);
-  -webkit-mask-image:linear-gradient(to bottom,rgba(0,0,0,0.55),transparent 85%);
-}
-.hero-inner{
-  position:relative;z-index:1;
-  max-width:calc(var(--hero-col-text) + var(--hero-col-gap) + var(--hero-frame-w));
-  margin:0 auto;width:100%;
-  display:grid;
-  grid-template-columns:minmax(0,var(--hero-col-text)) minmax(0,var(--hero-frame-w));
-  gap:var(--hero-col-gap);align-items:flex-start;
-  padding:20px 0 80px;
-}
-.hero-left{
-  display:flex;flex-direction:column;align-items:flex-start;text-align:left;
-  max-width:var(--hero-col-text);width:100%;
-}
-.hero-top{
-  display:flex;flex-direction:column;align-items:flex-start;gap:8px;
-  margin-bottom:var(--hero-stack-gap);
-}
-.hero-eyebrow{
-  display:inline-flex;align-items:center;flex-wrap:wrap;gap:6px;
-  font-size:10px;font-weight:500;letter-spacing:0.12em;text-transform:uppercase;
-  color:var(--text-3);margin:0;
-  opacity:0;transform:translateY(12px);animation:fadeUp .6s var(--ease) .1s forwards;
-}
-.hero-eyebrow strong{color:var(--text-1);font-weight:600}
-.hero h1{
-  margin:0;font-size:clamp(28px,3.5vw,48px);font-weight:500;line-height:1.12;letter-spacing:-0.02em;color:var(--text-1);
-  max-width:var(--hero-col-text);
-  opacity:0;transform:translateY(16px);animation:fadeUp .7s var(--ease) .2s forwards;
-}
-.hero-sub{
-  margin:0 0 var(--hero-gap-cta);font-size:16px;font-weight:400;line-height:1.55;color:var(--text-2);max-width:var(--hero-col-text);
-  opacity:0;transform:translateY(16px);animation:fadeUp .6s var(--ease) .35s forwards;
-}
-.hero-cta{
-  margin:0 0 var(--hero-gap-list);
-  opacity:0;transform:translateY(16px);animation:fadeUp .6s var(--ease) .45s forwards;
-}
-.btn-pill{
-  display:inline-flex;align-items:center;justify-content:center;gap:8px;
-  min-height:42px;padding:11px 22px;border-radius:999px;
-  background:var(--orange);color:#fff;
-  font-weight:600;font-size:13px;letter-spacing:0.04em;text-transform:uppercase;
-  transition:transform .2s var(--ease),background .2s var(--ease),box-shadow .2s;
-}
-.btn-pill:hover{background:var(--orange-dark);transform:translateY(-2px);box-shadow:0 12px 32px rgba(244,151,11,0.28)}
-.btn-link{font-size:14px;font-weight:600;color:var(--blue-light);border-bottom:2px solid var(--orange);padding-bottom:2px;transition:color .2s}
-.btn-link:hover{color:var(--orange)}
-.hero-checklist{
-  list-style:none;margin:0;padding:0;
-  display:flex;flex-direction:column;gap:16px;width:100%;max-width:var(--hero-col-text);
-  opacity:0;animation:fadeIn .6s var(--ease) .55s forwards;
-}
-.hero-checklist li{
-  display:flex;align-items:flex-start;gap:12px;
-  font-size:15px;font-weight:400;line-height:1.45;color:var(--text-1);
-}
-.hero-check{
-  flex-shrink:0;width:20px;height:20px;margin-top:1px;border-radius:50%;
-  border:1.5px solid rgba(255,255,255,0.4);background:rgba(255,255,255,0.06);
-  display:flex;align-items:center;justify-content:center;
-}
-.hero-check i{font-size:10px;color:#fff;font-weight:700}
-
-/* Hero visual — JISR notched frame (left notch upper, right notch lower) */
-.hero-visual{
-  position:relative;opacity:0;animation:fadeIn .85s var(--ease) .3s forwards;
-  display:flex;justify-content:center;align-items:flex-start;padding:0;width:100%;
-}
-.hero-frame{
-  position:relative;width:var(--hero-frame-w);height:var(--hero-frame-h);max-width:100%;
-  flex-shrink:0;padding:10px;box-sizing:border-box;
-  border-radius:28px;
-  background:rgba(210,218,228,0.14);
-  border:1px solid rgba(255,255,255,0.22);
-  box-shadow:0 24px 64px rgba(0,0,0,0.35);
-  -webkit-mask:
-    radial-gradient(circle var(--hero-notch-r) at 0 var(--hero-notch-left-y), transparent calc(var(--hero-notch-r) - 0.5px), #000 var(--hero-notch-r)),
-    radial-gradient(circle var(--hero-notch-r) at 100% var(--hero-notch-right-y), transparent calc(var(--hero-notch-r) - 0.5px), #000 var(--hero-notch-r)),
-    linear-gradient(#000,#000);
-  -webkit-mask-composite:source-in;
-  mask:
-    radial-gradient(circle var(--hero-notch-r) at 0 var(--hero-notch-left-y), transparent calc(var(--hero-notch-r) - 0.5px), #000 var(--hero-notch-r)),
-    radial-gradient(circle var(--hero-notch-r) at 100% var(--hero-notch-right-y), transparent calc(var(--hero-notch-r) - 0.5px), #000 var(--hero-notch-r)),
-    linear-gradient(#000,#000);
-  mask-composite:intersect;
-}
-.hero-frame__media{
-  width:100%;height:100%;object-fit:cover;display:block;border-radius:18px;
-  background:
-    linear-gradient(180deg,rgba(26,154,214,0.15) 0%,rgba(10,22,40,0.4) 40%,rgba(5,11,22,0.85) 100%),
-    radial-gradient(ellipse 90% 70% at 50% 20%,rgba(54,176,229,0.25),transparent 60%),
-    radial-gradient(ellipse 60% 50% at 80% 80%,rgba(244,151,11,0.12),transparent 55%);
-}
-.hero-frame__scene{
-  position:absolute;inset:10px;border-radius:18px;
-  padding:24px 22px;
-  display:flex;flex-direction:column;justify-content:flex-end;gap:10px;
-  pointer-events:none;
-  background:linear-gradient(180deg,transparent 35%,rgba(5,11,22,0.55) 68%,rgba(5,11,22,0.92) 100%);
-}
-.hero-frame__badge{
-  align-self:flex-start;padding:5px 10px;border-radius:999px;
-  background:rgba(26,154,214,0.2);border:1px solid rgba(54,176,229,0.45);
-  font-size:9px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--blue-light);
-}
-.hero-frame__title{margin:0;font-size:17px;font-weight:700;line-height:1.3;color:var(--text-1);letter-spacing:-0.2px}
-.hero-frame__meta{margin:0;font-size:12px;font-weight:300;line-height:1.55;color:var(--text-2)}
-.hero-frame__stats{
-  display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:4px;
-}
-.hero-frame__stat{
-  padding:8px 6px;border-radius:8px;background:rgba(255,255,255,0.06);
-  border:1px solid rgba(255,255,255,0.08);text-align:center;
-}
-.hero-frame__stat strong{display:block;font-size:14px;font-weight:700;color:var(--text-1);line-height:1.2}
-.hero-frame__stat span{font-size:7px;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3)}
-.hero-frame__stat strong.orange{color:var(--orange)}
-
-/* Problem — prose layout */
-.problem{background:transparent;padding:var(--section-y) var(--pad-x)}
-.problem-inner{max-width:780px;margin:0 auto}
-.problem h2{margin:0 0 32px;font-size:46px;font-weight:700;letter-spacing:-1px;line-height:1.12;color:var(--text-1)}
-.problem p{margin:0 0 22px;font-size:18px;font-weight:300;line-height:1.8;color:var(--text-2)}
-.problem p:last-of-type{margin-bottom:0}
-.problem-pullquote{
-  margin:36px 0 0;padding:28px 0 0;border-top:3px solid var(--orange);
-  font-size:20px;font-weight:600;line-height:1.55;color:var(--text-1);font-style:italic;
-}
-.problem-pullquote cite{
-  display:block;margin-top:16px;font-size:13px;font-style:normal;font-weight:500;color:var(--text-3);
-}
-
-/* Feature blocks — shared */
-.feature-grid{display:grid;gap:32px 28px}
-.feature-grid--3{grid-template-columns:repeat(3,1fr)}
-.feature-grid--2{grid-template-columns:repeat(2,1fr)}
-.section-head{margin-bottom:var(--head-gap);max-width:780px}
-.section-head h2{margin:0 0 14px;font-size:46px;font-weight:700;letter-spacing:-1px;color:var(--text-1);line-height:1.12}
-.section-head p{margin:0;font-size:18px;font-weight:300;color:var(--text-2);line-height:1.8;max-width:640px}
-.feature-block{
-  opacity:0;transform:translateY(24px);
-  transition:opacity .6s var(--ease),transform .6s var(--ease);
-}
-.feature-block.is-visible{opacity:1;transform:none}
-.feature-icon{
-  width:52px;height:52px;border-radius:14px;background:var(--orange);
-  display:flex;align-items:center;justify-content:center;margin-bottom:18px;
-  box-shadow:0 4px 16px rgba(244,151,11,0.25);
-}
-.feature-icon i{font-size:24px;color:#fff}
-.feature-icon--num{font-size:16px;font-weight:800;color:#fff;letter-spacing:-0.02em}
-.feature-block h3{margin:0 0 10px;font-size:17px;font-weight:700;color:var(--text-1);line-height:1.35}
-.feature-block p{margin:0;font-size:15px;font-weight:400;line-height:1.7;color:var(--text-2)}
-
-/* What we deliver — horizontal scroll carousel (mirrors homepage #services) */
-.eswd-section{
-  --eswd-card-w:320px;
-  --eswd-card-h:420px;
-  --eswd-gap:20px;
-  --eswd-nav-offset:100px;
-  padding:var(--section-y) 0 0;
-  background:transparent;
-  scroll-margin-top:var(--eswd-nav-offset);
-  overflow:visible;
-}
-@media (max-width:1280px){.eswd-section{--eswd-card-w:300px;--eswd-card-h:400px}}
-@media (max-width:1150px){.eswd-section{--eswd-card-w:288px;--eswd-card-h:388px}}
-@media (min-width:992px){
-  .eswd-section{--eswd-card-h:min(420px,max(360px,calc(100svh - 200px)))}
-}
-.eswd-section .eswd-pin{
-  height:var(--eswd-card-h);
-  display:flex;align-items:center;justify-content:center;
-}
-.eswd-section .eswd-viewport{
-  height:var(--eswd-card-h);width:100%;
-  overflow:hidden;display:flex;align-items:center;
-}
-.eswd-section .eswd-track{align-items:stretch}
-
-.eswd-head{
-  text-align:center;
-  padding:0 var(--pad-x);
-  margin:0 auto 48px;
-  max-width:680px;
-  flex-shrink:0;
-}
-.eswd-head .label{
-  display:block;color:var(--orange);
-  font-size:11px;font-weight:700;letter-spacing:0.22em;
-  text-transform:uppercase;margin-bottom:16px;
-}
-.eswd-head h2{
-  margin:0 0 14px;font-size:clamp(26px,3.4vw,44px);
-  font-weight:700;letter-spacing:-0.5px;color:var(--text-1);line-height:1.14;
-}
-.eswd-head p{
-  margin:0;font-size:17px;font-weight:300;line-height:1.75;
-  color:var(--text-2);
-}
-
-.eswd-runway{width:100%;overflow:visible}
-.eswd-pin{width:100%;will-change:transform;overflow:visible}
-.eswd-viewport{width:100%}
-.eswd-track{
-  display:flex;
-  gap:var(--eswd-gap);
-  width:max-content;
-  padding-left:var(--pad-x);padding-right:0;
-  will-change:transform;
-  backface-visibility:hidden;
-  -webkit-backface-visibility:hidden;
-}
-.eswd-track-end{
-  flex:0 0 var(--pad-x);width:var(--pad-x);
-  height:1px;pointer-events:none;
-}
-
-/* Cards — screenshot glass style */
-.eswd-card{
-  flex:0 0 var(--eswd-card-w);
-  width:var(--eswd-card-w);height:var(--eswd-card-h);
-  border-radius:28px;
-  border:1px solid rgba(255,255,255,0.18);
-  background:linear-gradient(180deg,rgba(18,28,52,0.72) 0%,rgba(12,20,40,0.38) 55%,rgba(10,16,32,0.22) 100%);
-  backdrop-filter:blur(40px) saturate(180%);
-  -webkit-backdrop-filter:blur(40px) saturate(180%);
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.16),
-    0 20px 48px rgba(0,0,0,0.32);
-  display:flex;flex-direction:column;
-  overflow:hidden;position:relative;
-  isolation:isolate;
-  transition:border-color .4s var(--ease),box-shadow .4s var(--ease),transform .4s var(--ease);
-}
-.eswd-card__glow{
-  position:absolute;left:50%;bottom:-18%;z-index:0;
-  width:130%;height:72%;pointer-events:none;
-  transform:translateX(-50%);
-  background:radial-gradient(ellipse 70% 70% at 50% 60%,rgba(26,154,214,0.72) 0%,rgba(88,120,255,0.38) 34%,rgba(26,154,214,0.12) 58%,transparent 78%);
-  filter:blur(34px);
-  opacity:0.92;
-  transition:opacity .4s var(--ease),filter .4s var(--ease),transform .4s var(--ease);
-}
-.eswd-card::before{
-  content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:1;
-  background:linear-gradient(180deg,rgba(255,255,255,0.06) 0%,transparent 38%,rgba(26,154,214,0.08) 100%);
-}
-.eswd-card::after{
-  content:'';position:absolute;inset:0;border-radius:inherit;padding:1px;pointer-events:none;z-index:4;
-  background:linear-gradient(180deg,rgba(255,255,255,0.28) 0%,rgba(255,255,255,0.06) 42%,rgba(54,176,229,0.22) 100%);
-  -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
-  mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
-  -webkit-mask-composite:xor;mask-composite:exclude;
-}
-.eswd-card:hover{
-  transform:translateY(-4px);
-  border-color:rgba(255,255,255,0.28);
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.22),
-    0 0 0 1px rgba(54,176,229,0.16),
-    0 0 64px rgba(26,154,214,0.24),
-    0 24px 56px rgba(0,0,0,0.38);
-}
-.eswd-card:hover .eswd-card__glow{
-  opacity:1;
-  filter:blur(38px) brightness(1.12);
-  transform:translateX(-50%) scale(1.04);
-}
-.eswd-card--orange .eswd-card__glow{
-  background:radial-gradient(ellipse 70% 70% at 50% 60%,rgba(244,151,11,0.68) 0%,rgba(255,120,40,0.34) 34%,rgba(244,151,11,0.10) 58%,transparent 78%);
-}
-.eswd-card--orange::after{
-  background:linear-gradient(180deg,rgba(255,255,255,0.24) 0%,rgba(255,255,255,0.05) 42%,rgba(244,151,11,0.22) 100%);
-}
-.eswd-card--orange:hover{
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.22),
-    0 0 0 1px rgba(244,151,11,0.18),
-    0 0 64px rgba(244,151,11,0.22),
-    0 24px 56px rgba(0,0,0,0.38);
-}
-.eswd-card--teal .eswd-card__glow{
-  background:radial-gradient(ellipse 70% 70% at 50% 60%,rgba(34,184,132,0.68) 0%,rgba(40,200,180,0.32) 34%,rgba(34,184,132,0.10) 58%,transparent 78%);
-}
-.eswd-card--teal::after{
-  background:linear-gradient(180deg,rgba(255,255,255,0.24) 0%,rgba(255,255,255,0.05) 42%,rgba(34,184,132,0.22) 100%);
-}
-.eswd-card--teal:hover{
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.22),
-    0 0 0 1px rgba(34,184,132,0.18),
-    0 0 64px rgba(34,184,132,0.22),
-    0 24px 56px rgba(0,0,0,0.38);
-}
-
-.eswd-card__content{
-  position:relative;z-index:2;
-  flex:1;display:flex;flex-direction:column;
-  padding:26px 24px 28px;
-  gap:0;
-}
-.eswd-card__icon{
-  width:48px;height:48px;border-radius:50%;flex-shrink:0;
-  display:flex;align-items:center;justify-content:center;
-  margin-bottom:22px;
-  background:linear-gradient(145deg,rgba(54,176,229,0.95) 0%,rgba(26,154,214,0.82) 100%);
-  border:1px solid rgba(255,255,255,0.22);
-  box-shadow:
-    0 8px 20px rgba(26,154,214,0.35),
-    inset 0 1px 0 rgba(255,255,255,0.28);
-  transition:transform .35s var(--ease),box-shadow .35s var(--ease);
-}
-.eswd-card__icon i{
-  font-size:22px;color:rgba(255,255,255,0.96);
-  filter:drop-shadow(0 1px 2px rgba(0,0,0,0.25));
-}
-.eswd-card--orange .eswd-card__icon{
-  background:linear-gradient(145deg,rgba(255,170,50,0.96) 0%,rgba(244,151,11,0.84) 100%);
-  box-shadow:0 8px 20px rgba(244,151,11,0.32),inset 0 1px 0 rgba(255,255,255,0.28);
-}
-.eswd-card--teal .eswd-card__icon{
-  background:linear-gradient(145deg,rgba(52,210,150,0.96) 0%,rgba(34,184,132,0.84) 100%);
-  box-shadow:0 8px 20px rgba(34,184,132,0.32),inset 0 1px 0 rgba(255,255,255,0.28);
-}
-.eswd-card:hover .eswd-card__icon{
-  transform:translateY(-2px) scale(1.04);
-  box-shadow:0 10px 28px rgba(26,154,214,0.45),inset 0 1px 0 rgba(255,255,255,0.32);
-}
-.eswd-card--orange:hover .eswd-card__icon{
-  box-shadow:0 10px 28px rgba(244,151,11,0.42),inset 0 1px 0 rgba(255,255,255,0.32);
-}
-.eswd-card--teal:hover .eswd-card__icon{
-  box-shadow:0 10px 28px rgba(34,184,132,0.42),inset 0 1px 0 rgba(255,255,255,0.32);
-}
-.eswd-card__title{
-  margin:0 0 12px;font-size:clamp(17px,1.5vw,19px);
-  font-weight:700;line-height:1.3;color:rgba(255,255,255,0.98);letter-spacing:-0.01em;
-}
-.eswd-card__desc{
-  margin:0;font-size:13.5px;font-weight:400;line-height:1.65;
-  color:rgba(255,255,255,0.58);
-}
-
-/* Dots navigation */
-.eswd-dots{
-  display:flex;align-items:center;justify-content:center;
-  gap:8px;padding:24px 0 0;flex-shrink:0;
-}
-.eswd-dot{
-  width:6px;height:6px;border-radius:50%;
-  background:rgba(255,255,255,0.20);
-  border:none;padding:0;cursor:default;
-  transition:background .3s,width .3s;flex-shrink:0;
-}
-.eswd-dot.is-active{
-  width:22px;border-radius:4px;
-  background:rgba(26,154,214,0.80);
-}
-
-/* Methodology — Jisr-style alternating glass panels */
-.method{
-  --method-bg:var(--bg);
-  position:relative;padding:var(--section-y) var(--pad-x);
-  background:transparent;overflow:hidden;
-}
-.method::before{
-  content:'';position:absolute;inset:0;pointer-events:none;
-  background-image:radial-gradient(circle,rgba(255,255,255,0.055) 1px,transparent 1px);
-  background-size:22px 22px;
-  mask-image:linear-gradient(to bottom,transparent,#000 6%,#000 94%,transparent);
-  -webkit-mask-image:linear-gradient(to bottom,transparent,#000 6%,#000 94%,transparent);
-}
-.method-inner{max-width:var(--maxw);margin:0 auto;position:relative;z-index:1}
-.method-head{
-  text-align:center;max-width:760px;margin:0 auto var(--head-gap);
-}
-.method-head h2{
-  margin:0 0 14px;font-size:clamp(32px,4.2vw,52px);font-weight:700;
-  letter-spacing:-0.02em;color:var(--text-1);line-height:1.1;
-}
-.method-head p{
-  margin:0 auto;font-size:clamp(16px,1.5vw,18px);font-weight:300;
-  color:var(--text-2);line-height:1.75;max-width:620px;
-}
-.method-rows{
-  position:relative;z-index:1;
-  display:flex;flex-direction:column;gap:clamp(56px,7vw,96px);
-}
-.method-stage{position:relative}
-.method-wire-wrap{
-  position:absolute;left:0;right:0;top:0;bottom:0;
-  pointer-events:none;z-index:3;overflow:visible;
-}
-.method-wire{display:block;width:100%;height:100%;overflow:visible}
-.method-wire__bg{
-  fill:none;stroke:rgba(255,255,255,0.08);stroke-width:2.5;
-  stroke-linecap:round;stroke-linejoin:round;
-}
-.method-wire__line{
-  fill:none;stroke:url(#methodWireGrad);stroke-width:2.5;
-  stroke-linecap:round;stroke-linejoin:round;
-  filter:url(#methodWireGlow);
-}
-.method-wire__dot{
-  fill:#fff;
-  filter:url(#methodWireDotGlow);
-  opacity:0;
-  transition:opacity .25s var(--ease);
-}
-.method.is-wire-active .method-wire__dot{opacity:1}
-.method-row{
-  position:relative;z-index:1;
-  display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,0.95fr);
-  gap:clamp(28px,5vw,80px);align-items:center;
-}
-.method-row--reverse .method-visual{order:2}
-.method-row--reverse .method-copy{order:1}
-.method-visual{display:flex;justify-content:center}
-.method-frame{
-  position:relative;width:100%;max-width:520px;aspect-ratio:5/4;
-  border-radius:22px;border:1px solid rgba(255,255,255,0.12);
-  background:
-    linear-gradient(155deg,rgba(255,255,255,0.07) 0%,rgba(255,255,255,0.02) 42%,rgba(26,154,214,0.04) 100%);
-  backdrop-filter:blur(20px) saturate(160%);
-  -webkit-backdrop-filter:blur(20px) saturate(160%);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,0.14),0 16px 48px rgba(0,0,0,0.22);
-  display:flex;align-items:center;justify-content:center;
-  transition:border-color .35s var(--ease),box-shadow .35s var(--ease),transform .35s var(--ease);
-}
-.method-frame::before{
-  content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
-  background:radial-gradient(ellipse 70% 60% at 50% 55%,rgba(26,154,214,0.14),transparent 72%);
-  opacity:0.85;transition:opacity .35s var(--ease);
-}
-.method-frame::after{
-  content:'';position:absolute;top:50%;transform:translateY(-50%);
-  width:14px;height:28px;border-radius:50%;
-  background:var(--method-bg);
-  box-shadow:inset 0 0 0 1px rgba(255,255,255,0.08);
-}
-.method-row:not(.method-row--reverse) .method-frame::after{right:-7px}
-.method-row--reverse .method-frame::after{left:-7px}
-.method-frame i{
-  position:relative;z-index:1;
-  font-size:clamp(68px,7.5vw,108px);line-height:1;
-  color:rgba(255,255,255,0.88);
-  filter:drop-shadow(0 0 28px rgba(26,154,214,0.45)) drop-shadow(0 12px 32px rgba(0,0,0,0.35));
-  transition:transform .35s var(--ease),filter .35s var(--ease);
-}
-.method-frame__num{
-  position:absolute;top:18px;left:20px;z-index:2;
-  font-size:11px;font-weight:700;letter-spacing:0.16em;
-  color:rgba(54,176,229,0.65);text-transform:uppercase;
-}
-.method-row:hover .method-frame{
-  transform:translateY(-2px);
-  border-color:rgba(26,154,214,0.28);
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.18),
-    0 0 0 1px rgba(26,154,214,0.12),
-    0 0 56px rgba(26,154,214,0.14),
-    0 20px 56px rgba(0,0,0,0.28);
-}
-.method-row:hover .method-frame::before{opacity:1}
-.method-row:hover .method-frame i{
-  transform:scale(1.05);
-  filter:drop-shadow(0 0 44px rgba(26,154,214,0.65)) drop-shadow(0 0 72px rgba(26,154,214,0.22));
-}
-.method-row--orange .method-frame::before{background:radial-gradient(ellipse 70% 60% at 50% 55%,rgba(244,151,11,0.16),transparent 72%)}
-.method-row--orange .method-frame i{
-  color:rgba(255,255,255,0.9);
-  filter:drop-shadow(0 0 28px rgba(244,151,11,0.42)) drop-shadow(0 12px 32px rgba(0,0,0,0.35));
-}
-.method-row--orange:hover .method-frame{
-  border-color:rgba(244,151,11,0.30);
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.18),
-    0 0 0 1px rgba(244,151,11,0.14),
-    0 0 56px rgba(244,151,11,0.14),
-    0 20px 56px rgba(0,0,0,0.28);
-}
-.method-row--orange:hover .method-frame i{
-  filter:drop-shadow(0 0 44px rgba(244,151,11,0.65)) drop-shadow(0 0 72px rgba(244,151,11,0.22));
-}
-.method-row--orange .method-frame__num{color:rgba(244,151,11,0.72)}
-.method-row--teal .method-frame::before{background:radial-gradient(ellipse 70% 60% at 50% 55%,rgba(34,184,132,0.16),transparent 72%)}
-.method-row--teal .method-frame i{
-  filter:drop-shadow(0 0 28px rgba(34,184,132,0.42)) drop-shadow(0 12px 32px rgba(0,0,0,0.35));
-}
-.method-row--teal:hover .method-frame{
-  border-color:rgba(34,184,132,0.30);
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.18),
-    0 0 0 1px rgba(34,184,132,0.14),
-    0 0 56px rgba(34,184,132,0.14),
-    0 20px 56px rgba(0,0,0,0.28);
-}
-.method-row--teal:hover .method-frame i{
-  filter:drop-shadow(0 0 44px rgba(34,184,132,0.65)) drop-shadow(0 0 72px rgba(34,184,132,0.22));
-}
-.method-row--teal .method-frame__num{color:rgba(34,184,132,0.72)}
-.method-copy{max-width:480px}
-.method-row:not(.method-row--reverse) .method-copy{margin-left:0}
-.method-row--reverse .method-copy{margin-left:auto;margin-right:0}
-.method-copy h3{
-  margin:0 0 14px;font-size:clamp(22px,2.4vw,30px);font-weight:700;
-  color:var(--text-1);line-height:1.22;letter-spacing:-0.01em;
-}
-.method-copy p{
-  margin:0;font-size:clamp(15px,1.35vw,17px);font-weight:400;
-  line-height:1.75;color:var(--text-2);
-}
-
-/* Industries */
-.industries{background:transparent;padding:var(--section-y) var(--pad-x)}
-
-/* Case studies — slash cards */
-.cases{background:transparent;padding:var(--section-y) var(--pad-x)}
-.cases-head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:var(--head-gap);flex-wrap:wrap}
-.cases-head h2{margin:0;font-size:46px;font-weight:700;letter-spacing:-1px;color:var(--text-1);line-height:1.12}
-.cases-list{display:flex;flex-direction:column;gap:0}
-.slash-card{
-  display:block;padding:40px 0;border-bottom:1px solid var(--border);
-  transition:padding-left .3s var(--ease);
-}
-.slash-card:first-child{padding-top:0}
-.slash-card:last-child{border-bottom:0;padding-bottom:0}
-.slash-card:hover{padding-left:12px}
-.slash-card-inner{display:flex;gap:20px;align-items:flex-start}
-.slash-prefix{
-  font-size:clamp(48px,6vw,72px);font-weight:300;line-height:0.85;color:var(--orange);
-  flex-shrink:0;user-select:none;
-}
-.slash-content{flex:1;min-width:0}
-.slash-card h3{margin:0 0 12px;font-size:clamp(20px,2.5vw,26px);font-weight:700;color:var(--text-1);line-height:1.25}
-.slash-meta{font-size:13px;color:var(--text-3);margin:0 0 8px;font-weight:500}
-.slash-metric{font-size:14px;font-weight:700;color:var(--orange);margin:0 0 14px}
-.slash-card p{margin:0 0 16px;font-size:16px;font-weight:400;line-height:1.75;color:var(--text-2)}
-.slash-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
-.slash-chips span{padding:5px 12px;border-radius:999px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);font-size:11px;font-weight:500;color:var(--text-2)}
-.slash-link{font-size:14px;font-weight:600;color:var(--blue-light);display:inline-flex;align-items:center;gap:6px;transition:gap .2s}
-.slash-card:hover .slash-link{gap:10px;color:var(--orange)}
-
-/* CTA */
-.cta{background:transparent;padding:var(--section-y) var(--pad-x)}
-.cta-grid{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:start}
-.cta-headline{
-  margin:0 0 20px;font-size:46px;font-weight:800;line-height:1.12;
-  letter-spacing:-1px;color:var(--text-1);
-}
-.cta-headline em{font-style:normal;color:var(--orange)}
-.cta-left>p{margin:0;font-size:18px;font-weight:300;line-height:1.8;color:var(--text-2);max-width:640px}
-.cta-contacts{display:flex;flex-direction:column;gap:12px;margin-top:32px}
-.cta-contacts a{display:inline-flex;align-items:center;gap:10px;font-size:15px;font-weight:500;color:var(--text-2);transition:color .24s}
-.cta-contacts a:hover{color:var(--text-1)}
-.cta-contacts i{font-size:18px;color:var(--orange)}
-.cta-form{
-  background:rgba(14,26,48,0.75);border:1px solid var(--border);border-radius:16px;padding:36px;
-  box-shadow:var(--card-shadow);
-}
-.cta-form label{display:block;font-size:11px;font-weight:600;color:var(--text-3);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px}
-.cta-form input,.cta-form textarea{
-  width:100%;margin-bottom:18px;padding:13px 16px;border-radius:8px;
-  background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10);color:var(--text-1);
-  transition:border-color .24s,background .24s;
-}
-.cta-form input::placeholder,.cta-form textarea::placeholder{color:var(--text-3)}
-.cta-form input:focus,.cta-form textarea:focus{outline:none;border-color:var(--blue);background:rgba(26,154,214,0.06)}
-.cta-form textarea{min-height:110px;resize:vertical}
-.cta-form button{
-  width:100%;padding:15px;border-radius:8px;background:var(--orange);color:#fff;
-  font-weight:700;font-size:14px;transition:background .2s var(--ease),transform .2s var(--ease);
-  display:inline-flex;align-items:center;justify-content:center;gap:8px;
-}
-.cta-form button:hover{background:var(--orange-dark);transform:translateY(-1px)}
-
-/* Footer */
-.footer{background:rgba(5,11,22,0.85);padding:var(--section-y) var(--pad-x) calc(var(--section-y) * 0.65);border-top:1px solid rgba(255,255,255,0.06);position:relative;z-index:1}
-.footer-inner{max-width:var(--maxw);margin:0 auto}
-.footer-top{display:grid;grid-template-columns:1.2fr 2fr 1fr;gap:32px;padding-bottom:28px}
-.footer-logo{height:clamp(96px,12vw,144px);width:auto;object-fit:contain;mix-blend-mode:screen}
-.footer-tagline{margin:12px 0 0;font-size:13px;font-weight:300;color:rgba(255,255,255,0.4);max-width:240px}
-.footer-cols{display:grid;grid-template-columns:1fr 1fr;gap:32px}
-.footer-col h4{font-size:11px;font-weight:600;color:rgba(255,255,255,0.6);letter-spacing:0.12em;text-transform:uppercase;margin:0 0 14px}
-.footer-col a,.footer-contact a{display:block;font-size:13px;font-weight:400;color:rgba(255,255,255,0.45);padding:4px 0;transition:color .24s}
-.footer-col a:hover,.footer-contact a:hover{color:rgba(255,255,255,0.9)}
-.footer-bottom{
-  padding-top:24px;border-top:1px solid rgba(255,255,255,0.1);
-  display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;
-  font-size:12px;color:rgba(255,255,255,0.35);
-}
-
-@keyframes fadeIn{to{opacity:1}}
-@keyframes fadeUp{to{opacity:1;transform:translateY(0)}}
-@keyframes clipReveal{to{clip-path:inset(0 0 0 0)}}
-
-@media (max-width:1280px){
-  :root{--pad-x:48px;--section-y:64px;--head-gap:36px;--hero-col-gap:48px;--hero-col-text:500px;--hero-frame-w:420px;--hero-frame-h:525px}
-  .section-head h2,.problem h2,.cases-head h2,.cta-headline{font-size:40px}
-  .hero-inner{padding:16px 0 64px}
-}
-@media (max-width:1024px){
-  :root{--pad-x:32px;--section-y:56px;--head-gap:32px;--hero-frame-w:480px;--hero-frame-h:600px;--hero-gap-list:40px}
-  .hero{min-height:auto;padding-top:100px}
-  .hero-inner,.cta-grid{
-    grid-template-columns:1fr;gap:var(--head-gap);
-    max-width:var(--maxw);padding:16px 0 48px;
-  }
-  .hero-left{align-items:flex-start;text-align:left;max-width:none}
-  .hero-top{align-items:flex-start}
-  .hero h1,.hero-sub,.hero-checklist{max-width:none}
-  .hero h1{font-size:clamp(26px,5vw,40px)}
-  .hero-visual{max-width:480px;margin:0 auto;padding:0;order:-1}
-  .hero-frame{width:min(var(--hero-frame-w),100%);height:auto;aspect-ratio:4/5}
-  .feature-grid--3{grid-template-columns:repeat(2,1fr)}
-  .footer-top{grid-template-columns:1fr 1fr;gap:28px}
-  .nav-link{padding:9px 12px;font-size:14px}
-  .nav-cta{padding:11px 20px;font-size:14px}
-  .nav-inner{padding:7px 7px 7px 20px}
-  .brand-logo{height:50px}
-  .section-head h2,.problem h2,.cases-head h2,.cta-headline{font-size:34px}
-}
-@media (max-width:991px){
-  .nav-links{display:none}
-  .nav-cta{display:inline-flex;padding:10px 16px;font-size:14px}
-  .nav-burger{display:inline-flex;width:44px;height:44px;min-width:44px;min-height:44px}
-  .nav{width:calc(100% - 28px)}
-  .nav-inner{padding:6px 6px 6px 14px}
-  .brand-logo{height:46px}
-  .mobile-nav a,.mobile-nav details summary{min-height:48px;padding:16px 0}
-  .mobile-nav .mn-cta{min-height:48px;padding:16px 20px}
-}
-@media (max-width:840px){
-  :root{--pad-x:24px;--section-y:52px;--head-gap:28px;--hero-frame-w:100%;--hero-frame-h:auto;--hero-gap-cta:28px;--hero-gap-list:32px}
-  .nav{width:calc(100% - 24px)}
-  .hero{padding-top:96px;min-height:auto}
-  .hero-inner{padding-bottom:40px;gap:32px}
-  .hero-sub{font-size:15px;line-height:1.55;margin-bottom:var(--hero-gap-cta)}
-  .hero-left{align-items:center;text-align:center}
-  .hero-top{align-items:center;text-align:center}
-  .hero h1,.hero-sub,.hero-checklist{max-width:none}
-  .hero-cta{align-self:center;margin-bottom:var(--hero-gap-list)}
-  .hero-checklist{max-width:100%;align-self:stretch}
-  .hero-checklist li{text-align:left;font-size:14px}
-  .hero-visual{max-width:min(480px,100%);order:-1}
-  .hero-frame{width:100%;max-width:480px;height:auto;aspect-ratio:4/5;margin:0 auto}
-  .eswd-head h2{font-size:28px;letter-spacing:-0.3px}
-  .eswd-section{
-    --eswd-card-w:min(calc(100vw - 40px), 300px);
-    --eswd-card-h:min(380px,calc(100svh - 160px));
-    --eswd-gap:14px;
-  }
-  .eswd-head{margin-bottom:28px}
-  .eswd-card__content{padding:22px 20px 24px}
-  .eswd-card__icon{width:44px;height:44px;margin-bottom:18px}
-  .eswd-card__icon i{font-size:20px}
-  .eswd-card__title{font-size:16px}
-  .eswd-card__desc{font-size:12.5px}
-  .eswd-dots{padding:20px 0 0}
-  .method-wire-wrap{display:none}
-  .method-rows{gap:48px}
-  .method-row,
-  .method-row--reverse{
-    grid-template-columns:1fr;gap:24px;
-  }
-  .method-row--reverse .method-visual,
-  .method-row--reverse .method-copy{order:unset}
-  .method-copy{max-width:none;text-align:center;margin:0 auto}
-  .method-frame{max-width:100%;aspect-ratio:16/11}
-  .method-frame::after{display:none}
-  .section-head h2,.problem h2,.cases-head h2,.cta-headline{font-size:30px;letter-spacing:-0.5px}
-  .footer-top{grid-template-columns:1fr}
-  .footer-cols{grid-template-columns:1fr 1fr}
-  .footer-bottom{flex-direction:column;align-items:flex-start;gap:10px}
-}
-@media (max-width:640px){
-  :root{--pad-x:20px;--section-y:48px;--head-gap:28px}
-  .nav{top:14px;width:calc(100% - 20px)}
-  .brand-logo{height:42px}
-  .section-head h2,.problem h2,.cases-head h2,.cta-headline{font-size:28px}
-  .method-head h2{font-size:28px}
-  .method-copy h3{font-size:22px}
-}
-@media (max-width:480px){
-  :root{--pad-x:20px;--section-y:44px;--head-gap:24px;--hero-gap-list:28px}
-  .hero{padding-top:88px;min-height:auto}
-  .hero-inner{padding:12px 0 var(--section-y);gap:28px}
-  .hero-top{margin-bottom:20px}
-  .hero h1{font-size:clamp(24px,7vw,32px)}
-  .hero-sub{font-size:14px;margin-bottom:24px}
-  .hero-cta{margin-bottom:28px}
-  .btn-pill{font-size:12px;min-height:40px;padding:10px 20px}
-  .hero-checklist{gap:14px}
-  .hero-checklist li{font-size:13px}
-  .hero-frame{border-radius:20px}
-  .section-head h2,.problem h2,.cases-head h2,.cta-headline{font-size:26px}
-  .feature-grid--3,.feature-grid--2{grid-template-columns:1fr}
-  .footer-top{grid-template-columns:1fr}
-  .footer-cols{grid-template-columns:1fr;gap:24px}
-  .footer{padding:calc(var(--section-y) * 0.85) var(--pad-x) calc(var(--section-y) * 0.6)}
-  .cases-head{align-items:flex-start;flex-direction:column}
-  .slash-card-inner{flex-direction:column;gap:8px}
-  .slash-prefix{font-size:40px}
-}
-@media (prefers-reduced-motion:reduce){
-  *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
-  [data-reveal],.feature-block{opacity:1;transform:none}
-  .eswd-runway{height:auto !important}
-  .eswd-section .eswd-pin,
-  .eswd-section .eswd-viewport{height:auto;overflow:visible}
-  .eswd-track{
-    flex-direction:column;width:100%;
-    padding:0 var(--pad-x);gap:16px;transform:none!important;
-  }
-  .eswd-card{flex:none;width:100%;height:auto;min-height:320px}
-  .eswd-dots{display:none}
-  .method-wire-wrap{display:none}
-}
-</style>
+<link rel="stylesheet" href="../css/service-page.css" />
 <link rel="stylesheet" href="../css/tv.css" />
 </head>
 <body>
@@ -959,31 +54,31 @@ main{max-width:100%;overflow-x:clip}
 
 <nav class="nav" id="nav" aria-label="Primary">
   <div class="nav-inner glass-surface">
-    <a href="/" class="brand" aria-label="Digital Hub home">
-      <img class="brand-logo" src="/assets/digital-hub-logo.png" alt="Digital Hub" decoding="async">
+    <a href="../index.html" class="brand" aria-label="Digital Hub home">
+      <img class="brand-logo" src="../assets/digital-hub-logo.png" alt="Digital Hub" decoding="async">
     </a>
     <ul class="nav-links" role="menubar">
       <li class="has-dd" role="none">
         <a class="nav-link is-active" role="menuitem" tabindex="0">Services <i class="ti ti-chevron-down"></i></a>
         <div class="dd" role="menu">
-          <a href="/services/enterprise-software.html" class="is-active"><i class="ti ti-code"></i> Enterprise Software Solutions</a>
-          <a href="/services/data-analytics.html"><i class="ti ti-chart-bar"></i> Data &amp; Analytics Solutions</a>
-          <a href="/services/ai-automation.html"><i class="ti ti-brain"></i> AI &amp; Intelligent Automation</a>
-          <a href="/services/outsourcing.html"><i class="ti ti-users"></i> Outsourcing Technical Talents</a>
+          <a href="enterprise-software.html" class="is-active"><i class="ti ti-code"></i> Enterprise Software Solutions</a>
+          <a href="data-analytics.html"><i class="ti ti-chart-bar"></i> Data &amp; Analytics Solutions</a>
+          <a href="ai-automation.html"><i class="ti ti-brain"></i> AI &amp; Intelligent Automation</a>
+          <a href="outsourcing.html"><i class="ti ti-users"></i> Outsourcing Technical Talents</a>
         </div>
       </li>
       <li class="has-dd" role="none">
         <a class="nav-link" role="menuitem" tabindex="0">Partners <i class="ti ti-chevron-down"></i></a>
         <div class="dd" role="menu">
-          <a href="/#partners"><i class="ti ti-brand-windows"></i> Microsoft</a>
-          <a href="/#partners"><i class="ti ti-device-desktop-analytics"></i> Nexthink</a>
-          <a href="/#partners"><i class="ti ti-brand-aws"></i> AWS</a>
+          <a href="../index.html#partners"><i class="ti ti-brand-windows"></i> Microsoft</a>
+          <a href="../index.html#partners"><i class="ti ti-device-desktop-analytics"></i> Nexthink</a>
+          <a href="../index.html#partners"><i class="ti ti-brand-aws"></i> AWS</a>
         </div>
       </li>
-      <li><a class="nav-link" href="/#cases">Case Studies</a></li>
-      <li><a class="nav-link" href="/#blogs">Blogs</a></li>
-      <li><a class="nav-link" href="/#about">About Us</a></li>
-      <li><a class="nav-link" href="/#careers">Careers</a></li>
+      <li><a class="nav-link" href="../index.html#cases">Case Studies</a></li>
+      <li><a class="nav-link" href="../index.html#blogs">Blogs</a></li>
+      <li><a class="nav-link" href="../about-us.html">About Us</a></li>
+      <li><a class="nav-link" href="../index.html#careers">Careers</a></li>
     </ul>
     <a class="nav-cta" href="#contact">Get in touch <i class="ti ti-arrow-right"></i></a>
     <button class="nav-burger" id="navBurger" aria-label="Open menu" aria-expanded="false"><i class="ti ti-menu-2"></i></button>
@@ -994,29 +89,29 @@ main{max-width:100%;overflow-x:clip}
   <details open>
     <summary>Services <i class="ti ti-chevron-down"></i></summary>
     <div class="sub">
-      <a href="/services/enterprise-software.html">Enterprise Software Solutions</a>
-      <a href="/services/data-analytics.html">Data &amp; Analytics Solutions</a>
-      <a href="/services/ai-automation.html">AI &amp; Intelligent Automation</a>
-      <a href="/services/outsourcing.html">Outsourcing Technical Talents</a>
+      <a href="enterprise-software.html">Enterprise Software Solutions</a>
+      <a href="data-analytics.html">Data &amp; Analytics Solutions</a>
+      <a href="ai-automation.html">AI &amp; Intelligent Automation</a>
+      <a href="outsourcing.html">Outsourcing Technical Talents</a>
     </div>
   </details>
   <details>
     <summary>Partners <i class="ti ti-chevron-down"></i></summary>
     <div class="sub">
-      <a href="/#partners">Microsoft</a>
-      <a href="/#partners">Nexthink</a>
-      <a href="/#partners">AWS</a>
+      <a href="../index.html#partners">Microsoft</a>
+      <a href="../index.html#partners">Nexthink</a>
+      <a href="../index.html#partners">AWS</a>
     </div>
   </details>
-  <a href="/#cases">Case Studies</a>
-  <a href="/#blogs">Blogs</a>
-  <a href="/#about">About Us</a>
-  <a href="/#careers">Careers</a>
+  <a href="../index.html#cases">Case Studies</a>
+  <a href="../index.html#blogs">Blogs</a>
+  <a href="../about-us.html">About Us</a>
+  <a href="../index.html#careers">Careers</a>
   <a class="mn-cta" href="#contact">Get in Touch</a>
 </div>
 
 <main>
-  <!-- SECTION 1 — HERO -->
+  <!-- SECTION 1 â€” HERO -->
   <section class="hero" id="top">
     <div class="hero-inner">
       <div class="hero-left">
@@ -1052,16 +147,94 @@ main{max-width:100%;overflow-x:clip}
     </div>
   </section>
 
-  <!-- SECTION 2 — OVERVIEW -->
+  <!-- SECTION 2 â€” THE PROBLEM -->
   <section class="problem" id="problem">
     <div class="container problem-inner">
-      <div data-reveal>
+      <header class="problem-lead" data-reveal>
         <span class="label">The problem we solve</span>
         <h2>Your systems were built for a different problem.</h2>
-        <p>Most Egyptian and Gulf enterprises are running on software that was implemented to solve yesterday&rsquo;s problem. It doesn&rsquo;t integrate with newer systems. It can&rsquo;t support the <a href="#services" class="accent">data flows that AI requires</a>. And every workaround built around it adds cost and fragility.</p>
-        <p>The result is organizations where IT is constantly catching up to the business &mdash; not enabling it. Teams build shadow solutions in Excel. Approvals are done by email. Data sits in silos that nobody can connect.</p>
-        <p>We fix this by building software that is designed around your operations from the start &mdash; not retrofitted to them after the fact.</p>
-        <blockquote class="problem-pullquote">
+        <p>Most Egyptian and Gulf enterprises are running on software that was implemented to solve yesterday&rsquo;s problem. Data stalls between legacy ERP, email, and Excel &mdash; and never reaches the <a href="#services" class="accent">real-time flows that AI requires</a>.</p>
+      </header>
+
+      <div class="problem-pipeline" id="problemPipeline" aria-label="Illustration: broken enterprise data pipeline">
+        <div class="pp-canvas">
+          <div class="pp-head">
+            <span class="pp-head__dot" aria-hidden="true"></span>
+            Pipeline Audit
+            <span class="pp-head__status" id="problemPipelineStatus">3 critical break points</span>
+          </div>
+
+          <div class="pp-track" aria-hidden="true">
+            <div class="pp-node pp-node--source">
+              <div class="pp-node__icon"><i class="ti ti-database-import"></i></div>
+              <span class="pp-node__label">Source Data</span>
+            </div>
+
+            <div class="pp-conn pp-conn--broken">
+              <div class="pp-conn__line"></div>
+              <div class="pp-conn__break pp-conn__break--1" data-break="1">&#x2715;</div>
+            </div>
+
+            <div class="pp-node pp-node--legacy">
+              <div class="pp-node__icon"><i class="ti ti-server-2"></i></div>
+              <span class="pp-node__label">Legacy ERP</span>
+            </div>
+
+            <div class="pp-conn pp-conn--broken">
+              <div class="pp-conn__line"></div>
+              <div class="pp-conn__break pp-conn__break--2" data-break="2">&#x2715;</div>
+            </div>
+
+            <div class="pp-node pp-node--silo">
+              <div class="pp-node__icon"><i class="ti ti-mail"></i></div>
+              <span class="pp-node__label">Email / Excel</span>
+            </div>
+
+            <div class="pp-conn pp-conn--broken">
+              <div class="pp-conn__line"></div>
+              <div class="pp-conn__break pp-conn__break--3" data-break="3">&#x2715;</div>
+            </div>
+
+            <div class="pp-node pp-node--ai">
+              <div class="pp-node__icon"><i class="ti ti-brain"></i></div>
+              <span class="pp-node__label">AI Platform</span>
+            </div>
+          </div>
+
+          <div class="pp-annotations">
+            <article class="pp-card pp-card--1" data-break="1">
+              <div class="pp-card__icon" aria-hidden="true"><i class="ti ti-unlink"></i></div>
+              <div class="pp-card__body">
+                <h3>Systems that don&rsquo;t integrate</h3>
+                <p>Legacy platforms never connected &mdash; every bridge is a custom workaround that adds cost and fragility.</p>
+              </div>
+            </article>
+
+            <article class="pp-card pp-card--2" data-break="2">
+              <div class="pp-card__icon" aria-hidden="true"><i class="ti ti-brain"></i></div>
+              <div class="pp-card__body">
+                <h3>Not built for AI-era data flows</h3>
+                <p>Pre-AI architecture can&rsquo;t support the real-time pipelines modern intelligence requires.</p>
+              </div>
+            </article>
+
+            <article class="pp-card pp-card--3" data-break="3">
+              <div class="pp-card__icon" aria-hidden="true"><i class="ti ti-layers-off"></i></div>
+              <div class="pp-card__body">
+                <h3>Shadow IT &amp; broken workflows</h3>
+                <p>Teams patch gaps in Excel. Approvals stall in email. Data sits in silos nobody can connect.</p>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-bottom" data-reveal>
+        <div class="problem-bottom__copy">
+          <p>The result is organizations where IT is constantly catching up to the business &mdash; not enabling it.</p>
+          <p>We fix this by building software that is designed around your operations from the start &mdash; not retrofitted to them after the fact.</p>
+        </div>
+        <blockquote class="problem-quote">
           <p>&ldquo;We don&rsquo;t hand you a roadmap and wish you luck. We build what&rsquo;s on it, then we stay.&rdquo;</p>
           <cite>Digital Hub &middot; Enterprise Software Team</cite>
         </blockquote>
@@ -1069,100 +242,200 @@ main{max-width:100%;overflow-x:clip}
     </div>
   </section>
 
-  <!-- SECTION 3 — SUB-SERVICES (horizontal scroll carousel) -->
+  <!-- SECTION 3 â€” WHAT WE DELIVER (Jisr-style suite grid) -->
   <section class="eswd-section" id="services" data-section-reveal>
-    <header class="eswd-head" data-reveal>
-      <span class="label">What we deliver</span>
-      <h2>Enterprise Software Solutions</h2>
-      <p>We build secure, scalable, and integration-ready digital platforms that power complex operations and accelerate enterprise transformation.</p>
-    </header>
+    <div class="eswd-inner">
+      <header class="eswd-head" data-reveal>
+        <span class="label">What we deliver</span>
+        <h2 class="eswd-head__title">
+          <span class="eswd-head__line1">Dive into</span>
+          <span class="eswd-head__line2">Enterprise Software Solutions</span>
+        </h2>
+        <p>We build secure, scalable, and integration-ready digital platforms that power complex operations and accelerate enterprise transformation.</p>
+      </header>
 
-    <div class="eswd-runway" id="eswdScroll">
-      <div class="eswd-pin" id="eswdPin">
-        <div class="eswd-viewport">
-          <div class="eswd-track" id="eswdTrack">
+      <div class="eswd-deck" id="eswdDeck">
+        <div class="eswd-deck__progress" aria-hidden="true">
+          <span class="eswd-deck__progress-label">
+            <strong id="eswdSceneNum">01</strong>
+            <em>/</em>
+            <span>04</span>
+          </span>
+          <span class="eswd-deck__progress-track">
+            <span class="eswd-deck__progress-bar" id="eswdProgressBar"></span>
+          </span>
+          <span class="eswd-deck__progress-label" id="eswdSceneName">Enterprise applications</span>
+        </div>
 
-          <article class="eswd-card">
-            <div class="eswd-card__glow" aria-hidden="true"></div>
-            <div class="eswd-card__content">
-              <div class="eswd-card__icon" aria-hidden="true"><i class="ti ti-apps"></i></div>
-              <h3 class="eswd-card__title">Custom Enterprise Applications</h3>
-              <p class="eswd-card__desc">Tailored business applications designed to digitize operations, enforce governance, and support mission-critical workflows.</p>
+        <div class="eswd-stage" id="eswdStage" aria-hidden="true">
+          <span class="eswd-stage__glow" id="eswdStageGlow"></span>
+
+          <div class="eswd-scene eswd-scene--apps eswd-scene--blue is-active" data-scene="0">
+            <span class="eswd-scene__label">Enterprise applications</span>
+            <div class="eswd-scene__mock">
+              <div class="eswd-mock-bar">
+                <i></i><i></i><i></i>
+                <span class="eswd-mock-bar__crumbs"><span>Workspace</span><span>Operations</span><span>Approvals</span></span>
+              </div>
+              <div class="eswd-mock-layout">
+                <div class="eswd-mock-aside">
+                  <div class="eswd-mock-aside__brand"></div>
+                  <div class="eswd-mock-aside__item is-active"></div>
+                  <div class="eswd-mock-aside__item"></div>
+                  <div class="eswd-mock-aside__item"></div>
+                  <div class="eswd-mock-aside__item"></div>
+                </div>
+                <div class="eswd-mock-main">
+                  <div class="eswd-mock-main__head">
+                    <span class="eswd-mock-main__title"></span>
+                    <span class="eswd-mock-main__chip"></span>
+                  </div>
+                  <div class="eswd-mock-grid">
+                    <div class="eswd-mock-grid__tile"><span></span><strong>1,284</strong></div>
+                    <div class="eswd-mock-grid__tile"><span></span><strong>97%</strong></div>
+                    <div class="eswd-mock-grid__tile"><span></span><strong>42</strong></div>
+                    <div class="eswd-mock-grid__tile"><span></span><strong>$8.4M</strong></div>
+                    <div class="eswd-mock-grid__tile"><span></span><strong>312</strong></div>
+                    <div class="eswd-mock-grid__tile"><span></span><strong>0.4s</strong></div>
+                  </div>
+                </div>
+              </div>
             </div>
-          </article>
+          </div>
 
-          <article class="eswd-card">
-            <div class="eswd-card__glow" aria-hidden="true"></div>
-            <div class="eswd-card__content">
-              <div class="eswd-card__icon" aria-hidden="true"><i class="ti ti-layout-grid"></i></div>
-              <h3 class="eswd-card__title">Web Portals &amp; Digital Service Platforms</h3>
-              <p class="eswd-card__desc">High-performance portals that deliver seamless digital services to citizens, customers, employees, and stakeholders.</p>
+          <div class="eswd-scene eswd-scene--portal eswd-scene--cyan" data-scene="1">
+            <span class="eswd-scene__label">Digital portals &amp; platforms</span>
+            <div class="eswd-scene__mock">
+              <div class="eswd-mock-browser">
+                <div class="eswd-mock-browser__dots"><span></span><span></span><span></span></div>
+                <div class="eswd-mock-browser__url">portal.your-organization.gov</div>
+              </div>
+              <div class="eswd-mock-portal">
+                <div class="eswd-mock-portal__hero">
+                  <strong></strong>
+                  <span></span>
+                  <em></em>
+                </div>
+                <div class="eswd-mock-portal__cols">
+                  <div class="eswd-mock-portal__card"><span></span><span></span><span></span></div>
+                  <div class="eswd-mock-portal__card"><span></span><span></span><span></span></div>
+                  <div class="eswd-mock-portal__card"><span></span><span></span><span></span></div>
+                </div>
+              </div>
             </div>
-          </article>
+          </div>
 
-          <article class="eswd-card eswd-card--orange">
-            <div class="eswd-card__glow" aria-hidden="true"></div>
-            <div class="eswd-card__content">
-              <div class="eswd-card__icon" aria-hidden="true"><i class="ti ti-device-mobile"></i></div>
-              <h3 class="eswd-card__title">Mobile &amp; Workforce Applications</h3>
-              <p class="eswd-card__desc">Mobile-first solutions that enable teams to operate, approve, report, and collaborate securely from anywhere.</p>
+          <div class="eswd-scene eswd-scene--integration eswd-scene--orange" data-scene="2">
+            <span class="eswd-scene__label">Integration &amp; automation</span>
+            <div class="eswd-scene__mock">
+              <div class="eswd-mock-network">
+                <svg class="eswd-mock-network__svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                  <path d="M 18 18 L 50 50"/>
+                  <path d="M 82 18 L 50 50"/>
+                  <path d="M 18 82 L 50 50"/>
+                  <path d="M 82 82 L 50 50"/>
+                </svg>
+                <div class="eswd-mock-node eswd-mock-node--1">ERP<small>SAP</small></div>
+                <div class="eswd-mock-node eswd-mock-node--2">CRM<small>Dynamics</small></div>
+                <div class="eswd-mock-node eswd-mock-node--3">DB<small>Oracle</small></div>
+                <div class="eswd-mock-node eswd-mock-node--4">API<small>REST</small></div>
+                <div class="eswd-mock-hub"></div>
+              </div>
             </div>
-          </article>
+          </div>
 
-          <article class="eswd-card">
-            <div class="eswd-card__glow" aria-hidden="true"></div>
-            <div class="eswd-card__content">
-              <div class="eswd-card__icon" aria-hidden="true"><i class="ti ti-git-branch"></i></div>
-              <h3 class="eswd-card__title">Workflow Automation &amp; Case Management</h3>
-              <p class="eswd-card__desc">Smart workflow systems that eliminate manual bottlenecks, accelerate approvals, and bring full visibility to business processes.</p>
+          <div class="eswd-scene eswd-scene--modern eswd-scene--teal" data-scene="3">
+            <span class="eswd-scene__label">Modernization &amp; delivery</span>
+            <div class="eswd-scene__mock">
+              <div class="eswd-mock-transform">
+                <div class="eswd-mock-legacy">
+                  <div class="eswd-mock-legacy__label">Legacy system</div>
+                  <div class="eswd-mock-legacy__rows">
+                    <code></code><code></code><code></code><code></code><code></code><code></code>
+                  </div>
+                </div>
+                <div class="eswd-mock-arrow" aria-hidden="true"></div>
+                <div class="eswd-mock-cloud">
+                  <div class="eswd-mock-cloud__label">Cloud-ready platform</div>
+                  <div class="eswd-mock-cloud__icon"></div>
+                  <div class="eswd-mock-cloud__chips">
+                    <span>Azure</span><span>AWS</span><span>Kubernetes</span><span>CI/CD</span>
+                  </div>
+                </div>
+              </div>
+              <div class="eswd-mock-pipeline">
+                <span class="eswd-mock-pipeline__label">Pipeline</span>
+                <div class="eswd-mock-pipeline__step"></div>
+                <div class="eswd-mock-pipeline__step"></div>
+                <div class="eswd-mock-pipeline__step"></div>
+                <div class="eswd-mock-pipeline__step"></div>
+              </div>
             </div>
-          </article>
-
-          <article class="eswd-card eswd-card--teal">
-            <div class="eswd-card__glow" aria-hidden="true"></div>
-            <div class="eswd-card__content">
-              <div class="eswd-card__icon" aria-hidden="true"><i class="ti ti-plug-connected"></i></div>
-              <h3 class="eswd-card__title">System Integration &amp; APIs</h3>
-              <p class="eswd-card__desc">Robust integration layers that connect legacy systems, databases, platforms, and third-party services into one unified ecosystem.</p>
-            </div>
-          </article>
-
-          <article class="eswd-card eswd-card--orange">
-            <div class="eswd-card__glow" aria-hidden="true"></div>
-            <div class="eswd-card__content">
-              <div class="eswd-card__icon" aria-hidden="true"><i class="ti ti-refresh"></i></div>
-              <h3 class="eswd-card__title">Legacy Modernization</h3>
-              <p class="eswd-card__desc">Modernization of outdated systems into secure, scalable, cloud-ready platforms built for long-term agility.</p>
-            </div>
-          </article>
-
-          <article class="eswd-card eswd-card--teal">
-            <div class="eswd-card__glow" aria-hidden="true"></div>
-            <div class="eswd-card__content">
-              <div class="eswd-card__icon" aria-hidden="true"><i class="ti ti-shield-check"></i></div>
-              <h3 class="eswd-card__title">DevOps, QA &amp; Application Support</h3>
-              <p class="eswd-card__desc">End-to-end delivery assurance covering automation, testing, deployment, monitoring, and continuous platform enhancement.</p>
-            </div>
-          </article>
-
-          <div class="eswd-track-end" aria-hidden="true"></div>
           </div>
         </div>
-      </div>
-    </div>
 
-    <div class="eswd-dots" id="eswdDots" aria-hidden="true">
-      <span class="eswd-dot is-active"></span>
-      <span class="eswd-dot"></span>
-      <span class="eswd-dot"></span>
-      <span class="eswd-dot"></span>
-      <span class="eswd-dot"></span>
-      <span class="eswd-dot"></span>
-      <span class="eswd-dot"></span>
+        <nav class="eswd-menu" id="eswdMenu" aria-label="Suite navigation">
+          <button type="button" class="eswd-menu__item is-active" data-target="0">
+            <span class="eswd-menu__num">01</span>
+            <span class="eswd-menu__title">Enterprise applications</span>
+            <div class="eswd-menu__panel"><div>
+              <p class="eswd-menu__desc">Custom business applications built around how your teams actually work &mdash; mission-critical, governance-aware, and engineered for scale.</p>
+              <ul class="eswd-menu__list">
+                <li><i class="ti ti-apps" aria-hidden="true"></i> Custom enterprise applications</li>
+                <li><i class="ti ti-device-mobile" aria-hidden="true"></i> Mobile &amp; workforce apps</li>
+                <li><i class="ti ti-checklist" aria-hidden="true"></i> Mission-critical workflow systems</li>
+              </ul>
+            </div></div>
+            <span class="eswd-menu__line"></span>
+          </button>
+
+          <button type="button" class="eswd-menu__item" data-target="1">
+            <span class="eswd-menu__num">02</span>
+            <span class="eswd-menu__title">Digital portals &amp; platforms</span>
+            <div class="eswd-menu__panel"><div>
+              <p class="eswd-menu__desc">High-performance portals that deliver seamless digital services to citizens, customers, and stakeholders &mdash; with the polish of a consumer product.</p>
+              <ul class="eswd-menu__list">
+                <li><i class="ti ti-layout-grid" aria-hidden="true"></i> Web portals &amp; service platforms</li>
+                <li><i class="ti ti-users" aria-hidden="true"></i> Citizen &amp; customer experiences</li>
+                <li><i class="ti ti-bolt" aria-hidden="true"></i> High-performance digital delivery</li>
+              </ul>
+            </div></div>
+            <span class="eswd-menu__line"></span>
+          </button>
+
+          <button type="button" class="eswd-menu__item" data-target="2">
+            <span class="eswd-menu__num">03</span>
+            <span class="eswd-menu__title">Integration &amp; automation</span>
+            <div class="eswd-menu__panel"><div>
+              <p class="eswd-menu__desc">Robust integration layers that connect legacy systems, databases, and third-party services into one unified ecosystem &mdash; with workflow automation on top.</p>
+              <ul class="eswd-menu__list">
+                <li><i class="ti ti-plug-connected" aria-hidden="true"></i> System integration &amp; APIs</li>
+                <li><i class="ti ti-git-branch" aria-hidden="true"></i> Workflow automation &amp; case management</li>
+                <li><i class="ti ti-network" aria-hidden="true"></i> Unified ecosystem connectivity</li>
+              </ul>
+            </div></div>
+            <span class="eswd-menu__line"></span>
+          </button>
+
+          <button type="button" class="eswd-menu__item" data-target="3">
+            <span class="eswd-menu__num">04</span>
+            <span class="eswd-menu__title">Modernization &amp; delivery</span>
+            <div class="eswd-menu__panel"><div>
+              <p class="eswd-menu__desc">Legacy modernization, DevOps, QA, and application support &mdash; transforming outdated systems into cloud-ready platforms built for long-term agility.</p>
+              <ul class="eswd-menu__list">
+                <li><i class="ti ti-refresh" aria-hidden="true"></i> Legacy modernization</li>
+                <li><i class="ti ti-shield-check" aria-hidden="true"></i> DevOps, QA &amp; application support</li>
+                <li><i class="ti ti-cloud" aria-hidden="true"></i> Cloud-ready platform operations</li>
+              </ul>
+            </div></div>
+            <span class="eswd-menu__line"></span>
+          </button>
+        </nav>
+      </div>
     </div>
   </section>
 
-  <!-- SECTION 4 — HOW WE WORK -->
+  <!-- SECTION 4 â€” HOW WE WORK -->
   <section class="method" id="method">
     <div class="method-inner">
       <header class="method-head" data-reveal>
@@ -1171,9 +444,9 @@ main{max-width:100%;overflow-x:clip}
         <p>Every engagement follows the same structured delivery model. You know what&rsquo;s happening at every stage.</p>
       </header>
 
-      <div class="method-stage">
+      <div class="method-rows" id="methodRows">
         <div class="method-wire-wrap" aria-hidden="true">
-          <svg class="method-wire" id="methodWire" preserveAspectRatio="none">
+          <svg class="method-wire" id="methodWire" preserveAspectRatio="xMidYMid meet">
             <defs>
               <linearGradient id="methodWireGrad" x1="0%" y1="0%" x2="0%" y2="100%">
                 <stop offset="0%" stop-color="#F4970B"/>
@@ -1181,14 +454,14 @@ main{max-width:100%;overflow-x:clip}
                 <stop offset="100%" stop-color="#36B0E5"/>
               </linearGradient>
               <filter id="methodWireGlow" x="-20%" y="-20%" width="140%" height="140%">
-                <feGaussianBlur stdDeviation="2.5" result="blur"/>
+                <feGaussianBlur stdDeviation="1.5" result="blur"/>
                 <feMerge>
                   <feMergeNode in="blur"/>
                   <feMergeNode in="SourceGraphic"/>
                 </feMerge>
               </filter>
               <filter id="methodWireDotGlow" x="-100%" y="-100%" width="300%" height="300%">
-                <feGaussianBlur stdDeviation="4" result="blur"/>
+                <feGaussianBlur stdDeviation="3" result="blur"/>
                 <feMerge>
                   <feMergeNode in="blur"/>
                   <feMergeNode in="SourceGraphic"/>
@@ -1197,20 +470,23 @@ main{max-width:100%;overflow-x:clip}
             </defs>
             <path class="method-wire__bg" id="methodWireBg"/>
             <path class="method-wire__line" id="methodWireLine"/>
-            <circle class="method-wire__dot" id="methodWireDot" r="5"/>
+            <g class="method-wire__nodes" id="methodWireNodes"></g>
+            <circle class="method-wire__dot" id="methodWireDot" r="4.5"/>
           </svg>
         </div>
 
-      <div class="method-rows" id="methodRows">
         <article class="method-row" data-reveal data-stagger>
           <div class="method-visual" aria-hidden="true">
             <div class="method-frame">
-              <span class="method-frame__num">01</span>
               <i class="ti ti-compass"></i>
             </div>
           </div>
+          <div class="method-spine-node" aria-hidden="true">1</div>
           <div class="method-copy">
-            <h3>Discover &amp; Define</h3>
+            <div class="method-copy__head">
+              <span class="method-step-num" aria-hidden="true">1</span>
+              <h3>Discover &amp; Define</h3>
+            </div>
             <p>We map your current processes, identify the pain points, and define the outcome we&rsquo;re building toward. No assumptions. We sit with your teams until we understand what done looks like.</p>
           </div>
         </article>
@@ -1218,12 +494,15 @@ main{max-width:100%;overflow-x:clip}
         <article class="method-row method-row--reverse method-row--orange" data-reveal data-stagger>
           <div class="method-visual" aria-hidden="true">
             <div class="method-frame">
-              <span class="method-frame__num">02</span>
               <i class="ti ti-ruler-2"></i>
             </div>
           </div>
+          <div class="method-spine-node" aria-hidden="true">2</div>
           <div class="method-copy">
-            <h3>Architect &amp; Design</h3>
+            <div class="method-copy__head">
+              <span class="method-step-num" aria-hidden="true">2</span>
+              <h3>Architect &amp; Design</h3>
+            </div>
             <p>We design the solution architecture, data model, and user experience before writing a line of code. You see and approve how the system works before it&rsquo;s built. Changes here are free.</p>
           </div>
         </article>
@@ -1231,12 +510,15 @@ main{max-width:100%;overflow-x:clip}
         <article class="method-row method-row--teal" data-reveal data-stagger>
           <div class="method-visual" aria-hidden="true">
             <div class="method-frame">
-              <span class="method-frame__num">03</span>
               <i class="ti ti-code"></i>
             </div>
           </div>
+          <div class="method-spine-node" aria-hidden="true">3</div>
           <div class="method-copy">
-            <h3>Build &amp; Integrate</h3>
+            <div class="method-copy__head">
+              <span class="method-step-num" aria-hidden="true">3</span>
+              <h3>Build &amp; Integrate</h3>
+            </div>
             <p>We develop in iterative sprints with regular demos. Every two weeks you see working software, not status reports. Integration with existing systems happens in parallel &mdash; not as an afterthought.</p>
           </div>
         </article>
@@ -1244,21 +526,23 @@ main{max-width:100%;overflow-x:clip}
         <article class="method-row method-row--reverse" data-reveal data-stagger>
           <div class="method-visual" aria-hidden="true">
             <div class="method-frame">
-              <span class="method-frame__num">04</span>
               <i class="ti ti-rocket"></i>
             </div>
           </div>
+          <div class="method-spine-node" aria-hidden="true">4</div>
           <div class="method-copy">
-            <h3>Deploy, Support &amp; Improve</h3>
+            <div class="method-copy__head">
+              <span class="method-step-num" aria-hidden="true">4</span>
+              <h3>Deploy, Support &amp; Improve</h3>
+            </div>
             <p>We manage production deployment, run UAT with your team, and stay on after go-live. Performance is monitored. Bugs are fixed. Enhancements planned against a shared roadmap.</p>
           </div>
         </article>
       </div>
-      </div>
     </div>
   </section>
 
-  <!-- SECTION 5 — WHO IT'S FOR -->
+  <!-- SECTION 5 â€” WHO IT'S FOR -->
   <section class="industries" id="industries">
     <div class="container">
       <header class="section-head" data-reveal>
@@ -1301,7 +585,7 @@ main{max-width:100%;overflow-x:clip}
     </div>
   </section>
 
-  <!-- SECTION 6 — CASE STUDIES -->
+  <!-- SECTION 6 â€” CASE STUDIES -->
   <section class="cases" id="cases">
     <div class="container">
       <div class="cases-head">
@@ -1309,10 +593,10 @@ main{max-width:100%;overflow-x:clip}
           <span class="label">Case studies</span>
           <h2>Proof we&rsquo;ve done this before.</h2>
         </div>
-        <a class="btn-link" href="/cases/index.html" data-reveal>View all case studies</a>
+        <a class="btn-link" href="../cases/index.html" data-reveal>View all case studies</a>
       </div>
       <div class="cases-list">
-        <a class="slash-card" href="/cases/ministry-planning.html" data-reveal>
+        <a class="slash-card" href="../cases/ministry-planning.html" data-reveal>
           <div class="slash-card-inner">
             <span class="slash-prefix" aria-hidden="true">/</span>
             <div class="slash-content">
@@ -1327,7 +611,7 @@ main{max-width:100%;overflow-x:clip}
             </div>
           </div>
         </a>
-        <a class="slash-card" href="/cases/data-center-transformation.html" data-reveal>
+        <a class="slash-card" href="../cases/data-center-transformation.html" data-reveal>
           <div class="slash-card-inner">
             <span class="slash-prefix" aria-hidden="true">/</span>
             <div class="slash-content">
@@ -1346,7 +630,7 @@ main{max-width:100%;overflow-x:clip}
     </div>
   </section>
 
-  <!-- SECTION 7 — CTA -->
+  <!-- SECTION 7 â€” CTA -->
   <section class="cta" id="contact">
     <div class="container cta-grid">
       <div class="cta-left" data-reveal>
@@ -1379,24 +663,24 @@ main{max-width:100%;overflow-x:clip}
   <div class="footer-inner">
     <div class="footer-top">
       <div>
-        <img class="footer-logo" src="/assets/digital-hub-logo.png" alt="Digital Hub" decoding="async">
+        <img class="footer-logo" src="../assets/digital-hub-logo.png" alt="Digital Hub" decoding="async">
         <p class="footer-tagline">Empowering Digital Evolution &mdash; Egypt &amp; GCC</p>
       </div>
       <div class="footer-cols">
         <div class="footer-col">
           <h4>Services</h4>
-          <a href="/services/enterprise-software.html">Enterprise Software</a>
-          <a href="/services/data-analytics.html">Data &amp; Analytics</a>
-          <a href="/services/ai-automation.html">AI &amp; Automation</a>
-          <a href="/services/outsourcing.html">Outsourcing</a>
+          <a href="enterprise-software.html">Enterprise Software</a>
+          <a href="data-analytics.html">Data &amp; Analytics</a>
+          <a href="ai-automation.html">AI &amp; Automation</a>
+          <a href="outsourcing.html">Outsourcing</a>
         </div>
         <div class="footer-col">
           <h4>Company</h4>
-          <a href="/#about">About Us</a>
-          <a href="/#cases">Case Studies</a>
-          <a href="/#blogs">Blogs</a>
-          <a href="/#partners">Partners</a>
-          <a href="/#contact">Contact</a>
+          <a href="../about-us.html">About Us</a>
+          <a href="../index.html#cases">Case Studies</a>
+          <a href="../index.html#blogs">Blogs</a>
+          <a href="../index.html#partners">Partners</a>
+          <a href="../index.html#contact">Contact</a>
         </div>
       </div>
       <div class="footer-contact">
@@ -1411,409 +695,10 @@ main{max-width:100%;overflow-x:clip}
     </div>
   </div>
 </footer>
-
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/studio-freight/lenis@1.0.23/bundled/lenis.min.js"></script>
-<script>
-(function(){
-  var nav = document.getElementById('nav');
-  var burger = document.getElementById('navBurger');
-  var mobileNav = document.getElementById('mobileNav');
-
-  function onScroll(){
-    nav.classList.toggle('scrolled', window.scrollY > 24);
-  }
-  window.addEventListener('scroll', onScroll, {passive:true});
-  onScroll();
-
-  if(burger && mobileNav){
-    burger.addEventListener('click', function(){
-      var open = mobileNav.classList.toggle('open');
-      burger.setAttribute('aria-expanded', open);
-      mobileNav.setAttribute('aria-hidden', !open);
-      document.body.style.overflow = open ? 'hidden' : '';
-    });
-  }
-
-  document.querySelectorAll('.has-dd').forEach(function(item){
-    var link = item.querySelector('.nav-link');
-    var leaveTimer;
-    function open(){ clearTimeout(leaveTimer); item.classList.add('open'); }
-    function close(){ leaveTimer = setTimeout(function(){ item.classList.remove('open'); }, 120); }
-    if(link){
-      link.addEventListener('mouseenter', open);
-      link.addEventListener('focus', open);
-    }
-    item.addEventListener('mouseleave', close);
-    item.addEventListener('focusout', function(e){
-      if(!item.contains(e.relatedTarget)) close();
-    });
-  });
-
-  var featureBlocks = document.querySelectorAll('[data-feature-block]');
-  if('IntersectionObserver' in window){
-    var fio = new IntersectionObserver(function(entries){
-      entries.forEach(function(entry){
-        if(!entry.isIntersecting) return;
-        var el = entry.target;
-        var idx = Array.prototype.indexOf.call(featureBlocks, el);
-        setTimeout(function(){ el.classList.add('is-visible'); }, idx * 60);
-        fio.unobserve(el);
-      });
-    }, { threshold: 0.1, rootMargin: '0px 0px -5% 0px' });
-    featureBlocks.forEach(function(el){ fio.observe(el); });
-  } else {
-    featureBlocks.forEach(function(el){ el.classList.add('is-visible'); });
-  }
-
-  var revealEls = document.querySelectorAll('[data-reveal]');
-  var staggerIndex = 0;
-  if('IntersectionObserver' in window){
-    var io = new IntersectionObserver(function(entries){
-      entries.forEach(function(entry){
-        if(!entry.isIntersecting) return;
-        var el = entry.target;
-        var delay = el.hasAttribute('data-stagger') ? (staggerIndex++ * 120) : 0;
-        setTimeout(function(){ el.classList.add('in'); }, delay);
-        io.unobserve(el);
-      });
-    }, { threshold: 0.15, rootMargin: '0px 0px -8% 0px' });
-    revealEls.forEach(function(el){ io.observe(el); });
-  } else {
-    revealEls.forEach(function(el){ el.classList.add('in'); });
-  }
-
-  var form = document.getElementById('contactForm');
-  if(form){
-    form.addEventListener('submit', function(e){
-      e.preventDefault();
-      var btn = form.querySelector('button');
-      btn.textContent = 'Thank you — we\'ll respond within one business day';
-      btn.disabled = true;
-    });
-  }
-})();
-</script>
-
-<script>
-/* ============================================================
-   "What we deliver" — horizontal scroll (mirrors homepage #services)
-   Pin + scrub starts when card row center hits viewport center
-   ============================================================ */
-(function(){
-  if (typeof gsap === 'undefined' || typeof ScrollTrigger === 'undefined') return;
-  gsap.registerPlugin(ScrollTrigger);
-
-  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var lenis = null;
-
-  if (!reduceMotion && typeof Lenis !== 'undefined'){
-    lenis = new Lenis({
-      lerp: 0.12,
-      smoothWheel: true,
-      wheelMultiplier: 1,
-      touchMultiplier: 1
-    });
-    window.__lenis = lenis;
-
-    ScrollTrigger.scrollerProxy(document.documentElement, {
-      scrollTop: function(value){
-        if (arguments.length){
-          lenis.scrollTo(value, { immediate: true });
-        }
-        return lenis.scroll;
-      },
-      getBoundingClientRect: function(){
-        return { top: 0, left: 0, width: window.innerWidth, height: window.innerHeight };
-      }
-    });
-
-    lenis.on('scroll', ScrollTrigger.update);
-    gsap.ticker.add(function(time){ lenis.raf(time * 1000); });
-    gsap.ticker.lagSmoothing(0);
-  }
-
-  var eswdScroll   = document.getElementById('eswdScroll');
-  var eswdTrack    = document.getElementById('eswdTrack');
-  var eswdPin      = document.getElementById('eswdPin');
-  var eswdDots     = document.getElementById('eswdDots');
-  if (!eswdScroll || !eswdTrack || !eswdPin) return;
-
-  var eswdViewport = eswdScroll.querySelector('.eswd-viewport');
-  var eswdMM       = gsap.matchMedia();
-  var eswdTween    = null;
-
-  gsap.set(eswdTrack, { x: 0, force3D: true });
-
-  function eswdPadX(){
-    return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pad-x')) || 64;
-  }
-
-  function eswdGetDist(){
-    if (!eswdViewport) return 0;
-    var cards = eswdTrack.querySelectorAll('.eswd-card');
-    if (!cards.length) return 0;
-    void eswdTrack.offsetHeight;
-    var last = cards[cards.length - 1];
-    var pad  = eswdPadX();
-    return Math.max(0, Math.ceil(last.offsetLeft + last.offsetWidth + pad - eswdViewport.clientWidth));
-  }
-
-  function eswdIsMobile(){
-    return window.matchMedia('(max-width: 991px)').matches;
-  }
-
-  function eswdUpdateDots(progress){
-    if (!eswdDots) return;
-    var dots  = eswdDots.querySelectorAll('.eswd-dot');
-    var cards = eswdTrack.querySelectorAll('.eswd-card');
-    if (!dots.length || !cards.length) return;
-    var idx = Math.min(Math.round(progress * (cards.length - 1)), cards.length - 1);
-    dots.forEach(function(d, i){ d.classList.toggle('is-active', i === idx); });
-  }
-
-  function eswdBuildScroll(){
-    var mobile = eswdIsMobile();
-    eswdTween = gsap.to(eswdTrack, {
-      x: function(){ return -eswdGetDist(); },
-      ease: 'none',
-      force3D: true,
-      scrollTrigger: {
-        trigger: eswdPin,
-        start: 'center center',
-        end: function(){ return '+=' + eswdGetDist(); },
-        scrub: mobile ? 0.85 : 0.6,
-        pin: eswdPin,
-        pinSpacing: true,
-        pinType: mobile ? 'fixed' : 'transform',
-        anticipatePin: 1,
-        invalidateOnRefresh: true,
-        onUpdate: function(self){ eswdUpdateDots(self.progress); }
-      }
-    });
-  }
-
-  function eswdTeardown(){
-    if (eswdTween){
-      if (eswdTween.scrollTrigger) eswdTween.scrollTrigger.kill();
-      eswdTween.kill();
-      eswdTween = null;
-    }
-    gsap.set(eswdTrack, { x: 0, clearProps: 'transform' });
-    gsap.set(eswdPin, { clearProps: 'transform,pin' });
-  }
-
-  eswdMM.add('(min-width: 992px) and (prefers-reduced-motion: no-preference)', function(){
-    eswdBuildScroll();
-    return eswdTeardown;
-  });
-
-  eswdMM.add('(max-width: 991px) and (prefers-reduced-motion: no-preference)', function(){
-    eswdBuildScroll();
-    return eswdTeardown;
-  });
-
-  eswdMM.add('(prefers-reduced-motion: reduce)', function(){
-    ScrollTrigger.getAll().forEach(function(st){
-      if (st.trigger === eswdPin) st.kill();
-    });
-    gsap.set(eswdTrack, { x: 0, clearProps: 'transform' });
-    gsap.set(eswdPin, { clearProps: 'transform,pin' });
-    return function(){ gsap.set(eswdTrack, { x: 0, clearProps: 'transform' }); };
-  });
-
-  function eswdRefresh(){
-    ScrollTrigger.refresh(true);
-    if (lenis) lenis.resize();
-  }
-
-  var eswdRefreshTimer;
-  function eswdSchedule(){
-    clearTimeout(eswdRefreshTimer);
-    eswdRefreshTimer = setTimeout(eswdRefresh, 120);
-  }
-
-  window.addEventListener('load', eswdRefresh);
-  window.addEventListener('resize', eswdSchedule);
-  if (document.fonts && document.fonts.ready){
-    document.fonts.ready.then(eswdSchedule);
-  }
-
-  if (window.ResizeObserver && eswdViewport){
-    var eswdRO = new ResizeObserver(eswdSchedule);
-    eswdRO.observe(eswdViewport);
-    eswdRO.observe(eswdTrack);
-  }
-
-  setTimeout(eswdRefresh, 800);
-  setTimeout(eswdRefresh, 2000);
-  setTimeout(eswdRefresh, 3800);
-
-  /* Methodology wire — scroll-drawn path through cards */
-  var methodSection = document.getElementById('method');
-  var methodRows    = document.getElementById('methodRows');
-  var methodWire    = document.getElementById('methodWire');
-  var methodWireLine = document.getElementById('methodWireLine');
-  var methodWireBg   = document.getElementById('methodWireBg');
-  var methodWireDot  = document.getElementById('methodWireDot');
-  var methodWireST   = null;
-  var methodWireLen  = 0;
-
-  function methodFrameBox(row, cRect){
-    var el = row.querySelector('.method-frame');
-    if (!el) return null;
-    var r = el.getBoundingClientRect();
-    return {
-      x: r.left - cRect.left,
-      y: r.top - cRect.top,
-      w: r.width,
-      h: r.height,
-      right: r.right - cRect.left,
-      bottom: r.bottom - cRect.top,
-      cx: r.left - cRect.left + r.width / 2,
-      cy: r.top - cRect.top + r.height / 2
-    };
-  }
-
-  function methodBuildPath(){
-    if (!methodRows || !methodWire || !methodWireLine || !methodWireBg) return 0;
-
-    var rows = methodRows.querySelectorAll('.method-row');
-    if (!rows.length) return 0;
-
-    var cRect = methodRows.getBoundingClientRect();
-    var w = Math.max(cRect.width, 1);
-    var h = Math.max(cRect.height, 1);
-    methodWire.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
-    methodWire.setAttribute('width', w);
-    methodWire.setAttribute('height', h);
-
-    var pad = 16;
-    var midX = w * 0.5;
-    var d = 'M ' + midX + ' 0';
-
-    rows.forEach(function(row, i){
-      var f = methodFrameBox(row, cRect);
-      if (!f) return;
-      var rev = row.classList.contains('method-row--reverse');
-      var topY = f.y + pad;
-      var midGapY = f.bottom + (i < rows.length - 1
-        ? (methodFrameBox(rows[i + 1], cRect).y - f.bottom) * 0.5
-        : 28);
-
-      if (!rev){
-        d += ' C ' + (f.x - 24) + ' ' + Math.max(8, f.y * 0.35);
-        d += ', ' + (f.x + pad) + ' ' + Math.max(4, f.y - 4);
-        d += ', ' + (f.x + pad) + ' ' + topY;
-        d += ' L ' + (f.right - pad) + ' ' + topY;
-        d += ' C ' + (f.right + 36) + ' ' + (f.y + f.h * 0.28);
-        d += ', ' + midX + ' ' + (f.y + f.h * 0.62);
-        d += ', ' + midX + ' ' + midGapY;
-      } else {
-        d += ' C ' + midX + ' ' + Math.max(4, f.y - 6);
-        d += ', ' + (f.right - pad) + ' ' + Math.max(4, f.y - 4);
-        d += ', ' + (f.right - pad) + ' ' + topY;
-        d += ' L ' + (f.x + pad) + ' ' + topY;
-        d += ' C ' + (f.x - 36) + ' ' + (f.y + f.h * 0.28);
-        d += ', ' + midX + ' ' + (f.y + f.h * 0.62);
-        d += ', ' + midX + ' ' + midGapY;
-      }
-    });
-
-    d += ' C ' + midX + ' ' + (h - 18) + ', ' + midX + ' ' + (h - 6) + ', ' + midX + ' ' + h;
-
-    methodWireLine.setAttribute('d', d);
-    methodWireBg.setAttribute('d', d);
-
-    methodWireLen = methodWireLine.getTotalLength();
-    methodWireLine.style.strokeDasharray = methodWireLen;
-    methodWireLine.style.strokeDashoffset = methodWireLen;
-    methodWireBg.style.strokeDasharray = methodWireLen;
-    methodWireBg.style.strokeDashoffset = 0;
-
-    return methodWireLen;
-  }
-
-  function methodWireTeardown(){
-    if (methodWireST){
-      methodWireST.kill();
-      methodWireST = null;
-    }
-    if (methodSection) methodSection.classList.remove('is-wire-active');
-    if (methodWireLine && methodWireLen){
-      methodWireLine.style.strokeDashoffset = methodWireLen;
-    }
-    if (methodWireDot){
-      methodWireDot.setAttribute('cx', 0);
-      methodWireDot.setAttribute('cy', 0);
-    }
-  }
-
-  function methodWireBuild(){
-    methodWireTeardown();
-    if (reduceMotion) return;
-
-    var len = methodBuildPath();
-    if (!len || !methodSection) return;
-
-    methodWireST = ScrollTrigger.create({
-      trigger: methodSection,
-      start: 'top 72%',
-      end: 'bottom 28%',
-      scrub: 0.45,
-      invalidateOnRefresh: true,
-      onEnter: function(){ methodSection.classList.add('is-wire-active'); },
-      onLeave: function(){ methodSection.classList.add('is-wire-active'); },
-      onEnterBack: function(){ methodSection.classList.add('is-wire-active'); },
-      onLeaveBack: function(){
-        methodSection.classList.remove('is-wire-active');
-        if (methodWireLine) methodWireLine.style.strokeDashoffset = methodWireLen;
-        if (methodWireDot){
-          methodWireDot.setAttribute('cx', 0);
-          methodWireDot.setAttribute('cy', 0);
-        }
-      },
-      onUpdate: function(self){
-        var drawn = len * self.progress;
-        methodWireLine.style.strokeDashoffset = len - drawn;
-        if (methodWireDot && drawn > 0){
-          var pt = methodWireLine.getPointAtLength(drawn);
-          methodWireDot.setAttribute('cx', pt.x);
-          methodWireDot.setAttribute('cy', pt.y);
-        }
-      }
-    });
-  }
-
-  var methodWireMM = gsap.matchMedia();
-  methodWireMM.add('(min-width: 841px) and (prefers-reduced-motion: no-preference)', function(){
-    methodWireBuild();
-    return methodWireTeardown;
-  });
-  methodWireMM.add('(max-width: 840px), (prefers-reduced-motion: reduce)', function(){
-    methodWireTeardown();
-  });
-
-  function methodWireRefresh(){
-    if (window.matchMedia('(min-width: 841px) and (prefers-reduced-motion: no-preference)').matches){
-      methodBuildPath();
-      ScrollTrigger.refresh(true);
-    }
-  }
-
-  window.addEventListener('resize', methodWireRefresh);
-  window.addEventListener('load', methodWireRefresh);
-  if (document.fonts && document.fonts.ready){
-    document.fonts.ready.then(methodWireRefresh);
-  }
-  if (window.ResizeObserver && methodRows){
-    var methodRO = new ResizeObserver(methodWireRefresh);
-    methodRO.observe(methodRows);
-  }
-  setTimeout(methodWireRefresh, 900);
-  setTimeout(methodWireRefresh, 2200);
-})();
-</script>
+<script src="../js/service-page.js"></script>
 </body>
 </html>
+

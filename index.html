@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -871,6 +871,7 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
   --svc-nav-offset:100px;
   padding:var(--section-y) 0 0;
   scroll-margin-top:var(--svc-nav-offset);
+  overflow:visible;
 }
 
 @media (max-width:1280px){
@@ -883,7 +884,7 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
 
 @media (min-width:992px){
   .section.services{
-    --svc-card-h:min(480px, max(380px, calc(100svh - 120px)));
+    --svc-card-h:min(420px, calc(100svh - 280px));
   }
 }
 
@@ -926,8 +927,8 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
   color:var(--text-1);
 }
 
-.services-runway{width:100%}
-.services-pin{width:100%;will-change:transform}
+.services-runway{width:100%;overflow:visible}
+.services-pin{width:100%;will-change:transform;overflow:visible}
 .services-viewport{width:100%}
 .services-track{
   display:flex;
@@ -2692,7 +2693,7 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
       </li>
       <li><a class="nav-link" href="#cases">Case Studies</a></li>
       <li><a class="nav-link" href="#blogs">Blogs</a></li>
-      <li><a class="nav-link" href="#about">About Us</a></li>
+      <li><a class="nav-link" href="about-us.html">About Us</a></li>
       <li><a class="nav-link" href="#careers">Careers</a></li>
     </ul>
 
@@ -2727,7 +2728,7 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
   </details>
   <a href="#cases">Case Studies</a>
   <a href="#blogs">Blogs</a>
-  <a href="#about">About Us</a>
+  <a href="about-us.html">About Us</a>
   <a href="#careers">Careers</a>
   <a class="mn-cta" href="#contact">Get in Touch</a>
 </div>
@@ -2811,7 +2812,7 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
   </header>
 
   <div class="services-runway" id="servicesScroll">
-    <div class="services-pin">
+    <div class="services-pin" id="servicesPin">
       <div class="services-viewport">
         <div class="services-track" id="servicesTrack">
 
@@ -3586,7 +3587,7 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
         </div>
         <div class="footer-col">
           <h4>Company</h4>
-          <a href="#about">About Us</a>
+          <a href="about-us.html">About Us</a>
           <a href="#cases">Case Studies</a>
           <a href="#blogs">Blogs</a>
           <a href="#partners">Partners</a>
@@ -3670,6 +3671,24 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
   ---------------------------------------------------------- */
   var navIntroCtrl = { abort: null };
   var introSequenceDone = false;
+  var INTRO_HARD_CAP_MS = 6500;
+
+  function finishHeroEntrance(){
+    if (introSequenceDone) return;
+    introSequenceDone = true;
+    setIntroScrollLock(false);
+    document.body.classList.add('loaded');
+    startLaserType(h1Chars);
+    if (window.ScrollTrigger) ScrollTrigger.refresh();
+  }
+
+  function forceIntroComplete(){
+    if (introSequenceDone) return;
+    applyIntroFinalState();
+    finishHeroEntrance();
+  }
+
+  setTimeout(forceIntroComplete, INTRO_HARD_CAP_MS);
 
   function isPageScrolled(){
     var lenis = window.__lenis;
@@ -3979,16 +3998,15 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
     runNavIntro(
       function(){
         if (introSequenceDone) return;
-        window.__heroGridReveal(function(){
-          if (introSequenceDone) return;
-          introSequenceDone = true;
-          requestAnimationFrame(function(){
-            document.body.classList.add('loaded');
-            setIntroScrollLock(false);
-            startLaserType(h1Chars);
-            if (window.ScrollTrigger) ScrollTrigger.refresh();
-          });
-        });
+        setIntroScrollLock(false);
+        var heroFinished = false;
+        function doneHeroReveal(){
+          if (heroFinished || introSequenceDone) return;
+          heroFinished = true;
+          finishHeroEntrance();
+        }
+        window.__heroGridReveal(doneHeroReveal);
+        setTimeout(doneHeroReveal, 3800);
       },
       applyIntroFinalState
     );
@@ -4569,10 +4587,10 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
 
   var servicesScroll = document.getElementById('servicesScroll');
   var servicesTrack = document.getElementById('servicesTrack');
-  if (!servicesScroll || !servicesTrack) return;
+  var servicesPin = document.getElementById('servicesPin');
+  if (!servicesScroll || !servicesTrack || !servicesPin) return;
 
-  var servicesPin = servicesScroll.querySelector('.services-pin');
-  var servicesViewport = servicesScroll.querySelector('.services-viewport');
+  var servicesViewport = servicesPin.querySelector('.services-viewport');
   var servicesMM = gsap.matchMedia();
   var servicesTween = null;
 
@@ -4596,6 +4614,10 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
     return window.matchMedia('(max-width: 991px)').matches;
   }
 
+  function servicesScrollStart(){
+    return 'center center';
+  }
+
   function servicesBuildScroll(){
     var mobile = servicesIsMobile();
     servicesTween = gsap.to(servicesTrack, {
@@ -4603,14 +4625,14 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
       ease: 'none',
       force3D: true,
       scrollTrigger: {
-        trigger: servicesScroll,
-        start: 'center center',
+        trigger: servicesPin,
+        start: servicesScrollStart,
         end: function(){ return '+=' + servicesGetDist(); },
         scrub: mobile ? 0.85 : 0.6,
         pin: servicesPin,
         pinSpacing: true,
         pinType: mobile ? 'fixed' : 'transform',
-        anticipatePin: 1,
+        anticipatePin: mobile ? 1 : 0,
         invalidateOnRefresh: true
       }
     });
@@ -4638,7 +4660,7 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
 
   servicesMM.add('(prefers-reduced-motion: reduce)', function(){
     ScrollTrigger.getAll().forEach(function(st){
-      if (st.trigger === servicesScroll) st.kill();
+      if (st.trigger === servicesPin || st.trigger === servicesScroll) st.kill();
     });
     gsap.set(servicesTrack, { x: 0, clearProps: 'transform' });
     if (servicesPin) gsap.set(servicesPin, { clearProps: 'transform,pin' });
