@@ -1,5 +1,7 @@
 const fs = require('fs');
 const path = require('path');
+const { buildEswdStage } = require('./eswd-scene-builders');
+const { buildCasesSection } = require('./cases-section');
 
 const templatePath = path.join(__dirname, '../services/enterprise-software.html');
 const template = fs.readFileSync(templatePath, 'utf8');
@@ -61,32 +63,44 @@ const pages = [
     eswdIntro: 'We transform fragmented data into governed, trusted, and actionable intelligence across the full data lifecycle.',
     scenes: [
       {
+        visual: 'data-roadmap',
+        theme: 'blue',
         label: 'Data strategy &amp; assessment',
         menuTitle: 'Data strategy &amp; assessment',
         desc: 'A clear data roadmap that aligns business objectives, maturity, governance needs, and future analytics capabilities.',
         items: ['Data maturity assessment', 'Source &amp; governance mapping', 'Prioritized analytics roadmap'],
         icons: ['ti-compass', 'ti-map', 'ti-list-check'],
+        mock: { stages: ['Assess', 'Govern', 'Unify', 'Activate'], score: '72%' },
       },
       {
+        visual: 'data-layers',
+        theme: 'cyan',
         label: 'Enterprise data warehousing',
         menuTitle: 'Enterprise data warehousing',
         desc: 'Centralized warehouses that unify multiple sources into a reliable foundation for reporting and decision-making.',
         items: ['Multi-source warehouse design', 'Azure &amp; cloud-native platforms', 'Executive reporting foundations'],
         icons: ['ti-database', 'ti-cloud', 'ti-chart-dots'],
+        mock: { layers: ['Sources', 'Lakehouse', 'Warehouse', 'Marts'], sources: '24', tables: '1.2k', sla: '99.5%' },
       },
       {
+        visual: 'data-flow',
+        theme: 'orange',
         label: 'Data engineering &amp; pipelines',
         menuTitle: 'Data engineering &amp; pipelines',
         desc: 'Automated ETL/ELT pipelines that collect, cleanse, transform, and deliver reliable data across enterprise systems.',
         items: ['ETL/ELT pipeline development', 'Lakehouse &amp; modern platforms', 'Real-time ingestion patterns'],
         icons: ['ti-git-merge', 'ti-layers-linked', 'ti-bolt'],
+        mock: { nodes: ['ERP', 'API', 'ETL', 'Lake'], metrics: ['12M rows', '99.2%', 'Real-time', '24 jobs'] },
       },
       {
+        visual: 'data-bi',
+        theme: 'teal',
         label: 'BI, portals &amp; DataOps',
         menuTitle: 'BI, portals &amp; DataOps',
         desc: 'Dashboards, open data portals, and operational discipline that keep data platforms reliable and continuously improving.',
         items: ['Executive BI dashboards', 'Open data &amp; citizen portals', 'DataOps monitoring &amp; support'],
         icons: ['ti-chart-bar', 'ti-world', 'ti-settings-automation'],
+        mock: { kpis: ['847', '98%', '$2.1B'], kpiLabels: ['Reports', 'Quality', 'Value tracked'] },
       },
     ],
     methodIntro: 'From data strategy through governed platforms &mdash; a delivery model that turns fragmented sources into trusted intelligence.',
@@ -154,13 +168,18 @@ const pages = [
     eswdIntro: 'We deploy secure, business-ready AI solutions that automate work, unlock knowledge, and elevate decision-making at scale.',
     scenes: [
       {
+        visual: 'ai-roadmap',
+        theme: 'blue',
         label: 'AI strategy &amp; readiness',
         menuTitle: 'AI strategy &amp; readiness',
         desc: 'A practical adoption roadmap that identifies high-value use cases, data foundations, risks, and implementation priorities.',
         items: ['Use-case prioritization', 'Data &amp; risk assessment', 'Responsible AI roadmap'],
         icons: ['ti-compass', 'ti-scan', 'ti-route'],
+        mock: { cases: ['Support bot', 'Doc intake', 'Knowledge search'] },
       },
       {
+        visual: 'ai-chat',
+        theme: 'cyan',
         label: 'Generative AI assistants',
         menuTitle: 'Generative AI assistants',
         desc: 'Conversational assistants that provide instant, accurate, multilingual access to services, systems, and enterprise knowledge.',
@@ -168,18 +187,24 @@ const pages = [
         icons: ['ti-message-chatbot', 'ti-language', 'ti-shield-check'],
       },
       {
+        visual: 'ai-docs',
+        theme: 'orange',
         label: 'Document intelligence',
         menuTitle: 'Document intelligence',
         desc: 'AI-powered extraction, classification, validation, and processing of documents, forms, certificates, invoices, and records.',
         items: ['Intelligent document processing', 'Form &amp; certificate extraction', 'Validation workflows'],
         icons: ['ti-file-search', 'ti-forms', 'ti-checkbox'],
+        mock: { fields: [['Vendor', 'ACME Ltd'], ['Amount', 'EGP 24,500'], ['Status', 'Verified']] },
       },
       {
+        visual: 'ai-agents',
+        theme: 'teal',
         label: 'Agents &amp; governance',
         menuTitle: 'Agents &amp; governance',
         desc: 'Autonomous workflows and control frameworks that ensure AI solutions are secure, auditable, compliant, and scalable.',
         items: ['AI agents &amp; agentic workflows', 'RAG knowledge assistants', 'Responsible AI governance'],
         icons: ['ti-robot', 'ti-books', 'ti-gavel'],
+        mock: { agents: ['Triage', 'Extract', 'Route', 'Notify'] },
       },
     ],
     methodIntro: 'A governed path from use-case identification to production AI &mdash; secure, auditable, and aligned with enterprise policy.',
@@ -247,32 +272,44 @@ const pages = [
     eswdIntro: 'Screened, deployment-ready technical professionals available as a seamless extension of your team across data, development, AI, and QA.',
     scenes: [
       {
+        visual: 'data-flow',
+        theme: 'blue',
         label: 'Data engineers',
         menuTitle: 'Data engineers',
         desc: 'Pipeline builders, warehouse specialists, and analytics engineers who integrate with your data platforms and governance standards.',
         items: ['ETL/ELT &amp; pipeline engineers', 'Warehouse &amp; lakehouse specialists', 'Analytics engineering support'],
         icons: ['ti-database', 'ti-layers-linked', 'ti-chart-dots'],
+        mock: { nodes: ['Sources', 'Transform', 'Model', 'Serve'], metrics: ['Pipelines', 'SLA 99%', 'Lakehouse', '24/7'] },
       },
       {
+        visual: 'apps',
+        theme: 'cyan',
         label: 'Software developers',
         menuTitle: 'Software developers',
         desc: 'Full-stack and enterprise developers across .NET, cloud-native, and integration stacks ready to join your sprints and rituals.',
         items: ['Enterprise application developers', 'Cloud-native &amp; API engineers', 'Integration specialists'],
         icons: ['ti-code', 'ti-cloud', 'ti-plug-connected'],
+        mock: { crumbs: ['Sprint', 'Backlog', 'Review'], metrics: ['18', '94%', '6', '2.1d', '12', '0 bugs'] },
       },
       {
+        visual: 'ai-chat',
+        theme: 'orange',
         label: 'AI specialists',
         menuTitle: 'AI specialists',
         desc: 'Practitioners in generative AI, RAG, and intelligent automation who can move use cases from roadmap to production safely.',
         items: ['Generative AI engineers', 'RAG &amp; assistant developers', 'Automation workflow specialists'],
         icons: ['ti-brain', 'ti-message-chatbot', 'ti-robot'],
+        mock: { user: 'Summarize open incidents for team standup.', bot: '3 P1 tickets — 2 assigned, 1 awaiting vendor. Full audit log attached.' },
       },
       {
+        visual: 'talent-qa',
+        theme: 'teal',
         label: 'QA engineers',
         menuTitle: 'QA engineers',
         desc: 'Test automation and quality assurance specialists ensuring enterprise-grade delivery across web, mobile, and API layers.',
         items: ['Test automation engineers', 'Manual &amp; regression QA', 'API &amp; performance testing'],
         icons: ['ti-test-pipe', 'ti-bug', 'ti-gauge'],
+        mock: { tests: ['API suite', 'Regression', 'E2E', 'Performance'], pass: [98, 100, 92, 88] },
       },
     ],
     methodIntro: 'From role definition to ongoing delivery &mdash; a staffing model built for long-term partnerships in Egypt and the GCC.',
@@ -313,6 +350,45 @@ function buildHeroChecks(checks) {
   ).join('\n          ');
 }
 
+function buildGlassHeroSection(cfg) {
+  const orangeIdx = cfg.heroStatOrange ?? cfg.heroStatLabels.findIndex((l) => /client/i.test(l));
+  const highlight = orangeIdx >= 0 ? orangeIdx : 1;
+  const statHtml = cfg.heroStats.map((val, i) => {
+    const cls = i === highlight ? ' class="orange"' : '';
+    return `              <div class="hero-glass__stat">
+                <strong${cls}>${val}</strong>
+                <span>${cfg.heroStatLabels[i]}</span>
+              </div>`;
+  }).join('\n');
+  return `<section class="hero hero--service" id="top">
+    <div class="hero-inner">
+      <div class="hero-left">
+        <div class="hero-glass">
+          <div class="hero-glass__glow" aria-hidden="true"></div>
+          <div class="hero-glass__copy">
+            <div class="hero-top">
+              <span class="hero-eyebrow">Digital Hub for <strong>${cfg.heroEyebrow}</strong></span>
+              <h1>${cfg.heroH1}</h1>
+            </div>
+            <p class="hero-sub">${cfg.heroSub}</p>
+          </div>
+          <div class="hero-glass__side">
+            <div class="hero-glass__stats">
+${statHtml}
+            </div>
+            <div class="hero-cta">
+              <a class="btn-pill" href="#contact">${cfg.heroCta}</a>
+            </div>
+            <ul class="hero-checklist">
+          ${buildHeroChecks(cfg.heroChecks)}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>`;
+}
+
 function buildPage(cfg) {
   let html = template;
 
@@ -324,34 +400,15 @@ function buildPage(cfg) {
   html = navActive(html, cfg.slug);
 
   html = html
-    .replace('Digital Hub for <strong>Enterprise Software</strong>', `Digital Hub for <strong>${cfg.heroEyebrow}</strong>`)
-    .replace('<h1>Built for your organization, scaled for enterprise impact</h1>', `<h1>${cfg.heroH1}</h1>`)
-    .replace(
-      '<p class="hero-sub">Whether you&rsquo;re modernizing legacy systems or delivering mission-critical platforms, Digital Hub is the software partner trusted by enterprises across Egypt and the GCC.</p>',
-      `<p class="hero-sub">${cfg.heroSub}</p>`
-    )
-    .replace('Tell us what you&rsquo;re building', cfg.heroCta)
-    .replace(
-      /<ul class="hero-checklist">[\s\S]*?<\/ul>/,
-      `<ul class="hero-checklist">\n          ${buildHeroChecks(cfg.heroChecks)}\n        </ul>`
-    )
-    .replace('Enterprise Delivery', cfg.heroBadge)
-    .replace(
-      '<p class="hero-frame__title">Secure platforms for organizations that can&rsquo;t afford failure</p>',
-      `<p class="hero-frame__title">${cfg.heroFrameTitle}</p>`
-    )
-    .replace(
-      '<p class="hero-frame__meta">Custom applications, legacy modernization, and system integration &mdash; designed around how your teams actually work.</p>',
-      `<p class="hero-frame__meta">${cfg.heroFrameMeta}</p>`
-    );
+    .replace('Tell us what you&rsquo;re building', cfg.heroCta);
 
-  const statHtml = cfg.heroStats.map((val, i) => {
-    const cls = i === 1 ? ' class="orange"' : '';
-    return `<div class="hero-frame__stat"><strong${cls}>${val}</strong><span>${cfg.heroStatLabels[i]}</span></div>`;
-  }).join('\n              ');
+  html = html
+    .replace('<body class="page-enterprise">', '<body class="page-service">')
+    .replace('<body>', '<body class="page-service">');
+
   html = html.replace(
-    /<div class="hero-frame__stats">(?:\s*<div class="hero-frame__stat">[\s\S]*?<\/div>){3}\s*<\/div>/,
-    `<div class="hero-frame__stats">\n              ${statHtml}\n            </div>`
+    /<section class="hero[^"]*" id="top">[\s\S]*?<\/section>\n\n  <!-- SECTION 2/,
+    `${buildGlassHeroSection(cfg)}\n\n  <!-- SECTION 2`
   );
 
   html = html
@@ -405,10 +462,6 @@ function buildPage(cfg) {
 
   cfg.scenes.forEach((scene, i) => {
     html = html.replace(
-      new RegExp(`(<div class="eswd-scene[\\s\\S]*?data-scene="${i}">\\s*<span class="eswd-scene__label">)[^<]+(</span>)`),
-      `$1${scene.label}$2`
-    );
-    html = html.replace(
       new RegExp(`(<button type="button" class="eswd-menu__item[^"]*" data-target="${i}">[\\s\\S]*?<span class="eswd-menu__title">)[^<]+(</span>)`),
       `$1${scene.menuTitle}$2`
     );
@@ -424,6 +477,11 @@ function buildPage(cfg) {
       `$1\n                ${listItems}\n              $2`
     );
   });
+
+  html = html.replace(
+    /<div class="eswd-stage" id="eswdStage" aria-hidden="true">[\s\S]*?<\/div>\n\n        <nav class="eswd-menu"/,
+    `<div class="eswd-stage" id="eswdStage" aria-hidden="true">\n          <span class="eswd-stage__glow" id="eswdStageGlow"></span>\n\n          ${buildEswdStage(cfg.scenes)}\n        </div>\n\n        <nav class="eswd-menu"`
+  );
 
   html = html.replace(
     '<span class="eswd-deck__progress-label" id="eswdSceneName">Enterprise applications</span>',
@@ -448,12 +506,9 @@ function buildPage(cfg) {
     html = html.replace(methodRows[i], row);
   });
 
-  const caseCards = cfg.cases.map((c) =>
-    `<a class="slash-card" href="${c.href}" data-reveal>\n          <div class="slash-card-inner">\n            <span class="slash-prefix" aria-hidden="true">/</span>\n            <div class="slash-content">\n              <p class="slash-meta">${c.meta}</p>\n              <h3>${c.title}</h3>\n              <p class="slash-metric">${c.metric}</p>\n              <p>${c.body}</p>\n              <div class="slash-chips">\n                ${c.chips.map((chip) => `<span>${chip}</span>`).join('')}\n              </div>\n              <span class="slash-link">Read case study <i class="ti ti-arrow-right"></i></span>\n            </div>\n          </div>\n        </a>`
-  ).join('\n        ');
   html = html.replace(
-    /<div class="cases-list">[\s\S]*?<\/div>\n    <\/div>\n  <\/section>\n\n  <!-- SECTION 7/,
-    `<div class="cases-list">\n        ${caseCards}\n      </div>\n    </div>\n  </section>\n\n  <!-- SECTION 7`
+    /<!-- SECTION 6[\s\S]*?<section class="[^"]*cases"[\s\S]*?<\/section>\n\n  <!-- SECTION 7/,
+    `${buildCasesSection()}\n\n  <!-- SECTION 7`
   );
 
   html = html

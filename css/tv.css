@@ -20,7 +20,7 @@
   .site-grid{background-size:64px 64px}
 
   /* Nav */
-  .nav{width:calc(100% - 48px);max-width:1520px}
+  .nav,.hero--service .hero-inner,.page-service .problem-inner,.page-service .eswd-inner,.page-service .method-inner,.page-service .section-inner,.page-service .container,.page-service .footer-inner{width:calc(100% - 48px);max-width:1520px}
   .nav-inner{padding:9px 9px 9px 28px}
   .brand-logo{height:64px}
   .nav-link{font-size:16px;padding:11px 16px}
@@ -102,7 +102,7 @@
   body{font-size:18px}
   .site-grid{background-size:72px 72px}
 
-  .nav{width:calc(100% - 64px);max-width:1760px}
+  .nav,.hero--service .hero-inner,.page-service .problem-inner,.page-service .eswd-inner,.page-service .method-inner,.page-service .section-inner,.page-service .container,.page-service .footer-inner{width:calc(100% - 64px);max-width:1760px}
   .brand-logo{height:72px}
   .nav-link{font-size:17px;padding:12px 18px}
   .nav-cta{font-size:17px;padding:14px 28px}
@@ -146,7 +146,8 @@
   body{font-size:20px;line-height:1.8}
   .site-grid{background-size:88px 88px}
 
-  .nav{width:calc(100% - 80px);max-width:2040px;top:28px}
+  .nav,.hero--service .hero-inner,.page-service .problem-inner,.page-service .eswd-inner,.page-service .method-inner,.page-service .section-inner,.page-service .container,.page-service .footer-inner{width:calc(100% - 80px);max-width:2040px}
+  .nav{top:28px}
   .nav.scrolled{top:20px}
   .nav-inner{padding:10px 10px 10px 32px}
   .brand-logo{height:80px}
