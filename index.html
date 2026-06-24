@@ -89,11 +89,11 @@ input,select,textarea{font:inherit;color:inherit}
 
 /* Type primitives */
 .h1{font-weight:800;font-size:76px;letter-spacing:-2px;line-height:1.05;color:var(--text-1);margin:0}
-.h2{font-weight:700;font-size:46px;letter-spacing:-1px;line-height:1.12;color:var(--text-1);margin:0}
+.h2{font-weight:700;font-size:30px;letter-spacing:-0.02em;line-height:1.15;color:var(--text-1);margin:0;max-width:min(44ch, 100%)}
 .h3{font-weight:600;font-size:22px;letter-spacing:-0.3px;color:var(--text-1);margin:0}
 .lead{font-weight:300;font-size:18px;line-height:1.8;color:var(--text-2);margin:0}
 .body{font-weight:400;font-size:16px;line-height:1.7;color:var(--text-2);margin:0}
-.label{font-weight:500;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-3);margin:0}
+.label{font-weight:500;font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-3);margin:0}
 
 /* ============================================================
    GLOBAL FIXED BACKGROUND (waves + grid behind everything)
@@ -122,7 +122,7 @@ input,select,textarea{font:inherit;color:inherit}
 .section-inner{max-width:var(--maxw);margin:0 auto}
 .section-head{display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;margin-bottom:var(--head-gap)}
 .section-head .label{color:var(--orange)}
-.section-head .h2{max-width:780px}
+.section-head .h2{max-width:min(44ch, 100%)}
 .section-head .lead{max-width:640px}
 .section-head.row{flex-direction:row;align-items:flex-end;text-align:left;justify-content:space-between;gap:32px}
 .section-head.row > .head-left{display:flex;flex-direction:column;gap:14px;align-items:flex-start}
@@ -360,7 +360,7 @@ html.intro-locked main::before{
   padding:0;line-height:1;flex-shrink:0;
 }
 .brand-logo{
-  height:56px;width:auto;display:block;
+  width:auto;display:block;
   object-fit:contain;
   mix-blend-mode:screen;
 }
@@ -425,14 +425,14 @@ html.intro-locked main::before{
 .has-dd.open > .nav-link i,
 .has-dd.is-hover > .nav-link i{transform:rotate(180deg);opacity:.85}
 .dd{
-  position:absolute;top:calc(100% + 10px);left:50%;
-  transform:translateX(-50%) translateY(-8px) scale(0.97);
+  position:absolute;top:calc(100% + 22px);left:50%;
+  transform:translateX(-50%) translateY(-4px) scale(0.97);
   transform-origin:top center;
   min-width:280px;
-  background:rgba(255,255,255,0.10);
-  backdrop-filter:blur(32px) saturate(160%);
-  -webkit-backdrop-filter:blur(32px) saturate(160%);
-  border:1px solid rgba(255,255,255,0.16);border-radius:16px;
+  background:rgba(10,20,36,0.94);
+  backdrop-filter:blur(20px) saturate(150%);
+  -webkit-backdrop-filter:blur(20px) saturate(150%);
+  border:1px solid rgba(255,255,255,0.22);border-radius:16px;
   box-shadow:0 16px 40px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.10);
   padding:8px;
   opacity:0;visibility:hidden;pointer-events:none;
@@ -808,10 +808,10 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
   box-sizing:border-box;
 }
 
-/* 4-column partner logos grid */
+/* 5-column partner logos grid */
 .partner-logos{
   max-width:var(--maxw);margin:0 auto;
-  display:grid;grid-template-columns:repeat(4,1fr);
+  display:grid;grid-template-columns:repeat(5,1fr);
   align-items:stretch;justify-items:stretch;
 }
 .plogo{
@@ -911,18 +911,18 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
 .services-head .label{
   display:block;
   color:var(--orange);
-  font-size:12px;
+  font-size:14px;
   font-weight:600;
   letter-spacing:0.18em;
   text-transform:uppercase;
-  margin-bottom:16px;
+  margin-bottom:12px;
 }
 .services-title{
-  font-size:clamp(28px, 3.8vw, 42px);
+  font-size:30px;
   font-weight:600;
   line-height:1.15;
   letter-spacing:-0.02em;
-  max-width:22ch;
+  max-width:44ch;
   margin:0;
   color:var(--text-1);
 }
@@ -967,9 +967,6 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
   mask:linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite:xor;mask-composite:exclude;
 }
-.svc-card--orange::before{background:linear-gradient(180deg, rgba(244,151,11,0.30), rgba(244,151,11,0.06))}
-.svc-card--teal::before{background:linear-gradient(180deg, rgba(34,184,132,0.30), rgba(34,184,132,0.06))}
-
 .svc-card__body{
   position:relative;z-index:1;
   display:flex;flex-direction:column;gap:18px;
@@ -983,19 +980,12 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
   background:rgba(26,154,214,0.08);
 }
 .svc-card__icon i{font-size:22px;color:var(--blue-light)}
-.svc-card--orange .svc-card__icon{border-color:rgba(244,151,11,0.35);background:rgba(244,151,11,0.08)}
-.svc-card--orange .svc-card__icon i{color:var(--orange)}
-.svc-card--teal .svc-card__icon{border-color:rgba(34,184,132,0.35);background:rgba(34,184,132,0.08)}
-.svc-card--teal .svc-card__icon i{color:var(--teal)}
 
 .svc-card__title{
   font-size:clamp(20px, 2vw, 24px);
   font-weight:600;line-height:1.2;
   color:var(--blue-light);margin:0;
 }
-.svc-card--orange .svc-card__title{color:var(--orange)}
-.svc-card--teal .svc-card__title{color:var(--teal)}
-
 .svc-card__desc{
   font-size:14px;line-height:1.6;
   color:var(--text-2);margin:0;
@@ -1008,17 +998,11 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
 }
 .svc-card__link:hover{gap:10px;color:#fff}
 .svc-card__link i{font-size:14px;line-height:1}
-.svc-card--orange .svc-card__link{color:var(--orange)}
-.svc-card--orange .svc-card__link:hover{color:var(--orange-dark)}
-.svc-card--teal .svc-card__link{color:var(--teal)}
-.svc-card--teal .svc-card__link:hover{color:#5EE0AC}
 
 .svc-card__visual{
   position:relative;overflow:hidden;
   background:radial-gradient(ellipse 80% 80% at 60% 50%, rgba(26,154,214,0.14), transparent 70%);
 }
-.svc-card--orange .svc-card__visual{background:radial-gradient(ellipse 80% 80% at 60% 50%, rgba(244,151,11,0.12), transparent 70%)}
-.svc-card--teal .svc-card__visual{background:radial-gradient(ellipse 80% 80% at 60% 50%, rgba(34,184,132,0.12), transparent 70%)}
 
 /* Card 1 — stacked code windows */
 .svc-viz-code{position:absolute;inset:12% 8% 8% 12%}
@@ -1063,14 +1047,14 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
 .svc-viz-ai{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
 .svc-ai-orb{
   width:120px;height:120px;border-radius:50%;
-  background:radial-gradient(circle at 35% 35%, rgba(244,151,11,0.55), rgba(244,151,11,0.08) 60%, transparent 70%);
-  box-shadow:0 0 60px rgba(244,151,11,0.25), inset 0 0 30px rgba(244,151,11,0.15);
+  background:radial-gradient(circle at 35% 35%, rgba(26,154,214,0.55), rgba(26,154,214,0.08) 60%, transparent 70%);
+  box-shadow:0 0 60px rgba(26,154,214,0.25), inset 0 0 30px rgba(26,154,214,0.15);
   animation:aiPulse 4s ease-in-out infinite;
 }
 @keyframes aiPulse{0%,100%{transform:scale(1);opacity:0.9}50%{transform:scale(1.06);opacity:1}}
 .svc-ai-node{
   position:absolute;width:8px;height:8px;border-radius:50%;
-  background:rgba(244,151,11,0.8);box-shadow:0 0 10px rgba(244,151,11,0.5);
+  background:rgba(26,154,214,0.8);box-shadow:0 0 10px rgba(26,154,214,0.5);
 }
 .svc-ai-node:nth-child(2){top:18%;left:30%}
 .svc-ai-node:nth-child(3){top:25%;right:22%}
@@ -1083,13 +1067,13 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
 .svc-team-pill{
   position:absolute;display:flex;align-items:center;gap:8px;
   padding:8px 14px 8px 8px;border-radius:999px;
-  background:rgba(8,16,32,0.7);border:1px solid rgba(34,184,132,0.25);
+  background:rgba(8,16,32,0.7);border:1px solid rgba(26,154,214,0.25);
   box-shadow:0 8px 24px rgba(0,0,0,0.3);
   font-size:10px;font-weight:500;color:var(--text-2);
   white-space:nowrap;
 }
-.svc-team-av{width:24px;height:24px;border-radius:50%;background:var(--teal-dim);display:flex;align-items:center;justify-content:center}
-.svc-team-av i{font-size:12px;color:var(--teal)}
+.svc-team-av{width:24px;height:24px;border-radius:50%;background:var(--blue-dim);display:flex;align-items:center;justify-content:center}
+.svc-team-av i{font-size:12px;color:var(--blue-light)}
 .svc-team-pill:nth-child(1){top:12%;left:5%;animation:floatPill 5s ease-in-out infinite}
 .svc-team-pill:nth-child(2){top:38%;right:0;animation:floatPill 5s ease-in-out infinite 0.8s}
 .svc-team-pill:nth-child(3){bottom:18%;left:10%;animation:floatPill 5s ease-in-out infinite 1.6s}
@@ -1118,7 +1102,7 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
   width:100%;
 }
 .delivery-head .label{color:var(--blue-light)}
-.delivery-head .h2{max-width:760px}
+.delivery-head .h2{max-width:min(44ch, 100%)}
 .delivery-head .lead{max-width:620px}
 
 /* Stage container — aspect locked to SVG viewBox so anchors match */
@@ -1396,6 +1380,12 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
 
 /* Tablet / narrow — stack vertically, hide SVG curves */
 @media (max-width:1024px){
+  .section.delivery-flow .section-inner{
+    width:100%;
+    max-width:100%;
+    overflow-x:clip;
+    box-sizing:border-box;
+  }
   .delivery-flow .delivery-head{margin-bottom:32px}
   .delivery-stage{
     aspect-ratio:auto;
@@ -1403,33 +1393,53 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
     flex-direction:column;
     align-items:center;
     gap:18px;
-    max-width:560px;
+    width:100%;
+    max-width:min(560px,100%);
+    overflow:hidden;
   }
   .delivery-svg{display:none}
   .delivery-stage::before{display:none}
 
   .delivery-pills-left,
-  .delivery-pills-right,
+  .delivery-pills-right{
+    position:relative;
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:10px;
+    width:100%;
+    max-width:min(340px,100%);
+    justify-items:stretch;
+  }
   .delivery-nodes{
     position:relative;
     display:flex;
-    flex-wrap:wrap;
-    justify-content:center;
-    align-items:center;
+    flex-direction:column;
+    align-items:stretch;
     gap:10px;
     width:100%;
+    max-width:min(280px,100%);
   }
-  .delivery-nodes{gap:12px}
 
   .delivery-pill-slot,
-  .delivery-node-slot{
+  .delivery-pill-slot.is-left,
+  .delivery-pill-slot.is-right,
+  .delivery-pill-slot[data-y="60"],
+  .delivery-pill-slot[data-y="160"],
+  .delivery-pill-slot[data-y="320"],
+  .delivery-pill-slot[data-y="420"],
+  .delivery-node-slot,
+  .delivery-node-slot.is-brand-left,
+  .delivery-node-slot.is-stack,
+  .delivery-node-slot.is-brand-right{
     position:relative;
-    left:auto;right:auto;top:auto;
+    left:auto;right:auto;top:auto;bottom:auto;
     width:auto;height:auto;
     transform:none;
   }
   .delivery-pill{
-    width:152px;
+    width:100%;
+    max-width:none;
+    min-width:0;
     height:50px;
     opacity:1;
     transform:none;
@@ -1438,7 +1448,8 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
   .delivery-pill:hover{transform:translateY(-2px)}
 
   .delivery-node{
-    width:auto;height:auto;
+    width:100%;
+    height:auto;
     flex-direction:row;
     gap:10px;
     padding:12px 16px;
@@ -1449,19 +1460,96 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
   .delivery-node__chips{gap:6px}
   .delivery-node__chip{width:26px;height:26px}
 
-  /* Add a soft connector arrow between vertical groups */
+  /* Flow connector between vertical groups — glowing string with travelling light ball */
   .delivery-pills-left::after,
   .delivery-nodes::after{
     content:"";
-    display:block;width:1px;height:18px;
-    background:linear-gradient(180deg, rgba(54,176,229,0.55), rgba(54,176,229,0));
-    margin:6px auto 0;
+    display:block;
+    grid-column:1 / -1;
+    width:14px;height:50px;
+    margin:10px auto 4px;
+    background-image:
+      radial-gradient(circle, rgba(150,222,255,1) 0%, rgba(54,176,229,0.9) 38%, rgba(54,176,229,0) 72%),
+      linear-gradient(180deg, rgba(54,176,229,0.12), rgba(54,176,229,0.6) 50%, rgba(54,176,229,0.12));
+    background-repeat:no-repeat,no-repeat;
+    background-size:12px 12px, 2px 100%;
+    background-position:center -12px, center;
+    filter:drop-shadow(0 0 5px rgba(54,176,229,0.55));
+    animation:deliveryStringFlow 1.9s linear infinite;
   }
+  .delivery-nodes::after{animation-delay:.5s}
+
+  /* String segments between the three hub nodes */
+  .delivery-nodes .delivery-node-slot{position:relative}
+  .delivery-nodes .delivery-node-slot:not(:last-child)::after{
+    content:"";
+    position:absolute;left:50%;bottom:-10px;
+    width:2px;height:12px;
+    transform:translateX(-50%);
+    background:linear-gradient(180deg, rgba(54,176,229,0.7), rgba(54,176,229,0.18));
+    box-shadow:0 0 8px rgba(54,176,229,0.4);
+    border-radius:2px;
+  }
+
+  @keyframes deliveryStringFlow{
+    0%{background-position:center -12px, center}
+    100%{background-position:center 54px, center}
+  }
+}
+
+@media (max-width:640px){
+  .section.delivery-flow{
+    padding-top:calc(var(--section-y) * 0.9);
+    padding-bottom:calc(var(--section-y) * 0.9);
+  }
+  .delivery-flow .delivery-head{
+    margin-bottom:24px;
+    gap:10px;
+    padding-inline:4px;
+  }
+  .delivery-head .h2{font-size:26px}
+  .delivery-head .lead{
+    font-size:15px;
+    line-height:1.65;
+    max-width:100%;
+  }
+  .delivery-stage{gap:14px}
+  .delivery-pills-left,
+  .delivery-pills-right{
+    grid-template-columns:1fr;
+    max-width:min(300px,100%);
+  }
+  .delivery-pill{
+    height:46px;
+    font-size:13px;
+    padding:0 14px 0 8px;
+    gap:9px;
+  }
+  .delivery-pill-ico{
+    width:28px;height:28px;flex:0 0 28px;
+  }
+  .delivery-pill-ico i{font-size:13px}
+  .delivery-nodes{max-width:min(300px,100%)}
+  .delivery-node{
+    padding:10px 14px;
+    border-radius:14px;
+    justify-content:flex-start;
+  }
+  .delivery-node__label{font-size:10px}
+}
+
+@media (max-width:400px){
+  .delivery-pills-left,
+  .delivery-pills-right,
+  .delivery-nodes{max-width:100%}
+  .delivery-pill{font-size:12px}
 }
 
 /* Reduced motion — keep static final state, no pulses, no breathing */
 @media (prefers-reduced-motion: reduce){
   .delivery-stage::before{animation:none}
+  .delivery-pills-left::after,
+  .delivery-nodes::after{animation:none;background-position:center 24px, center}
   [data-section-reveal].in .delivery-path,
   .delivery-path{
     animation:none;
@@ -1490,90 +1578,69 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
 /* ============================================================
    S3 TRUST LOGOS
    ============================================================ */
-.trust-logos{background:transparent;padding:var(--section-y) 0 calc(var(--section-y) * 0.75);position:relative;z-index:1}
+.trust-logos{background:transparent;padding:calc(var(--section-y) * 0.6) 0 calc(var(--section-y) * 0.5);position:relative;z-index:1}
 .trust-logos .label{
   color:var(--text-3);text-align:center;display:block;
-  margin:0 auto 28px;padding:0 var(--pad-x);
-  font-size:clamp(13px, 1.15vw, 16px);font-weight:600;letter-spacing:0.16em;text-transform:uppercase;
+  margin:0 auto 22px;padding:0 var(--pad-x);
+  font-size:13px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;
 }
 
-/* Glass pill marquee */
+/* Pulze-style single-row logo strip — full bleed, side fade */
 .trust-marquee{
   position:relative;
   overflow:hidden;
-  padding:10px 0;
-  mask-image:linear-gradient(to right, transparent 0%, #000 7%, #000 93%, transparent 100%);
-  -webkit-mask-image:linear-gradient(to right, transparent 0%, #000 7%, #000 93%, transparent 100%);
+  width:100vw;
+  max-width:100vw;
+  margin-left:calc(50% - 50vw);
+  padding:24px 0;
+  --trust-row-h:clamp(48px,5.85vw,63px);
+  --trust-gap:clamp(56px,7.5vw,112px);
+  mask-image:linear-gradient(to right, transparent 0%, #000 15.4%, #000 86.1%, transparent 100%);
+  -webkit-mask-image:linear-gradient(to right, transparent 0%, #000 15.4%, #000 86.1%, transparent 100%);
 }
-.trust-marquee + .trust-marquee{margin-top:14px}
 .trust-track{
-  display:flex;gap:16px;
+  display:flex;align-items:center;
+  flex-wrap:nowrap;
+  gap:var(--trust-gap);
   width:max-content;
-  animation:trustScroll var(--speed,38s) linear infinite;
+  animation:trustScroll var(--speed,96s) linear infinite;
   will-change:transform;
+  backface-visibility:hidden;
+  transform:translate3d(0,0,0);
 }
-.trust-marquee.reverse .trust-track{animation-name:trustScrollReverse}
 .trust-marquee:hover .trust-track{animation-play-state:paused}
 
 @keyframes trustScroll{
-  from{transform:translateX(0)}
-  to{transform:translateX(-50%)}
-}
-@keyframes trustScrollReverse{
-  from{transform:translateX(-50%)}
-  to{transform:translateX(0)}
+  from{transform:translate3d(0,0,0)}
+  to{transform:translate3d(-50%,0,0)}
 }
 
-.trust-pill{
-  flex:0 0 260px;
-  width:260px;height:72px;
-  display:flex;align-items:center;justify-content:center;gap:12px;
-  padding:0 22px;
-  background:rgba(255,255,255,0.04);
-  border:1px solid rgba(255,255,255,0.08);
-  border-radius:100px;
-  backdrop-filter:blur(14px) saturate(140%);
-  -webkit-backdrop-filter:blur(14px) saturate(140%);
-  box-shadow:
-    0 8px 28px rgba(0,0,0,0.28),
-    inset 0 1px 0 rgba(255,255,255,0.05);
-  transition:
-    transform .35s var(--ease-std),
-    border-color .35s var(--ease-std),
-    background .35s var(--ease-std),
-    box-shadow .35s var(--ease-std);
-}
-.trust-pill:hover{
-  transform:translateY(-3px);
-  border-color:rgba(54,176,229,0.42);
-  background:rgba(255,255,255,0.07);
-  box-shadow:
-    0 14px 36px rgba(0,0,0,0.36),
-    0 0 0 1px rgba(54,176,229,0.15),
-    inset 0 1px 0 rgba(255,255,255,0.08);
-}
-.trust-logo{
-  width:38px;height:38px;flex:0 0 38px;
-  border-radius:50%;
-  background:linear-gradient(135deg, var(--blue) 0%, var(--teal) 100%);
+.trust-item{
+  flex:0 0 auto;
+  width:auto;
+  height:var(--trust-row-h);
+  --logo-h:clamp(33px,4.2vw,48px);
   display:flex;align-items:center;justify-content:center;
-  box-shadow:
-    0 4px 12px rgba(26,154,214,0.35),
-    inset 0 1px 0 rgba(255,255,255,0.25);
 }
-.trust-logo svg{
-  width:20px;height:20px;
-  color:#fff;
+.trust-item__logo{
   display:block;
+  width:auto;
+  height:var(--logo-h);
+  max-height:var(--logo-h);
+  max-width:calc(var(--logo-h) * 3.2);
+  object-fit:contain;
+  object-position:center;
+  transform:translateY(var(--logo-nudge,0));
+  opacity:.88;
+  transition:opacity .3s var(--ease-std);
 }
-.trust-name{
-  color:var(--text-1);
-  font-weight:700;font-size:15px;
-  letter-spacing:0;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  text-align:center;
-  flex:0 1 auto;min-width:0;
-}
+.trust-item--sm{--logo-h:clamp(24px,3vw,36px)}
+.trust-item--sm .trust-item__logo{max-width:calc(var(--logo-h) * 3.7)}
+.trust-item--lg{--logo-h:clamp(40px,5vw,56px)}
+.trust-item--md{--logo-h:clamp(45px,5.4vw,60px)}
+.trust-item--boost{--logo-h:clamp(48px,5.85vw,63px)}
+.trust-item--xl{--logo-h:clamp(77px,9.2vw,99px)}
+.trust-item:hover .trust-item__logo{opacity:1}
 
 /* ============================================================
    S4 NUMBERS
@@ -1590,7 +1657,7 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
   width:100%;
 }
 .numbers-head .label{color:var(--orange);text-align:left}
-.numbers-head .h2{max-width:20ch;margin:0;text-align:left}
+.numbers-head .h2{max-width:40ch;margin:0;text-align:left}
 .numbers-head .lead{max-width:48ch;margin:0;text-align:left}
 
 .numbers-row{
@@ -1651,15 +1718,25 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
 /* Partners header — left aligned */
 .partners-head{
   display:flex;
-  flex-direction:column;
-  align-items:flex-start;
+  flex-direction:row;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:32px;
   text-align:left;
-  gap:12px;
   margin-bottom:var(--head-gap);
   width:100%;
 }
+.partners-head > .head-left{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:12px;
+  flex:1;
+  min-width:0;
+}
+.partners-head .tlink{flex-shrink:0;align-self:flex-end}
 .partners-head .label{color:var(--orange);text-align:left}
-.partners-head .h2{max-width:18ch;margin:0;text-align:left}
+.partners-head .h2{max-width:40ch;margin:0;text-align:left}
 .partners-head .lead{max-width:52ch;margin:0;text-align:left}
 .partner--ms{
   --partner-logo-w:min(96%, 340px);
@@ -1667,7 +1744,7 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
   --partner-logo-w-hover:min(80%, 252px);
   --partner-logo-h-hover:80px;
 }
-.partners-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;align-items:stretch}
+.partners-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:20px;align-items:stretch}
 .partner{
   position:relative;display:flex;height:100%;
 }
@@ -1733,8 +1810,8 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
   position:absolute;z-index:2;pointer-events:none;
   left:-28px;right:-28px;bottom:-28px;top:-24px;
   border-radius:0 0 18px 18px;
-  backdrop-filter:blur(120px) saturate(115%) brightness(1.05);
-  -webkit-backdrop-filter:blur(120px) saturate(115%) brightness(1.05);
+  backdrop-filter:blur(50px) saturate(115%) brightness(1.05);
+  -webkit-backdrop-filter:blur(50px) saturate(115%) brightness(1.05);
   background:linear-gradient(to top,
     rgba(255,255,255,0.16) 0%,
     rgba(255,255,255,0.16) 58%,
@@ -1842,7 +1919,7 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
    S6 CASE STUDIES — Finsight-style cards
    ============================================================ */
 .cases{background:transparent}
-.cases-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.cases-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
 .case{
   position:relative;
   border-radius:20px;
@@ -2056,8 +2133,8 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
   position:absolute;z-index:0;pointer-events:none;
   left:-28px;right:-28px;bottom:-28px;top:-24px;
   border-radius:0 0 18px 18px;
-  backdrop-filter:blur(120px) saturate(115%) brightness(1.05);
-  -webkit-backdrop-filter:blur(120px) saturate(115%) brightness(1.05);
+  backdrop-filter:blur(50px) saturate(115%) brightness(1.05);
+  -webkit-backdrop-filter:blur(50px) saturate(115%) brightness(1.05);
   background:linear-gradient(to top,
     rgba(255,255,255,0.16) 0%,
     rgba(255,255,255,0.16) 58%,
@@ -2092,7 +2169,7 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
 .news-slide__info{flex:1;min-width:0}
 .news-slide__meta{
   display:flex;align-items:center;gap:8px;
-  font-size:12px;font-weight:500;color:rgba(255,255,255,0.72);
+  font-size:20px;font-weight:500;color:rgba(255,255,255,0.72);
   margin-bottom:10px;
 }
 .news-slide__meta i{font-size:14px;opacity:.85}
@@ -2172,7 +2249,7 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
 }
 .blogs-intro .label{color:var(--orange)}
 .blogs-title{
-  font-weight:700;font-size:clamp(34px,3.6vw,52px);
+  font-weight:700;font-size:30px;
   line-height:1.08;letter-spacing:-1px;margin:0;color:var(--text-1);
 }
 .blogs-title em{
@@ -2397,7 +2474,7 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
   border-top:1px solid rgba(255,255,255,0.06);
   padding-top:24px;
   display:flex;align-items:center;justify-content:space-between;gap:16px;
-  font-size:12px;color:rgba(255,255,255,0.25);font-weight:400;
+  font-size:20px;color:rgba(255,255,255,0.25);font-weight:400;
 }
 
 /* ============================================================
@@ -2412,7 +2489,7 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
   :root{--pad-x:48px;--section-y:64px;--head-gap:36px}
   .h1{font-size:64px}
   .h1-line > span{font-size:64px}
-  .h2{font-size:40px}
+  .h2{font-size:28px}
 }
 
 /* Tablet landscape / small laptop */
@@ -2421,12 +2498,11 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
   .nav-link{padding:9px 12px;font-size:14px}
   .nav-cta{padding:11px 20px;font-size:14px}
   .nav-inner{padding:7px 7px 7px 20px}
-  .brand-logo{height:50px}
   .hero{padding-top:96px}
   .hero-inner{padding-bottom:56px}
   .h1{font-size:54px;letter-spacing:-1.5px}
   .h1-line > span{font-size:54px;letter-spacing:-1.5px}
-  .h2{font-size:34px}
+  .h2{font-size:26px}
   .section.services{--svc-card-w:580px}
   .services-head{margin-bottom:36px}
   .svc-card__body{padding:32px 28px 32px 32px}
@@ -2444,14 +2520,13 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
 /* Below lg — mobile nav, horizontal services scroll, 2-col partners */
 @media (max-width:991px){
   .nav-links{display:none}
-  .nav-cta{display:inline-flex;padding:10px 16px;font-size:14px}
+  .nav-cta{display:none}
   .nav-burger{
     display:inline-flex;justify-self:end;
     width:44px;height:44px;min-width:44px;min-height:44px;
   }
   .nav{width:calc(100% - 28px)}
   .nav-inner{padding:6px 6px 6px 14px}
-  .brand-logo{height:46px}
   .mobile-nav a,.mobile-nav details summary{min-height:48px;padding:16px 0}
   .mobile-nav .mn-cta{min-height:48px;padding:16px 20px}
   .section.services{
@@ -2481,9 +2556,11 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
   .hero-left{max-width:none}
   .h1{font-size:44px;letter-spacing:-1px;line-height:1.08}
   .h1-line > span{font-size:44px;letter-spacing:-1px;line-height:1.08}
-  .h2{font-size:30px;letter-spacing:-0.5px}
+  .h2{font-size:26px;letter-spacing:-0.02em}
   .hero-sub{font-size:16px;line-height:1.75}
   .section-head.row{flex-direction:column;align-items:flex-start;text-align:left}
+  .partners-head{flex-direction:column;align-items:flex-start;gap:20px}
+  .partners-head .tlink{align-self:flex-start}
   .contact-inner{grid-template-columns:1fr;gap:24px}
   .field-row{grid-template-columns:1fr}
   .contact-card{padding:28px}
@@ -2499,7 +2576,6 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
 @media (max-width:640px){
   :root{--pad-x:20px;--section-y:48px;--head-gap:28px}
   .nav{top:14px;width:calc(100% - 20px)}
-  .brand-logo{height:42px}
   .partner-logos{grid-template-columns:repeat(2,1fr)}
   .plogo:nth-child(2){border-right:0}
   .plogo:nth-child(1),.plogo:nth-child(2){border-bottom:1px solid rgba(255,255,255,0.06)}
@@ -2509,7 +2585,7 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
   .plogo--ms .plogo-img{height:44px;max-width:min(100%, 300px)}
   .plogo--huawei .plogo-img{height:28px;max-width:min(100%, 170px)}
   .section.services{--svc-card-w:calc(100vw - var(--pad-x) - 20px)}
-  .section-head .h2{font-size:28px}
+  .section-head .h2{font-size:24px}
   .submit-btn{min-height:48px;padding:16px}
   .input,.select,.textarea{min-height:48px;padding:14px 16px;font-size:16px}
 }
@@ -2521,7 +2597,7 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
   .h1{font-size:clamp(28px, 9vw, 38px)}
   .h1-line > span{font-size:clamp(28px, 9vw, 38px);letter-spacing:-0.5px;line-height:1.12}
   .h1-line .word{white-space:normal}
-  .h2{font-size:26px}
+  .h2{font-size:24px}
   .lead{font-size:16px}
   .contact-card{padding:22px 18px}
   .svc-card__body{padding:24px 20px 20px}
@@ -2576,9 +2652,8 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
   .nav{width:calc(100% - 16px)}
   .hero{padding-top:80px}
   .h1-line > span{font-size:26px}
-  .h2{font-size:24px}
+  .h2{font-size:22px}
   .nav-intro-logo{height:140px}
-  .brand-logo{height:40px}
 }
 
 /* Desktop lg+ */
@@ -2586,14 +2661,15 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
   .nav-links{display:flex}
   .nav-cta{display:inline-flex}
   .nav-burger{display:none}
-  .partners-grid{grid-template-columns:repeat(4,1fr)}
-  .partner-logos{grid-template-columns:repeat(4,1fr)}
+  .partners-grid{grid-template-columns:repeat(5,1fr)}
+  .partner-logos{grid-template-columns:repeat(5,1fr)}
 }
 
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
   .marquee-track{animation:none}
+  .trust-track{animation:none}
   .services-runway{height:auto !important}
   .services-track{transform:none !important}
 }
@@ -2610,6 +2686,7 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
 }
 </style>
 <link rel="stylesheet" href="css/tv.css" />
+<link rel="stylesheet" href="css/responsive.css" />
 </head>
 <body>
 
@@ -2686,9 +2763,11 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
       <li class="has-dd" role="none">
         <a class="nav-link" role="menuitem" tabindex="0">Partners <i class="ti ti-chevron-down"></i></a>
         <div class="dd" role="menu">
-          <a href="#partners"><i class="ti ti-brand-windows"></i> Microsoft</a>
-          <a href="#partners"><i class="ti ti-device-desktop-analytics"></i> Nexthink</a>
-          <a href="#partners"><i class="ti ti-brand-aws"></i> AWS</a>
+          <a href="partners/microsoft.html"><i class="ti ti-brand-windows"></i> Microsoft</a>
+          <a href="partners/huawei.html"><i class="ti ti-cloud"></i> Huawei</a>
+          <a href="partners/nexthink.html"><i class="ti ti-device-desktop-analytics"></i> Nexthink</a>
+          <a href="partners/efinance.html"><i class="ti ti-credit-card"></i> eFinance</a>
+          <a href="partners/vodafone.html"><i class="ti ti-antenna-bars-5"></i> Vodafone</a>
         </div>
       </li>
       <li><a class="nav-link" href="cases/index.html">Case Studies</a></li>
@@ -2721,9 +2800,12 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
   <details>
     <summary>Partners <i class="ti ti-chevron-down"></i></summary>
     <div class="sub">
-      <a href="#partners">Microsoft</a>
-      <a href="#partners">Nexthink</a>
-      <a href="#partners">AWS</a>
+      <a href="partners/index.html">All partners</a>
+      <a href="partners/microsoft.html">Microsoft</a>
+      <a href="partners/huawei.html">Huawei</a>
+      <a href="partners/nexthink.html">Nexthink</a>
+      <a href="partners/efinance.html">eFinance</a>
+      <a href="partners/vodafone.html">Vodafone</a>
     </div>
   </details>
   <a href="cases/index.html">Case Studies</a>
@@ -2776,24 +2858,29 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
   <div class="trust-bar partner-logos-bar">
     <div class="partner-logos">
 
-      <!-- Nexthink -->
-      <a href="#partners" class="plogo" aria-label="Nexthink">
-        <img class="plogo-img" src="assets/nexthink-logo.png" alt="Nexthink" width="135" height="36" loading="eager" decoding="async">
-      </a>
-
       <!-- Microsoft -->
-      <a href="#partners" class="plogo plogo--ms" aria-label="Microsoft">
+      <a href="partners/microsoft.html" class="plogo plogo--ms" aria-label="Microsoft">
         <img class="plogo-img" src="assets/microsoft-logo.png" alt="Microsoft" width="165" height="36" loading="eager" decoding="async">
       </a>
 
-      <!-- AWS -->
-      <a href="#partners" class="plogo" aria-label="Amazon Web Services">
-        <img class="plogo-img" src="assets/AWS-logo.png" alt="AWS" width="55" height="36" loading="eager" decoding="async">
+      <!-- Huawei -->
+      <a href="partners/huawei.html" class="plogo plogo--huawei" aria-label="Huawei">
+        <img class="plogo-img" src="assets/huawei-logo.png" alt="Huawei" width="140" height="36" loading="eager" decoding="async">
       </a>
 
-      <!-- Huawei -->
-      <a href="#partners" class="plogo plogo--huawei" aria-label="Huawei">
-        <img class="plogo-img" src="assets/huawei-logo.png" alt="Huawei" width="140" height="36" loading="eager" decoding="async">
+      <!-- Nexthink -->
+      <a href="partners/nexthink.html" class="plogo" aria-label="Nexthink">
+        <img class="plogo-img" src="assets/nexthink-logo.png" alt="Nexthink" width="135" height="36" loading="eager" decoding="async">
+      </a>
+
+      <!-- eFinance -->
+      <a href="partners/efinance.html" class="plogo" aria-label="eFinance">
+        <img class="plogo-img" src="assets/efinance-logo.svg" alt="eFinance" width="120" height="36" loading="eager" decoding="async">
+      </a>
+
+      <!-- Vodafone -->
+      <a href="partners/vodafone.html" class="plogo" aria-label="Vodafone">
+        <img class="plogo-img" src="assets/vodafone-logo.svg" alt="Vodafone" width="120" height="36" loading="eager" decoding="async">
       </a>
 
     </div>
@@ -2850,7 +2937,7 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
             </div>
           </article>
 
-          <article class="svc-card svc-card--orange" data-reveal>
+          <article class="svc-card" data-reveal>
             <div class="svc-card__body">
               <div class="svc-card__icon"><i class="ti ti-brain"></i></div>
               <h3 class="svc-card__title">AI &amp; Intelligent Automation</h3>
@@ -2865,7 +2952,7 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
             </div>
           </article>
 
-          <article class="svc-card svc-card--teal" data-reveal>
+          <article class="svc-card" data-reveal>
             <div class="svc-card__body">
               <div class="svc-card__icon"><i class="ti ti-users"></i></div>
               <h3 class="svc-card__title">Outsourcing Technical Talents</h3>
@@ -3091,76 +3178,44 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
 <section class="trust-logos" data-section-reveal>
   <span class="label">Trusted by Egypt&rsquo;s leading enterprises and institutions</span>
 
-  <!-- Icon sprite -->
-  <svg width="0" height="0" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true" focusable="false">
-    <defs>
-      <symbol id="i-bank" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M3 21h18"/><path d="M3 10h18"/><path d="M5 10v11"/><path d="M19 10v11"/><path d="M9 10v11"/><path d="M15 10v11"/><path d="M2 10l10-7 10 7"/>
-      </symbol>
-      <symbol id="i-bolt" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M13 2 4 14h6l-1 8 9-12h-6z"/>
-      </symbol>
-      <symbol id="i-building" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="4" y="3" width="16" height="18" rx="1"/>
-        <path d="M8 7h2M14 7h2M8 12h2M14 12h2"/>
-        <path d="M10 21v-4h4v4"/>
-      </symbol>
-      <symbol id="i-edu" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 3 1 9l11 6 9-4.91V17h2V9z"/>
-        <path d="M5 13.18v4L12 21l7-3.82v-4L12 17z"/>
-      </symbol>
-      <symbol id="i-pill" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="2.5" y="9" width="19" height="6" rx="3"/>
-        <line x1="12" y1="9" x2="12" y2="15"/>
-      </symbol>
-      <symbol id="i-chip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="6" y="6" width="12" height="12" rx="1.5"/>
-        <rect x="9.5" y="9.5" width="5" height="5" rx="0.5"/>
-        <path d="M3 9h3M3 15h3M18 9h3M18 15h3M9 3v3M15 3v3M9 18v3M15 18v3"/>
-      </symbol>
-    </defs>
-  </svg>
-
-  <div class="trust-marquee" style="--speed:48s">
+  <div class="trust-marquee" style="--speed:100s" aria-label="Client logos">
     <div class="trust-track">
-      <div class="trust-pill"><span class="trust-logo"><svg><use href="#i-bank"/></svg></span><span class="trust-name">MPED</span></div>
-      <div class="trust-pill"><span class="trust-logo"><svg><use href="#i-bank"/></svg></span><span class="trust-name">Banque Misr</span></div>
-      <div class="trust-pill"><span class="trust-logo"><svg><use href="#i-bank"/></svg></span><span class="trust-name">FAB Misr</span></div>
-      <div class="trust-pill"><span class="trust-logo"><svg><use href="#i-building"/></svg></span><span class="trust-name">CGC</span></div>
-      <div class="trust-pill"><span class="trust-logo"><svg><use href="#i-edu"/></svg></span><span class="trust-name">BUE</span></div>
-      <div class="trust-pill"><span class="trust-logo"><svg><use href="#i-bolt"/></svg></span><span class="trust-name">Elsewedy Electric</span></div>
-      <div class="trust-pill"><span class="trust-logo"><svg><use href="#i-building"/></svg></span><span class="trust-name">Mansour Group</span></div>
-      <div class="trust-pill"><span class="trust-logo"><svg><use href="#i-building"/></svg></span><span class="trust-name">Schindler</span></div>
-      <!-- duplicate set for seamless loop -->
-      <div class="trust-pill" aria-hidden="true"><span class="trust-logo"><svg><use href="#i-bank"/></svg></span><span class="trust-name">MPED</span></div>
-      <div class="trust-pill" aria-hidden="true"><span class="trust-logo"><svg><use href="#i-bank"/></svg></span><span class="trust-name">Banque Misr</span></div>
-      <div class="trust-pill" aria-hidden="true"><span class="trust-logo"><svg><use href="#i-bank"/></svg></span><span class="trust-name">FAB Misr</span></div>
-      <div class="trust-pill" aria-hidden="true"><span class="trust-logo"><svg><use href="#i-building"/></svg></span><span class="trust-name">CGC</span></div>
-      <div class="trust-pill" aria-hidden="true"><span class="trust-logo"><svg><use href="#i-edu"/></svg></span><span class="trust-name">BUE</span></div>
-      <div class="trust-pill" aria-hidden="true"><span class="trust-logo"><svg><use href="#i-bolt"/></svg></span><span class="trust-name">Elsewedy Electric</span></div>
-      <div class="trust-pill" aria-hidden="true"><span class="trust-logo"><svg><use href="#i-building"/></svg></span><span class="trust-name">Mansour Group</span></div>
-      <div class="trust-pill" aria-hidden="true"><span class="trust-logo"><svg><use href="#i-building"/></svg></span><span class="trust-name">Schindler</span></div>
-    </div>
-  </div>
-
-  <div class="trust-marquee reverse" style="--speed:54s">
-    <div class="trust-track">
-      <div class="trust-pill"><span class="trust-logo"><svg><use href="#i-bolt"/></svg></span><span class="trust-name">Abu Qir Petroleum</span></div>
-      <div class="trust-pill"><span class="trust-logo"><svg><use href="#i-bank"/></svg></span><span class="trust-name">Islamic Dev Bank</span></div>
-      <div class="trust-pill"><span class="trust-logo"><svg><use href="#i-building"/></svg></span><span class="trust-name">Kandil Steel</span></div>
-      <div class="trust-pill"><span class="trust-logo"><svg><use href="#i-pill"/></svg></span><span class="trust-name">Viatris</span></div>
-      <div class="trust-pill"><span class="trust-logo"><svg><use href="#i-bank"/></svg></span><span class="trust-name">Cairo Capital</span></div>
-      <div class="trust-pill"><span class="trust-logo"><svg><use href="#i-chip"/></svg></span><span class="trust-name">Edge-Pro</span></div>
-      <div class="trust-pill"><span class="trust-logo"><svg><use href="#i-bank"/></svg></span><span class="trust-name">NPPA</span></div>
-      <!-- duplicate set for seamless loop -->
-      <div class="trust-pill" aria-hidden="true"><span class="trust-logo"><svg><use href="#i-bolt"/></svg></span><span class="trust-name">Abu Qir Petroleum</span></div>
-      <div class="trust-pill" aria-hidden="true"><span class="trust-logo"><svg><use href="#i-bank"/></svg></span><span class="trust-name">Islamic Dev Bank</span></div>
-      <div class="trust-pill" aria-hidden="true"><span class="trust-logo"><svg><use href="#i-building"/></svg></span><span class="trust-name">Kandil Steel</span></div>
-      <div class="trust-pill" aria-hidden="true"><span class="trust-logo"><svg><use href="#i-pill"/></svg></span><span class="trust-name">Viatris</span></div>
-      <div class="trust-pill" aria-hidden="true"><span class="trust-logo"><svg><use href="#i-bank"/></svg></span><span class="trust-name">Cairo Capital</span></div>
-      <div class="trust-pill" aria-hidden="true"><span class="trust-logo"><svg><use href="#i-chip"/></svg></span><span class="trust-name">Edge-Pro</span></div>
-      <div class="trust-pill" aria-hidden="true"><span class="trust-logo"><svg><use href="#i-bank"/></svg></span><span class="trust-name">NPPA</span></div>
-    </div>
+      <span class="trust-item" style="--logo-nudge:6px"><img class="trust-item__logo" src="assets/clients/original/elsewedy-electric.png" alt="Elsewedy Electric" width="120" height="48" loading="lazy" decoding="async"></span>
+      <span class="trust-item"><img class="trust-item__logo" src="assets/clients/original/fab.png" alt="FAB Misr" width="128" height="48" loading="lazy" decoding="async"></span>
+      <span class="trust-item trust-item--md"><img class="trust-item__logo" src="assets/clients/original/mcit.png" alt="Ministry of Communications and Information Technology" width="120" height="60" loading="lazy" decoding="async"></span>
+      <span class="trust-item trust-item--lg"><img class="trust-item__logo" src="assets/clients/original/abu-qir.png" alt="Abu Qir Petroleum" width="71" height="56" loading="lazy" decoding="async"></span>
+      <span class="trust-item"><img class="trust-item__logo" src="assets/clients/original/banque-misr.png" alt="Banque Misr" width="115" height="48" loading="lazy" decoding="async"></span>
+      <span class="trust-item"><img class="trust-item__logo" src="assets/clients/original/bue.png" alt="BUE" width="137" height="48" loading="lazy" decoding="async"></span>
+      <span class="trust-item"><img class="trust-item__logo" src="assets/clients/original/capmas.png" alt="CAPMAS" width="167" height="48" loading="lazy" decoding="async"></span>
+      <span class="trust-item"><img class="trust-item__logo" src="assets/clients/original/cgc.png" alt="Credit Guarantee Company" width="110" height="48" loading="lazy" decoding="async"></span>
+      <span class="trust-item"><img class="trust-item__logo" src="assets/clients/original/edgepro.png" alt="Edge-Pro" width="129" height="48" loading="lazy" decoding="async"></span>
+      <span class="trust-item"><img class="trust-item__logo" src="assets/clients/original/egypt-post.png" alt="Egypt Post" width="150" height="48" loading="lazy" decoding="async"></span>
+      <span class="trust-item"><img class="trust-item__logo" src="assets/clients/original/isdb.png" alt="Islamic Development Bank" width="92" height="48" loading="lazy" decoding="async"></span>
+      <span class="trust-item"><img class="trust-item__logo" src="assets/clients/original/kandil-steel.png" alt="Kandil Steel" width="184" height="48" loading="lazy" decoding="async"></span>
+      <span class="trust-item"><img class="trust-item__logo" src="assets/clients/original/mansour-group.png" alt="Mansour Group" width="46" height="48" loading="lazy" decoding="async"></span>
+      <span class="trust-item trust-item--boost"><img class="trust-item__logo" src="assets/clients/original/mped.png" alt="Ministry of Planning and Economic Development" width="297" height="63" loading="lazy" decoding="async"></span>
+      <span class="trust-item trust-item--sm"><img class="trust-item__logo" src="assets/clients/original/nexta.png" alt="Nexta" width="133" height="36" loading="lazy" decoding="async"></span>
+      <span class="trust-item trust-item--lg"><img class="trust-item__logo" src="assets/clients/original/schindler.png" alt="Schindler" width="66" height="56" loading="lazy" decoding="async"></span>
+      <span class="trust-item trust-item--lg"><img class="trust-item__logo" src="assets/clients/original/takaful.png" alt="Takaful" width="56" height="56" loading="lazy" decoding="async"></span>
+      <span class="trust-item"><img class="trust-item__logo" src="assets/clients/original/viatris.png" alt="Viatris" width="182" height="48" loading="lazy" decoding="async"></span>
+      <span class="trust-item" style="--logo-nudge:6px" aria-hidden="true"><img class="trust-item__logo" src="assets/clients/original/elsewedy-electric.png" alt="" width="120" height="48" loading="lazy" decoding="async"></span>
+      <span class="trust-item" aria-hidden="true"><img class="trust-item__logo" src="assets/clients/original/fab.png" alt="" width="128" height="48" loading="lazy" decoding="async"></span>
+      <span class="trust-item trust-item--md" aria-hidden="true"><img class="trust-item__logo" src="assets/clients/original/mcit.png" alt="" width="120" height="60" loading="lazy" decoding="async"></span>
+      <span class="trust-item trust-item--lg" aria-hidden="true"><img class="trust-item__logo" src="assets/clients/original/abu-qir.png" alt="" width="71" height="56" loading="lazy" decoding="async"></span>
+      <span class="trust-item" aria-hidden="true"><img class="trust-item__logo" src="assets/clients/original/banque-misr.png" alt="" width="115" height="48" loading="lazy" decoding="async"></span>
+      <span class="trust-item" aria-hidden="true"><img class="trust-item__logo" src="assets/clients/original/bue.png" alt="" width="137" height="48" loading="lazy" decoding="async"></span>
+      <span class="trust-item" aria-hidden="true"><img class="trust-item__logo" src="assets/clients/original/capmas.png" alt="" width="167" height="48" loading="lazy" decoding="async"></span>
+      <span class="trust-item" aria-hidden="true"><img class="trust-item__logo" src="assets/clients/original/cgc.png" alt="" width="110" height="48" loading="lazy" decoding="async"></span>
+      <span class="trust-item" aria-hidden="true"><img class="trust-item__logo" src="assets/clients/original/edgepro.png" alt="" width="129" height="48" loading="lazy" decoding="async"></span>
+      <span class="trust-item" aria-hidden="true"><img class="trust-item__logo" src="assets/clients/original/egypt-post.png" alt="" width="150" height="48" loading="lazy" decoding="async"></span>
+      <span class="trust-item" aria-hidden="true"><img class="trust-item__logo" src="assets/clients/original/isdb.png" alt="" width="92" height="48" loading="lazy" decoding="async"></span>
+      <span class="trust-item" aria-hidden="true"><img class="trust-item__logo" src="assets/clients/original/kandil-steel.png" alt="" width="184" height="48" loading="lazy" decoding="async"></span>
+      <span class="trust-item" aria-hidden="true"><img class="trust-item__logo" src="assets/clients/original/mansour-group.png" alt="" width="46" height="48" loading="lazy" decoding="async"></span>
+      <span class="trust-item trust-item--boost" aria-hidden="true"><img class="trust-item__logo" src="assets/clients/original/mped.png" alt="" width="297" height="63" loading="lazy" decoding="async"></span>
+      <span class="trust-item trust-item--sm" aria-hidden="true"><img class="trust-item__logo" src="assets/clients/original/nexta.png" alt="" width="133" height="36" loading="lazy" decoding="async"></span>
+      <span class="trust-item trust-item--lg" aria-hidden="true"><img class="trust-item__logo" src="assets/clients/original/schindler.png" alt="" width="66" height="56" loading="lazy" decoding="async"></span>
+      <span class="trust-item trust-item--lg" aria-hidden="true"><img class="trust-item__logo" src="assets/clients/original/takaful.png" alt="" width="56" height="56" loading="lazy" decoding="async"></span>
+      <span class="trust-item" aria-hidden="true"><img class="trust-item__logo" src="assets/clients/original/viatris.png" alt="" width="182" height="48" loading="lazy" decoding="async"></span>    </div>
   </div>
 </section>
 
@@ -3185,8 +3240,8 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
         <p class="stat-label">Enterprise clients across 6 sectors</p>
       </div>
       <div class="stat" data-reveal>
-        <div class="stat-num" data-count="4">0</div>
-        <p class="stat-label">Global technology partnerships &mdash; Microsoft, Nexthink, AWS, Huawei</p>
+        <div class="stat-num" data-count="5">0</div>
+        <p class="stat-label">Global technology partnerships &mdash; Microsoft, Huawei, Nexthink, eFinance, Vodafone</p>
       </div>
       <div class="stat" data-reveal>
         <div class="stat-num" data-count="4">0</div>
@@ -3202,9 +3257,12 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
 <section class="section partners" id="partners" data-section-reveal>
   <div class="section-inner">
     <div class="partners-head" data-reveal>
-      <span class="label">Technology Partners</span>
-      <h2 class="h2">Built on the world&rsquo;s leading platforms.</h2>
-      <p class="lead">Our partnerships aren&rsquo;t badges &mdash; they determine what we can deliver for you.</p>
+      <div class="head-left">
+        <span class="label">Technology Partners</span>
+        <h2 class="h2">Built on the world&rsquo;s leading platforms.</h2>
+        <p class="lead">Our partnerships aren&rsquo;t badges &mdash; they determine what we can deliver for you.</p>
+      </div>
+      <a class="tlink" href="partners/index.html">View all partners <i class="ti ti-arrow-right"></i></a>
     </div>
 
     <div class="partners-grid stagger">
@@ -3217,38 +3275,8 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
             <img class="partner-logo-img" src="assets/microsoft-logo.png" alt="Microsoft" width="340" height="136" loading="lazy" decoding="async">
           </div>
           <div class="partner-reveal">
-            <p>Azure, Power BI, and Microsoft Fabric for government digital transformation across Egypt and Saudi Arabia. Aligned with Digital Egypt 2030 and Saudi Vision 2030.</p>
-            <a class="partner-btn" href="#">Explore More</a>
-          </div>
-        </div>
-      </article>
-
-      <article class="partner" data-reveal tabindex="0">
-        <div class="partner-card">
-          <div class="partner-card__bg" aria-hidden="true"></div>
-          <div class="partner-card__dim" aria-hidden="true"></div>
-          <div class="partner-card__blur" aria-hidden="true"></div>
-          <div class="partner-logo-wrap">
-            <img class="partner-logo-img" src="assets/nexthink-logo.png" alt="Nexthink" width="220" height="80" loading="lazy" decoding="async">
-          </div>
-          <div class="partner-reveal">
-            <p>Egypt and Saudi Arabia&rsquo;s authorized Nexthink partner. Deploy the world&rsquo;s leading Digital Employee Experience platform for banks, telcos, and enterprises with 200+ endpoints.</p>
-            <a class="partner-btn" href="#contact">Explore More</a>
-          </div>
-        </div>
-      </article>
-
-      <article class="partner" data-reveal tabindex="0">
-        <div class="partner-card">
-          <div class="partner-card__bg" aria-hidden="true"></div>
-          <div class="partner-card__dim" aria-hidden="true"></div>
-          <div class="partner-card__blur" aria-hidden="true"></div>
-          <div class="partner-logo-wrap">
-            <img class="partner-logo-img" src="assets/AWS-logo.png" alt="AWS" width="220" height="80" loading="lazy" decoding="async">
-          </div>
-          <div class="partner-reveal">
-            <p>Enterprise cloud migration and AI-ready infrastructure on Amazon Web Services &mdash; scalable environments for Egypt and Gulf enterprises.</p>
-            <a class="partner-btn" href="#">Explore More</a>
+            <p>Azure, Microsoft 365, Power Platform, and Dynamics 365 for government and enterprise digital transformation across Egypt and the Gulf.</p>
+            <a class="partner-btn" href="partners/microsoft.html">Explore More</a>
           </div>
         </div>
       </article>
@@ -3263,7 +3291,52 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
           </div>
           <div class="partner-reveal">
             <p>Huawei Cloud and enterprise infrastructure for telcos, government, and large enterprises &mdash; secure, scalable platforms across Egypt and the Gulf.</p>
-            <a class="partner-btn" href="#">Explore More</a>
+            <a class="partner-btn" href="partners/huawei.html">Explore More</a>
+          </div>
+        </div>
+      </article>
+
+      <article class="partner" data-reveal tabindex="0">
+        <div class="partner-card">
+          <div class="partner-card__bg" aria-hidden="true"></div>
+          <div class="partner-card__dim" aria-hidden="true"></div>
+          <div class="partner-card__blur" aria-hidden="true"></div>
+          <div class="partner-logo-wrap">
+            <img class="partner-logo-img" src="assets/nexthink-logo.png" alt="Nexthink" width="220" height="80" loading="lazy" decoding="async">
+          </div>
+          <div class="partner-reveal">
+            <p>Authorized Nexthink partner for banks, telcos, and enterprises &mdash; deploy the leading Digital Employee Experience platform at scale.</p>
+            <a class="partner-btn" href="partners/nexthink.html">Explore More</a>
+          </div>
+        </div>
+      </article>
+
+      <article class="partner" data-reveal tabindex="0">
+        <div class="partner-card">
+          <div class="partner-card__bg" aria-hidden="true"></div>
+          <div class="partner-card__dim" aria-hidden="true"></div>
+          <div class="partner-card__blur" aria-hidden="true"></div>
+          <div class="partner-logo-wrap">
+            <img class="partner-logo-img" src="assets/efinance-logo.svg" alt="eFinance" width="220" height="80" loading="lazy" decoding="async">
+          </div>
+          <div class="partner-reveal">
+            <p>Digital payments, fintech integration, and sovereign cloud capabilities for secure transaction-based government and enterprise services.</p>
+            <a class="partner-btn" href="partners/efinance.html">Explore More</a>
+          </div>
+        </div>
+      </article>
+
+      <article class="partner" data-reveal tabindex="0">
+        <div class="partner-card">
+          <div class="partner-card__bg" aria-hidden="true"></div>
+          <div class="partner-card__dim" aria-hidden="true"></div>
+          <div class="partner-card__blur" aria-hidden="true"></div>
+          <div class="partner-logo-wrap">
+            <img class="partner-logo-img" src="assets/vodafone-logo.svg" alt="Vodafone" width="220" height="80" loading="lazy" decoding="async">
+          </div>
+          <div class="partner-reveal">
+            <p>Vodafone cloud and enterprise connectivity combined with Digital Hub integration expertise for scalable, connected digital operations.</p>
+            <a class="partner-btn" href="partners/vodafone.html">Explore More</a>
           </div>
         </div>
       </article>
@@ -3326,6 +3399,20 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
           <div class="case-body">
             <h3 class="case-title">500+ endpoints under real-time Nexthink DEX monitoring</h3>
             <p class="case-excerpt">Deployed Nexthink DEX across a major bank&rsquo;s full IT environment &mdash; giving the IT team live visibility into endpoint health and employee experience at scale.</p>
+            <span class="case-btn">Read More</span>
+          </div>
+        </a>
+      </article>
+
+      <article class="case" data-reveal>
+        <div class="case-glass" aria-hidden="true"></div>
+        <a class="case-link" href="cases/index.html" aria-label="Case study coming soon">
+          <div class="case-media">
+            <img src="assets/cases/banking.jpg" alt="Enterprise digital transformation" loading="lazy" decoding="async">
+          </div>
+          <div class="case-body">
+            <h3 class="case-title">National e-services portal for a government ministry</h3>
+            <p class="case-excerpt">End-to-end design and delivery of a citizen-facing digital services platform &mdash; unified identity, workflow automation, and analytics for leadership dashboards.</p>
             <span class="case-btn">Read More</span>
           </div>
         </a>
@@ -3590,7 +3677,7 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
           <a href="about-us.html">About Us</a>
           <a href="cases/index.html">Case Studies</a>
           <a href="blogs/index.html">Blogs</a>
-          <a href="#partners">Partners</a>
+          <a href="partners/index.html">Partners</a>
           <a href="careers/index.html">Careers</a>
           <a href="#contact">Contact</a>
         </div>
@@ -3610,7 +3697,7 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
 
     <div class="footer-bottom">
       <span>&copy; 2024 Digital Hub S.A.E. All rights reserved.</span>
-      <span>Microsoft Partner &middot; Nexthink Authorized Reseller &middot; AWS Partner</span>
+      <span>Microsoft Partner &middot; Nexthink Authorized Reseller &middot; Huawei &middot; eFinance &middot; Vodafone</span>
     </div>
   </div>
 </footer>

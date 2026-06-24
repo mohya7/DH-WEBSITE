@@ -246,11 +246,13 @@ function buildSceneMock(scene) {
 function buildEswdScene(scene, index) {
   const theme = scene.theme || SCENE_THEMES[index] || 'blue';
   const active = index === 0 ? ' is-active' : '';
-  return `<div class="eswd-scene eswd-scene--${scene.visual} eswd-scene--${theme}${active}" data-scene="${index}">
+  const visualClass = scene.image ? 'photo' : scene.visual;
+  const inner = scene.image
+    ? `<div class="eswd-scene__photo"><img src="${scene.image}" alt="${scene.imageAlt || scene.label}" loading="lazy" decoding="async"></div>`
+    : `<div class="eswd-scene__mock">\n              ${buildSceneMock(scene)}\n            </div>`;
+  return `<div class="eswd-scene eswd-scene--${visualClass} eswd-scene--${theme}${active}" data-scene="${index}">
             <span class="eswd-scene__label">${scene.label}</span>
-            <div class="eswd-scene__mock">
-              ${buildSceneMock(scene)}
-            </div>
+            ${inner}
           </div>`;
 }
 

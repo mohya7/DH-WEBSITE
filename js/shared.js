@@ -61,5 +61,23 @@
       }
     });
   }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
-  document.querySelectorAll('[data-reveal]').forEach(function(el){ io.observe(el); });
+  document.querySelectorAll('[data-reveal]').forEach(function(el){
+    if (!el.closest('[data-section-reveal]')) io.observe(el);
+  });
+
+  var sectionIO = new IntersectionObserver(function(entries){
+    entries.forEach(function(entry){
+      if (!entry.isIntersecting) return;
+      var section = entry.target;
+      section.classList.add('in');
+      var items = section.querySelectorAll('[data-reveal]');
+      items.forEach(function(el, i){
+        setTimeout(function(){ el.classList.add('in'); }, 120 + i * 100);
+      });
+      sectionIO.unobserve(section);
+    });
+  }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
+  document.querySelectorAll('[data-section-reveal]').forEach(function(el){
+    sectionIO.observe(el);
+  });
 })();

@@ -3,7 +3,30 @@ const path = require('path');
 const { buildEswdStage } = require('./eswd-scene-builders');
 const { buildCasesSection } = require('./cases-section');
 
-const templatePath = path.join(__dirname, '../services/enterprise-software.html');
+const SVC_IMG = '../assets/services/';
+const METHOD_IMG = '../assets/method/';
+const METHOD_PHOTOS = [
+  { src: `${METHOD_IMG}discover.jpg`, alt: 'Discovery and requirements workshop' },
+  { src: `${METHOD_IMG}architect.jpg`, alt: 'Solution architecture and design planning' },
+  { src: `${METHOD_IMG}build.jpg`, alt: 'Agile development and system integration' },
+  { src: `${METHOD_IMG}deploy.jpg`, alt: 'Production deployment and continuous improvement' },
+];
+const SCENE_PHOTOS = [
+  { image: `${SVC_IMG}enterprise-apps.jpg`, imageAlt: 'Enterprise platform delivery' },
+  { image: `${SVC_IMG}digital-portals.jpg`, imageAlt: 'Digital portals and service platforms' },
+  { image: `${SVC_IMG}integration.jpg`, imageAlt: 'Integration and enterprise connectivity' },
+  { image: `${SVC_IMG}modernization.jpg`, imageAlt: 'Cloud modernization and delivery' },
+];
+
+function withScenePhotos(scenes) {
+  return scenes.map((scene, i) => ({
+    ...scene,
+    image: scene.image || SCENE_PHOTOS[i]?.image,
+    imageAlt: scene.imageAlt || SCENE_PHOTOS[i]?.imageAlt || scene.label,
+  }));
+}
+
+const templatePath = path.join(__dirname, '../legacy/services/enterprise-software.html');
 const template = fs.readFileSync(templatePath, 'utf8');
 
 function navActive(html, slug) {
@@ -480,7 +503,7 @@ function buildPage(cfg) {
 
   html = html.replace(
     /<div class="eswd-stage" id="eswdStage" aria-hidden="true">[\s\S]*?<\/div>\n\n        <nav class="eswd-menu"/,
-    `<div class="eswd-stage" id="eswdStage" aria-hidden="true">\n          <span class="eswd-stage__glow" id="eswdStageGlow"></span>\n\n          ${buildEswdStage(cfg.scenes)}\n        </div>\n\n        <nav class="eswd-menu"`
+    `<div class="eswd-stage" id="eswdStage" aria-hidden="true">\n          <span class="eswd-stage__glow" id="eswdStageGlow"></span>\n\n          ${buildEswdStage(withScenePhotos(cfg.scenes))}\n        </div>\n\n        <nav class="eswd-menu"`
   );
 
   html = html.replace(
@@ -494,15 +517,19 @@ function buildPage(cfg) {
   );
 
   const methodRows = html.match(/<article class="method-row[\s\S]*?<\/article>/g) || [];
-  cfg.methodSteps.forEach(([title, body, icon], i) => {
+  cfg.methodSteps.forEach(([title, body], i) => {
     if (!methodRows[i]) return;
+    const photo = METHOD_PHOTOS[i] || METHOD_PHOTOS[0];
     let row = methodRows[i]
       .replace(/<h3>.*?<\/h3>/, `<h3>${title}</h3>`)
       .replace(/<p>We map your current processes[\s\S]*?<\/p>/, `<p>${body}</p>`)
       .replace(/<p>We design the solution architecture[\s\S]*?<\/p>/, `<p>${body}</p>`)
       .replace(/<p>We develop in iterative sprints[\s\S]*?<\/p>/, `<p>${body}</p>`)
       .replace(/<p>We manage production deployment[\s\S]*?<\/p>/, `<p>${body}</p>`)
-      .replace(/<i class="ti ti-[^"]+"><\/i>/, `<i class="ti ${icon}"></i>`);
+      .replace(
+        /<div class="method-frame(?: method-frame--photo)?">[\s\S]*?<\/div>/,
+        `<div class="method-frame method-frame--photo"><img src="${photo.src}" alt="${photo.alt}" loading="lazy" decoding="async"></div>`
+      );
     html = html.replace(methodRows[i], row);
   });
 
@@ -524,7 +551,7 @@ function buildPage(cfg) {
 }
 
 pages.forEach((cfg) => {
-  const outPath = path.join(__dirname, '../services', cfg.slug);
+  const outPath = path.join(__dirname, '../legacy/services', cfg.slug);
   fs.writeFileSync(outPath, buildPage(cfg), 'utf8');
   console.log('Wrote', cfg.slug);
 });

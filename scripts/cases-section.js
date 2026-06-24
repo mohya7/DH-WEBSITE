@@ -53,6 +53,20 @@ function buildCasesSection() {
             </div>
           </a>
         </article>
+
+        <article class="case" data-reveal>
+          <div class="case-glass" aria-hidden="true"></div>
+          <a class="case-link" href="../cases/index.html" aria-label="Case study coming soon">
+            <div class="case-media">
+              <img src="../assets/cases/banking.jpg" alt="Enterprise digital transformation" loading="lazy" decoding="async">
+            </div>
+            <div class="case-body">
+              <h3 class="case-title">National e-services portal for a government ministry</h3>
+              <p class="case-excerpt">End-to-end design and delivery of a citizen-facing digital services platform &mdash; unified identity, workflow automation, and analytics for leadership dashboards.</p>
+              <span class="case-btn">Read More</span>
+            </div>
+          </a>
+        </article>
       </div>
     </div>
   </section>`;

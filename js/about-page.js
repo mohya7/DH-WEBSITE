@@ -389,8 +389,27 @@
     }
 
     function scrollSpan(){
-      return Math.max(420, window.innerHeight * 0.72);
+      return Math.round(window.innerHeight * Math.max(1.2, items.length - 0.15));
     }
+
+    function jtlPinTop(){
+      var nav = document.getElementById('nav');
+      if (!nav) return 120;
+      var rect = nav.getBoundingClientRect();
+      return Math.ceil(rect.top + rect.height + 20);
+    }
+
+    function jtlSyncPinTop(){
+      var top = jtlPinTop();
+      document.documentElement.style.setProperty('--jtl-pin-top', top + 'px');
+      return top;
+    }
+    jtlSyncPinTop();
+    window.addEventListener('resize', function(){
+      layoutLine();
+      jtlSyncPinTop();
+      if (typeof ScrollTrigger !== 'undefined') ScrollTrigger.refresh();
+    });
 
     items.forEach(function(item, i){
       var btn = item.querySelector('.jtl-item__btn');
@@ -421,23 +440,23 @@
     }
 
     layoutLine();
-    window.addEventListener('resize', layoutLine);
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(layoutLine);
 
     if (typeof ScrollTrigger !== 'undefined' && !reduceMotion){
-      ScrollTrigger.create({
-        trigger: wrap,
-        start: 'top 82%',
-        onEnter: reveal,
-        once: true
-      });
-
       scrollTrigger = ScrollTrigger.create({
         trigger: wrap,
-        start: 'top 70%',
+        start: function(){ return 'top top+=' + jtlSyncPinTop(); },
         end: function(){ return '+=' + scrollSpan(); },
-        scrub: 1.1,
+        pin: true,
+        pinSpacing: true,
+        scrub: 0.85,
         invalidateOnRefresh: true,
+        onEnter: reveal,
+        onEnterBack: function(){
+          wrap.classList.add('is-ready');
+          if (activeIndex < 0) setActive(0, { force: true });
+        },
+        onRefresh: layoutLine,
         onUpdate: function(self){
           if (userPicked) return;
           setProgress(self.progress);

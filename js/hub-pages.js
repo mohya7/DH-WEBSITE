@@ -38,4 +38,53 @@
     }, { threshold: 0.1, rootMargin: '0px 0px -5% 0px' });
     featureBlocks.forEach(function(el){ fio.observe(el); });
   }
+
+  var overviews = document.querySelectorAll('.page-partner-view .partner-overview');
+  if (overviews.length && !window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    var armedY = null;
+    var cleared = false;
+    var armTimer = null;
+
+    function clearOverviewBlur(){
+      if (cleared) return;
+      cleared = true;
+      if (armTimer) clearTimeout(armTimer);
+      overviews.forEach(function(el){
+        el.classList.remove('is-blurred');
+        el.classList.add('is-clear');
+      });
+      window.removeEventListener('scroll', onOverviewScroll);
+      visIO.disconnect();
+    }
+
+    function scrollY(){
+      return window.pageYOffset || document.documentElement.scrollTop || 0;
+    }
+
+    function onOverviewScroll(){
+      if (cleared || armedY === null) return;
+      if (Math.abs(scrollY() - armedY) > 6) clearOverviewBlur();
+    }
+
+    function armOverviewBlur(){
+      if (cleared || armedY !== null) return;
+      if (armTimer) clearTimeout(armTimer);
+      armTimer = setTimeout(function(){
+        if (cleared) return;
+        armedY = scrollY();
+        window.addEventListener('scroll', onOverviewScroll, { passive: true });
+      }, 120);
+    }
+
+    var visIO = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        if (entry.isIntersecting) armOverviewBlur();
+      });
+    }, { threshold: 0.18, rootMargin: '0px' });
+
+    overviews.forEach(function(el){
+      if (!el.classList.contains('is-blurred')) el.classList.add('is-blurred');
+      visIO.observe(el);
+    });
+  }
 })();

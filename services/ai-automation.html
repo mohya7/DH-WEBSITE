@@ -13,6 +13,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css" />
 <link rel="stylesheet" href="../css/service-page.css" />
 <link rel="stylesheet" href="../css/tv.css" />
+<link rel="stylesheet" href="../css/responsive.css" />
 </head>
 <body class="page-service">
 
@@ -70,9 +71,11 @@
       <li class="has-dd" role="none">
         <a class="nav-link" role="menuitem" tabindex="0">Partners <i class="ti ti-chevron-down"></i></a>
         <div class="dd" role="menu">
-          <a href="../index.html#partners"><i class="ti ti-brand-windows"></i> Microsoft</a>
-          <a href="../index.html#partners"><i class="ti ti-device-desktop-analytics"></i> Nexthink</a>
-          <a href="../index.html#partners"><i class="ti ti-brand-aws"></i> AWS</a>
+          <a href="../partners/microsoft.html"><i class="ti ti-brand-windows"></i> Microsoft</a>
+          <a href="../partners/huawei.html"><i class="ti ti-cloud"></i> Huawei</a>
+          <a href="../partners/nexthink.html"><i class="ti ti-device-desktop-analytics"></i> Nexthink</a>
+          <a href="../partners/efinance.html"><i class="ti ti-credit-card"></i> eFinance</a>
+          <a href="../partners/vodafone.html"><i class="ti ti-antenna-bars-5"></i> Vodafone</a>
         </div>
       </li>
       <li><a class="nav-link" href="../cases/index.html">Case Studies</a></li>
@@ -98,9 +101,12 @@
   <details>
     <summary>Partners <i class="ti ti-chevron-down"></i></summary>
     <div class="sub">
-      <a href="../index.html#partners">Microsoft</a>
-      <a href="../index.html#partners">Nexthink</a>
-      <a href="../index.html#partners">AWS</a>
+      <a href="../partners/index.html">All partners</a>
+      <a href="../partners/microsoft.html">Microsoft</a>
+      <a href="../partners/huawei.html">Huawei</a>
+      <a href="../partners/nexthink.html">Nexthink</a>
+      <a href="../partners/efinance.html">eFinance</a>
+      <a href="../partners/vodafone.html">Vodafone</a>
     </div>
   </details>
   <a href="../cases/index.html">Case Studies</a>
@@ -111,7 +117,7 @@
 </div>
 
 <main>
-  <!-- SECTION 1 — HERO -->
+  <!-- SECTION 1 ï¿½ HERO -->
   <section class="hero hero--service" id="top">
     <div class="hero-inner">
       <div class="hero-left">
@@ -119,20 +125,20 @@
           <div class="hero-glass__glow" aria-hidden="true"></div>
           <div class="hero-glass__copy">
             <div class="hero-top">
-              <span class="hero-eyebrow">Digital Hub for <strong>AI &amp; Intelligent Automation</strong></span>
-              <h1>Deploy business-ready AI at enterprise scale</h1>
+              <span class="hero-eyebrow">Digital Hub for <strong>Enterprise Software</strong></span>
+              <h1>Built for your organization, scaled for enterprise impact</h1>
             </div>
-            <p class="hero-sub">Whether you&rsquo;re automating document-heavy workflows or deploying governed AI assistants, Digital Hub helps Egyptian and Gulf organizations move from pilots to production safely.</p>
+            <p class="hero-sub">Whether you&rsquo;re modernizing legacy systems or delivering mission-critical platforms, Digital Hub is the software partner trusted by enterprises across Egypt and the GCC.</p>
           </div>
           <div class="hero-glass__side">
             <div class="hero-glass__stats">
               <div class="hero-glass__stat">
-                <strong>8</strong>
-                <span>Capabilities</span>
+                <strong class="orange">30+</strong>
+                <span>Clients</span>
               </div>
               <div class="hero-glass__stat">
-                <strong class="orange">500+</strong>
-                <span>Endpoints monitored</span>
+                <strong>7</strong>
+                <span>Capabilities</span>
               </div>
               <div class="hero-glass__stat">
                 <strong>5+</strong>
@@ -143,9 +149,9 @@
               <a class="btn-pill" href="#contact">Discuss an AI use case</a>
             </div>
             <ul class="hero-checklist">
-          <li><span class="hero-check" aria-hidden="true"><i class="ti ti-check"></i></span>Generative AI assistants grounded in trusted enterprise knowledge</li>
-          <li><span class="hero-check" aria-hidden="true"><i class="ti ti-check"></i></span>Intelligent document processing and agentic workflows</li>
-          <li><span class="hero-check" aria-hidden="true"><i class="ti ti-check"></i></span>Responsible AI governance, security, and cloud integration</li>
+              <li><span class="hero-check" aria-hidden="true"><i class="ti ti-check"></i></span>Custom applications built around how your teams actually work</li>
+              <li><span class="hero-check" aria-hidden="true"><i class="ti ti-check"></i></span>Legacy modernization and integration for regulated sectors</li>
+              <li><span class="hero-check" aria-hidden="true"><i class="ti ti-check"></i></span>Full-stack delivery from discovery through production support</li>
             </ul>
           </div>
         </div>
@@ -159,7 +165,7 @@
       <header class="problem-lead" data-reveal>
         <span class="label">The problem we solve</span>
         <h2>Manual work and siloed knowledge are limiting scale.</h2>
-        <p>Most organizations have the data and the ambition for AI &mdash; but workflows still depend on manual steps, documents trapped in inboxes, and knowledge scattered across systems that <a href="#services" class="accent">AI can&rsquo;t safely reach</a>.</p>
+        <p>Most Egyptian and Gulf enterprises are running on software that was implemented to solve yesterday&rsquo;s problem. Data stalls between legacy ERP, email, and Excel &mdash; and never reaches the <a href="#services" class="accent">real-time flows that AI requires</a>.</p>
       </header>
 
       <div class="problem-pipeline" id="problemPipeline" aria-label="Illustration: broken enterprise data pipeline">
@@ -172,8 +178,8 @@
 
           <div class="pp-track" aria-hidden="true">
             <div class="pp-node pp-node--source">
-              <div class="pp-node__icon"><i class="ti ti-file-text"></i></div>
-              <span class="pp-node__label">Documents</span>
+              <div class="pp-node__icon"><i class="ti ti-database-import"></i></div>
+              <span class="pp-node__label">Source Data</span>
             </div>
 
             <div class="pp-conn pp-conn--broken">
@@ -182,8 +188,8 @@
             </div>
 
             <div class="pp-node pp-node--legacy">
-              <div class="pp-node__icon"><i class="ti ti-click"></i></div>
-              <span class="pp-node__label">Manual Steps</span>
+              <div class="pp-node__icon"><i class="ti ti-server-2"></i></div>
+              <span class="pp-node__label">Legacy ERP</span>
             </div>
 
             <div class="pp-conn pp-conn--broken">
@@ -192,8 +198,8 @@
             </div>
 
             <div class="pp-node pp-node--silo">
-              <div class="pp-node__icon"><i class="ti ti-books"></i></div>
-              <span class="pp-node__label">Siloed Knowledge</span>
+              <div class="pp-node__icon"><i class="ti ti-mail"></i></div>
+              <span class="pp-node__label">Email / Excel</span>
             </div>
 
             <div class="pp-conn pp-conn--broken">
@@ -209,26 +215,26 @@
 
           <div class="pp-annotations">
             <article class="pp-card pp-card--1" data-break="1">
-              <div class="pp-card__icon" aria-hidden="true"><i class="ti ti-clock"></i></div>
+              <div class="pp-card__icon" aria-hidden="true"><i class="ti ti-unlink"></i></div>
               <div class="pp-card__body">
-                <h3>Manual, repetitive work</h3>
-                <p>High-value teams spend hours on tasks that should be automated &mdash; slowing service delivery and scale.</p>
+                <h3>Systems that don&rsquo;t integrate</h3>
+                <p>Legacy platforms never connected &mdash; every bridge is a custom workaround that adds cost and fragility.</p>
               </div>
             </article>
 
             <article class="pp-card pp-card--2" data-break="2">
-              <div class="pp-card__icon" aria-hidden="true"><i class="ti ti-lock"></i></div>
+              <div class="pp-card__icon" aria-hidden="true"><i class="ti ti-brain"></i></div>
               <div class="pp-card__body">
-                <h3>Knowledge locked in silos</h3>
-                <p>Policies, records, and expertise sit in disconnected systems assistants can&rsquo;t access with confidence.</p>
+                <h3>Not built for AI-era data flows</h3>
+                <p>Pre-AI architecture can&rsquo;t support the real-time pipelines modern intelligence requires.</p>
               </div>
             </article>
 
             <article class="pp-card pp-card--3" data-break="3">
-              <div class="pp-card__icon" aria-hidden="true"><i class="ti ti-alert-triangle"></i></div>
+              <div class="pp-card__icon" aria-hidden="true"><i class="ti ti-layers-off"></i></div>
               <div class="pp-card__body">
-                <h3>No AI governance</h3>
-                <p>Without controls, AI pilots stall at compliance review instead of reaching production safely.</p>
+                <h3>Shadow IT &amp; broken workflows</h3>
+                <p>Teams patch gaps in Excel. Approvals stall in email. Data sits in silos nobody can connect.</p>
               </div>
             </article>
           </div>
@@ -276,61 +282,31 @@
         <div class="eswd-stage" id="eswdStage" aria-hidden="true">
           <span class="eswd-stage__glow" id="eswdStageGlow"></span>
 
-          <div class="eswd-scene eswd-scene--ai-roadmap eswd-scene--blue is-active" data-scene="0">
-            <span class="eswd-scene__label">AI strategy &amp; readiness</span>
-            <div class="eswd-scene__mock">
-              <div class="eswd-mock-airoad"><div class="eswd-mock-airoad__card"><span>Priority 1</span><strong>Support bot</strong><em>High ROI</em></div>
-                <div class="eswd-mock-airoad__card"><span>Priority 2</span><strong>Doc intake</strong><em>High ROI</em></div>
-                <div class="eswd-mock-airoad__card"><span>Priority 3</span><strong>Knowledge search</strong><em>High ROI</em></div></div>
+          <div class="eswd-scene eswd-scene--photo eswd-scene--blue is-active" data-scene="0">
+            <span class="eswd-scene__label">Enterprise applications</span>
+            <div class="eswd-scene__photo">
+              <img src="../assets/services/enterprise-apps.jpg" alt="Enterprise application dashboard and operations workspace" loading="lazy" decoding="async">
             </div>
           </div>
 
-          <div class="eswd-scene eswd-scene--ai-chat eswd-scene--cyan" data-scene="1">
-            <span class="eswd-scene__label">Generative AI assistants</span>
-            <div class="eswd-scene__mock">
-              <div class="eswd-mock-chat">
-                <div class="eswd-mock-chat__user">What is the status of claim #4421?</div>
-                <div class="eswd-mock-chat__bot">
-                  <span class="eswd-mock-chat__avatar" aria-hidden="true"><i class="ti ti-sparkles"></i></span>
-                  <p>Approved — payout scheduled in 3 business days. Source: policy KB v2.4</p>
-                </div>
-                <div class="eswd-mock-chat__chips">
-                  <span>Grounded</span><span>Arabic / EN</span><span>Audit trail</span>
-                </div>
-              </div>
+          <div class="eswd-scene eswd-scene--photo eswd-scene--cyan" data-scene="1">
+            <span class="eswd-scene__label">Digital portals &amp; platforms</span>
+            <div class="eswd-scene__photo">
+              <img src="../assets/services/digital-portals.jpg" alt="Digital portal and citizen services platform" loading="lazy" decoding="async">
             </div>
           </div>
 
-          <div class="eswd-scene eswd-scene--ai-docs eswd-scene--orange" data-scene="2">
-            <span class="eswd-scene__label">Document intelligence</span>
-            <div class="eswd-scene__mock">
-              <div class="eswd-mock-doc">
-                <div class="eswd-mock-doc__preview">
-                  <div class="eswd-mock-doc__page"></div>
-                  <div class="eswd-mock-doc__scan" aria-hidden="true"></div>
-                </div>
-                <div class="eswd-mock-doc__extract">
-                  <div class="eswd-mock-doc__field"><span>Vendor</span><strong>ACME Ltd</strong></div>
-                  <div class="eswd-mock-doc__field"><span>Amount</span><strong>EGP 24,500</strong></div>
-                  <div class="eswd-mock-doc__field"><span>Status</span><strong>Verified</strong></div>
-                </div>
-              </div>
+          <div class="eswd-scene eswd-scene--photo eswd-scene--orange" data-scene="2">
+            <span class="eswd-scene__label">Integration &amp; automation</span>
+            <div class="eswd-scene__photo">
+              <img src="../assets/services/integration.jpg" alt="Enterprise systems integration and automation" loading="lazy" decoding="async">
             </div>
           </div>
 
-          <div class="eswd-scene eswd-scene--ai-agents eswd-scene--teal" data-scene="3">
-            <span class="eswd-scene__label">Agents &amp; governance</span>
-            <div class="eswd-scene__mock">
-              <div class="eswd-mock-agents">
-                <div class="eswd-mock-agents__wire" aria-hidden="true"></div>
-                <div class="eswd-mock-agent"><span>01</span><strong>Triage</strong></div>
-                <div class="eswd-mock-agent is-active"><span>02</span><strong>Extract</strong></div>
-                <div class="eswd-mock-agent"><span>03</span><strong>Route</strong></div>
-                <div class="eswd-mock-agent"><span>04</span><strong>Notify</strong></div>
-              </div>
-              <div class="eswd-mock-agents__foot">
-                <span>Governance</span><span>RAG</span><span>Human review</span>
-              </div>
+          <div class="eswd-scene eswd-scene--photo eswd-scene--teal" data-scene="3">
+            <span class="eswd-scene__label">Modernization &amp; delivery</span>
+            <div class="eswd-scene__photo">
+              <img src="../assets/services/modernization.jpg" alt="Cloud modernization and delivery pipeline" loading="lazy" decoding="async">
             </div>
           </div>
         </div>
@@ -437,10 +413,8 @@
         </div>
 
         <article class="method-row" data-reveal data-stagger>
-          <div class="method-visual" aria-hidden="true">
-            <div class="method-frame">
-              <i class="ti ti-compass"></i>
-            </div>
+          <div class="method-visual">
+            <div class="method-frame method-frame--photo"><img src="../assets/method/discover.jpg" alt="Discovery and requirements workshop" loading="lazy" decoding="async"></div>
           </div>
           <div class="method-spine-node" aria-hidden="true">1</div>
           <div class="method-copy">
@@ -453,10 +427,8 @@
         </article>
 
         <article class="method-row method-row--reverse method-row--orange" data-reveal data-stagger>
-          <div class="method-visual" aria-hidden="true">
-            <div class="method-frame">
-              <i class="ti ti-ruler-2"></i>
-            </div>
+          <div class="method-visual">
+            <div class="method-frame method-frame--photo"><img src="../assets/method/architect.jpg" alt="Solution architecture and design planning" loading="lazy" decoding="async"></div>
           </div>
           <div class="method-spine-node" aria-hidden="true">2</div>
           <div class="method-copy">
@@ -469,10 +441,8 @@
         </article>
 
         <article class="method-row method-row--orange" data-reveal data-stagger>
-          <div class="method-visual" aria-hidden="true">
-            <div class="method-frame">
-              <i class="ti ti-code"></i>
-            </div>
+          <div class="method-visual">
+            <div class="method-frame method-frame--photo"><img src="../assets/method/build.jpg" alt="Agile development and system integration" loading="lazy" decoding="async"></div>
           </div>
           <div class="method-spine-node" aria-hidden="true">3</div>
           <div class="method-copy">
@@ -485,10 +455,8 @@
         </article>
 
         <article class="method-row method-row--reverse" data-reveal data-stagger>
-          <div class="method-visual" aria-hidden="true">
-            <div class="method-frame">
-              <i class="ti ti-rocket"></i>
-            </div>
+          <div class="method-visual">
+            <div class="method-frame method-frame--photo"><img src="../assets/method/deploy.jpg" alt="Production deployment and continuous improvement" loading="lazy" decoding="async"></div>
           </div>
           <div class="method-spine-node" aria-hidden="true">4</div>
           <div class="method-copy">
@@ -552,7 +520,7 @@
     </div>
   </section>
 
-    <!-- SECTION 6 — CASE STUDIES -->
+  <!-- SECTION 6 ï¿½ CASE STUDIES -->
   <section class="section cases" id="cases" data-section-reveal>
     <div class="section-inner">
       <div class="section-head row" data-reveal>
@@ -602,6 +570,20 @@
             <div class="case-body">
               <h3 class="case-title">500+ endpoints under real-time Nexthink DEX monitoring</h3>
               <p class="case-excerpt">Deployed Nexthink DEX across a major bank&rsquo;s full IT environment &mdash; giving the IT team live visibility into endpoint health and employee experience at scale.</p>
+              <span class="case-btn">Read More</span>
+            </div>
+          </a>
+        </article>
+
+        <article class="case" data-reveal>
+          <div class="case-glass" aria-hidden="true"></div>
+          <a class="case-link" href="../cases/index.html" aria-label="Case study coming soon">
+            <div class="case-media">
+              <img src="../assets/cases/banking.jpg" alt="Enterprise digital transformation" loading="lazy" decoding="async">
+            </div>
+            <div class="case-body">
+              <h3 class="case-title">National e-services portal for a government ministry</h3>
+              <p class="case-excerpt">End-to-end design and delivery of a citizen-facing digital services platform &mdash; unified identity, workflow automation, and analytics for leadership dashboards.</p>
               <span class="case-btn">Read More</span>
             </div>
           </a>
@@ -659,7 +641,7 @@
           <a href="../about-us.html">About Us</a>
           <a href="../cases/index.html">Case Studies</a>
           <a href="../blogs/index.html">Blogs</a>
-          <a href="../index.html#partners">Partners</a>
+          <a href="../partners/index.html">Partners</a>
           <a href="../index.html#contact">Contact</a>
         </div>
       </div>
@@ -671,7 +653,7 @@
     </div>
     <div class="footer-bottom">
       <span>&copy; 2024 Digital Hub S.A.E. All rights reserved.</span>
-      <span>Microsoft Partner &middot; Nexthink Authorized Reseller &middot; AWS Partner</span>
+      <span>Microsoft Partner &middot; Nexthink Authorized Reseller &middot; Huawei &middot; eFinance &middot; Vodafone</span>
     </div>
   </div>
 </footer>
