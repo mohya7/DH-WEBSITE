@@ -1,0 +1,660 @@
+'use strict';
+
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+
+const ROOT = __dirname;
+const PORT = Number(process.env.PORT || 8765);
+const HOST = process.env.HOST || '127.0.0.1';
+const ADMIN_USER = process.env.ADMIN_USER || 'admin';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'DigitalHub@2026';
+const DATA_FILE = path.join(ROOT, 'content', 'admin-content.json');
+const USERS_FILE = path.join(ROOT, 'content', 'admin-users.json');
+const PUBLIC_JSON_FILE = path.join(ROOT, 'content', 'site-content.json');
+const PUBLIC_JS_FILE = path.join(ROOT, 'content', 'site-content.js');
+const UPLOAD_DIR = path.join(ROOT, 'assets', 'uploads');
+const MAX_JSON_BYTES = 7 * 1024 * 1024;
+const SESSION_TTL = 8 * 60 * 60 * 1000;
+const COLLECTIONS = new Set(['services', 'partners', 'caseStudies', 'blogs', 'jobs', 'team']);
+const PAGES = new Set(['home', 'blogs', 'cases', 'partners', 'careers', 'about']);
+
+const fields = {
+  services: ['title', 'summary', 'href', 'icon', 'visual', 'status', 'featured', 'order'],
+  partners: ['name', 'summary', 'href', 'image', 'variant', 'status', 'featured', 'order'],
+  caseStudies: ['title', 'summary', 'href', 'image', 'alt', 'categories', 'metric', 'status', 'featured', 'order'],
+  blogs: ['title', 'summary', 'href', 'image', 'category', 'categoryLabel', 'readTime', 'accent', 'status', 'featured', 'order'],
+  jobs: ['title', 'summary', 'href', 'department', 'location', 'type', 'status', 'featured', 'order'],
+  team: ['name', 'role', 'image', 'email', 'linkedin', 'status', 'featured', 'order'],
+};
+
+const mime = {
+  '.html': 'text/html; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+};
+
+const sessions = new Map();
+const loginAttempts = new Map();
+
+function json(res, status, payload, extraHeaders = {}) {
+  const body = JSON.stringify(payload);
+  res.writeHead(status, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Content-Length': Buffer.byteLength(body),
+    'Cache-Control': 'no-store',
+    ...extraHeaders,
+  });
+  res.end(body);
+}
+
+function readData() {
+  return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+}
+
+function readUsers() {
+  return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
+}
+
+function writeUsers(data) {
+  const temp = `${USERS_FILE}.tmp`;
+  data.updatedAt = new Date().toISOString();
+  fs.writeFileSync(temp, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+  fs.copyFileSync(temp, USERS_FILE);
+  fs.unlinkSync(temp);
+}
+
+function passwordHash(password, salt = crypto.randomBytes(16).toString('hex')) {
+  const hash = crypto.scryptSync(String(password), salt, 64).toString('hex');
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password, stored) {
+  const [salt, expectedHex] = String(stored || '').split(':');
+  if (!salt || !expectedHex) return false;
+  const actual = crypto.scryptSync(String(password), salt, 64);
+  const expected = Buffer.from(expectedHex, 'hex');
+  return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+}
+
+function safeUser(user) {
+  return {
+    id: user.id,
+    username: user.username,
+    name: user.name,
+    role: user.role,
+    active: user.active,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+    lastLoginAt: user.lastLoginAt || null,
+  };
+}
+
+function permissionsFor(role) {
+  const admin = role === 'admin';
+  return {
+    collections: admin ? Array.from(COLLECTIONS) : ['jobs'],
+    pages: admin ? Array.from(PAGES) : ['careers'],
+    canManageUsers: admin,
+    canUseTools: admin,
+  };
+}
+
+function adminView(data, session) {
+  if (session.role === 'admin') return data;
+  return {
+    meta: {
+      ...data.meta,
+      audit: (data.meta.audit || []).filter((event) => event.by === session.username).slice(0, 20),
+    },
+    pages: { careers: data.pages.careers },
+    collections: { jobs: data.collections.jobs || [] },
+  };
+}
+
+function publicView(data) {
+  const collections = {};
+  for (const name of COLLECTIONS) {
+    collections[name] = (data.collections[name] || [])
+      .filter((item) => item.status === 'published')
+      .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+  }
+  return {
+    meta: {
+      version: data.meta.version,
+      revision: data.meta.revision,
+      updatedAt: data.meta.updatedAt,
+    },
+    pages: data.pages,
+    collections,
+  };
+}
+
+function writeDerivedFiles(data) {
+  const published = publicView(data);
+  fs.writeFileSync(PUBLIC_JSON_FILE, `${JSON.stringify(published, null, 2)}\n`, 'utf8');
+  fs.writeFileSync(
+    PUBLIC_JS_FILE,
+    `/* Generated by the Digital Hub CMS. Do not edit directly. */\nwindow.DH_CONTENT = ${JSON.stringify(published)};\n`,
+    'utf8'
+  );
+}
+
+function writeData(data) {
+  const temp = `${DATA_FILE}.tmp`;
+  fs.writeFileSync(temp, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+  fs.copyFileSync(temp, DATA_FILE);
+  fs.unlinkSync(temp);
+  writeDerivedFiles(data);
+}
+
+function ensureStorage() {
+  fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+  if (!fs.existsSync(DATA_FILE)) throw new Error(`Missing content store: ${DATA_FILE}`);
+  if (!fs.existsSync(USERS_FILE)) {
+    const now = new Date().toISOString();
+    writeUsers({
+      version: 1,
+      updatedAt: now,
+      users: [{
+        id: `user-${crypto.randomUUID()}`,
+        username: ADMIN_USER.toLowerCase(),
+        name: 'Administrator',
+        role: 'admin',
+        active: true,
+        passwordHash: passwordHash(ADMIN_PASSWORD),
+        createdAt: now,
+        updatedAt: now,
+        lastLoginAt: null,
+      }],
+    });
+  }
+  writeDerivedFiles(readData());
+}
+
+function parseCookies(req) {
+  return String(req.headers.cookie || '')
+    .split(';')
+    .reduce((out, part) => {
+      const index = part.indexOf('=');
+      if (index > -1) out[part.slice(0, index).trim()] = decodeURIComponent(part.slice(index + 1).trim());
+      return out;
+    }, {});
+}
+
+function getSession(req) {
+  const token = parseCookies(req).dh_admin_session;
+  if (!token) return null;
+  const session = sessions.get(token);
+  if (!session || session.expiresAt < Date.now()) {
+    if (token) sessions.delete(token);
+    return null;
+  }
+  const account = readUsers().users.find((user) => user.id === session.userId);
+  if (!account || !account.active) {
+    sessions.delete(token);
+    return null;
+  }
+  session.expiresAt = Date.now() + SESSION_TTL;
+  return { token, ...session, ...safeUser(account) };
+}
+
+function safeEqual(left, right) {
+  const a = Buffer.from(String(left));
+  const b = Buffer.from(String(right));
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+function requireAuth(req, res) {
+  const session = getSession(req);
+  if (!session) {
+    json(res, 401, { error: 'AUTH_REQUIRED', message: 'Please sign in again.' });
+    return null;
+  }
+  return session;
+}
+
+function requireMutationAuth(req, res) {
+  const session = requireAuth(req, res);
+  if (!session) return null;
+  if (!safeEqual(req.headers['x-csrf-token'] || '', session.csrf)) {
+    json(res, 403, { error: 'INVALID_CSRF', message: 'Your session could not be verified.' });
+    return null;
+  }
+  return session;
+}
+
+function requireAdmin(req, res, mutation = false) {
+  const session = mutation ? requireMutationAuth(req, res) : requireAuth(req, res);
+  if (!session) return null;
+  if (session.role !== 'admin') {
+    json(res, 403, { error: 'FORBIDDEN', message: 'Administrator access is required.' });
+    return null;
+  }
+  return session;
+}
+
+function canEditCollection(session, collection) {
+  return session.role === 'admin' || (session.role === 'hr' && collection === 'jobs');
+}
+
+function canEditPage(session, page) {
+  return session.role === 'admin' || (session.role === 'hr' && page === 'careers');
+}
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    const chunks = [];
+    req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > MAX_JSON_BYTES) {
+        reject(Object.assign(new Error('Payload is too large.'), { status: 413 }));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => {
+      if (!chunks.length) return resolve({});
+      try {
+        resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+      } catch (_) {
+        reject(Object.assign(new Error('Invalid JSON body.'), { status: 400 }));
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+function text(value, max = 3000) {
+  return String(value == null ? '' : value).trim().slice(0, max);
+}
+
+function cleanUsername(value) {
+  const username = text(value, 40).toLowerCase();
+  if (!/^[a-z0-9._-]{3,40}$/.test(username)) {
+    throw Object.assign(new Error('Username must be 3–40 characters using letters, numbers, dots, dashes, or underscores.'), { status: 422 });
+  }
+  return username;
+}
+
+function validatePassword(value, required = true) {
+  const password = String(value || '');
+  if (!password && !required) return '';
+  if (password.length < 10 || password.length > 200) {
+    throw Object.assign(new Error('Password must be between 10 and 200 characters.'), { status: 422 });
+  }
+  return password;
+}
+
+function cleanItem(collection, input, existing = {}) {
+  const output = { id: existing.id || text(input.id, 100) || `${collection}-${crypto.randomUUID()}` };
+  for (const key of fields[collection]) {
+    const value = input[key];
+    if (key === 'featured') output[key] = Boolean(value);
+    else if (key === 'order' || key === 'readTime') output[key] = Math.max(0, Number(value) || 0);
+    else if (key === 'categories') {
+      const raw = Array.isArray(value) ? value : String(value || '').split(',');
+      output[key] = raw.map((entry) => text(entry, 80)).filter(Boolean).slice(0, 10);
+    } else if (key === 'status') output[key] = value === 'draft' ? 'draft' : 'published';
+    else output[key] = text(value, key === 'summary' ? 5000 : 1000);
+  }
+  const title = output.title || output.name;
+  if (!title) throw Object.assign(new Error('A title or name is required.'), { status: 422 });
+  output.updatedAt = new Date().toISOString();
+  return output;
+}
+
+function cleanPage(input) {
+  const allowed = ['label', 'title', 'lead', 'sectionTitle', 'sectionLead', 'seoTitle'];
+  return allowed.reduce((out, key) => {
+    out[key] = text(input[key], key === 'lead' || key === 'sectionLead' ? 5000 : 1000);
+    return out;
+  }, {});
+}
+
+function addAudit(data, action, label, by) {
+  const event = {
+    id: `audit-${crypto.randomUUID()}`,
+    action,
+    label: text(label, 200),
+    at: new Date().toISOString(),
+    by,
+  };
+  data.meta.audit = [event, ...(data.meta.audit || [])].slice(0, 50);
+  data.meta.updatedAt = event.at;
+  data.meta.updatedBy = by;
+  data.meta.revision = Number(data.meta.revision || 0) + 1;
+  return event;
+}
+
+function checkRevision(req, res, data) {
+  const expected = req.headers['if-match'];
+  if (expected && Number(expected) !== Number(data.meta.revision)) {
+    json(res, 409, {
+      error: 'REVISION_CONFLICT',
+      message: 'Content changed in another session. Refresh before saving again.',
+      revision: data.meta.revision,
+    });
+    return false;
+  }
+  return true;
+}
+
+function clientAddress(req) {
+  return String(req.socket.remoteAddress || 'local');
+}
+
+function canAttemptLogin(req) {
+  const ip = clientAddress(req);
+  const now = Date.now();
+  const state = loginAttempts.get(ip) || { count: 0, resetAt: now + 10 * 60 * 1000 };
+  if (state.resetAt < now) {
+    state.count = 0;
+    state.resetAt = now + 10 * 60 * 1000;
+  }
+  state.count += 1;
+  loginAttempts.set(ip, state);
+  return state.count <= 8;
+}
+
+function clearLoginAttempts(req) {
+  loginAttempts.delete(clientAddress(req));
+}
+
+async function handleApi(req, res, url) {
+  const { pathname } = url;
+
+  if (pathname === '/api/content' && req.method === 'GET') {
+    return json(res, 200, publicView(readData()));
+  }
+
+  if (pathname === '/api/admin/login' && req.method === 'POST') {
+    if (!canAttemptLogin(req)) return json(res, 429, { error: 'RATE_LIMITED', message: 'Too many attempts. Try again later.' });
+    const body = await readBody(req);
+    const users = readUsers();
+    const username = text(body.username, 40).toLowerCase();
+    const account = users.users.find((user) => user.username === username);
+    if (!account || !account.active || !verifyPassword(body.password || '', account.passwordHash)) {
+      return json(res, 401, { error: 'INVALID_CREDENTIALS', message: 'Username or password is incorrect.' });
+    }
+    clearLoginAttempts(req);
+    account.lastLoginAt = new Date().toISOString();
+    writeUsers(users);
+    const token = crypto.randomBytes(32).toString('hex');
+    const csrf = crypto.randomBytes(24).toString('hex');
+    sessions.set(token, { userId: account.id, csrf, expiresAt: Date.now() + SESSION_TTL });
+    return json(
+      res,
+      200,
+      { authenticated: true, user: safeUser(account), permissions: permissionsFor(account.role), csrf },
+      { 'Set-Cookie': `dh_admin_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${SESSION_TTL / 1000}` }
+    );
+  }
+
+  if (pathname === '/api/admin/session' && req.method === 'GET') {
+    const session = getSession(req);
+    return json(res, 200, session
+      ? { authenticated: true, user: safeUser(session), permissions: permissionsFor(session.role), csrf: session.csrf }
+      : { authenticated: false });
+  }
+
+  if (pathname === '/api/admin/logout' && req.method === 'POST') {
+    const session = requireMutationAuth(req, res);
+    if (!session) return;
+    sessions.delete(session.token);
+    return json(res, 200, { ok: true }, { 'Set-Cookie': 'dh_admin_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0' });
+  }
+
+  if (!pathname.startsWith('/api/admin/')) return json(res, 404, { error: 'NOT_FOUND' });
+
+  if (pathname === '/api/admin/users' && req.method === 'GET') {
+    if (!requireAdmin(req, res)) return;
+    const users = readUsers();
+    return json(res, 200, { updatedAt: users.updatedAt, users: users.users.map(safeUser) });
+  }
+
+  if (pathname === '/api/admin/users' && req.method === 'POST') {
+    const session = requireAdmin(req, res, true);
+    if (!session) return;
+    const body = await readBody(req);
+    const users = readUsers();
+    const username = cleanUsername(body.username);
+    if (users.users.some((user) => user.username === username)) {
+      return json(res, 409, { error: 'USERNAME_EXISTS', message: 'This username is already in use.' });
+    }
+    const password = validatePassword(body.password, true);
+    const now = new Date().toISOString();
+    const account = {
+      id: `user-${crypto.randomUUID()}`,
+      username,
+      name: text(body.name, 100) || username,
+      role: 'hr',
+      active: body.active !== false,
+      passwordHash: passwordHash(password),
+      createdAt: now,
+      updatedAt: now,
+      lastLoginAt: null,
+    };
+    users.users.push(account);
+    writeUsers(users);
+    return json(res, 201, { user: safeUser(account), users: users.users.map(safeUser) });
+  }
+
+  if (pathname.startsWith('/api/admin/users/') && ['PUT', 'DELETE'].includes(req.method)) {
+    const session = requireAdmin(req, res, true);
+    if (!session) return;
+    const id = pathname.split('/').pop();
+    const users = readUsers();
+    const index = users.users.findIndex((user) => user.id === id);
+    if (index < 0) return json(res, 404, { error: 'USER_NOT_FOUND', message: 'Account not found.' });
+    const account = users.users[index];
+    if (account.role === 'admin') {
+      return json(res, 403, { error: 'PROTECTED_ACCOUNT', message: 'The primary administrator account cannot be changed here.' });
+    }
+
+    if (req.method === 'DELETE') {
+      users.users.splice(index, 1);
+      for (const [token, activeSession] of sessions.entries()) {
+        if (activeSession.userId === account.id) sessions.delete(token);
+      }
+      writeUsers(users);
+      return json(res, 200, { users: users.users.map(safeUser) });
+    }
+
+    const body = await readBody(req);
+    const username = cleanUsername(body.username);
+    if (users.users.some((user) => user.id !== account.id && user.username === username)) {
+      return json(res, 409, { error: 'USERNAME_EXISTS', message: 'This username is already in use.' });
+    }
+    account.username = username;
+    account.name = text(body.name, 100) || username;
+    account.active = body.active !== false;
+    const password = validatePassword(body.password, false);
+    if (password) {
+      account.passwordHash = passwordHash(password);
+      for (const [token, activeSession] of sessions.entries()) {
+        if (activeSession.userId === account.id) sessions.delete(token);
+      }
+    }
+    account.updatedAt = new Date().toISOString();
+    if (!account.active) {
+      for (const [token, activeSession] of sessions.entries()) {
+        if (activeSession.userId === account.id) sessions.delete(token);
+      }
+    }
+    writeUsers(users);
+    return json(res, 200, { user: safeUser(account), users: users.users.map(safeUser) });
+  }
+
+  if (pathname === '/api/admin/content' && req.method === 'GET') {
+    const session = requireAuth(req, res);
+    if (!session) return;
+    return json(res, 200, adminView(readData(), session));
+  }
+
+  if (pathname === '/api/admin/content' && req.method === 'PUT') {
+    const session = requireAdmin(req, res, true);
+    if (!session) return;
+    const current = readData();
+    if (!checkRevision(req, res, current)) return;
+    const body = await readBody(req);
+    if (!body.pages || !body.collections) return json(res, 422, { error: 'INVALID_IMPORT', message: 'The import file has an invalid structure.' });
+    const next = { meta: current.meta, pages: {}, collections: {} };
+    for (const page of PAGES) next.pages[page] = cleanPage(body.pages[page] || {});
+    for (const collection of COLLECTIONS) {
+      const items = Array.isArray(body.collections[collection]) ? body.collections[collection] : [];
+      next.collections[collection] = items.slice(0, 500).map((item) => cleanItem(collection, item));
+    }
+    addAudit(next, 'import', 'Imported a complete content backup', session.username);
+    writeData(next);
+    return json(res, 200, next);
+  }
+
+  if (pathname.startsWith('/api/admin/pages/') && req.method === 'PUT') {
+    const session = requireMutationAuth(req, res);
+    if (!session) return;
+    const page = pathname.split('/').pop();
+    if (!PAGES.has(page)) return json(res, 404, { error: 'UNKNOWN_PAGE' });
+    if (!canEditPage(session, page)) return json(res, 403, { error: 'FORBIDDEN', message: 'You can only edit Careers page content.' });
+    const data = readData();
+    if (!checkRevision(req, res, data)) return;
+    data.pages[page] = cleanPage(await readBody(req));
+    addAudit(data, 'page-update', `Updated ${page} page content`, session.username);
+    writeData(data);
+    return json(res, 200, adminView(data, session));
+  }
+
+  if (pathname === '/api/admin/upload' && req.method === 'POST') {
+    const session = requireAdmin(req, res, true);
+    if (!session) return;
+    const body = await readBody(req);
+    const match = String(body.dataUrl || '').match(/^data:image\/(png|jpeg|webp|gif);base64,([a-z0-9+/=]+)$/i);
+    if (!match) return json(res, 422, { error: 'INVALID_IMAGE', message: 'Use a PNG, JPG, WEBP, or GIF image.' });
+    const buffer = Buffer.from(match[2], 'base64');
+    if (!buffer.length || buffer.length > 5 * 1024 * 1024) return json(res, 413, { error: 'IMAGE_TOO_LARGE', message: 'Image size must be under 5 MB.' });
+    const ext = match[1].toLowerCase() === 'jpeg' ? 'jpg' : match[1].toLowerCase();
+    const base = path.basename(text(body.name || 'image', 100), path.extname(body.name || '')).replace(/[^a-z0-9_-]+/gi, '-').replace(/^-|-$/g, '') || 'image';
+    const filename = `${Date.now()}-${base.toLowerCase()}.${ext}`;
+    fs.writeFileSync(path.join(UPLOAD_DIR, filename), buffer);
+    const data = readData();
+    addAudit(data, 'upload', `Uploaded ${filename}`, session.username);
+    writeData(data);
+    return json(res, 201, { path: `assets/uploads/${filename}`, revision: data.meta.revision });
+  }
+
+  const parts = pathname.split('/').filter(Boolean);
+  if (parts[0] === 'api' && parts[1] === 'admin' && parts[2] === 'items') {
+    const collection = parts[3];
+    const id = parts[4];
+    if (!COLLECTIONS.has(collection)) return json(res, 404, { error: 'UNKNOWN_COLLECTION' });
+    const session = requireMutationAuth(req, res);
+    if (!session) return;
+    if (!canEditCollection(session, collection)) return json(res, 403, { error: 'FORBIDDEN', message: 'You can only manage Careers content.' });
+    const data = readData();
+    if (!checkRevision(req, res, data)) return;
+    const list = data.collections[collection] || (data.collections[collection] = []);
+
+    if (req.method === 'POST' && !id) {
+      const item = cleanItem(collection, await readBody(req));
+      if (!item.order) item.order = (Math.max(0, ...list.map((entry) => Number(entry.order || 0))) + 10);
+      list.push(item);
+      addAudit(data, 'create', `Created ${item.title || item.name}`, session.username);
+      writeData(data);
+      return json(res, 201, adminView(data, session));
+    }
+
+    const index = list.findIndex((item) => item.id === id);
+    if (index < 0) return json(res, 404, { error: 'ITEM_NOT_FOUND' });
+
+    if (req.method === 'PUT') {
+      const item = cleanItem(collection, await readBody(req), list[index]);
+      list[index] = item;
+      addAudit(data, 'update', `Updated ${item.title || item.name}`, session.username);
+      writeData(data);
+      return json(res, 200, adminView(data, session));
+    }
+
+    if (req.method === 'DELETE') {
+      const [removed] = list.splice(index, 1);
+      addAudit(data, 'delete', `Deleted ${removed.title || removed.name}`, session.username);
+      writeData(data);
+      return json(res, 200, adminView(data, session));
+    }
+  }
+
+  return json(res, 404, { error: 'NOT_FOUND' });
+}
+
+function serveStatic(req, res, url) {
+  let pathname;
+  try {
+    pathname = decodeURIComponent(url.pathname);
+  } catch (_) {
+    res.writeHead(400);
+    return res.end('Bad request');
+  }
+  if (pathname === '/') pathname = '/index.html';
+  let target = path.resolve(ROOT, `.${pathname}`);
+  if (!target.startsWith(`${ROOT}${path.sep}`) && target !== ROOT) {
+    res.writeHead(403);
+    return res.end('Forbidden');
+  }
+  if (fs.existsSync(target) && fs.statSync(target).isDirectory()) {
+    if (!pathname.endsWith('/')) {
+      res.writeHead(302, {
+        Location: `${pathname}/${url.search || ''}`,
+        'Cache-Control': 'no-store',
+      });
+      return res.end();
+    }
+    target = path.join(target, 'index.html');
+  }
+  if (!path.extname(target) && fs.existsSync(`${target}.html`)) target = `${target}.html`;
+  if (!fs.existsSync(target) || !fs.statSync(target).isFile()) {
+    res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+    return res.end('<h1>404</h1><p>Page not found.</p>');
+  }
+  const type = mime[path.extname(target).toLowerCase()] || 'application/octet-stream';
+  const noCache = target === PUBLIC_JS_FILE || target === PUBLIC_JSON_FILE || pathname.startsWith('/admin');
+  res.writeHead(200, {
+    'Content-Type': type,
+    'Content-Length': fs.statSync(target).size,
+    'Cache-Control': noCache ? 'no-store' : 'public, max-age=300',
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+  });
+  fs.createReadStream(target).pipe(res);
+}
+
+ensureStorage();
+
+const server = http.createServer(async (req, res) => {
+  const url = new URL(req.url, `http://${req.headers.host || `${HOST}:${PORT}`}`);
+  try {
+    if (url.pathname.startsWith('/api/')) await handleApi(req, res, url);
+    else serveStatic(req, res, url);
+  } catch (error) {
+    if (!res.headersSent) json(res, error.status || 500, { error: 'SERVER_ERROR', message: error.status ? error.message : 'An unexpected server error occurred.' });
+    else res.end();
+    if (!error.status) console.error(error);
+  }
+});
+
+server.listen(PORT, HOST, () => {
+  console.log(`Digital Hub CMS running at http://${HOST}:${PORT}`);
+  if (!process.env.ADMIN_PASSWORD) console.log('Development login: admin / DigitalHub@2026 (set ADMIN_PASSWORD before production)');
+});

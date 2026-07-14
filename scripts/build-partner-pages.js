@@ -347,6 +347,8 @@ ${content}
   </div>
 </footer>
 
+<script src="${up}content/site-content.js"></script>
+<script src="${up}js/content-runtime.js"></script>
 <script src="${up}js/shared.js"></script>
 <script src="${up}js/nav-stay-on-page.js"></script>
 <script src="${up}js/hub-pages.js"></script>

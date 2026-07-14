@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Digital Hub — Content Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+  <link rel="stylesheet" href="/admin/admin.css">
+</head>
+<body>
+  <div class="ambient" aria-hidden="true"><span></span><span></span><span></span></div>
+
+  <section class="login-shell" id="loginShell" aria-labelledby="loginTitle">
+    <div class="login-brand">
+      <img src="../assets/digital-hub-logo.png" alt="Digital Hub">
+      <span>CONTENT STUDIO</span>
+    </div>
+    <div class="login-card">
+      <div class="login-card__visual" aria-hidden="true">
+        <div class="login-orbit login-orbit--one"></div>
+        <div class="login-orbit login-orbit--two"></div>
+        <div class="login-core"><i class="ti ti-sparkles"></i></div>
+      </div>
+      <div class="login-copy">
+        <span class="eyebrow">SECURE ADMIN WORKSPACE</span>
+        <h1 id="loginTitle">Welcome to your<br><em>Content Studio</em></h1>
+        <p>Manage every page and content card from one place, with drafts, ordering, and previews before publishing.</p>
+      </div>
+      <form class="login-form" id="loginForm">
+        <label>
+          <span>Username</span>
+          <span class="field-control"><i class="ti ti-user"></i><input id="loginUsername" name="username" autocomplete="username" value="admin" required></span>
+        </label>
+        <label>
+          <span>Password</span>
+          <span class="field-control"><i class="ti ti-lock"></i><input id="loginPassword" name="password" type="password" autocomplete="current-password" required><button type="button" class="password-toggle" id="passwordToggle" aria-label="Show password"><i class="ti ti-eye"></i></button></span>
+        </label>
+        <p class="form-error" id="loginError" role="alert"></p>
+        <button class="primary-btn primary-btn--wide" type="submit"><span>Sign in to Content Studio</span><i class="ti ti-arrow-right"></i></button>
+        <p class="login-hint"><i class="ti ti-shield-check"></i> Secure session. Automatically expires after 8 hours.</p>
+      </form>
+    </div>
+  </section>
+
+  <div class="app-shell is-hidden" id="appShell">
+    <aside class="sidebar" id="sidebar">
+      <a class="sidebar-brand" href="../index.html" target="_blank" rel="noopener">
+        <img src="../assets/digital-hub-logo.png" alt="Digital Hub">
+        <span>CONTENT STUDIO</span>
+      </a>
+
+      <nav class="side-nav" aria-label="Admin navigation">
+        <button class="side-link is-active" type="button" data-view="dashboard"><i class="ti ti-layout-dashboard"></i><span>Overview</span></button>
+        <p class="side-label">CONTENT MANAGEMENT</p>
+        <button class="side-link" type="button" data-collection="services" data-admin-only><i class="ti ti-stack-2"></i><span>Services</span><b data-count="services">0</b></button>
+        <button class="side-link" type="button" data-collection="caseStudies" data-admin-only><i class="ti ti-briefcase"></i><span>Case Studies</span><b data-count="caseStudies">0</b></button>
+        <button class="side-link" type="button" data-collection="blogs" data-admin-only><i class="ti ti-news"></i><span>Blog</span><b data-count="blogs">0</b></button>
+        <button class="side-link" type="button" data-collection="partners" data-admin-only><i class="ti ti-building-skyscraper"></i><span>Partners</span><b data-count="partners">0</b></button>
+        <button class="side-link" type="button" data-collection="jobs"><i class="ti ti-id-badge-2"></i><span>Careers</span><b data-count="jobs">0</b></button>
+        <button class="side-link" type="button" data-collection="team" data-admin-only><i class="ti ti-users-group"></i><span>Leadership Team</span><b data-count="team">0</b></button>
+        <p class="side-label">WEBSITE &amp; SYSTEM</p>
+        <button class="side-link" type="button" data-view="pages"><i class="ti ti-file-text"></i><span>Page Content</span></button>
+        <button class="side-link" type="button" data-view="users" data-admin-only><i class="ti ti-user-shield"></i><span>User Management</span><b data-user-count>0</b></button>
+        <button class="side-link" type="button" data-view="tools" data-admin-only><i class="ti ti-adjustments-horizontal"></i><span>Backups &amp; Tools</span></button>
+      </nav>
+
+      <div class="sidebar-foot">
+        <div class="publish-health"><span class="health-dot"></span><div><strong>Website connected</strong><small id="sideRevision">Revision —</small></div></div>
+        <button class="side-logout" id="logoutBtn" type="button"><i class="ti ti-logout-2"></i><span>Sign out</span></button>
+      </div>
+    </aside>
+
+    <div class="workspace">
+      <header class="topbar">
+        <button class="icon-btn menu-toggle" id="menuToggle" type="button" aria-label="Open menu"><i class="ti ti-menu-2"></i></button>
+        <div class="top-search"><i class="ti ti-search"></i><input id="globalSearch" type="search" placeholder="Search all content..." aria-label="Search"><kbd>⌘ K</kbd></div>
+        <div class="top-actions">
+          <a class="view-site" href="../index.html" target="_blank" rel="noopener"><i class="ti ti-external-link"></i><span>View website</span></a>
+          <button class="notification-btn" type="button" aria-label="Notifications"><i class="ti ti-bell"></i><span></span></button>
+          <div class="user-chip"><div class="user-avatar" id="currentUserAvatar">DH</div><div><strong id="currentUserName">Administrator</strong><small id="currentUserRole">Content manager</small></div></div>
+        </div>
+      </header>
+
+      <main class="main-content">
+        <section class="view is-active" id="dashboardView">
+          <div class="welcome-row">
+            <div><span class="page-kicker">DIGITAL HUB CMS</span><h1>Good morning <span>👋</span></h1><p>Every website card and headline, organized in one place.</p></div>
+            <button class="primary-btn" type="button" data-quick-add><i class="ti ti-plus"></i><span>Add content</span></button>
+          </div>
+
+          <div class="stats-grid">
+            <article class="stat-card stat-card--blue"><div class="stat-icon"><i class="ti ti-box-multiple"></i></div><div><span>Total cards</span><strong id="statTotal">0</strong><small><i class="ti ti-trending-up"></i> One source for the website</small></div><div class="stat-spark"><i></i><i></i><i></i><i></i><i></i><i></i></div></article>
+            <article class="stat-card stat-card--green"><div class="stat-icon"><i class="ti ti-circle-check"></i></div><div><span>Published content</span><strong id="statPublished">0</strong><small>Visible to visitors now</small></div><div class="stat-ring" id="publishedRing"><span>0%</span></div></article>
+            <article class="stat-card stat-card--orange"><div class="stat-icon"><i class="ti ti-pencil"></i></div><div><span>Drafts</span><strong id="statDrafts">0</strong><small>Ready for review</small></div><span class="stat-badge">Draft</span></article>
+            <article class="stat-card stat-card--violet"><div class="stat-icon"><i class="ti ti-clock-edit"></i></div><div><span>Last updated</span><strong class="stat-date" id="statUpdated">—</strong><small id="statUpdatedBy">By —</small></div></article>
+          </div>
+
+          <div class="dashboard-grid">
+            <section class="panel activity-panel">
+              <header class="panel-head"><div><h2>Recent activity</h2><p>A clear history of content changes</p></div><button class="text-btn" type="button" data-view-link="tools">View tools <i class="ti ti-arrow-right"></i></button></header>
+              <div class="activity-list" id="activityList"></div>
+            </section>
+            <section class="panel distribution-panel">
+              <header class="panel-head"><div><h2>Content distribution</h2><p>Cards grouped by content type</p></div></header>
+              <div class="distribution-chart" id="distributionChart"></div>
+            </section>
+          </div>
+
+          <section class="panel quick-panel">
+            <header class="panel-head"><div><h2>Quick actions</h2><p>Your most-used content workflows</p></div></header>
+            <div class="quick-grid">
+              <button type="button" data-quick-collection="blogs" data-admin-only><span class="quick-icon quick-icon--blue"><i class="ti ti-news"></i></span><span><strong>New article</strong><small>Publish a new insight</small></span><i class="ti ti-chevron-right"></i></button>
+              <button type="button" data-quick-collection="caseStudies" data-admin-only><span class="quick-icon quick-icon--orange"><i class="ti ti-briefcase"></i></span><span><strong>New case study</strong><small>Document a new result</small></span><i class="ti ti-chevron-right"></i></button>
+              <button type="button" data-quick-collection="jobs"><span class="quick-icon quick-icon--green"><i class="ti ti-id-badge-2"></i></span><span><strong>New job opening</strong><small>Publish a new role</small></span><i class="ti ti-chevron-right"></i></button>
+              <button type="button" data-view-link="pages"><span class="quick-icon quick-icon--violet"><i class="ti ti-file-pencil"></i></span><span><strong>Page copy</strong><small>Update hero headlines</small></span><i class="ti ti-chevron-right"></i></button>
+            </div>
+          </section>
+        </section>
+
+        <section class="view" id="contentView">
+          <div class="section-title-row">
+            <div><button class="back-dashboard" type="button" data-view-link="dashboard"><i class="ti ti-arrow-left"></i> Overview</button><h1 id="collectionTitle">Content</h1><p id="collectionDescription">Manage cards and control their display order.</p></div>
+            <button class="primary-btn" id="addItemBtn" type="button"><i class="ti ti-plus"></i><span id="addItemLabel">Add card</span></button>
+          </div>
+          <div class="content-toolbar">
+            <div class="status-tabs" role="tablist"><button class="is-active" type="button" data-status="all">All <b id="allCount">0</b></button><button type="button" data-status="published">Published <b id="publishedCount">0</b></button><button type="button" data-status="draft">Drafts <b id="draftCount">0</b></button></div>
+            <div class="toolbar-actions"><label class="inline-search"><i class="ti ti-search"></i><input id="collectionSearch" type="search" placeholder="Search this collection..."></label><button class="icon-btn is-active" type="button" data-layout="grid" aria-label="Grid view"><i class="ti ti-layout-grid"></i></button><button class="icon-btn" type="button" data-layout="list" aria-label="List view"><i class="ti ti-list"></i></button></div>
+          </div>
+          <div class="content-grid" id="contentGrid"></div>
+          <div class="empty-state is-hidden" id="emptyState"><span><i class="ti ti-file-off"></i></span><h2>No matching content</h2><p>Try another search or add the first card in this collection.</p><button class="primary-btn" type="button" data-empty-add><i class="ti ti-plus"></i> Add content</button></div>
+        </section>
+
+        <section class="view" id="pagesView">
+          <div class="section-title-row"><div><button class="back-dashboard" type="button" data-view-link="dashboard"><i class="ti ti-arrow-left"></i> Overview</button><h1>Page Content</h1><p>Edit hero headlines and key copy without touching HTML.</p></div><button class="secondary-btn" id="previewPageBtn" type="button"><i class="ti ti-external-link"></i> Preview page</button></div>
+          <div class="pages-layout">
+            <nav class="page-selector" id="pageSelector" aria-label="Select a page"></nav>
+            <form class="panel page-form" id="pageForm">
+              <header class="page-form__head"><div><span class="form-page-icon"><i class="ti ti-home"></i></span><div><h2 id="pageFormTitle">Homepage</h2><p>Hero &amp; section copy</p></div></div><span class="saved-indicator"><i class="ti ti-cloud-check"></i> Saved</span></header>
+              <div class="form-grid">
+                <label class="form-field"><span>Eyebrow label <em>Label</em></span><input name="label" maxlength="120" required><small>Appears above the main headline.</small></label>
+                <label class="form-field form-field--full"><span>Main headline <em>Hero title</em></span><textarea name="title" rows="3" maxlength="220" required></textarea><small>On the homepage, use a new line to split the headline.</small></label>
+                <label class="form-field form-field--full"><span>Hero description <em>Lead</em></span><textarea name="lead" rows="4" maxlength="700" required></textarea><small><b data-char-count="lead">0</b> / 700</small></label>
+                <label class="form-field"><span>Section title</span><input name="sectionTitle" maxlength="180"></label>
+                <label class="form-field"><span>Section description</span><textarea name="sectionLead" rows="3" maxlength="500"></textarea></label>
+                <label class="form-field form-field--full seo-only"><span>SEO title</span><input name="seoTitle" maxlength="70"><small>Recommended length: 50–60 characters.</small></label>
+              </div>
+              <footer class="form-footer"><p><i class="ti ti-info-circle"></i> Changes appear after the page is refreshed.</p><button class="primary-btn" type="submit"><i class="ti ti-device-floppy"></i> Save changes</button></footer>
+            </form>
+          </div>
+        </section>
+
+        <section class="view" id="toolsView">
+          <div class="section-title-row"><div><button class="back-dashboard" type="button" data-view-link="dashboard"><i class="ti ti-arrow-left"></i> Overview</button><h1>Backups &amp; Tools</h1><p>Manage content backups and review system health.</p></div></div>
+          <div class="tools-grid">
+            <section class="panel tool-card"><span class="tool-icon tool-icon--blue"><i class="ti ti-download"></i></span><div><h2>Export a backup</h2><p>Download every page and content card as one JSON file.</p></div><button class="secondary-btn" id="exportBtn" type="button"><i class="ti ti-download"></i> Download backup</button></section>
+            <section class="panel tool-card"><span class="tool-icon tool-icon--orange"><i class="ti ti-upload"></i></span><div><h2>Import content</h2><p>Restore a previous backup. Its structure is validated before saving.</p></div><label class="secondary-btn file-btn"><i class="ti ti-upload"></i> Choose file<input id="importInput" type="file" accept="application/json"></label></section>
+            <section class="panel tool-card tool-card--wide"><div class="system-head"><span class="tool-icon tool-icon--green"><i class="ti ti-heartbeat"></i></span><div><h2>System health</h2><p>The server and content files are operating normally.</p></div><span class="system-live"><i></i> Operational</span></div><div class="system-details"><div><span>Data revision</span><strong id="toolRevision">—</strong></div><div><span>Last write</span><strong id="toolUpdated">—</strong></div><div><span>Collections</span><strong>6</strong></div><div><span>Storage</span><strong>JSON + Assets</strong></div></div></section>
+            <section class="panel tool-card tool-card--wide security-note"><span class="tool-icon tool-icon--violet"><i class="ti ti-shield-lock"></i></span><div><h2>Production ready</h2><p>Set <code>ADMIN_USER</code> and <code>ADMIN_PASSWORD</code> in your production environment. Sessions are HttpOnly, while write actions use CSRF and revision protection.</p></div></section>
+          </div>
+        </section>
+
+        <section class="view" id="usersView" data-admin-only>
+          <div class="section-title-row">
+            <div><button class="back-dashboard" type="button" data-view-link="dashboard"><i class="ti ti-arrow-left"></i> Overview</button><h1>User Management</h1><p>Create and manage HR accounts with Careers-only access.</p></div>
+            <button class="primary-btn" id="addUserBtn" type="button"><i class="ti ti-user-plus"></i><span>Add HR account</span></button>
+          </div>
+          <div class="user-summary-grid">
+            <article class="panel user-summary"><span class="tool-icon tool-icon--blue"><i class="ti ti-users"></i></span><div><small>Total accounts</small><strong id="usersTotal">0</strong></div></article>
+            <article class="panel user-summary"><span class="tool-icon tool-icon--green"><i class="ti ti-user-check"></i></span><div><small>Active HR accounts</small><strong id="usersActive">0</strong></div></article>
+            <article class="panel user-summary"><span class="tool-icon tool-icon--orange"><i class="ti ti-user-pause"></i></span><div><small>Disabled accounts</small><strong id="usersDisabled">0</strong></div></article>
+          </div>
+          <section class="panel users-panel">
+            <header class="panel-head"><div><h2>Team access</h2><p>HR users can only edit job cards and Careers page copy.</p></div><span class="access-policy"><i class="ti ti-shield-check"></i> Server-enforced access</span></header>
+            <div class="users-list" id="usersList"></div>
+          </section>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div class="drawer-backdrop" id="drawerBackdrop"></div>
+  <aside class="editor-drawer" id="editorDrawer" aria-hidden="true" aria-labelledby="editorTitle">
+    <header class="drawer-head"><div><span class="drawer-kicker" id="drawerKicker">NEW CONTENT</span><h2 id="editorTitle">Add card</h2><p id="editorSubtitle">Complete the fields, then save as a draft or publish now.</p></div><button class="icon-btn" id="closeDrawerBtn" type="button" aria-label="Close"><i class="ti ti-x"></i></button></header>
+    <form id="itemForm">
+      <div class="drawer-body"><div class="dynamic-fields" id="dynamicFields"></div><section class="publish-box"><div><i class="ti ti-broadcast"></i><span><strong>Publishing status</strong><small>Keep this content as a draft if needed.</small></span></div><label class="switch"><input id="publishToggle" name="status" type="checkbox" checked><span></span></label></section><section class="publish-box"><div><i class="ti ti-star"></i><span><strong>Featured content</strong><small>Prioritize this card on the homepage.</small></span></div><label class="switch"><input id="featuredToggle" name="featured" type="checkbox"><span></span></label></section></div>
+      <footer class="drawer-footer"><button class="danger-text" id="drawerDeleteBtn" type="button"><i class="ti ti-trash"></i> Delete</button><div><button class="secondary-btn" id="cancelDrawerBtn" type="button">Cancel</button><button class="primary-btn" type="submit"><i class="ti ti-device-floppy"></i><span>Save content</span></button></div></footer>
+    </form>
+  </aside>
+
+  <div class="modal-backdrop" id="modalBackdrop">
+    <section class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle"><span class="confirm-icon"><i class="ti ti-trash"></i></span><h2 id="confirmTitle">Delete this content?</h2><p id="confirmText">The card will be removed from the website. This action cannot be undone.</p><div><button class="secondary-btn" id="cancelConfirmBtn" type="button">Cancel</button><button class="danger-btn" id="confirmDeleteBtn" type="button"><i class="ti ti-trash"></i> Yes, delete</button></div></section>
+  </div>
+
+  <div class="modal-backdrop" id="userModalBackdrop">
+    <section class="account-modal" role="dialog" aria-modal="true" aria-labelledby="userModalTitle">
+      <header><div><span class="drawer-kicker" id="userModalKicker">NEW HR ACCOUNT</span><h2 id="userModalTitle">Add HR account</h2><p>Careers-only access is enforced by the server.</p></div><button class="icon-btn" id="closeUserModalBtn" type="button" aria-label="Close"><i class="ti ti-x"></i></button></header>
+      <form id="userForm">
+        <div class="account-form-grid">
+          <label class="form-field form-field--full"><span>Full name</span><input name="name" maxlength="100" placeholder="e.g. Sarah Ahmed" required></label>
+          <label class="form-field"><span>Username</span><input name="username" maxlength="40" autocomplete="off" placeholder="sarah.hr" required></label>
+          <label class="form-field"><span>Role</span><input value="HR — Careers only" disabled></label>
+          <label class="form-field form-field--full"><span>Password <em id="passwordRequirement">At least 10 characters</em></span><span class="account-password"><input name="password" type="password" minlength="10" autocomplete="new-password" placeholder="Create a strong password"><button type="button" id="userPasswordToggle" aria-label="Show password"><i class="ti ti-eye"></i></button></span><small id="passwordEditHint">Required for new accounts.</small></label>
+          <label class="account-active"><span><strong>Account active</strong><small>Disabled users are signed out immediately.</small></span><span class="switch"><input name="active" type="checkbox" checked><span></span></span></label>
+        </div>
+        <footer><button class="secondary-btn" id="cancelUserModalBtn" type="button">Cancel</button><button class="primary-btn" type="submit"><i class="ti ti-user-check"></i><span>Save account</span></button></footer>
+      </form>
+    </section>
+  </div>
+
+  <div class="toast-stack" id="toastStack" aria-live="polite"></div>
+  <div class="mobile-overlay" id="mobileOverlay"></div>
+  <script src="/admin/admin.js"></script>
+</body>
+</html>

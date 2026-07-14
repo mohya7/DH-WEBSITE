@@ -204,6 +204,13 @@
   margin:0;
   font-size:clamp(17px,1.5vw,20px);font-weight:600;color:var(--blue-light);
 }
+
+.cms-job-meta{
+  margin:8px 0 0;
+  color:rgba(255,255,255,.58);
+  font-size:13px;
+  line-height:1.6;
+}
 .careers-job-card .btn-pill{
   position:relative;z-index:1;
   padding:10px 18px;font-size:12px;gap:6px;
