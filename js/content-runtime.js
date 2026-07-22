@@ -35,6 +35,27 @@
       .sort(function (a, b) { return Number(a.order || 0) - Number(b.order || 0); });
   }
 
+  var detailDirectories = { services: 'services', partners: 'partners', caseStudies: 'cases', blogs: 'blogs', jobs: 'careers' };
+
+  function contentSlug(value) {
+    var slug = String(value || '')
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/&/g, ' and ')
+      .replace(/[^\p{Letter}\p{Number}]+/gu, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 100);
+    return slug || 'item';
+  }
+
+  function itemHref(item, collection) {
+    if (item.href) return item.href;
+    var directory = detailDirectories[collection];
+    if (!directory) return '';
+    return directory + '/' + contentSlug(item.title || item.name || item.id) + '.html';
+  }
+
   function setText(selector, value) {
     var node = document.querySelector(selector);
     if (node && value) node.textContent = value;
@@ -118,14 +139,14 @@
       return '<article class="svc-card" data-reveal>' +
         '<div class="svc-card__body"><div class="svc-card__icon"><i class="ti ' + esc(item.icon || 'ti-sparkles') + '"></i></div>' +
         '<h3 class="svc-card__title">' + esc(item.title) + '</h3><p class="svc-card__desc">' + esc(item.summary) + '</p>' +
-        '<a class="svc-card__link" href="' + esc(rel(item.href)) + '">Learn more <i class="ti ti-arrow-right"></i></a></div>' +
+        '<a class="svc-card__link" href="' + esc(rel(itemHref(item, 'services'))) + '">Learn more <i class="ti ti-arrow-right"></i></a></div>' +
         '<div class="svc-card__visual" aria-hidden="true">' + serviceVisual(item.visual) + '</div></article>';
     }).join('') + '<div class="services-track-end" aria-hidden="true"></div>';
   }
 
   function caseCard(item) {
     return '<article class="case" data-category="' + esc((item.categories || []).join(' ')) + '" data-stagger-item data-reveal>' +
-      '<div class="case-glass" aria-hidden="true"></div><a class="case-link" href="' + esc(rel(item.href)) + '" aria-label="Read case study: ' + esc(item.title) + '">' +
+      '<div class="case-glass" aria-hidden="true"></div><a class="case-link" href="' + esc(rel(itemHref(item, 'caseStudies'))) + '" aria-label="Read case study: ' + esc(item.title) + '">' +
       '<div class="case-media"><img src="' + esc(rel(item.image)) + '" alt="' + esc(item.alt || item.title) + '" loading="lazy" decoding="async"></div>' +
       '<div class="case-body"><h3 class="case-title">' + esc(item.title) + '</h3><p class="case-excerpt">' + esc(item.summary) + '</p><span class="case-btn">Read More</span></div></a></article>';
   }
@@ -144,7 +165,7 @@
     if (hub && currentPage() === 'partners') {
       hub.innerHTML = items.map(function (item) {
         var logoClass = item.variant === 'ms' ? ' partner-card-hub__logo--ms' : '';
-        return '<a class="partner-card-hub" href="' + esc(rel(item.href)) + '" data-reveal aria-label="Explore ' + esc(item.name) + ' partnership">' +
+        return '<a class="partner-card-hub" href="' + esc(rel(itemHref(item, 'partners'))) + '" data-reveal aria-label="Explore ' + esc(item.name) + ' partnership">' +
           '<div class="partner-card-hub__logo' + logoClass + '"><img src="' + esc(rel(item.image)) + '" alt="' + esc(item.name) + '" loading="lazy" decoding="async"></div>' +
           '<h3 class="partner-card-hub__title">' + esc(item.name) + '</h3><p class="partner-card-hub__desc">' + esc(item.summary) + '</p>' +
           '<span class="partner-card-hub__link">Explore partnership <i class="ti ti-arrow-right"></i></span></a>';
@@ -156,14 +177,14 @@
         var variant = item.variant === 'ms' ? ' partner--ms' : '';
         return '<article class="partner' + variant + '" data-reveal tabindex="0"><div class="partner-card"><div class="partner-card__bg" aria-hidden="true"></div><div class="partner-card__dim" aria-hidden="true"></div><div class="partner-card__blur" aria-hidden="true"></div>' +
           '<div class="partner-logo-wrap"><img class="partner-logo-img" src="' + esc(rel(item.image)) + '" alt="' + esc(item.name) + '" loading="lazy" decoding="async"></div>' +
-          '<div class="partner-reveal"><p>' + esc(item.summary) + '</p><a class="partner-btn" href="' + esc(rel(item.href)) + '">Explore More</a></div></div></article>';
+          '<div class="partner-reveal"><p>' + esc(item.summary) + '</p><a class="partner-btn" href="' + esc(rel(itemHref(item, 'partners'))) + '">Explore More</a></div></div></article>';
       }).join('');
     }
   }
 
   function blogHubCard(item) {
     var accent = item.accent === 'orange' ? ' blog-card__tag--orange' : '';
-    return '<a class="blog-card" href="' + esc(rel(item.href)) + '" data-category="' + esc(item.category) + '" data-reveal aria-label="Read: ' + esc(item.title) + '">' +
+    return '<a class="blog-card" href="' + esc(rel(itemHref(item, 'blogs'))) + '" data-category="' + esc(item.category) + '" data-reveal aria-label="Read: ' + esc(item.title) + '">' +
       '<img src="' + esc(rel(item.image)) + '" alt="" loading="lazy" decoding="async"><div class="blog-card__shade" aria-hidden="true"></div>' +
       '<div class="blog-card__body"><span class="blog-card__tag' + accent + '">' + esc(item.categoryLabel || item.category) + '</span><h3 class="blog-card__title">' + esc(item.title) + '</h3>' +
       '<div class="blog-card__row"><span class="blog-card__meta"><strong>' + esc(item.readTime) + ' min</strong> read</span><span class="blog-card__arrow" aria-hidden="true"><i class="ti ti-arrow-up-right"></i></span></div></div></a>';
@@ -176,7 +197,7 @@
     var track = document.getElementById('blogsTrack');
     if (track) {
       track.innerHTML = items.slice(0, 5).map(function (item) {
-        return '<a class="blog-dest" href="' + esc(rel(item.href)) + '" aria-label="Read: ' + esc(item.title) + '"><img src="' + esc(rel(item.image)) + '" alt="" loading="lazy" decoding="async"><div class="blog-dest__shade" aria-hidden="true"></div>' +
+        return '<a class="blog-dest" href="' + esc(rel(itemHref(item, 'blogs'))) + '" aria-label="Read: ' + esc(item.title) + '"><img src="' + esc(rel(item.image)) + '" alt="" loading="lazy" decoding="async"><div class="blog-dest__shade" aria-hidden="true"></div>' +
           '<div class="blog-dest__body"><h3 class="blog-dest__title">' + esc(item.title) + '</h3><div class="blog-dest__row"><span class="blog-dest__meta"><strong>' + esc(item.readTime) + ' min</strong> read</span><span class="blog-dest__arrow" aria-hidden="true"><i class="ti ti-arrow-up-right"></i></span></div></div></a>';
       }).join('');
     }
@@ -187,7 +208,7 @@
     if (!list || currentPage() !== 'careers') return;
     list.innerHTML = sorted(data, 'jobs').map(function (item) {
       return '<article class="careers-job-card"><div><h3>' + esc(item.title) + '</h3><p class="cms-job-meta">' + esc([item.department, item.type, item.location].filter(Boolean).join(' · ')) + '</p></div>' +
-        '<a class="btn-pill" href="' + esc(rel(item.href)) + '">More Info <i class="ti ti-arrow-up-right" aria-hidden="true"></i></a></article>';
+        '<a class="btn-pill" href="' + esc(rel(itemHref(item, 'jobs'))) + '">More Info <i class="ti ti-arrow-up-right" aria-hidden="true"></i></a></article>';
     }).join('');
   }
 

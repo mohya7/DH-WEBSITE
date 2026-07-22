@@ -6,8 +6,10 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "check": "node --check server.js && node --check admin/admin.js && node --check js/content-runtime.js",
-    "test": "npm run check"
+    "seo:build": "node scripts/seo-build.js",
+    "seo:audit": "node scripts/seo-audit.js",
+    "check": "node --check server.js && node --check admin/admin.js && node --check js/content-runtime.js && node --check scripts/seo-build.js && node --check scripts/seo-audit.js",
+    "test": "npm run check && npm run seo:audit"
   },
   "keywords": [],
   "author": "",

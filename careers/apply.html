@@ -4,8 +4,95 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Apply | Careers | Digital Hub S.A.E</title>
-<meta name="description" content="Submit your application to join Digital Hub S.A.E in New Cairo." />
-<link rel="canonical" href="apply.html" />
+<meta name="description" content="Apply for an open role at Digital Hub and submit your experience, availability, LinkedIn profile, and CV securely to the HR team." />
+<!-- SEO:START -->
+<meta name="robots" content="noindex, follow" />
+<link rel="canonical" href="https://www.digitalhub.com.eg/careers/apply.html" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Digital Hub S.A.E" />
+<meta property="og:title" content="Apply | Careers | Digital Hub S.A.E" />
+<meta property="og:description" content="Apply for an open role at Digital Hub and submit your experience, availability, LinkedIn profile, and CV securely to the HR team." />
+<meta property="og:url" content="https://www.digitalhub.com.eg/careers/apply.html" />
+<meta property="og:image" content="https://www.digitalhub.com.eg/assets/careers/hero.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Apply | Careers | Digital Hub S.A.E" />
+<meta name="twitter:description" content="Apply for an open role at Digital Hub and submit your experience, availability, LinkedIn profile, and CV securely to the HR team." />
+<meta name="twitter:image" content="https://www.digitalhub.com.eg/assets/careers/hero.png" />
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://www.digitalhub.com.eg/#organization",
+      "name": "Digital Hub S.A.E",
+      "url": "https://www.digitalhub.com.eg/",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://www.digitalhub.com.eg/assets/digital-hub-logo.png"
+      },
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "B7, Pearl des-rois",
+        "addressLocality": "New Cairo",
+        "addressCountry": "EG"
+      },
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "telephone": "+20-155-555-3064",
+        "email": "info@digitalhub.com.eg",
+        "contactType": "customer service"
+      }
+    },
+    {
+      "@type": "BreadcrumbList",
+      "@id": "https://www.digitalhub.com.eg/careers/apply.html#breadcrumb",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Home",
+          "item": "https://www.digitalhub.com.eg/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Careers",
+          "item": "https://www.digitalhub.com.eg/careers/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "Apply",
+          "item": "https://www.digitalhub.com.eg/careers/apply.html"
+        }
+      ]
+    },
+    {
+      "@type": "WebPage",
+      "@id": "https://www.digitalhub.com.eg/careers/apply.html#webpage",
+      "name": "Apply | Careers | Digital Hub S.A.E",
+      "description": "Apply for an open role at Digital Hub and submit your experience, availability, LinkedIn profile, and CV securely to the HR team.",
+      "url": "https://www.digitalhub.com.eg/careers/apply.html",
+      "isPartOf": {
+        "@id": "https://www.digitalhub.com.eg/#website"
+      },
+      "about": {
+        "@id": "https://www.digitalhub.com.eg/#organization"
+      },
+      "primaryImageOfPage": {
+        "@type": "ImageObject",
+        "url": "https://www.digitalhub.com.eg/assets/careers/hero.png"
+      },
+      "breadcrumb": {
+        "@id": "https://www.digitalhub.com.eg/careers/apply.html#breadcrumb"
+      },
+      "inLanguage": "en"
+    }
+  ]
+}
+</script>
+<!-- SEO:END -->
 <meta name="theme-color" content="#0A1628" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -116,9 +203,12 @@
 
       <section class="careers-apply careers-apply--form" id="apply" data-reveal>
         <p data-careers-apply-intro>Share your background and CV. We&rsquo;re always meeting strong talent across engineering, data, and delivery.</p>
-        <form class="careers-apply-form" data-role="General application" enctype="multipart/form-data" novalidate>
+        <form class="careers-apply-form" action="/api/careers/applications" method="post" data-submit-url="/api/careers/applications" data-role="General application" enctype="multipart/form-data">
           <input type="hidden" name="role" value="General application">
           <input type="hidden" name="roleSlug" value="">
+          <input type="hidden" name="expectedSalaryRange" value="">
+          <input type="hidden" name="noticePeriod" value="">
+          <label class="careers-apply-form__trap" aria-hidden="true">Website<input name="website" type="text" tabindex="-1" autocomplete="off"></label>
           <div>
             <label class="field-label" for="apply-name">Full Name (English) <span class="field-required">*</span></label>
             <input class="input" id="apply-name" name="fullName" type="text" placeholder="Your full name in English" required autocomplete="name">
@@ -136,7 +226,7 @@
           <div class="field-row">
             <div>
               <label class="field-label" for="apply-current-salary">Current Salary (EGP &ndash; K) <span class="field-required">*</span></label>
-              <input class="input" id="apply-current-salary" name="currentSalary" type="text" inputmode="numeric" placeholder="e.g. 15" required>
+              <input class="input" id="apply-current-salary" name="currentSalary" type="number" min="0" step="1" placeholder="e.g. 15" required>
             </div>
             <div>
               <label class="field-label" for="apply-experience">Years of experience <span class="field-required">*</span></label>
@@ -147,16 +237,12 @@
           </div>
           <div class="field-row">
             <div>
-              <label class="field-label" for="apply-salary-range">Expected Salary Range (EGP &ndash; K) <span class="field-required">*</span></label>
-              <select class="select" id="apply-salary-range" name="expectedSalaryRange" required data-careers-select="salary-range">
-                <option value="">Select a range</option>
-              </select>
+              <label class="field-label" for="apply-expected-salary">Expected Salary (EGP &ndash; K) <span class="field-required">*</span></label>
+              <input class="input" id="apply-expected-salary" name="expectedSalary" type="number" min="0" step="1" placeholder="e.g. 25" required>
             </div>
             <div>
-              <label class="field-label" for="apply-notice">Notice Period <span class="field-required">*</span></label>
-              <select class="select" id="apply-notice" name="noticePeriod" required data-careers-select="notice-period">
-                <option value="">Select notice period</option>
-              </select>
+              <label class="field-label" for="apply-notice">Notice Period (weeks) <span class="field-required">*</span></label>
+              <input class="input" id="apply-notice" name="noticePeriodWeeks" type="number" min="0" max="52" step="1" placeholder="e.g. 2 (enter 0 if immediate)" required>
             </div>
           </div>
           <div class="field-row">

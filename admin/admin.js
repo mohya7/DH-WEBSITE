@@ -14,24 +14,21 @@
     services: [
       { name: 'title', label: 'Service name', required: true, full: true, placeholder: 'Enterprise Software Solutions' },
       { name: 'summary', label: 'Short description', type: 'textarea', required: true, full: true, max: 700 },
-      { name: 'href', label: 'Service page link', required: true, direction: 'ltr', placeholder: 'services/page.html' },
       { name: 'icon', label: 'Tabler icon', direction: 'ltr', placeholder: 'ti-stack-2' },
       { name: 'visual', label: 'Visual style', type: 'select', options: [['code', 'Code'], ['data', 'Data'], ['ai', 'Artificial Intelligence'], ['team', 'Team']] }
     ],
     caseStudies: [
       { name: 'title', label: 'Outcome headline', required: true, full: true },
       { name: 'summary', label: 'Case study summary', type: 'textarea', required: true, full: true, max: 900 },
-      { name: 'image', label: 'Card image', type: 'image', full: true },
+      { name: 'image', label: 'Card image', type: 'image', full: true, imageSize: '1600 × 1000 px', imageNote: '16:10 landscape' },
       { name: 'alt', label: 'Accessible image description', full: true },
-      { name: 'href', label: 'Case study link', required: true, direction: 'ltr' },
       { name: 'metric', label: 'Featured metric', placeholder: '500+ endpoints' },
       { name: 'categories', label: 'Categories', full: true, placeholder: 'data-analytics, enterprise-software', hint: 'Separate categories with commas.' }
     ],
     blogs: [
       { name: 'title', label: 'Article title', required: true, full: true },
       { name: 'summary', label: 'Short introduction', type: 'textarea', required: true, full: true, max: 700 },
-      { name: 'image', label: 'Cover image', type: 'image', full: true },
-      { name: 'href', label: 'Article link', required: true, direction: 'ltr' },
+      { name: 'image', label: 'Cover image', type: 'image', full: true, imageSize: '1620 × 1000 px', imageNote: 'Wide landscape' },
       { name: 'category', label: 'Technical category', type: 'select', options: [['enterprise-software', 'Enterprise Software'], ['data-analytics', 'Data & Analytics'], ['ai-automation', 'AI & Automation'], ['outsourcing', 'Outsourcing']] },
       { name: 'categoryLabel', label: 'Visible category label', placeholder: 'Enterprise Software' },
       { name: 'readTime', label: 'Reading time in minutes', type: 'number', min: 1 },
@@ -40,8 +37,7 @@
     partners: [
       { name: 'name', label: 'Partner name', required: true, full: true },
       { name: 'summary', label: 'Partnership summary', type: 'textarea', required: true, full: true, max: 700 },
-      { name: 'image', label: 'Partner logo', type: 'image', full: true },
-      { name: 'href', label: 'Partner page link', required: true, direction: 'ltr' },
+      { name: 'image', label: 'Partner logo', type: 'image', full: true, imageSize: '1200 × 400 px', imageNote: 'Transparent PNG preferred' },
       { name: 'variant', label: 'Logo treatment', type: 'select', options: [['default', 'Default'], ['ms', 'Microsoft / Wide']] }
     ],
     jobs: [
@@ -49,17 +45,18 @@
       { name: 'summary', label: 'Role summary', type: 'textarea', required: true, full: true, max: 700 },
       { name: 'department', label: 'Department', placeholder: 'Engineering' },
       { name: 'type', label: 'Contract type', placeholder: 'Full time' },
-      { name: 'location', label: 'Location', placeholder: 'Cairo, New Cairo' },
-      { name: 'href', label: 'Job details link', required: true, direction: 'ltr' }
+      { name: 'location', label: 'Location', placeholder: 'Cairo, New Cairo' }
     ],
     team: [
       { name: 'name', label: 'Team member name', required: true, full: true },
       { name: 'role', label: 'Role', required: true },
-      { name: 'image', label: 'Profile photo', type: 'image', full: true },
+      { name: 'image', label: 'Profile photo', type: 'image', full: true, imageSize: '800 × 1000 px', imageNote: '4:5 portrait' },
       { name: 'email', label: 'Email address', type: 'email', direction: 'ltr' },
       { name: 'linkedin', label: 'LinkedIn profile', direction: 'ltr', placeholder: 'https://linkedin.com/in/...' }
     ]
   };
+
+  var autoLinkedCollections = ['services', 'caseStudies', 'blogs', 'partners', 'jobs'];
 
   var pageInfo = {
     home: { title: 'Homepage', icon: 'ti-home', url: '../index.html' },
@@ -74,6 +71,7 @@
     csrf: '',
     data: null,
     users: [],
+    applications: [],
     currentUser: null,
     permissions: null,
     currentCollection: 'blogs',
@@ -84,6 +82,12 @@
     editingId: null,
     editingUserId: null,
     currentPage: 'home',
+    applicationStatus: 'all',
+    applicationQuery: '',
+    applicationRole: '',
+    applicationExperience: 'all',
+    applicationNoticeMax: 'all',
+    applicationSalaryMax: '',
     pendingDelete: null
   };
 
@@ -214,6 +218,12 @@
     renderUsers();
   }
 
+  async function loadApplications() {
+    var payload = await api('/api/admin/applications');
+    state.applications = payload.applications || [];
+    renderApplications();
+  }
+
   async function bootstrap() {
     try {
       var session = await api('/api/admin/session');
@@ -221,6 +231,7 @@
       state.csrf = session.csrf;
       applySession(session);
       await loadContent();
+      await loadApplications();
       await loadUsers();
       showApp();
     } catch (error) {
@@ -236,6 +247,7 @@
     renderCollection();
     renderPageSelector();
     renderPageForm();
+    renderApplications();
     if (isAdmin()) renderUsers();
     $('#sideRevision').textContent = 'Revision ' + state.data.meta.revision;
     $('#toolRevision').textContent = '#' + state.data.meta.revision;
@@ -302,6 +314,7 @@
       node.classList.toggle('is-active', active);
     });
     if (view === 'content') renderCollection();
+    if (view === 'applications') renderApplications();
     closeMobileMenu();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -368,9 +381,10 @@
     var required = field.required ? ' required' : '';
     var direction = field.direction ? ' style="direction:' + field.direction + ';text-align:left"' : '';
     var full = field.full ? ' dynamic-field--full' : '';
-    var label = '<span>' + escapeHtml(field.label) + (field.required ? ' <em>Required</em>' : '') + '</span>';
+    var fieldMeta = field.required ? 'Required' : (field.type === 'image' ? field.imageSize : '');
+    var label = '<span>' + escapeHtml(field.label) + (fieldMeta ? ' <em>' + escapeHtml(fieldMeta) + '</em>' : '') + '</span>';
     if (field.type === 'image') {
-      return '<label class="dynamic-field image-field">' + label + '<div class="image-drop"><input type="file" data-image-upload accept="image/png,image/jpeg,image/webp,image/gif"><div class="image-drop__empty"><i class="ti ti-cloud-upload"></i><strong>Drop an image or click to browse</strong><small>PNG, JPG, WEBP — up to 5MB</small></div>' +
+      return '<label class="dynamic-field image-field">' + label + '<div class="image-drop"><input type="file" data-image-upload accept="image/png,image/jpeg,image/webp,image/gif"><div class="image-drop__empty"><i class="ti ti-cloud-upload"></i><strong>Drop an image or click to browse</strong><small>PNG, JPG, WEBP — up to 5MB</small><span class="image-size-hint"><b>' + escapeHtml(field.imageSize || 'Use a high-resolution image') + '</b>' + (field.imageNote ? '<em>' + escapeHtml(field.imageNote) + '</em>' : '') + '</span></div>' +
         (value ? '<img class="image-preview" src="' + escapeHtml(publicUrl(value)) + '" alt="Preview"><button class="image-remove" type="button" data-remove-image><i class="ti ti-x"></i></button>' : '') + '</div><input class="image-path" name="' + field.name + '" value="' + escapeHtml(value) + '" placeholder="assets/path/image.jpg"' + direction + '></label>';
     }
     var control;
@@ -386,7 +400,11 @@
     state.editingId = item ? item.id : null;
     $('#drawerKicker').textContent = item ? 'EDIT CONTENT' : 'NEW CONTENT';
     $('#editorTitle').textContent = item ? 'Edit ' + info.singular : 'Add ' + info.singular;
-    $('#editorSubtitle').textContent = item ? 'Update the fields, then save to publish the change.' : 'Complete the fields, then save as a draft or publish now.';
+    $('#editorSubtitle').textContent = item
+      ? 'Update the fields, then save to publish the change.'
+      : (autoLinkedCollections.indexOf(state.currentCollection) > -1
+        ? 'Complete the fields. The details link will be created automatically.'
+        : 'Complete the fields, then save as a draft or publish now.');
     $('#dynamicFields').innerHTML = schemas[state.currentCollection].map(function (field) { return fieldHtml(field, item || {}); }).join('');
     $('#publishToggle').checked = !item || item.status === 'published';
     $('#featuredToggle').checked = Boolean(item && item.featured);
@@ -586,6 +604,157 @@
     return (user.name || user.username).split(/\s+/).map(function (part) { return part.charAt(0); }).join('').slice(0, 2).toUpperCase();
   }
 
+  function applicationInitials(name) {
+    return String(name || '?').split(/\s+/).filter(Boolean).map(function (part) { return part.charAt(0); }).join('').slice(0, 2).toUpperCase();
+  }
+
+  function applicationValue(value, suffix) {
+    if (value == null || value === '') return '—';
+    var spacing = suffix && !/^\s/.test(suffix) ? ' ' : '';
+    return escapeHtml(String(value).replace(/-/g, ' – ') + spacing + (suffix || ''));
+  }
+
+  function numericUpper(value) {
+    var matches = String(value == null ? '' : value).match(/\d+(?:\.\d+)?/g);
+    return matches && matches.length ? Number(matches[matches.length - 1]) : NaN;
+  }
+
+  function noticeWeeks(item) {
+    if (item.noticePeriodWeeks !== '' && item.noticePeriodWeeks != null && Number.isFinite(Number(item.noticePeriodWeeks))) return Number(item.noticePeriodWeeks);
+    if (/^\d+$/.test(String(item.noticePeriod || ''))) return Number(item.noticePeriod);
+    var legacy = { immediate: 0, week: 1, '2-weeks': 2, '3-weeks': 3, month: 4, 'month-and-half': 6, '2-months': 8 };
+    return Object.prototype.hasOwnProperty.call(legacy, item.noticePeriod) ? legacy[item.noticePeriod] : NaN;
+  }
+
+  function noticeLabel(item) {
+    var weeks = noticeWeeks(item);
+    if (!Number.isFinite(weeks)) return '—';
+    return weeks + (weeks === 1 ? ' week' : ' weeks');
+  }
+
+  function salaryLabel(item) {
+    var value = item.expectedSalary != null && item.expectedSalary !== '' ? item.expectedSalary : item.expectedSalaryRange;
+    return applicationValue(value, 'K EGP');
+  }
+
+  function renderApplicationFilterOptions(list) {
+    var experienceSelect = $('#applicationExperienceFilter');
+    var experienceOrder = ['0-1', '1-3', '3-5', '5-7', '7-10', '10-plus'];
+    var experience = Array.from(new Set(list.map(function (item) { return item.yearsOfExperience; }).filter(Boolean))).sort(function (a, b) {
+      var aIndex = experienceOrder.indexOf(a); var bIndex = experienceOrder.indexOf(b);
+      return (aIndex < 0 ? 99 : aIndex) - (bIndex < 0 ? 99 : bIndex);
+    });
+    experienceSelect.innerHTML = '<option value="all">All experience</option>' + experience.map(function (value) { return '<option value="' + escapeHtml(value) + '">' + applicationValue(value, ' years') + '</option>'; }).join('');
+    experienceSelect.value = experience.indexOf(state.applicationExperience) > -1 ? state.applicationExperience : 'all';
+    state.applicationExperience = experienceSelect.value;
+  }
+
+  function renderVacancyCards(list) {
+    var rail = $('#applicationVacancyCards');
+    var previousScroll = rail.scrollLeft;
+    var jobs = state.data && state.data.collections ? (state.data.collections.jobs || []).filter(function (job) { return job.status === 'published'; }).sort(function (a, b) { return Number(a.order || 0) - Number(b.order || 0); }) : [];
+    var cards = [{ title: 'All applications', role: 'all', department: 'Complete inbox', location: '', count: list.length }].concat(jobs.map(function (job) {
+      return { title: job.title, role: job.title, department: job.department || 'Open vacancy', location: job.location || '', count: list.filter(function (item) { return item.role === job.title; }).length };
+    }));
+    rail.innerHTML = cards.map(function (card) {
+      var active = state.applicationRole === card.role;
+      return '<button class="vacancy-card' + (active ? ' is-active' : '') + '" type="button" aria-pressed="' + active + '" data-vacancy-role="' + escapeHtml(card.role) + '"><span class="vacancy-card__icon"><i class="ti ' + (card.role === 'all' ? 'ti-briefcase-2' : 'ti-user-search') + '"></i></span><span class="vacancy-card__copy"><small>' + escapeHtml(card.department) + '</small><strong>' + escapeHtml(card.title) + '</strong><em>' + escapeHtml(card.location) + '</em></span><span class="vacancy-card__count"><b>' + card.count + '</b><small>applicants</small></span><i class="ti ti-chevron-right vacancy-card__arrow"></i></button>';
+    }).join('');
+    rail.scrollLeft = previousScroll;
+    window.requestAnimationFrame(updateVacancyScrollControls);
+  }
+
+  function updateVacancyScrollControls() {
+    var rail = $('#applicationVacancyCards');
+    var controls = $('#vacancyScrollControls');
+    if (!rail || !controls) return;
+    var overflow = rail.scrollWidth > rail.clientWidth + 2;
+    controls.classList.toggle('is-hidden', !overflow);
+    $('#vacancyScrollPrev').disabled = !overflow || rail.scrollLeft <= 2;
+    $('#vacancyScrollNext').disabled = !overflow || rail.scrollLeft + rail.clientWidth >= rail.scrollWidth - 2;
+  }
+
+  function scrollVacancies(direction) {
+    var rail = $('#applicationVacancyCards');
+    var card = $('.vacancy-card', rail);
+    if (!rail || !card) return;
+    rail.scrollBy({ left: direction * (card.offsetWidth + 12), behavior: 'smooth' });
+  }
+
+  function resetApplicationSecondaryFilters() {
+    state.applicationQuery = '';
+    state.applicationStatus = 'all';
+    state.applicationExperience = 'all';
+    state.applicationNoticeMax = 'all';
+    state.applicationSalaryMax = '';
+    $('#applicationSearch').value = '';
+    $('#applicationStatusFilter').value = 'all';
+    $('#applicationExperienceFilter').value = 'all';
+    $('#applicationNoticeFilter').value = 'all';
+    $('#applicationSalaryFilter').value = '';
+  }
+
+  function renderApplications() {
+    var list = state.applications || [];
+    renderVacancyCards(list);
+    var newCount = list.filter(function (item) { return item.status === 'new'; }).length;
+    var progressCount = list.filter(function (item) { return item.status === 'reviewing' || item.status === 'contacted'; }).length;
+    $$('[data-application-count]').forEach(function (node) { node.textContent = newCount; node.classList.toggle('is-zero', newCount === 0); });
+    $('#applicationsTotal').textContent = list.length;
+    $('#applicationsNew').textContent = newCount;
+    $('#applicationsProgress').textContent = progressCount;
+
+    var vacancySelected = Boolean(state.applicationRole);
+    $('#applicationSecondaryFilters').classList.toggle('is-hidden', !vacancySelected);
+    $('#applicationsPickPrompt').classList.toggle('is-hidden', vacancySelected);
+    if (!vacancySelected) {
+      $('#applicationsEmpty').classList.add('is-hidden');
+      $('#applicationsList').classList.add('is-hidden');
+      $('#applicationsList').innerHTML = '';
+      return;
+    }
+
+    var vacancyApplicants = state.applicationRole === 'all' ? list : list.filter(function (item) { return item.role === state.applicationRole; });
+    renderApplicationFilterOptions(vacancyApplicants);
+
+    var query = state.applicationQuery.trim().toLowerCase();
+    var filtered = vacancyApplicants.filter(function (item) {
+      var statusMatch = state.applicationStatus === 'all' || item.status === state.applicationStatus;
+      var experienceMatch = state.applicationExperience === 'all' || item.yearsOfExperience === state.applicationExperience;
+      var noticeMatch = state.applicationNoticeMax === 'all' || (Number.isFinite(noticeWeeks(item)) && noticeWeeks(item) <= Number(state.applicationNoticeMax));
+      var expectedSalary = numericUpper(item.expectedSalary != null ? item.expectedSalary : item.expectedSalaryRange);
+      var salaryMatch = !state.applicationSalaryMax || (Number.isFinite(expectedSalary) && expectedSalary <= Number(state.applicationSalaryMax));
+      var searchMatch = !query || [item.fullName, item.role, item.email, item.phone].join(' ').toLowerCase().indexOf(query) > -1;
+      return statusMatch && experienceMatch && noticeMatch && salaryMatch && searchMatch;
+    });
+    $('#applicationsEmpty').classList.toggle('is-hidden', filtered.length > 0);
+    $('#applicationsList').classList.toggle('is-hidden', filtered.length === 0);
+    $('#applicationsList').innerHTML = filtered.map(function (item) {
+      var status = item.status || 'new';
+      var statusOptions = [['new', 'New'], ['reviewing', 'Reviewing'], ['contacted', 'Contacted'], ['rejected', 'Rejected']];
+      var select = statusOptions.map(function (option) { return '<option value="' + option[0] + '"' + (option[0] === status ? ' selected' : '') + '>' + option[1] + '</option>'; }).join('');
+      return '<article class="panel application-card" data-application-id="' + escapeHtml(item.id) + '">' +
+        '<header><span class="application-avatar">' + escapeHtml(applicationInitials(item.fullName)) + '</span><div><span class="application-role">' + escapeHtml(item.role) + '</span><h2>' + escapeHtml(item.fullName) + '</h2><p>Reference ' + escapeHtml(item.reference || item.id.replace('application-', '').slice(0, 8).toUpperCase()) + ' · Submitted ' + escapeHtml(formatDate(item.submittedAt, true)) + '</p></div><label class="application-status application-status--' + escapeHtml(status) + '"><span>Status</span><select data-application-status>' + select + '</select></label></header>' +
+        '<div class="application-details"><div><small>Email</small><a href="mailto:' + encodeURIComponent(item.email) + '">' + escapeHtml(item.email) + '</a></div><div><small>Phone</small><a href="tel:' + encodeURIComponent(item.phone) + '">' + escapeHtml(item.phone) + '</a></div><div><small>Experience</small><strong>' + applicationValue(item.yearsOfExperience, ' years') + '</strong></div><div><small>Current salary</small><strong>' + applicationValue(item.currentSalary, 'K EGP') + '</strong></div><div><small>Expected salary</small><strong>' + salaryLabel(item) + '</strong></div><div><small>Notice period</small><strong>' + escapeHtml(noticeLabel(item)) + '</strong></div></div>' +
+        '<footer><a class="secondary-btn" href="' + escapeHtml(item.linkedin) + '" target="_blank" rel="noopener"><i class="ti ti-brand-linkedin"></i> LinkedIn</a><a class="primary-btn" href="/api/admin/applications/' + encodeURIComponent(item.id) + '/resume"><i class="ti ti-download"></i> Download CV</a></footer></article>';
+    }).join('');
+  }
+
+  async function updateApplicationStatus(select) {
+    var card = select.closest('[data-application-id]');
+    if (!card) return;
+    select.disabled = true;
+    try {
+      var result = await api('/api/admin/applications/' + encodeURIComponent(card.dataset.applicationId), { method: 'PUT', body: JSON.stringify({ status: select.value }) });
+      state.applications = result.applications || state.applications;
+      renderApplications();
+      toast('Application status updated.');
+    } catch (error) {
+      toast(error.message, true);
+      renderApplications();
+    }
+  }
+
   function renderUsers() {
     if (!isAdmin()) return;
     var hrUsers = state.users.filter(function (user) { return user.role === 'hr'; });
@@ -682,6 +851,7 @@
         state.csrf = session.csrf;
         applySession(session);
         await loadContent();
+        await loadApplications();
         await loadUsers();
         showApp(); toast('Welcome back. Your content is ready.');
       } catch (error) { $('#loginError').textContent = error.message; }
@@ -695,7 +865,7 @@
 
     $('#logoutBtn').addEventListener('click', async function () {
       try { await api('/api/admin/logout', { method: 'POST', body: '{}' }); } catch (_) {}
-      state.csrf = ''; state.data = null; state.users = []; state.currentUser = null; state.permissions = null; $('#loginPassword').value = ''; showLogin();
+      state.csrf = ''; state.data = null; state.users = []; state.applications = []; state.currentUser = null; state.permissions = null; $('#loginPassword').value = ''; showLogin();
     });
 
     $$('.side-link').forEach(function (button) {
@@ -709,6 +879,27 @@
     $('[data-empty-add]').addEventListener('click', function () { openEditor(); });
     $('.status-tabs').addEventListener('click', function (event) { var button = event.target.closest('[data-status]'); if (!button) return; state.currentStatus = button.dataset.status; renderCollection(); });
     $('#collectionSearch').addEventListener('input', function () { state.query = this.value; renderCollection(); });
+    $('#applicationSearch').addEventListener('input', function () { state.applicationQuery = this.value; renderApplications(); });
+    $('#applicationStatusFilter').addEventListener('change', function () { state.applicationStatus = this.value; renderApplications(); });
+    $('#applicationExperienceFilter').addEventListener('change', function () { state.applicationExperience = this.value; renderApplications(); });
+    $('#applicationNoticeFilter').addEventListener('change', function () { state.applicationNoticeMax = this.value; renderApplications(); });
+    $('#applicationSalaryFilter').addEventListener('input', function () { state.applicationSalaryMax = this.value; renderApplications(); });
+    $('#clearApplicationFilters').addEventListener('click', function () {
+      resetApplicationSecondaryFilters();
+      renderApplications();
+    });
+    $('#applicationVacancyCards').addEventListener('click', function (event) {
+      var card = event.target.closest('[data-vacancy-role]');
+      if (!card) return;
+      if (state.applicationRole !== card.dataset.vacancyRole) resetApplicationSecondaryFilters();
+      state.applicationRole = card.dataset.vacancyRole;
+      renderApplications();
+    });
+    $('#vacancyScrollPrev').addEventListener('click', function () { scrollVacancies(-1); });
+    $('#vacancyScrollNext').addEventListener('click', function () { scrollVacancies(1); });
+    $('#applicationVacancyCards').addEventListener('scroll', updateVacancyScrollControls, { passive: true });
+    window.addEventListener('resize', updateVacancyScrollControls);
+    $('#applicationsList').addEventListener('change', function (event) { if (event.target.matches('[data-application-status]')) updateApplicationStatus(event.target); });
     $$('[data-layout]').forEach(function (button) { button.addEventListener('click', function () { state.layout = button.dataset.layout; renderCollection(); }); });
     $('#contentGrid').addEventListener('click', function (event) {
       var button = event.target.closest('[data-action]'); if (!button) return;

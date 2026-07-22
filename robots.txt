@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /content/admin-content.json
+Disallow: /content/admin-users.json
+Disallow: /content/job-applications.json
+Disallow: /content/application-files/
+
+Sitemap: https://www.digitalhub.com.eg/sitemap.xml

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="robots" content="noindex, nofollow">
   <title>Digital Hub — Content Studio</title>
+  <meta name="robots" content="noindex, nofollow, noarchive" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -61,6 +62,7 @@
         <button class="side-link" type="button" data-collection="blogs" data-admin-only><i class="ti ti-news"></i><span>Blog</span><b data-count="blogs">0</b></button>
         <button class="side-link" type="button" data-collection="partners" data-admin-only><i class="ti ti-building-skyscraper"></i><span>Partners</span><b data-count="partners">0</b></button>
         <button class="side-link" type="button" data-collection="jobs"><i class="ti ti-id-badge-2"></i><span>Careers</span><b data-count="jobs">0</b></button>
+        <button class="side-link" type="button" data-view="applications"><i class="ti ti-file-cv"></i><span>Applications</span><b data-application-count>0</b></button>
         <button class="side-link" type="button" data-collection="team" data-admin-only><i class="ti ti-users-group"></i><span>Leadership Team</span><b data-count="team">0</b></button>
         <p class="side-label">WEBSITE &amp; SYSTEM</p>
         <button class="side-link" type="button" data-view="pages"><i class="ti ti-file-text"></i><span>Page Content</span></button>
@@ -116,7 +118,7 @@
               <button type="button" data-quick-collection="blogs" data-admin-only><span class="quick-icon quick-icon--blue"><i class="ti ti-news"></i></span><span><strong>New article</strong><small>Publish a new insight</small></span><i class="ti ti-chevron-right"></i></button>
               <button type="button" data-quick-collection="caseStudies" data-admin-only><span class="quick-icon quick-icon--orange"><i class="ti ti-briefcase"></i></span><span><strong>New case study</strong><small>Document a new result</small></span><i class="ti ti-chevron-right"></i></button>
               <button type="button" data-quick-collection="jobs"><span class="quick-icon quick-icon--green"><i class="ti ti-id-badge-2"></i></span><span><strong>New job opening</strong><small>Publish a new role</small></span><i class="ti ti-chevron-right"></i></button>
-              <button type="button" data-view-link="pages"><span class="quick-icon quick-icon--violet"><i class="ti ti-file-pencil"></i></span><span><strong>Page copy</strong><small>Update hero headlines</small></span><i class="ti ti-chevron-right"></i></button>
+              <button type="button" data-view-link="applications"><span class="quick-icon quick-icon--violet"><i class="ti ti-file-cv"></i></span><span><strong>Review applications</strong><small>Open the HR inbox</small></span><i class="ti ti-chevron-right"></i></button>
             </div>
           </section>
         </section>
@@ -132,6 +134,35 @@
           </div>
           <div class="content-grid" id="contentGrid"></div>
           <div class="empty-state is-hidden" id="emptyState"><span><i class="ti ti-file-off"></i></span><h2>No matching content</h2><p>Try another search or add the first card in this collection.</p><button class="primary-btn" type="button" data-empty-add><i class="ti ti-plus"></i> Add content</button></div>
+        </section>
+
+        <section class="view" id="applicationsView">
+          <div class="section-title-row">
+            <div><button class="back-dashboard" type="button" data-view-link="dashboard"><i class="ti ti-arrow-left"></i> Overview</button><h1>Job Applications</h1><p>Review every candidate, download their CV, and track follow-up.</p></div>
+            <a class="secondary-btn" href="../careers/index.html" target="_blank" rel="noopener"><i class="ti ti-external-link"></i> View open jobs</a>
+          </div>
+          <div class="application-summary-grid">
+            <article class="panel application-summary"><span class="tool-icon tool-icon--blue"><i class="ti ti-files"></i></span><div><small>Total applications</small><strong id="applicationsTotal">0</strong></div></article>
+            <article class="panel application-summary"><span class="tool-icon tool-icon--orange"><i class="ti ti-sparkles"></i></span><div><small>New</small><strong id="applicationsNew">0</strong></div></article>
+            <article class="panel application-summary"><span class="tool-icon tool-icon--green"><i class="ti ti-user-check"></i></span><div><small>In progress</small><strong id="applicationsProgress">0</strong></div></article>
+          </div>
+          <section class="vacancy-picker">
+            <header class="vacancy-picker__head"><div><span class="page-kicker">OPEN VACANCIES</span><h2>Choose a vacancy</h2><p>Select a role to review and filter its candidates.</p></div><div class="vacancy-scroll-controls is-hidden" id="vacancyScrollControls"><button type="button" id="vacancyScrollPrev" aria-label="Previous vacancies"><i class="ti ti-arrow-left"></i></button><button type="button" id="vacancyScrollNext" aria-label="Next vacancies"><i class="ti ti-arrow-right"></i></button></div></header>
+            <div class="vacancy-card-grid" id="applicationVacancyCards"></div>
+          </section>
+          <div class="application-toolbar panel is-hidden" id="applicationSecondaryFilters">
+            <label class="inline-search"><i class="ti ti-search"></i><input id="applicationSearch" type="search" placeholder="Search name, role, email..."></label>
+            <div class="application-filter-grid">
+              <label class="application-filter"><span>Status</span><select id="applicationStatusFilter"><option value="all">All statuses</option><option value="new">New</option><option value="reviewing">Reviewing</option><option value="contacted">Contacted</option><option value="rejected">Rejected</option></select></label>
+              <label class="application-filter"><span>Experience</span><select id="applicationExperienceFilter"><option value="all">All experience</option></select></label>
+              <label class="application-filter"><span>Max notice</span><select id="applicationNoticeFilter"><option value="all">Any notice period</option><option value="0">Immediate / 0 weeks</option><option value="1">Up to 1 week</option><option value="2">Up to 2 weeks</option><option value="4">Up to 4 weeks</option><option value="8">Up to 8 weeks</option></select></label>
+              <label class="application-filter"><span>Max expected salary (K)</span><input id="applicationSalaryFilter" type="number" min="0" step="1" placeholder="Any salary"></label>
+              <button class="secondary-btn application-clear" id="clearApplicationFilters" type="button"><i class="ti ti-filter-x"></i> Clear filters</button>
+            </div>
+          </div>
+          <div class="empty-state panel" id="applicationsPickPrompt"><span><i class="ti ti-briefcase"></i></span><h2>Choose a vacancy</h2><p>Select one of the vacancy cards above to see its applicants and filters.</p></div>
+          <div class="applications-list is-hidden" id="applicationsList"></div>
+          <div class="empty-state panel is-hidden" id="applicationsEmpty"><span><i class="ti ti-file-search"></i></span><h2>No applications found</h2><p>New applications submitted through the Careers page will appear here.</p></div>
         </section>
 
         <section class="view" id="pagesView">
