@@ -33,6 +33,7 @@ const mime = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.js': 'application/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
@@ -629,7 +630,14 @@ function serveStatic(req, res, url) {
     return res.end('<h1>404</h1><p>Page not found.</p>');
   }
   const type = mime[path.extname(target).toLowerCase()] || 'application/octet-stream';
-  const noCache = target === PUBLIC_JS_FILE || target === PUBLIC_JSON_FILE || pathname.startsWith('/admin');
+  const ext = path.extname(target).toLowerCase();
+  const noCache =
+    target === PUBLIC_JS_FILE ||
+    target === PUBLIC_JSON_FILE ||
+    pathname.startsWith('/admin') ||
+    ext === '.js' ||
+    ext === '.mjs' ||
+    ext === '.html';
   res.writeHead(200, {
     'Content-Type': type,
     'Content-Length': fs.statSync(target).size,

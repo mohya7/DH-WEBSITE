@@ -48,8 +48,26 @@ table{display:block;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:to
 .brand-logo{
   height:var(--brand-logo-h);
   width:auto;
+  max-width:none;
   object-fit:contain;
   margin-block:calc(var(--brand-logo-bleed)*-1);
+}
+
+/* Get in Touch CTAs — orange hover across the whole site */
+.nav-cta:hover,
+.nav-cta:focus-visible,
+.mobile-nav .mn-cta:hover,
+.mobile-nav .mn-cta:focus-visible,
+a.btn-pill[href*="get-in-touch"]:hover,
+a.btn-pill[href*="get-in-touch"]:focus-visible,
+a.btn-primary[href*="get-in-touch"]:hover,
+a.btn-primary[href*="get-in-touch"]:focus-visible,
+a.partner-overview__cta[href*="get-in-touch"]:hover,
+a.partner-overview__cta[href*="get-in-touch"]:focus-visible{
+  background:var(--orange);
+  background-image:none;
+  color:#fff;
+  box-shadow:0 8px 24px rgba(244,151,11,0.32), inset 0 1px 0 rgba(255,255,255,0.12);
 }
 
 /* Touch-friendly controls */
@@ -88,7 +106,6 @@ table{display:block;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:to
 @media (max-width:640px){
   .hub-hero{padding-top:calc(92px + var(--safe-top))}
   .hub-hero__inner{padding-bottom:24px}
-  .hub-banner h1{font-size:clamp(28px,7.5vw,40px)}
   .hub-banner .lead{font-size:15px;line-height:1.7}
   .hub-cta__card{padding:24px 20px}
   .hub-cta__card .btn-pill{align-self:stretch;justify-content:center}
@@ -113,7 +130,6 @@ table{display:block;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:to
   .careers-detail-hero{min-height:clamp(180px,48vw,280px);border-radius:0 0 18px 18px}
   .careers-detail-hero__title{
     left:16px;right:16px;
-    font-size:clamp(26px,7vw,38px);
   }
   .careers-detail__meta{flex-direction:column;align-items:flex-start}
   .careers-apply{padding:28px 20px;text-align:left}
@@ -122,7 +138,7 @@ table{display:block;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:to
   /* About */
   .about-banner{gap:20px}
   .about-banner .lead{font-size:15px}
-  .team-strip__frame{padding:0 36px}
+  .page-about .team-strip__frame{padding:0}
 }
 
 @media (max-width:480px){
@@ -136,7 +152,7 @@ table{display:block;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:to
 @media (max-width:360px){
   :root{--pad-x:16px;--nav-inset:14px;--section-y:40px;--brand-logo-h:50px;--brand-logo-bleed:7px}
   .nav,.hero--service .hero-inner{width:calc(100% - var(--nav-inset))}
-  .hub-banner h1{font-size:26px}
+  :root{--h1-size:28px}
   .careers-values__badge span{font-size:20px}
 }
 
@@ -180,13 +196,11 @@ table{display:block;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:to
 /* Shared / case study pages (shared.css shell) */
 @media (max-width:480px){
   .cs-hero{padding-top:96px}
-  .cs-hero__title{font-size:clamp(26px,7vw,34px)}
   .cs-stats{padding:16px;gap:12px}
   .cs-stat__value{font-size:clamp(24px,6vw,32px)}
   .cs-cta{padding:28px 20px;flex-direction:column;align-items:stretch}
   .cs-cta .btn-primary{align-self:flex-start}
   .svc-hero{padding-top:96px}
-  .svc-hero__title{font-size:clamp(28px,7vw,36px)}
   .svc-cta{padding:28px 20px;flex-direction:column;align-items:stretch}
 }
 

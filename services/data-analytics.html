@@ -11,9 +11,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css" />
-<link rel="stylesheet" href="../css/service-page.css" />
-<link rel="stylesheet" href="../css/tv.css" />
-<link rel="stylesheet" href="../css/responsive.css" />
+<link rel="stylesheet" href="../css/service-page.css?v=svc20" />
+<link rel="stylesheet" href="../css/tv.css?v=9" />
+<link rel="stylesheet" href="../css/responsive.css?v=11" />
 </head>
 <body class="page-service">
 
@@ -83,7 +83,7 @@
       <li><a class="nav-link" href="../about-us.html">About Us</a></li>
       <li><a class="nav-link" href="../careers/index.html">Careers</a></li>
     </ul>
-    <a class="nav-cta" href="#contact">Get in touch <i class="ti ti-arrow-right"></i></a>
+    <a class="nav-cta" href="../get-in-touch.html">Get in touch <i class="ti ti-arrow-right"></i></a>
     <button class="nav-burger" id="navBurger" aria-label="Open menu" aria-expanded="false"><i class="ti ti-menu-2"></i></button>
   </div>
 </nav>
@@ -113,47 +113,84 @@
   <a href="../blogs/index.html">Blogs</a>
   <a href="../about-us.html">About Us</a>
   <a href="../careers/index.html">Careers</a>
-  <a class="mn-cta" href="#contact">Get in Touch</a>
+  <a class="mn-cta" href="../get-in-touch.html">Get in Touch</a>
 </div>
 
 <main>
-  <!-- SECTION 1 � HERO -->
-  <section class="hero hero--service" id="top">
-    <div class="hero-inner">
-      <div class="hero-left">
-        <div class="hero-glass">
-          <div class="hero-glass__glow" aria-hidden="true"></div>
-          <div class="hero-glass__copy">
-            <div class="hero-top">
-              <span class="hero-eyebrow">Digital Hub for <strong>Enterprise Software</strong></span>
-              <h1>Built for your organization, scaled for enterprise impact</h1>
-            </div>
-            <p class="hero-sub">Whether you&rsquo;re modernizing legacy systems or delivering mission-critical platforms, Digital Hub is the software partner trusted by enterprises across Egypt and the GCC.</p>
-          </div>
-          <div class="hero-glass__side">
-            <div class="hero-glass__stats">
-              <div class="hero-glass__stat">
-                <strong class="orange">30+</strong>
-                <span>Clients</span>
-              </div>
-              <div class="hero-glass__stat">
-                <strong>7</strong>
-                <span>Capabilities</span>
-              </div>
-              <div class="hero-glass__stat">
-                <strong>5+</strong>
-                <span>Years</span>
-              </div>
-            </div>
-            <div class="hero-cta">
-              <a class="btn-pill" href="#contact">Discuss your data program</a>
-            </div>
-            <ul class="hero-checklist">
-              <li><span class="hero-check" aria-hidden="true"><i class="ti ti-check"></i></span>Custom applications built around how your teams actually work</li>
-              <li><span class="hero-check" aria-hidden="true"><i class="ti ti-check"></i></span>Legacy modernization and integration for regulated sectors</li>
-              <li><span class="hero-check" aria-hidden="true"><i class="ti ti-check"></i></span>Full-stack delivery from discovery through production support</li>
-            </ul>
-          </div>
+  <!-- SECTION 1 — HERO (BaseOne-style split banner) -->
+  <section class="hero hero--service hero--svc-split" id="top">
+    <div class="svc-hero-atmos" aria-hidden="true">
+      <span class="svc-hero-atmos__beam"></span>
+      <span class="svc-hero-atmos__glow"></span>
+      <span class="svc-hero-atmos__grain"></span>
+    </div>
+    <div class="svc-hero-grid">
+      <div class="svc-hero-copy">
+        <p class="svc-eyebrow">Data &amp; Analytics</p>
+        <h1 class="svc-display">Enterprise intelligence, <em>simplified</em>.</h1>
+        <p class="svc-lede">
+          We turn scattered, untrusted data into <strong>one beautiful, governed source of truth</strong>,
+          engineered on Microsoft Fabric and Azure, and designed in Power BI so decisions get made in seconds, not weeks.
+        </p>
+        <div class="svc-cta-row">
+          <a class="btn-svc btn-svc-primary" href="../get-in-touch.html">Book a discovery session <span class="arr" aria-hidden="true">&rarr;</span></a>
+        </div>
+        <ul class="svc-hero-marks">
+          <li>Power BI</li>
+          <li>Microsoft Fabric</li>
+          <li>Azure</li>
+          <li>Data engineering</li>
+        </ul>
+      </div>
+
+      <div class="svc-hero-stage" aria-hidden="true">
+        <div class="stage-chrome">
+          <span class="stage-dots"><i></i><i></i><i></i></span>
+          <span class="stage-label">Executive Performance &middot; live</span>
+          <span class="stage-live"><i></i>live</span>
+        </div>
+        <div class="stage-canvaswrap">
+          <svg class="stage-chart" viewBox="0 0 480 300" preserveAspectRatio="xMidYMid meet" role="img">
+            <defs>
+              <linearGradient id="svcBarGrad" x1="0" y1="1" x2="0" y2="0">
+                <stop offset="0%" stop-color="#1A9AD6" stop-opacity="0.25"/>
+                <stop offset="100%" stop-color="#36B0E5" stop-opacity="0.95"/>
+              </linearGradient>
+              <linearGradient id="svcLineGrad" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stop-color="#36B0E5" stop-opacity="0.4"/>
+                <stop offset="100%" stop-color="#7DD3F5"/>
+              </linearGradient>
+              <filter id="svcLineGlow" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="2.5" result="b"/>
+                <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+            </defs>
+            <g class="stage-chart__grid" stroke="rgba(255,255,255,0.06)" stroke-width="1">
+              <line x1="40" y1="40" x2="440" y2="40"/><line x1="40" y1="90" x2="440" y2="90"/>
+              <line x1="40" y1="140" x2="440" y2="140"/><line x1="40" y1="190" x2="440" y2="190"/>
+              <line x1="40" y1="240" x2="440" y2="240"/>
+            </g>
+            <g class="stage-chart__bars">
+              <rect x="56" y="168" width="28" height="72" rx="4" fill="url(#svcBarGrad)"/>
+              <rect x="104" y="132" width="28" height="108" rx="4" fill="url(#svcBarGrad)"/>
+              <rect x="152" y="148" width="28" height="92" rx="4" fill="url(#svcBarGrad)"/>
+              <rect x="200" y="96" width="28" height="144" rx="4" fill="url(#svcBarGrad)"/>
+              <rect x="248" y="114" width="28" height="126" rx="4" fill="url(#svcBarGrad)"/>
+              <rect x="296" y="72" width="28" height="168" rx="4" fill="url(#svcBarGrad)"/>
+              <rect x="344" y="88" width="28" height="152" rx="4" fill="url(#svcBarGrad)"/>
+              <rect x="392" y="54" width="28" height="186" rx="4" fill="url(#svcBarGrad)"/>
+            </g>
+            <polyline class="stage-chart__line" filter="url(#svcLineGlow)"
+              fill="none" stroke="url(#svcLineGrad)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+              points="70,176 118,140 166,156 214,104 262,122 310,80 358,96 406,62"/>
+            <g class="stage-chart__dots" fill="#7DD3F5">
+              <circle cx="70" cy="176" r="3.5"/><circle cx="118" cy="140" r="3.5"/>
+              <circle cx="166" cy="156" r="3.5"/><circle cx="214" cy="104" r="3.5"/>
+              <circle cx="262" cy="122" r="3.5"/><circle cx="310" cy="80" r="3.5"/>
+              <circle cx="358" cy="96" r="3.5"/><circle cx="406" cy="62" r="3.5"/>
+            </g>
+          </svg>
+          <div class="stage-ht"></div>
         </div>
       </div>
     </div>
@@ -165,10 +202,10 @@
       <header class="problem-lead" data-reveal>
         <span class="label">The problem we solve</span>
         <h2>Your data was never designed to work together.</h2>
-        <p>Most Egyptian and Gulf enterprises are running on software that was implemented to solve yesterday&rsquo;s problem. Data stalls between legacy ERP, email, and Excel &mdash; and never reaches the <a href="#services" class="accent">real-time flows that AI requires</a>.</p>
+        <p>Most Egyptian and Gulf enterprises are running on fragmented sources, manual spreadsheets, and disconnected systems. Insights stall before they reach the <a href="#services" class="accent">executive dashboards and AI models that need them</a>.</p>
       </header>
 
-      <div class="problem-pipeline" id="problemPipeline" aria-label="Illustration: broken enterprise data pipeline">
+      <div class="problem-pipeline" id="problemPipeline" aria-label="Illustration: broken data flow with three break points">
         <div class="pp-canvas">
           <div class="pp-head">
             <span class="pp-head__dot" aria-hidden="true"></span>
@@ -179,7 +216,7 @@
           <div class="pp-track" aria-hidden="true">
             <div class="pp-node pp-node--source">
               <div class="pp-node__icon"><i class="ti ti-database-import"></i></div>
-              <span class="pp-node__label">Source Data</span>
+              <span class="pp-node__label">Source Systems</span>
             </div>
 
             <div class="pp-conn pp-conn--broken">
@@ -189,7 +226,7 @@
 
             <div class="pp-node pp-node--legacy">
               <div class="pp-node__icon"><i class="ti ti-server-2"></i></div>
-              <span class="pp-node__label">Legacy ERP</span>
+              <span class="pp-node__label">Legacy DW</span>
             </div>
 
             <div class="pp-conn pp-conn--broken">
@@ -198,8 +235,8 @@
             </div>
 
             <div class="pp-node pp-node--silo">
-              <div class="pp-node__icon"><i class="ti ti-mail"></i></div>
-              <span class="pp-node__label">Email / Excel</span>
+              <div class="pp-node__icon"><i class="ti ti-table"></i></div>
+              <span class="pp-node__label">Spreadsheets</span>
             </div>
 
             <div class="pp-conn pp-conn--broken">
@@ -208,8 +245,8 @@
             </div>
 
             <div class="pp-node pp-node--ai">
-              <div class="pp-node__icon"><i class="ti ti-brain"></i></div>
-              <span class="pp-node__label">AI Platform</span>
+              <div class="pp-node__icon"><i class="ti ti-chart-bar"></i></div>
+              <span class="pp-node__label">Analytics / AI</span>
             </div>
           </div>
 
@@ -217,24 +254,24 @@
             <article class="pp-card pp-card--1" data-break="1">
               <div class="pp-card__icon" aria-hidden="true"><i class="ti ti-unlink"></i></div>
               <div class="pp-card__body">
-                <h3>Systems that don&rsquo;t integrate</h3>
-                <p>Legacy platforms never connected &mdash; every bridge is a custom workaround that adds cost and fragility.</p>
+                <h3>Siloed data sources</h3>
+                <p>Critical data lives in disconnected systems &mdash; every report becomes a manual reconciliation exercise.</p>
               </div>
             </article>
 
             <article class="pp-card pp-card--2" data-break="2">
-              <div class="pp-card__icon" aria-hidden="true"><i class="ti ti-brain"></i></div>
+              <div class="pp-card__icon" aria-hidden="true"><i class="ti ti-shield-off"></i></div>
               <div class="pp-card__body">
-                <h3>Not built for AI-era data flows</h3>
-                <p>Pre-AI architecture can&rsquo;t support the real-time pipelines modern intelligence requires.</p>
+                <h3>No governance or trust</h3>
+                <p>Without quality frameworks and ownership, teams don&rsquo;t trust the numbers they see in dashboards.</p>
               </div>
             </article>
 
             <article class="pp-card pp-card--3" data-break="3">
-              <div class="pp-card__icon" aria-hidden="true"><i class="ti ti-layers-off"></i></div>
+              <div class="pp-card__icon" aria-hidden="true"><i class="ti ti-clock-exclamation"></i></div>
               <div class="pp-card__body">
-                <h3>Shadow IT &amp; broken workflows</h3>
-                <p>Teams patch gaps in Excel. Approvals stall in email. Data sits in silos nobody can connect.</p>
+                <h3>Insights arrive too late</h3>
+                <p>Batch exports and email chains mean leadership decides on yesterday&rsquo;s data, not today&rsquo;s reality.</p>
               </div>
             </article>
           </div>
@@ -242,11 +279,24 @@
       </div>
 
       <div class="problem-bottom" data-reveal>
-        <div class="problem-bottom__copy">
-          <p>The result is organizations that invest in data tools but still can&rsquo;t answer basic questions with confidence.</p>
-          <p>We fix this by building governed data platforms designed around how decisions are actually made &mdash; not retrofitted after the fact.</p>
+        <div class="problem-outcomes">
+          <div class="problem-outcome">
+            <span class="problem-outcome__icon" aria-hidden="true"><i class="ti ti-report-search"></i></span>
+            <div class="problem-outcome__body">
+              <strong>Tools without trust</strong>
+              <p>Organizations invest in data tools but still can&rsquo;t answer basic questions with confidence.</p>
+            </div>
+          </div>
+          <div class="problem-outcome problem-outcome--fix">
+            <span class="problem-outcome__icon" aria-hidden="true"><i class="ti ti-check"></i></span>
+            <div class="problem-outcome__body">
+              <strong>Governed platforms for decisions</strong>
+              <p>We build data platforms around how decisions are actually made &mdash; not retrofitted after the fact.</p>
+            </div>
+          </div>
         </div>
         <blockquote class="problem-quote">
+          <span class="problem-quote__mark" aria-hidden="true"></span>
           <p>&ldquo;We don&rsquo;t hand you a roadmap and wish you luck. We build what&rsquo;s on it, then we stay.&rdquo;</p>
           <cite>Digital Hub &middot; Data &amp; Analytics Team</cite>
         </blockquote>
@@ -592,33 +642,7 @@
     </div>
   </section>
 
-  <!-- SECTION 7 — CTA -->
-  <section class="cta" id="contact">
-    <div class="container cta-grid">
-      <div class="cta-left" data-reveal>
-        <h2 class="cta-headline">Ready to start your project?<br><em>Let&rsquo;s get to work.</em></h2>
-        <p>Tell us about your data sources and goals. Our data &amp; analytics team responds within one business day with a concrete next step &mdash; not a brochure.</p>
-        <div class="cta-contacts">
-          <a href="tel:+201555553064"><i class="ti ti-phone"></i> +20 155 555 3064</a>
-          <a href="https://wa.me/201555553064" target="_blank" rel="noopener"><i class="ti ti-brand-whatsapp"></i> WhatsApp</a>
-          <a href="mailto:sales@digitalhubgroup.com"><i class="ti ti-mail"></i> sales@digitalhubgroup.com</a>
-        </div>
-      </div>
-      <form class="cta-form" id="contactForm" data-reveal novalidate>
-        <label for="name">Full Name</label>
-        <input type="text" id="name" name="name" placeholder="Full name" required />
-        <label for="org">Organization</label>
-        <input type="text" id="org" name="org" placeholder="Organization" required />
-        <label for="role">Role / Title</label>
-        <input type="text" id="role" name="role" placeholder="Role / Title" />
-        <label for="email">Email Address</label>
-        <input type="email" id="email" name="email" placeholder="Email address" required />
-        <label for="message">Describe your data challenge</label>
-        <textarea id="message" name="message" placeholder="Describe your data challenge" required></textarea>
-        <button type="submit">Discuss your data program <i class="ti ti-arrow-right"></i></button>
-      </form>
-    </div>
-  </section>
+
 </main>
 
 <footer class="footer">
@@ -642,7 +666,7 @@
           <a href="../cases/index.html">Case Studies</a>
           <a href="../blogs/index.html">Blogs</a>
           <a href="../partners/index.html">Partners</a>
-          <a href="../index.html#contact">Contact</a>
+          <a href="../get-in-touch.html">Contact</a>
         </div>
       </div>
       <div class="footer-contact">

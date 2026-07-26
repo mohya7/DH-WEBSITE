@@ -118,9 +118,11 @@
   if(form){
     form.addEventListener('submit', function(e){
       e.preventDefault();
-      var btn = form.querySelector('button');
-      btn.textContent = 'Thank you — we\'ll respond within one business day';
-      btn.disabled = true;
+      var btn = form.querySelector('#submitBtn') || form.querySelector('button[type="submit"]');
+      var label = form.querySelector('#submitText');
+      if (label) label.textContent = 'Thank you — we\'ll respond within one business day';
+      else if (btn) btn.textContent = 'Thank you — we\'ll respond within one business day';
+      if (btn) btn.disabled = true;
     });
   }
 })();

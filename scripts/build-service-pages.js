@@ -400,7 +400,7 @@ function buildGlassHeroSection(cfg) {
 ${statHtml}
             </div>
             <div class="hero-cta">
-              <a class="btn-pill" href="#contact">${cfg.heroCta}</a>
+              <a class="btn-pill" href="../get-in-touch.html">${cfg.heroCta}</a>
             </div>
             <ul class="hero-checklist">
           ${buildHeroChecks(cfg.heroChecks)}

@@ -111,7 +111,8 @@
   if (teamStrip && teamViewport && teamInner){
     var stripState = { x: 0, minX: 0, dragging: false, moved: 0, startX: 0, startTx: 0, lastX: 0, lastT: 0, vx: 0 };
     var stripTween;
-    var canDrag = !reduceMotion && window.matchMedia('(hover: hover) and (min-width: 901px)').matches;
+    var dragMq = window.matchMedia('(hover: hover) and (min-width: 901px)');
+    var canDrag = !reduceMotion && dragMq.matches;
 
     function stripClamp(x){
       return Math.max(stripState.minX, Math.min(0, x));
@@ -172,6 +173,13 @@
     }
 
     function stripMeasure(){
+      canDrag = !reduceMotion && dragMq.matches;
+      if (!canDrag){
+        teamInner.style.transform = '';
+        stripState.x = 0;
+        stripUpdateArrows();
+        return;
+      }
       var vw = teamViewport.offsetWidth;
       var iw = teamInner.scrollWidth;
       stripState.minX = Math.min(0, vw - iw);
@@ -205,8 +213,8 @@
     }
 
     teamViewport.addEventListener('pointerdown', function(e){
+      if (!canDrag) return;
       if (e.target.closest('.team-card__action')) return;
-      if (!canDrag && e.pointerType === 'mouse') return;
       if (e.pointerType === 'mouse' && e.button !== 0) return;
       stripState.dragging = true;
       stripState.moved = 0;
@@ -252,6 +260,11 @@
       link.addEventListener('click', function(e){ e.preventDefault(); });
     });
 
+    if (typeof dragMq.addEventListener === 'function'){
+      dragMq.addEventListener('change', stripMeasure);
+    } else if (typeof dragMq.addListener === 'function'){
+      dragMq.addListener(stripMeasure);
+    }
     window.addEventListener('resize', stripMeasure);
     stripMeasure();
   }
@@ -260,9 +273,11 @@
   if (form){
     form.addEventListener('submit', function(e){
       e.preventDefault();
-      var btn = form.querySelector('button');
-      btn.textContent = 'Thank you — we\'ll respond within one business day';
-      btn.disabled = true;
+      var btn = form.querySelector('#submitBtn') || form.querySelector('button[type="submit"]');
+      var label = form.querySelector('#submitText');
+      if (label) label.textContent = 'Thank you — we\'ll respond within one business day';
+      else if (btn) btn.textContent = 'Thank you — we\'ll respond within one business day';
+      if (btn) btn.disabled = true;
     });
   }
 })();
@@ -389,19 +404,26 @@
     }
 
     function scrollSpan(){
-      return Math.round(window.innerHeight * Math.max(1.2, items.length - 0.15));
+      return Math.round(window.innerHeight * Math.max(1.05, (items.length - 1) * 0.55));
     }
 
     function jtlPinTop(){
       var nav = document.getElementById('nav');
-      if (!nav) return 120;
+      var gap = window.innerHeight <= 900 ? 48 : 40;
+      if (!nav) return 120 + gap;
       var rect = nav.getBoundingClientRect();
-      return Math.ceil(rect.top + rect.height + 20);
+      return Math.ceil(rect.top + rect.height + gap);
+    }
+
+    function jtlPinBottom(){
+      return window.innerHeight <= 900 ? 48 : 40;
     }
 
     function jtlSyncPinTop(){
       var top = jtlPinTop();
+      var bottom = jtlPinBottom();
       document.documentElement.style.setProperty('--jtl-pin-top', top + 'px');
+      document.documentElement.style.setProperty('--jtl-pin-bottom', bottom + 'px');
       return top;
     }
     jtlSyncPinTop();
@@ -439,10 +461,28 @@
       requestAnimationFrame(layoutLine);
     }
 
+    reveal();
     layoutLine();
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(layoutLine);
 
-    if (typeof ScrollTrigger !== 'undefined' && !reduceMotion){
+    if (typeof ScrollTrigger === 'undefined') return;
+
+    var desktopMq = window.matchMedia('(min-width: 901px)');
+
+    function killPin(){
+      if (scrollTrigger){
+        scrollTrigger.kill(true);
+        scrollTrigger = null;
+      }
+      if (wrap.parentNode && wrap.parentNode.classList.contains('pin-spacer')){
+        /* ScrollTrigger kill(true) should unwrap; force layout refresh */
+      }
+      layoutLine();
+    }
+
+    function enableDesktopPin(){
+      killPin();
+      if (reduceMotion) return;
       scrollTrigger = ScrollTrigger.create({
         trigger: wrap,
         start: function(){ return 'top top+=' + jtlSyncPinTop(); },
@@ -452,24 +492,47 @@
         scrub: 0.85,
         invalidateOnRefresh: true,
         onEnter: reveal,
-        onEnterBack: function(){
-          wrap.classList.add('is-ready');
-          if (activeIndex < 0) setActive(0, { force: true });
-        },
+        onEnterBack: reveal,
         onRefresh: layoutLine,
         onUpdate: function(self){
           if (userPicked) return;
           setProgress(self.progress);
         }
       });
-    } else {
+    }
+
+    function enableMobileTimeline(){
+      killPin();
+      reveal();
       var io = new IntersectionObserver(function(entries){
-        if (entries[0].isIntersecting){
-          reveal();
-          io.disconnect();
-        }
-      }, { threshold: 0.15 });
-      io.observe(wrap);
+        entries.forEach(function(entry){
+          if (!entry.isIntersecting) return;
+          var idx = parseInt(entry.target.getAttribute('data-jtl'), 10);
+          if (!isNaN(idx)) setActive(idx, { force: true, animateFill: true });
+        });
+      }, { root: null, threshold: 0.55, rootMargin: '-10% 0px -35% 0px' });
+      items.forEach(function(item){ io.observe(item); });
+      wrap._jtlMobileIO = io;
+    }
+
+    function syncTimelineMode(){
+      if (wrap._jtlMobileIO){
+        wrap._jtlMobileIO.disconnect();
+        wrap._jtlMobileIO = null;
+      }
+      if (desktopMq.matches && !reduceMotion){
+        enableDesktopPin();
+      } else {
+        enableMobileTimeline();
+      }
+      ScrollTrigger.refresh();
+    }
+
+    syncTimelineMode();
+    if (typeof desktopMq.addEventListener === 'function'){
+      desktopMq.addEventListener('change', syncTimelineMode);
+    } else if (typeof desktopMq.addListener === 'function'){
+      desktopMq.addListener(syncTimelineMode);
     }
   }());
 

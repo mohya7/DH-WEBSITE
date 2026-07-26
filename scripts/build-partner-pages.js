@@ -277,7 +277,7 @@ ${jsonLd ? `<script type="application/ld+json">\n${jsonLd}\n</script>\n` : ''}<m
       <li><a class="nav-link" href="${up}about-us.html">About Us</a></li>
       <li><a class="nav-link" href="${up}careers/index.html">Careers</a></li>
     </ul>
-    <a class="nav-cta" href="${up}index.html#contact">Get in touch <i class="ti ti-arrow-right"></i></a>
+    <a class="nav-cta" href="${up}get-in-touch.html">Get in touch <i class="ti ti-arrow-right"></i></a>
     <button class="nav-burger" id="navBurger" aria-label="Open menu" aria-expanded="false"><i class="ti ti-menu-2"></i></button>
   </div>
 </nav>
@@ -303,7 +303,7 @@ ${jsonLd ? `<script type="application/ld+json">\n${jsonLd}\n</script>\n` : ''}<m
   <a href="${up}blogs/index.html">Blogs</a>
   <a href="${up}about-us.html">About Us</a>
   <a href="${up}careers/index.html">Careers</a>
-  <a class="mn-cta" href="${up}index.html#contact">Get in Touch</a>
+  <a class="mn-cta" href="${up}get-in-touch.html">Get in Touch</a>
 </div>
 
 <main>
@@ -331,7 +331,7 @@ ${content}
           <a href="${up}cases/index.html">Case Studies</a>
           <a href="${up}blogs/index.html">Blogs</a>
           <a href="${partnersIndex}">Partners</a>
-          <a href="${up}index.html#contact">Contact</a>
+          <a href="${up}get-in-touch.html">Contact</a>
         </div>
       </div>
       <div class="footer-contact">
@@ -401,7 +401,7 @@ function buildIndexPage() {
       <div class="hub-cta__card" data-reveal>
         <h2>Need a partner-led solution?</h2>
         <p>Tell us your platform, infrastructure, or workplace experience goals and we will map the right partner stack and delivery model.</p>
-        <a class="btn-pill" href="../index.html#contact">Talk to our team <i class="ti ti-arrow-right"></i></a>
+        <a class="btn-pill" href="../get-in-touch.html">Talk to our team <i class="ti ti-arrow-right"></i></a>
       </div>
     </div>
   </section>`;
@@ -497,7 +497,7 @@ function buildPartnerPage(partner) {
             <ul class="partner-overview__chips">
               ${capabilities}
             </ul>
-            <a class="partner-overview__cta" href="../index.html#contact">Start a conversation <i class="ti ti-arrow-right"></i></a>
+            <a class="partner-overview__cta" href="../get-in-touch.html">Start a conversation <i class="ti ti-arrow-right"></i></a>
           </div>
         </div>
       </article>
@@ -537,7 +537,7 @@ function buildPartnerPage(partner) {
       <div class="hub-cta__card" data-reveal>
         <h2>Discuss a ${partner.name} solution</h2>
         <p>Share your environment, goals, and timeline. We will recommend the right partner-led approach and delivery plan.</p>
-        <a class="btn-pill" href="../index.html#contact">Get in touch <i class="ti ti-arrow-right"></i></a>
+        <a class="btn-pill" href="../get-in-touch.html">Get in touch <i class="ti ti-arrow-right"></i></a>
       </div>
     </div>
   </section>`;

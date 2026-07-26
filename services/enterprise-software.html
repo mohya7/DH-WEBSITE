@@ -11,9 +11,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css" />
-<link rel="stylesheet" href="../css/service-page.css" />
-<link rel="stylesheet" href="../css/tv.css" />
-<link rel="stylesheet" href="../css/responsive.css" />
+<link rel="stylesheet" href="../css/service-page.css?v=svc20" />
+<link rel="stylesheet" href="../css/tv.css?v=9" />
+<link rel="stylesheet" href="../css/responsive.css?v=11" />
 </head>
 <body class="page-service">
 
@@ -83,7 +83,7 @@
       <li><a class="nav-link" href="../about-us.html">About Us</a></li>
       <li><a class="nav-link" href="../careers/index.html">Careers</a></li>
     </ul>
-    <a class="nav-cta" href="#contact">Get in touch <i class="ti ti-arrow-right"></i></a>
+    <a class="nav-cta" href="../get-in-touch.html">Get in touch <i class="ti ti-arrow-right"></i></a>
     <button class="nav-burger" id="navBurger" aria-label="Open menu" aria-expanded="false"><i class="ti ti-menu-2"></i></button>
   </div>
 </nav>
@@ -113,47 +113,79 @@
   <a href="../blogs/index.html">Blogs</a>
   <a href="../about-us.html">About Us</a>
   <a href="../careers/index.html">Careers</a>
-  <a class="mn-cta" href="#contact">Get in Touch</a>
+  <a class="mn-cta" href="../get-in-touch.html">Get in Touch</a>
 </div>
 
 <main>
-  <!-- SECTION 1 � HERO -->
-  <section class="hero hero--service" id="top">
-    <div class="hero-inner">
-      <div class="hero-left">
-        <div class="hero-glass">
-          <div class="hero-glass__glow" aria-hidden="true"></div>
-          <div class="hero-glass__copy">
-            <div class="hero-top">
-              <span class="hero-eyebrow">Digital Hub for <strong>Enterprise Software</strong></span>
-              <h1>Built for your organization, scaled for enterprise impact</h1>
+  <!-- SECTION 1 — HERO (BaseOne-style split banner) -->
+  <section class="hero hero--service hero--svc-split" id="top">
+    <div class="svc-hero-atmos" aria-hidden="true">
+      <span class="svc-hero-atmos__beam"></span>
+      <span class="svc-hero-atmos__glow"></span>
+      <span class="svc-hero-atmos__grain"></span>
+    </div>
+    <div class="svc-hero-grid">
+      <div class="svc-hero-copy">
+        <p class="svc-eyebrow">Enterprise Software</p>
+        <h1 class="svc-display">Software that <em>fits the work</em>.</h1>
+        <p class="svc-lede">
+          We build secure, scalable platforms around how your teams actually operate &mdash;
+          <strong>custom applications, digital portals, and integrations</strong>
+          engineered for regulated enterprises across Egypt and the GCC.
+        </p>
+        <div class="svc-cta-row">
+          <a class="btn-svc btn-svc-primary" href="../get-in-touch.html">Book a discovery session <span class="arr" aria-hidden="true">&rarr;</span></a>
+        </div>
+        <ul class="svc-hero-marks">
+          <li>Custom apps</li>
+          <li>Digital portals</li>
+          <li>Integration</li>
+          <li>Cloud modernization</li>
+        </ul>
+      </div>
+
+      <div class="svc-hero-stage" aria-hidden="true">
+        <div class="stage-chrome">
+          <span class="stage-dots"><i></i><i></i><i></i></span>
+          <span class="stage-label">Platform architecture &middot; live</span>
+          <span class="stage-live"><i></i>live</span>
+        </div>
+        <div class="stage-canvaswrap">
+          <div class="stage-panel">
+            <div class="stage-panel__meta">
+              <strong>Enterprise delivery stack</strong>
+              <span>Egypt &amp; GCC</span>
             </div>
-            <p class="hero-sub">Whether you&rsquo;re modernizing legacy systems or delivering mission-critical platforms, Digital Hub is the software partner trusted by enterprises across Egypt and the GCC.</p>
+            <div class="stage-arch">
+              <div class="stage-arch__node">
+                <i class="ti ti-layout-dashboard"></i>
+                <span>Applications</span>
+                <small>Custom portals &amp; workflows</small>
+              </div>
+              <div class="stage-arch__node">
+                <i class="ti ti-plug-connected"></i>
+                <span>Integration</span>
+                <small>APIs, ERP &amp; legacy bridges</small>
+              </div>
+              <div class="stage-arch__node">
+                <i class="ti ti-cloud"></i>
+                <span>Cloud layer</span>
+                <small>Azure-ready modernization</small>
+              </div>
+              <div class="stage-arch__node">
+                <i class="ti ti-shield-lock"></i>
+                <span>Security</span>
+                <small>Identity, audit &amp; controls</small>
+              </div>
+            </div>
+            <div class="stage-arch__flow">
+              <span>Discover</span><i class="ti ti-arrow-right"></i>
+              <span>Architect</span><i class="ti ti-arrow-right"></i>
+              <span>Build</span><i class="ti ti-arrow-right"></i>
+              <span>Operate</span>
+            </div>
           </div>
-          <div class="hero-glass__side">
-            <div class="hero-glass__stats">
-              <div class="hero-glass__stat">
-                <strong class="orange">30+</strong>
-                <span>Clients</span>
-              </div>
-              <div class="hero-glass__stat">
-                <strong>7</strong>
-                <span>Capabilities</span>
-              </div>
-              <div class="hero-glass__stat">
-                <strong>5+</strong>
-                <span>Years</span>
-              </div>
-            </div>
-            <div class="hero-cta">
-              <a class="btn-pill" href="#contact">Tell us what you&rsquo;re building</a>
-            </div>
-            <ul class="hero-checklist">
-              <li><span class="hero-check" aria-hidden="true"><i class="ti ti-check"></i></span>Custom applications built around how your teams actually work</li>
-              <li><span class="hero-check" aria-hidden="true"><i class="ti ti-check"></i></span>Legacy modernization and integration for regulated sectors</li>
-              <li><span class="hero-check" aria-hidden="true"><i class="ti ti-check"></i></span>Full-stack delivery from discovery through production support</li>
-            </ul>
-          </div>
+          <div class="stage-ht"></div>
         </div>
       </div>
     </div>
@@ -165,21 +197,21 @@
       <header class="problem-lead" data-reveal>
         <span class="label">The problem we solve</span>
         <h2>Your systems were built for a different problem.</h2>
-        <p>Most Egyptian and Gulf enterprises are running on software that was implemented to solve yesterday&rsquo;s problem. Data stalls between legacy ERP, email, and Excel &mdash; and never reaches the <a href="#services" class="accent">real-time flows that AI requires</a>.</p>
+        <p>Most Egyptian and Gulf enterprises are running on software that was implemented to solve yesterday&rsquo;s problem. Critical workflows stall between legacy ERP, custom apps, and email &mdash; and never reach the <a href="#services" class="accent">modern platforms your teams need</a>.</p>
       </header>
 
-      <div class="problem-pipeline" id="problemPipeline" aria-label="Illustration: broken enterprise data pipeline">
+      <div class="problem-pipeline" id="problemPipeline" aria-label="Illustration: broken platform flow with three break points">
         <div class="pp-canvas">
           <div class="pp-head">
             <span class="pp-head__dot" aria-hidden="true"></span>
-            Pipeline Audit
+            Platform Audit
             <span class="pp-head__status" id="problemPipelineStatus">3 critical break points</span>
           </div>
 
           <div class="pp-track" aria-hidden="true">
             <div class="pp-node pp-node--source">
-              <div class="pp-node__icon"><i class="ti ti-database-import"></i></div>
-              <span class="pp-node__label">Source Data</span>
+              <div class="pp-node__icon"><i class="ti ti-server-2"></i></div>
+              <span class="pp-node__label">Legacy ERP</span>
             </div>
 
             <div class="pp-conn pp-conn--broken">
@@ -188,8 +220,8 @@
             </div>
 
             <div class="pp-node pp-node--legacy">
-              <div class="pp-node__icon"><i class="ti ti-server-2"></i></div>
-              <span class="pp-node__label">Legacy ERP</span>
+              <div class="pp-node__icon"><i class="ti ti-apps"></i></div>
+              <span class="pp-node__label">Custom Apps</span>
             </div>
 
             <div class="pp-conn pp-conn--broken">
@@ -198,8 +230,8 @@
             </div>
 
             <div class="pp-node pp-node--silo">
-              <div class="pp-node__icon"><i class="ti ti-mail"></i></div>
-              <span class="pp-node__label">Email / Excel</span>
+              <div class="pp-node__icon"><i class="ti ti-arrows-exchange"></i></div>
+              <span class="pp-node__label">Manual Handoffs</span>
             </div>
 
             <div class="pp-conn pp-conn--broken">
@@ -208,8 +240,8 @@
             </div>
 
             <div class="pp-node pp-node--ai">
-              <div class="pp-node__icon"><i class="ti ti-brain"></i></div>
-              <span class="pp-node__label">AI Platform</span>
+              <div class="pp-node__icon"><i class="ti ti-layout-dashboard"></i></div>
+              <span class="pp-node__label">Modern Platform</span>
             </div>
           </div>
 
@@ -223,10 +255,10 @@
             </article>
 
             <article class="pp-card pp-card--2" data-break="2">
-              <div class="pp-card__icon" aria-hidden="true"><i class="ti ti-brain"></i></div>
+              <div class="pp-card__icon" aria-hidden="true"><i class="ti ti-puzzle-off"></i></div>
               <div class="pp-card__body">
-                <h3>Not built for AI-era data flows</h3>
-                <p>Pre-AI architecture can&rsquo;t support the real-time pipelines modern intelligence requires.</p>
+                <h3>Not built for how you work today</h3>
+                <p>Apps were shipped for yesterday&rsquo;s process &mdash; they can&rsquo;t support the portals, APIs, and workflows teams need now.</p>
               </div>
             </article>
 
@@ -234,7 +266,7 @@
               <div class="pp-card__icon" aria-hidden="true"><i class="ti ti-layers-off"></i></div>
               <div class="pp-card__body">
                 <h3>Shadow IT &amp; broken workflows</h3>
-                <p>Teams patch gaps in Excel. Approvals stall in email. Data sits in silos nobody can connect.</p>
+                <p>Teams patch gaps in Excel. Approvals stall in email. Work sits outside the systems nobody can connect.</p>
               </div>
             </article>
           </div>
@@ -242,11 +274,24 @@
       </div>
 
       <div class="problem-bottom" data-reveal>
-        <div class="problem-bottom__copy">
-          <p>The result is organizations where IT is constantly catching up to the business &mdash; not enabling it.</p>
-          <p>We fix this by building software that is designed around your operations from the start &mdash; not retrofitted to them after the fact.</p>
+        <div class="problem-outcomes">
+          <div class="problem-outcome">
+            <span class="problem-outcome__icon" aria-hidden="true"><i class="ti ti-trending-down"></i></span>
+            <div class="problem-outcome__body">
+              <strong>IT chasing the business</strong>
+              <p>Organizations where IT is constantly catching up &mdash; not enabling strategy.</p>
+            </div>
+          </div>
+          <div class="problem-outcome problem-outcome--fix">
+            <span class="problem-outcome__icon" aria-hidden="true"><i class="ti ti-check"></i></span>
+            <div class="problem-outcome__body">
+              <strong>Software designed around operations</strong>
+              <p>We build platforms around how your teams work from day one &mdash; not retrofitted after the fact.</p>
+            </div>
+          </div>
         </div>
         <blockquote class="problem-quote">
+          <span class="problem-quote__mark" aria-hidden="true"></span>
           <p>&ldquo;We don&rsquo;t hand you a roadmap and wish you luck. We build what&rsquo;s on it, then we stay.&rdquo;</p>
           <cite>Digital Hub &middot; Enterprise Software Team</cite>
         </blockquote>
@@ -600,33 +645,7 @@
     </div>
   </section>
 
-  <!-- SECTION 7 — CTA -->
-  <section class="cta" id="contact">
-    <div class="container cta-grid">
-      <div class="cta-left" data-reveal>
-        <h2 class="cta-headline">Ready to start your project?<br><em>Let&rsquo;s get to work.</em></h2>
-        <p>Tell us what you&rsquo;re trying to solve. Our enterprise software team responds within one business day with a concrete next step &mdash; not a brochure.</p>
-        <div class="cta-contacts">
-          <a href="tel:+201555553064"><i class="ti ti-phone"></i> +20 155 555 3064</a>
-          <a href="https://wa.me/201555553064" target="_blank" rel="noopener"><i class="ti ti-brand-whatsapp"></i> WhatsApp</a>
-          <a href="mailto:sales@digitalhubgroup.com"><i class="ti ti-mail"></i> sales@digitalhubgroup.com</a>
-        </div>
-      </div>
-      <form class="cta-form" id="contactForm" data-reveal novalidate>
-        <label for="name">Full Name</label>
-        <input type="text" id="name" name="name" placeholder="Full name" required />
-        <label for="org">Organization</label>
-        <input type="text" id="org" name="org" placeholder="Organization" required />
-        <label for="role">Role / Title</label>
-        <input type="text" id="role" name="role" placeholder="Role / Title" />
-        <label for="email">Email Address</label>
-        <input type="email" id="email" name="email" placeholder="Email address" required />
-        <label for="message">Describe what you&rsquo;re trying to build</label>
-        <textarea id="message" name="message" placeholder="Describe what you're trying to build" required></textarea>
-        <button type="submit">Tell us what you&rsquo;re building <i class="ti ti-arrow-right"></i></button>
-      </form>
-    </div>
-  </section>
+
 </main>
 
 <footer class="footer">
@@ -650,7 +669,7 @@
           <a href="../cases/index.html">Case Studies</a>
           <a href="../blogs/index.html">Blogs</a>
           <a href="../partners/index.html">Partners</a>
-          <a href="../index.html#contact">Contact</a>
+          <a href="../get-in-touch.html">Contact</a>
         </div>
       </div>
       <div class="footer-contact">

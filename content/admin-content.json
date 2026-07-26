@@ -1,10 +1,80 @@
 {
   "meta": {
     "version": 1,
-    "revision": 20,
-    "updatedAt": "2026-07-14T10:57:00.816Z",
+    "revision": 30,
+    "updatedAt": "2026-07-14T12:01:15.218Z",
     "updatedBy": "admin",
     "audit": [
+      {
+        "id": "audit-b644ab47-00a3-4aea-9117-d10353cd7cab",
+        "action": "delete",
+        "label": "Deleted Mohamed Mostafa",
+        "at": "2026-07-14T12:01:15.218Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-2c06bd3d-7567-4961-bebf-086aa0740006",
+        "action": "update",
+        "label": "Updated Microsoft",
+        "at": "2026-07-14T12:01:03.776Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-8f6ad8a2-7e64-4f99-881a-28cb64d5bfb3",
+        "action": "update",
+        "label": "Updated Huawei",
+        "at": "2026-07-14T12:01:03.768Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-67385b3c-5745-4f05-a780-a46fecbc2b87",
+        "action": "update",
+        "label": "Updated Huawei",
+        "at": "2026-07-14T12:01:01.916Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-bbfb54e4-9337-4fcc-9c5a-12a9271c224a",
+        "action": "update",
+        "label": "Updated Microsoft",
+        "at": "2026-07-14T12:01:01.908Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-ea86ac56-7ebd-4644-ba1d-86c4f0cc982b",
+        "action": "delete",
+        "label": "Deleted Marketing Coordinator",
+        "at": "2026-07-14T11:55:18.208Z",
+        "by": "endi.galal"
+      },
+      {
+        "id": "audit-9fc35437-441a-442d-baff-8a9565b80cf5",
+        "action": "update",
+        "label": "Updated Data Analyst",
+        "at": "2026-07-14T11:52:26.017Z",
+        "by": "endi.galal"
+      },
+      {
+        "id": "audit-cf72be09-cea1-4938-9e14-624c8d3fb0c4",
+        "action": "update",
+        "label": "Updated .NET Backend Developer",
+        "at": "2026-07-14T11:52:26.007Z",
+        "by": "endi.galal"
+      },
+      {
+        "id": "audit-59618b96-c912-48cd-9406-932a121b7961",
+        "action": "create",
+        "label": "Created Marketing Coordinator",
+        "at": "2026-07-14T11:51:04.946Z",
+        "by": "endi.galal"
+      },
+      {
+        "id": "audit-72cf6c95-0f2c-433c-958a-ff2401a00b4e",
+        "action": "page-update",
+        "label": "Updated home page content",
+        "at": "2026-07-14T11:49:09.873Z",
+        "by": "admin"
+      },
       {
         "id": "audit-2306eb7e-21b3-45c0-8466-8e39be11c175",
         "action": "create",
@@ -149,10 +219,11 @@
   },
   "pages": {
     "home": {
-      "label": "Egypt & GCC Enterprise Technology Partner",
+      "label": "AI & Software provider",
       "title": "Your strategy is right.\nYour systems are holding it back.",
       "lead": "Digital Hub helps Egypt’s enterprises, ministries, and banks build the software, data infrastructure, and AI capabilities that make strategy executable — not just presentable.",
       "sectionTitle": "Four capabilities. One integrated team.",
+      "sectionLead": "",
       "seoTitle": "Digital Hub | Enterprise Technology Partner"
     },
     "blogs": {
@@ -248,7 +319,8 @@
         "variant": "ms",
         "status": "published",
         "featured": true,
-        "order": 10
+        "order": 10,
+        "updatedAt": "2026-07-14T12:01:03.776Z"
       },
       {
         "id": "partner-huawei",
@@ -259,7 +331,8 @@
         "variant": "default",
         "status": "published",
         "featured": true,
-        "order": 20
+        "order": 20,
+        "updatedAt": "2026-07-14T12:01:03.768Z"
       },
       {
         "id": "partner-nexthink",
@@ -346,7 +419,7 @@
         "id": "case-national-portal",
         "title": "National e-services portal for a government ministry",
         "summary": "End-to-end design and delivery of a citizen-facing digital services platform — unified identity, workflow automation, and analytics for leadership dashboards.",
-        "href": "index.html#contact",
+        "href": "get-in-touch.html",
         "image": "assets/cases/banking.jpg",
         "alt": "Enterprise digital transformation",
         "categories": [
@@ -457,7 +530,8 @@
         "type": "Full time",
         "status": "published",
         "featured": true,
-        "order": 10
+        "order": 20,
+        "updatedAt": "2026-07-14T11:52:26.007Z"
       },
       {
         "id": "job-data-analyst",
@@ -469,7 +543,8 @@
         "type": "Project-based internship",
         "status": "published",
         "featured": true,
-        "order": 20
+        "order": 10,
+        "updatedAt": "2026-07-14T11:52:26.017Z"
       },
       {
         "id": "job-full-stack",
@@ -556,18 +631,6 @@
         "featured": true,
         "order": 70,
         "updatedAt": "2026-07-14T10:36:02.034Z"
-      },
-      {
-        "id": "team-3a40d419-4811-4b91-b97d-fb5947f506d2",
-        "name": "Mohamed Mostafa",
-        "role": "Bta3 Kolo",
-        "image": "assets/uploads/1784025335169-1746738612565.jpg",
-        "email": "mohamed.mostafa@digitalhub.com.eg",
-        "linkedin": "https://www.linkedin.com/in/mohamed--mostafa/",
-        "status": "published",
-        "featured": true,
-        "order": 10,
-        "updatedAt": "2026-07-14T10:36:11.541Z"
       }
     ]
   }

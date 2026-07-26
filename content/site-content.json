@@ -1,15 +1,16 @@
 {
   "meta": {
     "version": 1,
-    "revision": 20,
-    "updatedAt": "2026-07-14T10:57:00.816Z"
+    "revision": 30,
+    "updatedAt": "2026-07-14T12:01:15.218Z"
   },
   "pages": {
     "home": {
-      "label": "Egypt & GCC Enterprise Technology Partner",
+      "label": "AI & Software provider",
       "title": "Your strategy is right.\nYour systems are holding it back.",
       "lead": "Digital Hub helps Egypt’s enterprises, ministries, and banks build the software, data infrastructure, and AI capabilities that make strategy executable — not just presentable.",
       "sectionTitle": "Four capabilities. One integrated team.",
+      "sectionLead": "",
       "seoTitle": "Digital Hub | Enterprise Technology Partner"
     },
     "blogs": {
@@ -105,7 +106,8 @@
         "variant": "ms",
         "status": "published",
         "featured": true,
-        "order": 10
+        "order": 10,
+        "updatedAt": "2026-07-14T12:01:03.776Z"
       },
       {
         "id": "partner-huawei",
@@ -116,7 +118,8 @@
         "variant": "default",
         "status": "published",
         "featured": true,
-        "order": 20
+        "order": 20,
+        "updatedAt": "2026-07-14T12:01:03.768Z"
       },
       {
         "id": "partner-nexthink",
@@ -203,7 +206,7 @@
         "id": "case-national-portal",
         "title": "National e-services portal for a government ministry",
         "summary": "End-to-end design and delivery of a citizen-facing digital services platform — unified identity, workflow automation, and analytics for leadership dashboards.",
-        "href": "index.html#contact",
+        "href": "get-in-touch.html",
         "image": "assets/cases/banking.jpg",
         "alt": "Enterprise digital transformation",
         "categories": [
@@ -290,18 +293,6 @@
     ],
     "jobs": [
       {
-        "id": "job-dotnet",
-        "title": ".NET Backend Developer",
-        "summary": "Build reliable enterprise backends and integrations with our software delivery team.",
-        "href": "careers/dotnet-backend-developer.html",
-        "department": "Engineering",
-        "location": "Cairo, New Cairo",
-        "type": "Full time",
-        "status": "published",
-        "featured": true,
-        "order": 10
-      },
-      {
         "id": "job-data-analyst",
         "title": "Data Analyst",
         "summary": "Turn complex data into practical insight across enterprise and public-sector programs.",
@@ -311,7 +302,21 @@
         "type": "Project-based internship",
         "status": "published",
         "featured": true,
-        "order": 20
+        "order": 10,
+        "updatedAt": "2026-07-14T11:52:26.017Z"
+      },
+      {
+        "id": "job-dotnet",
+        "title": ".NET Backend Developer",
+        "summary": "Build reliable enterprise backends and integrations with our software delivery team.",
+        "href": "careers/dotnet-backend-developer.html",
+        "department": "Engineering",
+        "location": "Cairo, New Cairo",
+        "type": "Full time",
+        "status": "published",
+        "featured": true,
+        "order": 20,
+        "updatedAt": "2026-07-14T11:52:26.007Z"
       },
       {
         "id": "job-full-stack",
@@ -327,18 +332,6 @@
       }
     ],
     "team": [
-      {
-        "id": "team-3a40d419-4811-4b91-b97d-fb5947f506d2",
-        "name": "Mohamed Mostafa",
-        "role": "Bta3 Kolo",
-        "image": "assets/uploads/1784025335169-1746738612565.jpg",
-        "email": "mohamed.mostafa@digitalhub.com.eg",
-        "linkedin": "https://www.linkedin.com/in/mohamed--mostafa/",
-        "status": "published",
-        "featured": true,
-        "order": 10,
-        "updatedAt": "2026-07-14T10:36:11.541Z"
-      },
       {
         "id": "team-kareem-adel",
         "name": "Kareem Adel",
