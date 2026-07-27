@@ -662,6 +662,36 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+// Graceful shutdown handling
+function gracefulShutdown(signal) {
+  console.log(`\n${signal} received. Shutting down gracefully...`);
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
+  
+  // Force shutdown after 10 seconds
+  setTimeout(() => {
+    console.error('Could not close connections in time, forcefully shutting down');
+    process.exit(1);
+  }, 10000);
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// Handle port already in use error
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use. Please try one of the following:`);
+    console.error(`  1. Kill the process using port ${PORT}`);
+    console.error(`  2. Set a different PORT: PORT=3000 node server.js`);
+    process.exit(1);
+  } else {
+    throw err;
+  }
+});
+
 server.listen(PORT, HOST, () => {
   console.log(`Digital Hub CMS running at http://${HOST}:${PORT}`);
   if (!process.env.ADMIN_PASSWORD) console.log('Development login: admin / DigitalHub@2026 (set ADMIN_PASSWORD before production)');
