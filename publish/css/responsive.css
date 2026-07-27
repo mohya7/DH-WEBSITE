@@ -1,0 +1,209 @@
+/* Site-wide responsive — safe areas, fluid layout, all breakpoints */
+
+:root{
+  --safe-top:env(safe-area-inset-top,0px);
+  --safe-right:env(safe-area-inset-right,0px);
+  --safe-bottom:env(safe-area-inset-bottom,0px);
+  --safe-left:env(safe-area-inset-left,0px);
+  --brand-logo-h:72px;
+  --brand-logo-bleed:8px;
+}
+
+html{
+  scroll-padding-top:calc(96px + var(--safe-top));
+  -webkit-text-size-adjust:100%;
+}
+
+body{
+  overflow-x:clip;
+}
+
+.nav{top:calc(20px + var(--safe-top))}
+.nav.scrolled{top:calc(14px + var(--safe-top))}
+
+.mobile-nav{
+  padding-top:calc(96px + var(--safe-top));
+  padding-left:calc(var(--pad-x) + var(--safe-left));
+  padding-right:calc(var(--pad-x) + var(--safe-right));
+  padding-bottom:calc(40px + var(--safe-bottom));
+}
+
+/* Fluid media — never overflow viewport */
+img,video,iframe,embed,object{max-width:100%;height:auto}
+table{display:block;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+/* Hub & careers shells */
+.page-hub .section-inner,
+.page-hub .hub-hero__inner,
+.page-hub .footer-inner,
+.page-careers .section-inner,
+.page-careers .hub-hero__inner,
+.page-careers .careers-detail__inner,
+.page-careers .footer-inner{
+  box-sizing:border-box;
+}
+
+/* Logo — larger visual, bleed into nav padding (bar height unchanged) */
+.brand{overflow:visible;align-items:center}
+.brand-logo{
+  height:var(--brand-logo-h);
+  width:auto;
+  max-width:none;
+  object-fit:contain;
+  margin-block:calc(var(--brand-logo-bleed)*-1);
+}
+
+/* Get in Touch CTAs — orange hover across the whole site */
+.nav-cta:hover,
+.nav-cta:focus-visible,
+.mobile-nav .mn-cta:hover,
+.mobile-nav .mn-cta:focus-visible,
+a.btn-pill[href*="get-in-touch"]:hover,
+a.btn-pill[href*="get-in-touch"]:focus-visible,
+a.btn-primary[href*="get-in-touch"]:hover,
+a.btn-primary[href*="get-in-touch"]:focus-visible,
+a.partner-overview__cta[href*="get-in-touch"]:hover,
+a.partner-overview__cta[href*="get-in-touch"]:focus-visible{
+  background:var(--orange);
+  background-image:none;
+  color:#fff;
+  box-shadow:0 8px 24px rgba(244,151,11,0.32), inset 0 1px 0 rgba(255,255,255,0.12);
+}
+
+/* Touch-friendly controls */
+@media (max-width:991px){
+  :root{--brand-logo-h:58px;--brand-logo-bleed:7px}
+  .btn-pill,.hub-filter,.submit-btn,.careers-job-card .btn-pill{
+    min-height:44px;
+  }
+  .nav-cta{display:none}
+  .hub-hero{padding-top:calc(100px + var(--safe-top))}
+  .page-hub .section-inner,
+.page-hub .hub-hero__inner,
+.page-careers .section-inner,
+.page-careers .hub-hero__inner,
+.page-careers .careers-detail__inner{
+    width:calc(100% - var(--nav-inset));
+  }
+}
+
+@media (max-width:768px){
+  .hub-head{flex-direction:column;align-items:flex-start;gap:12px}
+  .hub-head p{font-size:15px}
+  .hub-filters{
+    flex-wrap:nowrap;overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:none;margin:0 calc(var(--nav-inset) * -0.5) 24px;
+    padding:4px calc(var(--nav-inset) * 0.5) 8px;
+  }
+  .hub-filters::-webkit-scrollbar{display:none}
+  .hub-filter{flex-shrink:0}
+  .hub-cta__card{flex-direction:column;align-items:stretch}
+  .hub-cta__card .btn-pill{align-self:flex-start}
+  .cases-grid{gap:16px}
+}
+
+@media (max-width:640px){
+  .hub-hero{padding-top:calc(92px + var(--safe-top))}
+  .hub-hero__inner{padding-bottom:24px}
+  .hub-banner .lead{font-size:15px;line-height:1.7}
+  .hub-cta__card{padding:24px 20px}
+  .hub-cta__card .btn-pill{align-self:stretch;justify-content:center}
+
+  /* Delivery flow */
+  .section.delivery-flow .section-inner{
+    width:100%;
+    max-width:100%;
+    overflow-x:clip;
+  }
+
+  /* Careers — masonry columns avoid row-height dead space */
+  .careers-values__card{aspect-ratio:auto;min-height:0}
+  .careers-values__badge{aspect-ratio:1;min-height:0}
+  .careers-opps__head{flex-direction:column;align-items:flex-start;gap:8px}
+  .careers-opps__head p{font-size:15px}
+  .careers-job-card{
+    flex-direction:column;align-items:stretch;gap:14px;
+    padding:18px 20px;
+  }
+  .careers-job-card .btn-pill{width:100%;justify-content:center}
+  .careers-detail-hero{min-height:clamp(180px,48vw,280px);border-radius:0 0 18px 18px}
+  .careers-detail-hero__title{
+    left:16px;right:16px;
+  }
+  .careers-detail__meta{flex-direction:column;align-items:flex-start}
+  .careers-apply{padding:28px 20px;text-align:left}
+  .careers-crumb{font-size:12px;margin-bottom:20px}
+
+  /* About */
+  .about-banner{gap:20px}
+  .about-banner .lead{font-size:15px}
+  .page-about .team-strip__frame{padding:0}
+}
+
+@media (max-width:480px){
+  :root{--nav-inset:16px;--brand-logo-h:54px;--brand-logo-bleed:7px}
+  .nav,.hero--service .hero-inner{width:calc(100% - var(--nav-inset))}
+  .nav-cta{padding:10px 16px;font-size:13px}
+  .footer-logo{height:clamp(72px,22vw,96px)}
+  .footer-top{gap:24px}
+}
+
+@media (max-width:360px){
+  :root{--pad-x:16px;--nav-inset:14px;--section-y:40px;--brand-logo-h:50px;--brand-logo-bleed:7px}
+  .nav,.hero--service .hero-inner{width:calc(100% - var(--nav-inset))}
+  :root{--h1-size:28px}
+  .careers-values__badge span{font-size:20px}
+}
+
+/* Landscape phones */
+@media (max-height:520px) and (orientation:landscape){
+  .hub-hero{padding-top:88px}
+  .careers-detail-hero{min-height:160px}
+  .hero{padding-top:80px;min-height:auto}
+}
+
+/* Ultra-wide — keep content readable (homepage / hub shells) */
+@media (min-width:1600px){
+  .section-inner,.hub-hero__inner,.footer-inner,.hero-inner{
+    max-width:var(--maxw);
+    margin-left:auto;margin-right:auto;
+  }
+  .hero--service .hero-inner,
+  .page-service .problem-inner,
+  .page-service .eswd-inner,
+  .page-service .method-inner,
+  .page-service .section-inner,
+  .page-service .container,
+  .page-service .footer-inner{
+    max-width:var(--nav-max);
+    width:calc(100% - var(--nav-inset));
+  }
+}
+
+@media (min-width:1920px){
+  :root{--brand-logo-h:80px;--brand-logo-bleed:8px}
+}
+
+@media (min-width:2560px){
+  :root{--brand-logo-h:88px;--brand-logo-bleed:8px}
+}
+
+@media (min-width:3840px){
+  :root{--brand-logo-h:96px;--brand-logo-bleed:10px}
+}
+
+/* Shared / case study pages (shared.css shell) */
+@media (max-width:480px){
+  .cs-hero{padding-top:96px}
+  .cs-stats{padding:16px;gap:12px}
+  .cs-stat__value{font-size:clamp(24px,6vw,32px)}
+  .cs-cta{padding:28px 20px;flex-direction:column;align-items:stretch}
+  .cs-cta .btn-primary{align-self:flex-start}
+  .svc-hero{padding-top:96px}
+  .svc-cta{padding:28px 20px;flex-direction:column;align-items:stretch}
+}
+
+@media (max-width:360px){
+  .cs-related,.cs-hub-grid,.svc-grid{gap:12px}
+}
