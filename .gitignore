@@ -4,6 +4,8 @@ assets/uploads/*
 !assets/uploads/.gitkeep
 content/*.tmp
 content/admin-users.json
+content/job-applications.json
+content/application-files/
 server.out.log
 server.err.log
 /scripts/node_modules

@@ -403,3 +403,8 @@
   .careers-detail__meta{align-items:flex-start}
   .careers-apply-form .field-row{grid-template-columns:1fr}
 }
+.careers-apply-form__trap{position:absolute!important;left:-10000px!important;width:1px!important;height:1px!important;overflow:hidden!important}
+.careers-apply-form__reference{font-size:.82rem!important;color:var(--muted,#60758a)!important}
+.careers-apply-form input[type="number"]{-moz-appearance:textfield;appearance:textfield}
+.careers-apply-form input[type="number"]::-webkit-inner-spin-button,
+.careers-apply-form input[type="number"]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}

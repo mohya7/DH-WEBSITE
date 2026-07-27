@@ -1,0 +1,102 @@
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+
+const ROOT = path.resolve(__dirname, '..');
+const SITE_URL = 'https://www.digitalhub.com.eg';
+const errors = [];
+
+function walk(directory) {
+  return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const fullPath = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name === 'admin' || entry.name === 'node_modules' || entry.name === '.git') return [];
+      return walk(fullPath);
+    }
+    return entry.isFile() && entry.name.endsWith('.html') ? [fullPath] : [];
+  });
+}
+
+function report(filePath, message) {
+  errors.push(`${path.relative(ROOT, filePath).replace(/\\/g, '/')}: ${message}`);
+}
+
+function match(html, expression) {
+  const result = html.match(expression);
+  return result ? result[1].trim() : '';
+}
+
+function internalTarget(pagePath, href) {
+  const clean = href.split('#')[0].split('?')[0];
+  if (!clean) return null;
+  if (/^(?:[a-z]+:|\/\/)/i.test(clean)) return null;
+  const target = clean.startsWith('/')
+    ? path.join(ROOT, clean.replace(/^\/+/, ''))
+    : path.resolve(path.dirname(pagePath), clean);
+  if (fs.existsSync(target) && fs.statSync(target).isDirectory()) return path.join(target, 'index.html');
+  return target;
+}
+
+const pages = walk(ROOT);
+const canonicals = new Map();
+
+for (const pagePath of pages) {
+  const relativePath = path.relative(ROOT, pagePath).replace(/\\/g, '/');
+  const html = fs.readFileSync(pagePath, 'utf8');
+  const head = match(html, /<head>([\s\S]*?)<\/head>/i);
+  const title = match(head, /<title>([\s\S]*?)<\/title>/i).replace(/<[^>]+>/g, '');
+  const description = match(head, /<meta\s+name="description"\s+content="([^"]+)"/i);
+  const canonical = match(head, /<link\s+rel="canonical"\s+href="([^"]+)"/i);
+  const robots = match(head, /<meta\s+name="robots"\s+content="([^"]+)"/i);
+  const h1Count = (html.match(/<h1\b/gi) || []).length;
+  const imageTags = html.match(/<img\b[^>]*>/gi) || [];
+
+  if (!title) report(pagePath, 'missing title');
+  if (title.length > 65) report(pagePath, `title is ${title.length} characters`);
+  if (!description) report(pagePath, 'missing meta description');
+  if (description.length > 165) report(pagePath, `description is ${description.length} characters`);
+  if (!canonical.startsWith(`${SITE_URL}/`)) report(pagePath, 'canonical is missing or not absolute');
+  if (!robots) report(pagePath, 'missing robots directive');
+  if (relativePath !== 'careers/apply.html' && /noindex/i.test(robots)) report(pagePath, 'indexable page is marked noindex');
+  if (!/property="og:title"/i.test(head) || !/property="og:description"/i.test(head) || !/property="og:image"/i.test(head)) report(pagePath, 'incomplete Open Graph metadata');
+  if (!/name="twitter:card"/i.test(head)) report(pagePath, 'missing Twitter card metadata');
+  if (h1Count !== 1) report(pagePath, `expected one h1, found ${h1Count}`);
+  if (html.includes('�')) report(pagePath, 'contains a replacement character');
+  imageTags.forEach((tag) => { if (!/\balt\s*=/.test(tag)) report(pagePath, 'image is missing alt text'); });
+
+  if (canonical) {
+    if (canonicals.has(canonical)) report(pagePath, `duplicates canonical from ${canonicals.get(canonical)}`);
+    canonicals.set(canonical, relativePath);
+  }
+
+  const schemas = Array.from(head.matchAll(/<script\s+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi));
+  if (!schemas.length) report(pagePath, 'missing JSON-LD');
+  schemas.forEach((schema) => {
+    try { JSON.parse(schema[1]); } catch (error) { report(pagePath, `invalid JSON-LD: ${error.message}`); }
+  });
+  if (/^careers\/(?!index\.html|apply\.html)/.test(relativePath) && !head.includes('"@type": "JobPosting"')) report(pagePath, 'missing JobPosting schema');
+
+  for (const anchor of html.matchAll(/<a\b[^>]*\bhref="([^"]*)"/gi)) {
+    const href = anchor[1];
+    if (!href || href === '#') continue;
+    const target = internalTarget(pagePath, href);
+    if (target && !fs.existsSync(target)) report(pagePath, `broken internal link: ${href}`);
+  }
+}
+
+const adminHtml = fs.readFileSync(path.join(ROOT, 'admin', 'index.html'), 'utf8');
+if (!/<meta\s+name="robots"\s+content="[^"]*noindex/i.test(adminHtml)) errors.push('admin/index.html: missing noindex');
+
+const robots = fs.readFileSync(path.join(ROOT, 'robots.txt'), 'utf8');
+if (!robots.includes(`Sitemap: ${SITE_URL}/sitemap.xml`) || !robots.includes('Disallow: /admin/')) errors.push('robots.txt: missing sitemap or private-area rules');
+
+const sitemap = fs.readFileSync(path.join(ROOT, 'sitemap.xml'), 'utf8');
+if (!sitemap.startsWith('<?xml') || !sitemap.includes('<urlset') || !sitemap.includes(`<loc>${SITE_URL}/</loc>`)) errors.push('sitemap.xml: invalid static sitemap');
+
+if (errors.length) {
+  console.error(`SEO audit failed with ${errors.length} issue(s):\n- ${errors.join('\n- ')}`);
+  process.exit(1);
+}
+
+console.log(`SEO audit passed for ${pages.length} public pages.`);

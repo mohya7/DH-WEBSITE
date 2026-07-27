@@ -1,38 +1,9 @@
 (function () {
   var ROLE_MAP = {
-    "dotnet-backend-developer": ".NET Backend developer",
+    "dotnet-backend-developer": ".NET Backend Developer",
     "data-analyst": "Data Analyst",
     "full-stack-developer": "Full Stack Developer",
   };
-
-  var SALARY_RANGES = [
-    { value: "0-5", label: "0 – 5 K" },
-    { value: "5-10", label: "5 – 10 K" },
-    { value: "10-15", label: "10 – 15 K" },
-    { value: "15-20", label: "15 – 20 K" },
-    { value: "20-25", label: "20 – 25 K" },
-    { value: "25-30", label: "25 – 30 K" },
-    { value: "30-35", label: "30 – 35 K" },
-    { value: "40-45", label: "40 – 45 K" },
-    { value: "45-50", label: "45 – 50 K" },
-    { value: "50-55", label: "50 – 55 K" },
-    { value: "55-60", label: "55 – 60 K" },
-    { value: "60-70", label: "60 – 70 K" },
-    { value: "70-80", label: "70 – 80 K" },
-    { value: "80-90", label: "80 – 90 K" },
-    { value: "90-100", label: "90 – 100 K" },
-    { value: "100-110", label: "100 – 110 K" },
-  ];
-
-  var NOTICE_PERIODS = [
-    { value: "immediate", label: "Immediate" },
-    { value: "week", label: "Week" },
-    { value: "2-weeks", label: "2 Weeks" },
-    { value: "3-weeks", label: "3 Weeks" },
-    { value: "month", label: "Month" },
-    { value: "month-and-half", label: "Month & Half" },
-    { value: "2-months", label: "2 Months" },
-  ];
 
   var EXPERIENCE_RANGES = [
     { value: "0-1", label: "0 – 1" },
@@ -62,8 +33,6 @@
   }
 
   function populateFormSelects(form) {
-    populateSelect(form.querySelector('select[name="expectedSalaryRange"]'), SALARY_RANGES);
-    populateSelect(form.querySelector('select[name="noticePeriod"]'), NOTICE_PERIODS);
     populateSelect(form.querySelector('select[name="yearsOfExperience"]'), EXPERIENCE_RANGES);
   }
 
@@ -105,68 +74,22 @@
     form.querySelector(".submit-btn").before(error);
   }
 
-  var CAREERS_EMAIL = "careers@digitalhub.com.eg";
   var MAX_RESUME_BYTES = 5 * 1024 * 1024;
 
-  function optionLabel(options, value) {
-    var match = options.filter(function (option) {
-      return option.value === value;
-    })[0];
-    return match ? match.label : value;
-  }
-
-  function submitViaMailto(form, role) {
-    var data = new FormData(form);
-    var resume = data.get("resume");
-
-    if (!(resume instanceof File) || resume.size === 0) {
-      throw new Error("CV upload is required.");
-    }
-
-    if (resume.size > MAX_RESUME_BYTES) {
-      throw new Error("CV must be 5 MB or smaller.");
-    }
-
-    var body = [
-      "Role: " + role,
-      "Full Name: " + data.get("fullName"),
-      "Phone: " + data.get("phone"),
-      "Email: " + data.get("email"),
-      "Current Salary (EGP - K): " + data.get("currentSalary"),
-      "Years of Experience: " + optionLabel(EXPERIENCE_RANGES, String(data.get("yearsOfExperience"))),
-      "Expected Salary Range: " + optionLabel(SALARY_RANGES, String(data.get("expectedSalaryRange"))),
-      "Notice Period: " + optionLabel(NOTICE_PERIODS, String(data.get("noticePeriod"))),
-      "LinkedIn: " + data.get("linkedin"),
-      "",
-      "Please attach your CV (" + resume.name + ") before sending this email.",
-    ].join("\n");
-
-    var mailto =
-      "mailto:" +
-      CAREERS_EMAIL +
-      "?subject=" +
-      encodeURIComponent("Application - " + role) +
-      "&body=" +
-      encodeURIComponent(body);
-
-    window.location.href = mailto;
-  }
-
-  function showSuccess(form, role, staticSubmission) {
+  function showSuccess(form, role, reference) {
     var success = document.createElement("div");
     success.className = "careers-apply-form careers-apply-form--success";
     success.setAttribute("role", "status");
     success.innerHTML =
       "<h3>" +
-      (staticSubmission ? "Almost done" : "Application received") +
+      "Application received" +
       "</h3>" +
       "<p>Thank you for applying for <strong>" +
       escapeHtml(role) +
       "</strong>." +
-      (staticSubmission
-        ? " Your email app should open with your details. Attach your CV, then send the message to complete your application."
-        : " Our careers team will review your submission and get back to you soon.") +
+      " Our HR team has received your details and CV and will review your submission." +
       "</p>" +
+      (reference ? '<p class="careers-apply-form__reference">Reference: <strong>' + escapeHtml(reference) + '</strong></p>' : '') +
       '<button type="button" class="submit-btn" data-careers-apply-reset>Submit another application</button>';
 
     form.replaceWith(success);
@@ -187,6 +110,21 @@
     form.addEventListener("submit", function (event) {
       event.preventDefault();
 
+      if (!form.reportValidity()) return;
+
+      var resume = form.querySelector('input[name="resume"]').files[0];
+      if (!resume || resume.size === 0) {
+        showError(form, "CV upload is required.");
+        return;
+      }
+      if (resume.size > MAX_RESUME_BYTES) {
+        showError(form, "CV must be 5 MB or smaller.");
+        return;
+      }
+
+      form.querySelector('input[name="expectedSalaryRange"]').value = form.querySelector('input[name="expectedSalary"]').value;
+      form.querySelector('input[name="noticePeriod"]').value = form.querySelector('input[name="noticePeriodWeeks"]').value;
+
       var button = form.querySelector(".submit-btn");
       var originalHtml = button.innerHTML;
       button.disabled = true;
@@ -196,18 +134,6 @@
       if (existingError) existingError.remove();
 
       var submitUrl = form.getAttribute("data-submit-url");
-
-      if (!submitUrl) {
-        try {
-          submitViaMailto(form, role);
-          showSuccess(form, role, true);
-        } catch (error) {
-          showError(form, error.message || "Submission failed. Please try again.");
-          button.disabled = false;
-          button.innerHTML = originalHtml;
-        }
-        return;
-      }
 
       fetch(submitUrl, {
         method: "POST",
@@ -221,8 +147,8 @@
             return data;
           });
         })
-        .then(function () {
-          showSuccess(form, role, false);
+        .then(function (data) {
+          showSuccess(form, role, data.reference);
         })
         .catch(function (error) {
           showError(form, error.message || "Submission failed. Please try again.");
