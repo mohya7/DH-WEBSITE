@@ -63,6 +63,7 @@
         <button class="side-link" type="button" data-collection="partners" data-admin-only><i class="ti ti-building-skyscraper"></i><span>Partners</span><b data-count="partners">0</b></button>
         <button class="side-link" type="button" data-collection="jobs"><i class="ti ti-id-badge-2"></i><span>Careers</span><b data-count="jobs">0</b></button>
         <button class="side-link" type="button" data-view="applications"><i class="ti ti-file-cv"></i><span>Applications</span><b data-application-count>0</b></button>
+        <button class="side-link" type="button" data-view="contactRequests" data-admin-only><i class="ti ti-mail-forward"></i><span>Get in Touch</span><b data-contact-count>0</b></button>
         <button class="side-link" type="button" data-collection="team" data-admin-only><i class="ti ti-users-group"></i><span>Leadership Team</span><b data-count="team">0</b></button>
         <p class="side-label">WEBSITE &amp; SYSTEM</p>
         <button class="side-link" type="button" data-view="pages"><i class="ti ti-file-text"></i><span>Page Content</span></button>
@@ -119,6 +120,7 @@
               <button type="button" data-quick-collection="caseStudies" data-admin-only><span class="quick-icon quick-icon--orange"><i class="ti ti-briefcase"></i></span><span><strong>New case study</strong><small>Document a new result</small></span><i class="ti ti-chevron-right"></i></button>
               <button type="button" data-quick-collection="jobs"><span class="quick-icon quick-icon--green"><i class="ti ti-id-badge-2"></i></span><span><strong>New job opening</strong><small>Publish a new role</small></span><i class="ti ti-chevron-right"></i></button>
               <button type="button" data-view-link="applications"><span class="quick-icon quick-icon--violet"><i class="ti ti-file-cv"></i></span><span><strong>Review applications</strong><small>Open the HR inbox</small></span><i class="ti ti-chevron-right"></i></button>
+              <button type="button" data-view-link="contactRequests" data-admin-only><span class="quick-icon quick-icon--blue"><i class="ti ti-mail-forward"></i></span><span><strong>Get in Touch requests</strong><small>Sales &amp; enquiry inbox</small></span><i class="ti ti-chevron-right"></i></button>
             </div>
           </section>
         </section>
@@ -163,6 +165,28 @@
           <div class="empty-state panel" id="applicationsPickPrompt"><span><i class="ti ti-briefcase"></i></span><h2>Choose a vacancy</h2><p>Select one of the vacancy cards above to see its applicants and filters.</p></div>
           <div class="applications-list is-hidden" id="applicationsList"></div>
           <div class="empty-state panel is-hidden" id="applicationsEmpty"><span><i class="ti ti-file-search"></i></span><h2>No applications found</h2><p>New applications submitted through the Careers page will appear here.</p></div>
+        </section>
+
+        <section class="view" id="contactRequestsView">
+          <div class="section-title-row">
+            <div><button class="back-dashboard" type="button" data-view-link="dashboard"><i class="ti ti-arrow-left"></i> Overview</button><h1>Get in Touch</h1><p>Review enquiry submissions from the contact form and track follow-up.</p></div>
+            <a class="secondary-btn" href="../get-in-touch.html" target="_blank" rel="noopener"><i class="ti ti-external-link"></i> View contact page</a>
+          </div>
+          <div class="application-summary-grid">
+            <article class="panel application-summary"><span class="tool-icon tool-icon--blue"><i class="ti ti-mail"></i></span><div><small>Total requests</small><strong id="contactTotal">0</strong></div></article>
+            <article class="panel application-summary"><span class="tool-icon tool-icon--orange"><i class="ti ti-sparkles"></i></span><div><small>New</small><strong id="contactNew">0</strong></div></article>
+            <article class="panel application-summary"><span class="tool-icon tool-icon--green"><i class="ti ti-user-check"></i></span><div><small>In progress</small><strong id="contactProgress">0</strong></div></article>
+          </div>
+          <div class="application-toolbar panel">
+            <label class="inline-search"><i class="ti ti-search"></i><input id="contactSearch" type="search" placeholder="Search name, organization, email..."></label>
+            <div class="application-filter-grid contact-filter-grid">
+              <label class="application-filter"><span>Status</span><select id="contactStatusFilter"><option value="all">All statuses</option><option value="new">New</option><option value="reviewing">Reviewing</option><option value="contacted">Contacted</option><option value="closed">Closed</option></select></label>
+              <label class="application-filter"><span>Situation</span><select id="contactSituationFilter"><option value="all">All situations</option><option value="gov">Government / public sector</option><option value="dx">Enterprise digital transformation</option><option value="dex">Nexthink DEX</option><option value="other">Something else</option></select></label>
+              <button class="secondary-btn application-clear" id="clearContactFilters" type="button"><i class="ti ti-filter-x"></i> Clear filters</button>
+            </div>
+          </div>
+          <div class="applications-list" id="contactRequestsList"></div>
+          <div class="empty-state panel is-hidden" id="contactRequestsEmpty"><span><i class="ti ti-mail-off"></i></span><h2>No requests found</h2><p>New messages submitted through Get in Touch will appear here.</p></div>
         </section>
 
         <section class="view" id="pagesView">

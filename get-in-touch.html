@@ -36,6 +36,8 @@
     gap:clamp(28px,4vw,48px);
   }
   .page-contact .contact-left .h2{white-space:normal}
+  .page-contact .contact-honeypot{position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden}
+  .page-contact .form-error{margin:0;color:#c0392b;font-size:13px}
   @media (max-width:1024px){
     .page-contact .contact-inner{grid-template-columns:1fr}
     .page-contact .contact .field-row{grid-template-columns:1fr}
@@ -145,6 +147,10 @@
           </div>
 
           <form class="contact-card" id="contactForm" data-reveal novalidate>
+            <div class="contact-honeypot" aria-hidden="true">
+              <label for="website">Website</label>
+              <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
+            </div>
             <div>
               <label class="field-label" for="situation">I am looking for</label>
               <select class="select" id="situation" name="situation" required>
@@ -167,6 +173,7 @@
             </div>
 
             <textarea class="textarea" name="message" placeholder="What are you trying to solve? The more specific, the better." required></textarea>
+            <p class="form-error" id="contactFormError" role="alert" hidden></p>
 
             <button type="submit" class="submit-btn" id="submitBtn">
               <span id="submitText">Send &mdash; we&rsquo;ll respond within 24 hours</span>
@@ -225,6 +232,7 @@
   if (!form) return;
   var situation = document.getElementById('situation');
   var submitText = document.getElementById('submitText');
+  var formError = document.getElementById('contactFormError');
   var defaultCta = 'Send — we\'ll respond within 24 hours';
   var ctaMap = {
     gov: 'Request a public-sector briefing',
@@ -234,14 +242,44 @@
   };
   if (situation && submitText){
     situation.addEventListener('change', function(){
-      submitText.textContent = ctaMap[situation.value] || defaultCta;
+      if (!form.dataset.sent) submitText.textContent = ctaMap[situation.value] || defaultCta;
     });
   }
-  form.addEventListener('submit', function(e){
+  form.addEventListener('submit', async function(e){
     e.preventDefault();
     var btn = document.getElementById('submitBtn');
-    if (submitText) submitText.textContent = 'Thank you — we\'ll respond within one business day';
+    if (form.dataset.sent === '1') return;
+    if (formError) { formError.hidden = true; formError.textContent = ''; }
+    var payload = {
+      situation: form.situation.value,
+      name: form.name.value.trim(),
+      org: form.org.value.trim(),
+      role: form.role.value.trim(),
+      email: form.email.value.trim(),
+      message: form.message.value.trim(),
+      website: form.website ? form.website.value : ''
+    };
     if (btn) btn.disabled = true;
+    if (submitText) submitText.textContent = 'Sending…';
+    try {
+      var response = await fetch('/api/contact/requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      var data = await response.json().catch(function () { return {}; });
+      if (!response.ok) throw new Error(data.message || 'Could not send your message. Please try again.');
+      form.dataset.sent = '1';
+      if (submitText) submitText.textContent = 'Thank you — we\'ll respond within one business day';
+      form.reset();
+    } catch (error) {
+      if (formError) {
+        formError.hidden = false;
+        formError.textContent = error.message || 'Could not send your message. Please try again.';
+      }
+      if (btn) btn.disabled = false;
+      if (submitText) submitText.textContent = ctaMap[situation && situation.value] || defaultCta;
+    }
   });
 })();
 </script>

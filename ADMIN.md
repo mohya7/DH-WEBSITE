@@ -51,6 +51,7 @@ When a service, case study, blog post, partner, or job is created, its details l
 - `content/admin-content.json`: complete admin source containing published items and drafts.
 - `content/admin-users.json`: local account store containing Scrypt password hashes. This file is ignored by Git.
 - `content/job-applications.json`: private applicant records. This file is ignored by Git and blocked from public web access.
+- `content/contact-requests.json`: private Get in Touch enquiry records. This file is ignored by Git and blocked from public web access.
 - `content/application-files/`: private CV files. This folder is ignored by Git and CVs can only be downloaded by a signed-in admin or HR user.
 - `content/site-content.json`: generated public JSON data.
 - `content/site-content.js`: synchronous public data used before card animations initialize.
@@ -64,11 +65,11 @@ Do not edit the two public content files manually. They are regenerated after ev
 - CSRF protection for every write operation.
 - Revision checks prevent overwriting newer content.
 - Rate limiting for login attempts.
-- Rate limiting and a honeypot field for public job applications.
+- Rate limiting and a honeypot field for public job applications and Get in Touch requests.
 - PDF and Word CV uploads only, up to 5MB.
 - PNG, JPG, WEBP, and GIF uploads only, up to 5MB.
 - Audit history for the latest 50 content actions.
 
 ## Deployment
 
-Editing content and receiving applications require Node.js and the server in `server.js`. A static-only deployment can display published content, but it cannot receive application forms or provide the private HR inbox.
+Editing content and receiving applications or Get in Touch requests require Node.js and the server in `server.js`. A static-only deployment can display published content, but it cannot receive forms or provide the private admin inboxes.

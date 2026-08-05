@@ -72,6 +72,7 @@
     data: null,
     users: [],
     applications: [],
+    contactRequests: [],
     currentUser: null,
     permissions: null,
     currentCollection: 'blogs',
@@ -88,6 +89,9 @@
     applicationExperience: 'all',
     applicationNoticeMax: 'all',
     applicationSalaryMax: '',
+    contactStatus: 'all',
+    contactQuery: '',
+    contactSituation: 'all',
     pendingDelete: null
   };
 
@@ -224,6 +228,13 @@
     renderApplications();
   }
 
+  async function loadContactRequests() {
+    if (!isAdmin()) return;
+    var payload = await api('/api/admin/contact-requests');
+    state.contactRequests = payload.requests || [];
+    renderContactRequests();
+  }
+
   async function bootstrap() {
     try {
       var session = await api('/api/admin/session');
@@ -232,6 +243,7 @@
       applySession(session);
       await loadContent();
       await loadApplications();
+      await loadContactRequests();
       await loadUsers();
       showApp();
     } catch (error) {
@@ -248,7 +260,10 @@
     renderPageSelector();
     renderPageForm();
     renderApplications();
-    if (isAdmin()) renderUsers();
+    if (isAdmin()) {
+      renderContactRequests();
+      renderUsers();
+    }
     $('#sideRevision').textContent = 'Revision ' + state.data.meta.revision;
     $('#toolRevision').textContent = '#' + state.data.meta.revision;
     $('#toolUpdated').textContent = formatDate(state.data.meta.updatedAt, true);
@@ -297,7 +312,7 @@
   }
 
   function switchView(view, collection) {
-    if (!isAdmin() && (view === 'users' || view === 'tools')) return toast('Your HR account does not have access to this section.', true);
+    if (!isAdmin() && (view === 'users' || view === 'tools' || view === 'contactRequests')) return toast('Your HR account does not have access to this section.', true);
     if (collection && allowedCollections().indexOf(collection) === -1) return toast('Your HR account can only manage Careers content.', true);
     if (collection) {
       state.currentCollection = collection;
@@ -315,6 +330,7 @@
     });
     if (view === 'content') renderCollection();
     if (view === 'applications') renderApplications();
+    if (view === 'contactRequests') renderContactRequests();
     closeMobileMenu();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -755,6 +771,52 @@
     }
   }
 
+  function renderContactRequests() {
+    if (!isAdmin()) return;
+    var list = state.contactRequests || [];
+    var newCount = list.filter(function (item) { return item.status === 'new'; }).length;
+    var progressCount = list.filter(function (item) { return item.status === 'reviewing' || item.status === 'contacted'; }).length;
+    $$('[data-contact-count]').forEach(function (node) { node.textContent = newCount; node.classList.toggle('is-zero', newCount === 0); });
+    $('#contactTotal').textContent = list.length;
+    $('#contactNew').textContent = newCount;
+    $('#contactProgress').textContent = progressCount;
+
+    var query = state.contactQuery.trim().toLowerCase();
+    var filtered = list.filter(function (item) {
+      var statusMatch = state.contactStatus === 'all' || item.status === state.contactStatus;
+      var situationMatch = state.contactSituation === 'all' || item.situation === state.contactSituation;
+      var searchMatch = !query || [item.name, item.organization, item.email, item.role, item.situationLabel, item.message].join(' ').toLowerCase().indexOf(query) > -1;
+      return statusMatch && situationMatch && searchMatch;
+    });
+    $('#contactRequestsEmpty').classList.toggle('is-hidden', filtered.length > 0);
+    $('#contactRequestsList').classList.toggle('is-hidden', filtered.length === 0);
+    $('#contactRequestsList').innerHTML = filtered.map(function (item) {
+      var status = item.status || 'new';
+      var statusOptions = [['new', 'New'], ['reviewing', 'Reviewing'], ['contacted', 'Contacted'], ['closed', 'Closed']];
+      var select = statusOptions.map(function (option) { return '<option value="' + option[0] + '"' + (option[0] === status ? ' selected' : '') + '>' + option[1] + '</option>'; }).join('');
+      return '<article class="panel application-card contact-request-card" data-contact-id="' + escapeHtml(item.id) + '">' +
+        '<header><span class="application-avatar">' + escapeHtml(applicationInitials(item.name)) + '</span><div><span class="application-role">' + escapeHtml(item.situationLabel || item.situation) + '</span><h2>' + escapeHtml(item.name) + '</h2><p>Reference ' + escapeHtml(item.reference || '') + ' · Submitted ' + escapeHtml(formatDate(item.submittedAt, true)) + '</p></div><label class="application-status application-status--' + escapeHtml(status === 'closed' ? 'rejected' : status) + '"><span>Status</span><select data-contact-status>' + select + '</select></label></header>' +
+        '<div class="application-details"><div><small>Email</small><a href="mailto:' + encodeURIComponent(item.email) + '">' + escapeHtml(item.email) + '</a></div><div><small>Organization</small><strong>' + escapeHtml(item.organization) + '</strong></div><div><small>Role / Title</small><strong>' + escapeHtml(item.role || '—') + '</strong></div></div>' +
+        '<div class="contact-request-message"><small>Message</small><p>' + escapeHtml(item.message) + '</p></div>' +
+        '<footer><a class="primary-btn" href="mailto:' + encodeURIComponent(item.email) + '?subject=' + encodeURIComponent('Re: Digital Hub enquiry (' + (item.reference || '') + ')') + '"><i class="ti ti-mail"></i> Reply by email</a></footer></article>';
+    }).join('');
+  }
+
+  async function updateContactStatus(select) {
+    var card = select.closest('[data-contact-id]');
+    if (!card) return;
+    select.disabled = true;
+    try {
+      var result = await api('/api/admin/contact-requests/' + encodeURIComponent(card.dataset.contactId), { method: 'PUT', body: JSON.stringify({ status: select.value }) });
+      state.contactRequests = result.requests || state.contactRequests;
+      renderContactRequests();
+      toast('Request status updated.');
+    } catch (error) {
+      toast(error.message, true);
+      renderContactRequests();
+    }
+  }
+
   function renderUsers() {
     if (!isAdmin()) return;
     var hrUsers = state.users.filter(function (user) { return user.role === 'hr'; });
@@ -852,6 +914,7 @@
         applySession(session);
         await loadContent();
         await loadApplications();
+        await loadContactRequests();
         await loadUsers();
         showApp(); toast('Welcome back. Your content is ready.');
       } catch (error) { $('#loginError').textContent = error.message; }
@@ -865,7 +928,7 @@
 
     $('#logoutBtn').addEventListener('click', async function () {
       try { await api('/api/admin/logout', { method: 'POST', body: '{}' }); } catch (_) {}
-      state.csrf = ''; state.data = null; state.users = []; state.applications = []; state.currentUser = null; state.permissions = null; $('#loginPassword').value = ''; showLogin();
+      state.csrf = ''; state.data = null; state.users = []; state.applications = []; state.contactRequests = []; state.currentUser = null; state.permissions = null; $('#loginPassword').value = ''; showLogin();
     });
 
     $$('.side-link').forEach(function (button) {
@@ -900,6 +963,19 @@
     $('#applicationVacancyCards').addEventListener('scroll', updateVacancyScrollControls, { passive: true });
     window.addEventListener('resize', updateVacancyScrollControls);
     $('#applicationsList').addEventListener('change', function (event) { if (event.target.matches('[data-application-status]')) updateApplicationStatus(event.target); });
+    $('#contactSearch').addEventListener('input', function () { state.contactQuery = this.value; renderContactRequests(); });
+    $('#contactStatusFilter').addEventListener('change', function () { state.contactStatus = this.value; renderContactRequests(); });
+    $('#contactSituationFilter').addEventListener('change', function () { state.contactSituation = this.value; renderContactRequests(); });
+    $('#clearContactFilters').addEventListener('click', function () {
+      state.contactStatus = 'all';
+      state.contactSituation = 'all';
+      state.contactQuery = '';
+      $('#contactStatusFilter').value = 'all';
+      $('#contactSituationFilter').value = 'all';
+      $('#contactSearch').value = '';
+      renderContactRequests();
+    });
+    $('#contactRequestsList').addEventListener('change', function (event) { if (event.target.matches('[data-contact-status]')) updateContactStatus(event.target); });
     $$('[data-layout]').forEach(function (button) { button.addEventListener('click', function () { state.layout = button.dataset.layout; renderCollection(); }); });
     $('#contentGrid').addEventListener('click', function (event) {
       var button = event.target.closest('[data-action]'); if (!button) return;

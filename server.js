@@ -19,10 +19,17 @@ const PUBLIC_JS_FILE = path.join(ROOT, 'content', 'site-content.js');
 const UPLOAD_DIR = path.join(ROOT, 'assets', 'uploads');
 const APPLICATIONS_FILE = path.join(ROOT, 'content', 'job-applications.json');
 const APPLICATION_FILES_DIR = path.join(ROOT, 'content', 'application-files');
+const CONTACT_REQUESTS_FILE = path.join(ROOT, 'content', 'contact-requests.json');
 const MAX_JSON_BYTES = 7 * 1024 * 1024;
 const MAX_RESUME_BYTES = 5 * 1024 * 1024;
 const MAX_APPLICATION_BYTES = MAX_RESUME_BYTES + (512 * 1024);
 const SESSION_TTL = 8 * 60 * 60 * 1000;
+const CONTACT_SITUATIONS = {
+  gov: 'Government / public sector digital services',
+  dx: 'Enterprise digital transformation',
+  dex: 'Nexthink DEX (200+ endpoints)',
+  other: 'Something else',
+};
 const COLLECTIONS = new Set(['services', 'partners', 'caseStudies', 'blogs', 'jobs', 'team']);
 const PAGES = new Set(['home', 'blogs', 'cases', 'partners', 'careers', 'about']);
 
@@ -57,6 +64,7 @@ const mime = {
 const sessions = new Map();
 const loginAttempts = new Map();
 const applicationAttempts = new Map();
+const contactAttempts = new Map();
 
 function json(res, status, payload, extraHeaders = {}) {
   const body = JSON.stringify(payload);
@@ -87,6 +95,19 @@ function writeApplications(data) {
   data.updatedAt = new Date().toISOString();
   fs.writeFileSync(temp, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
   fs.copyFileSync(temp, APPLICATIONS_FILE);
+  fs.unlinkSync(temp);
+}
+
+function readContactRequests() {
+  if (!fs.existsSync(CONTACT_REQUESTS_FILE)) return { version: 1, updatedAt: null, requests: [] };
+  return JSON.parse(fs.readFileSync(CONTACT_REQUESTS_FILE, 'utf8'));
+}
+
+function writeContactRequests(data) {
+  const temp = `${CONTACT_REQUESTS_FILE}.tmp`;
+  data.updatedAt = new Date().toISOString();
+  fs.writeFileSync(temp, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+  fs.copyFileSync(temp, CONTACT_REQUESTS_FILE);
   fs.unlinkSync(temp);
 }
 
@@ -206,6 +227,7 @@ function ensureStorage() {
     });
   }
   if (!fs.existsSync(APPLICATIONS_FILE)) writeApplications({ version: 1, updatedAt: null, applications: [] });
+  if (!fs.existsSync(CONTACT_REQUESTS_FILE)) writeContactRequests({ version: 1, updatedAt: null, requests: [] });
   writeDerivedFiles(readData());
 }
 
@@ -510,6 +532,49 @@ function canSubmitApplication(req) {
   return state.count <= 8;
 }
 
+function canSubmitContact(req) {
+  const ip = clientAddress(req);
+  const now = Date.now();
+  const state = contactAttempts.get(ip) || { count: 0, resetAt: now + 60 * 60 * 1000 };
+  if (state.resetAt < now) {
+    state.count = 0;
+    state.resetAt = now + 60 * 60 * 1000;
+  }
+  state.count += 1;
+  contactAttempts.set(ip, state);
+  return state.count <= 10;
+}
+
+function cleanContactRequest(input) {
+  const situation = text(input.situation, 40).toLowerCase();
+  const name = text(input.name, 120);
+  const organization = text(input.org || input.organization, 160);
+  const role = text(input.role, 120);
+  const email = text(input.email, 160).toLowerCase();
+  const message = text(input.message, 4000);
+  if (!CONTACT_SITUATIONS[situation]) throw Object.assign(new Error('Please select what you are looking for.'), { status: 422 });
+  if (!name || !organization || !email || !message) throw Object.assign(new Error('Please complete all required fields.'), { status: 422 });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw Object.assign(new Error('Enter a valid email address.'), { status: 422 });
+  if (message.length < 10) throw Object.assign(new Error('Please share a bit more detail in your message.'), { status: 422 });
+
+  const now = new Date().toISOString();
+  const requestUuid = crypto.randomUUID();
+  return {
+    id: `contact-${requestUuid}`,
+    reference: requestUuid.slice(0, 8).toUpperCase(),
+    situation,
+    situationLabel: CONTACT_SITUATIONS[situation],
+    name,
+    organization,
+    role,
+    email,
+    message,
+    status: 'new',
+    submittedAt: now,
+    updatedAt: now,
+  };
+}
+
 function cleanApplication(input, file) {
   const fullName = text(input.fullName, 120);
   const phone = text(input.phone, 40);
@@ -607,6 +672,17 @@ async function handleApi(req, res, url) {
       throw error;
     }
     return json(res, 201, { ok: true, reference: result.application.reference });
+  }
+
+  if (pathname === '/api/contact/requests' && req.method === 'POST') {
+    if (!canSubmitContact(req)) return json(res, 429, { error: 'RATE_LIMITED', message: 'Too many messages were submitted. Please try again later.' });
+    const body = await readBody(req);
+    if (text(body.website, 200)) return json(res, 201, { ok: true, reference: 'received' });
+    const request = cleanContactRequest(body);
+    const data = readContactRequests();
+    data.requests.unshift(request);
+    writeContactRequests(data);
+    return json(res, 201, { ok: true, reference: request.reference });
   }
 
   if (pathname === '/api/admin/login' && req.method === 'POST') {
@@ -793,6 +869,28 @@ async function handleApi(req, res, url) {
     application.updatedAt = new Date().toISOString();
     writeApplications(data);
     return json(res, 200, { application, applications: data.applications });
+  }
+
+  if (pathname === '/api/admin/contact-requests' && req.method === 'GET') {
+    if (!requireAdmin(req, res)) return;
+    const data = readContactRequests();
+    return json(res, 200, { updatedAt: data.updatedAt, requests: data.requests || [] });
+  }
+
+  const contactMatch = pathname.match(/^\/api\/admin\/contact-requests\/([^/]+)$/);
+  if (contactMatch && req.method === 'PUT') {
+    if (!requireAdmin(req, res, true)) return;
+    const allowedStatuses = new Set(['new', 'reviewing', 'contacted', 'closed']);
+    const body = await readBody(req);
+    const status = text(body.status, 30);
+    if (!allowedStatuses.has(status)) return json(res, 422, { error: 'INVALID_STATUS', message: 'Select a valid request status.' });
+    const data = readContactRequests();
+    const request = data.requests.find((entry) => entry.id === decodeURIComponent(contactMatch[1]));
+    if (!request) return json(res, 404, { error: 'CONTACT_REQUEST_NOT_FOUND', message: 'Contact request not found.' });
+    request.status = status;
+    request.updatedAt = new Date().toISOString();
+    writeContactRequests(data);
+    return json(res, 200, { request, requests: data.requests });
   }
 
   if (pathname.startsWith('/api/admin/pages/') && req.method === 'PUT') {
@@ -1087,7 +1185,7 @@ function serveStatic(req, res, url) {
     });
   }
   if (pathname === '/') pathname = '/index.html';
-  if (/^\/content\/(?:admin-|job-applications|application-files(?:\/|$))/i.test(pathname)) {
+  if (/^\/content\/(?:admin-|job-applications|contact-requests|application-files(?:\/|$))/i.test(pathname)) {
     return sendBuffer(req, res, 404, '<h1>404</h1><p>Page not found.</p>', {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'no-store',
