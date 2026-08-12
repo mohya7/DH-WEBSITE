@@ -2,6 +2,8 @@
 @import url('tv.css');
 
 :root{
+  --nav-inset:36px;
+  --nav-max:1280px;
   --blue:#1A9AD6;
   --blue-light:#36B0E5;
   --orange:#F4970B;
@@ -112,7 +114,7 @@ main{max-width:100%;overflow-x:clip}
 html.nav-shown #nav,html.subpage #nav{opacity:1;visibility:visible;pointer-events:auto}
 .nav{
   position:fixed;left:50%;top:20px;transform:translateX(-50%);
-  width:calc(100% - 36px);max-width:1280px;z-index:1000;padding:0;overflow:visible;
+  width:calc(100% - var(--nav-inset, 36px));max-width:var(--nav-max, 1280px);z-index:1000;padding:0;overflow:visible;
   transition:top .35s var(--ease-nav);
 }
 .nav.scrolled{top:14px}
@@ -406,7 +408,7 @@ body.theme-teal{--accent:var(--teal);--accent-light:#5EE0AC;--accent-dim:rgba(34
 @media (max-width:991px){
   .nav-links{display:none}
   .nav-burger{display:inline-flex}
-  .nav{width:calc(100% - 28px)}
+  .nav{width:calc(100% - var(--nav-inset, 28px))}
   .svc-hero__inner{grid-template-columns:1fr}
 }
 @media (max-width:640px){

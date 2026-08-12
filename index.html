@@ -125,6 +125,8 @@
 
   --maxw:1440px;
   --pad-x:64px;
+  --nav-inset:36px;
+  --nav-max:1280px;
   --section-y:72px;
   --head-gap:40px;
   --h1-size:48px;
@@ -289,7 +291,7 @@ html.nav-shown #nav{
 }
 .nav{
   position:fixed;left:50%;top:20px;transform:translateX(-50%);
-  width:calc(100% - 36px);max-width:1280px;z-index:1000;
+  width:calc(100% - var(--nav-inset));max-width:var(--nav-max);z-index:1000;
   padding:0;overflow:visible;
   transition:top .35s var(--ease-nav);
 }
@@ -344,8 +346,9 @@ body.nav-ready .nav-inner{overflow:visible}
 
 .nav-inner .brand{
   opacity:0;
-  min-width:var(--brand-logo-h,72px);
-  min-height:var(--brand-logo-h,72px);
+  min-width:0;
+  min-height:0;
+  max-width:calc(100% - 52px);
 }
 body.nav-ready .nav-inner .brand.has-logo{opacity:1}
 
@@ -463,7 +466,7 @@ html[data-dh-intro="skip"] .site-waves{
   padding:0;line-height:1;flex-shrink:0;
 }
 .brand-logo{
-  width:auto;height:var(--brand-logo-h,72px);max-width:none;
+  width:auto;height:var(--brand-logo-h,72px);max-width:100%;max-height:var(--brand-logo-h,72px);
   display:block;object-fit:contain;mix-blend-mode:screen;
 }
 
@@ -889,7 +892,7 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
 .trust-bar{
   position:relative;z-index:2;
   width:calc(100% + var(--pad-x) * 2);
-  max-width:100vw;
+  max-width:none;
   margin-left:calc(var(--pad-x) * -1);
   margin-right:calc(var(--pad-x) * -1);
   margin-top:auto;
@@ -1690,9 +1693,9 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
 .trust-marquee{
   position:relative;
   overflow:hidden;
-  width:100vw;
-  max-width:100vw;
-  margin-left:calc(50% - 50vw);
+  width:100%;
+  max-width:100%;
+  margin-left:0;
   padding:24px 0;
   --trust-row-h:clamp(48px,5.85vw,63px);
   --trust-gap:clamp(56px,7.5vw,112px);
@@ -2617,19 +2620,22 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
 
 /* Below lg ? mobile nav, horizontal services scroll, 2-col partners */
 @media (max-width:991px){
+  :root{--nav-inset:28px}
   .nav-links{display:none}
   .nav-cta{display:none}
   .nav-burger{
     display:inline-flex;justify-self:end;
     width:44px;height:44px;min-width:44px;min-height:44px;
   }
-  .nav{width:calc(100% - 28px)}
+  .nav{width:calc(100% - var(--nav-inset))}
   .nav-inner{padding:6px 6px 6px 14px}
   .mobile-nav a,.mobile-nav details summary{min-height:48px;padding:16px 0}
   .mobile-nav .mn-cta{min-height:48px;padding:16px 20px}
   .trust-bar.partner-logos-bar{display:none}
+  .hero{min-height:auto;padding-top:88px}
+  .hero-inner{padding:28px 0 40px;justify-content:flex-start}
   .section.services{
-    --svc-card-w:min(calc(100vw - var(--pad-x) - 28px), 360px);
+    --svc-card-w:min(calc(100% - var(--pad-x) - 28px), 360px);
     --svc-card-h:min(440px, calc(100svh - var(--svc-nav-offset) - var(--svc-head-space) - 16px));
     --svc-gap:16px;
     --svc-nav-offset:136px;
@@ -2649,8 +2655,9 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
 
 /* Tablet portrait */
 @media (max-width:840px){
-  :root{--pad-x:24px;--section-y:52px;--head-gap:28px;--display-size:44px}
-  .nav{width:calc(100% - 24px)}
+  :root{--pad-x:24px;--nav-inset:24px;--section-y:52px;--head-gap:28px;--display-size:clamp(30px, 6.5vw, 44px)}
+  .nav{width:calc(100% - var(--nav-inset))}
+  .h1-line .word{white-space:normal}
   .hero-inner{padding-bottom:48px}
   .hero-left{max-width:none}
   .h1,.h1-line > span{letter-spacing:-1px;line-height:1.08}
@@ -2664,15 +2671,15 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
   .footer-top{grid-template-columns:1fr}
   .footer-cols{grid-template-columns:1fr 1fr}
   .footer-bottom{flex-direction:column;align-items:flex-start;gap:10px}
-  .viz{width:min(340px, calc(100vw - var(--pad-x) * 2));height:min(340px, calc(100vw - var(--pad-x) * 2))}
+  .viz{width:min(340px, calc(100% - 8px));height:min(340px, calc(100% - 8px))}
   .stat-num{font-size:48px}
   .trust-pill{flex:0 0 240px;width:240px;height:68px}
 }
 
 /* Large phone */
 @media (max-width:640px){
-  :root{--pad-x:20px;--section-y:48px;--head-gap:28px;--h1-size:32px;--h2-size:24px}
-  .nav{top:14px;width:calc(100% - 20px)}
+  :root{--pad-x:20px;--nav-inset:20px;--section-y:48px;--head-gap:28px;--h1-size:clamp(26px, 7.4vw, 32px);--h2-size:24px}
+  .nav{top:14px;width:calc(100% - var(--nav-inset))}
   .section.services{
     --svc-nav-offset:128px;
     --svc-head-space:96px;
@@ -2683,14 +2690,16 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
   .plogo{padding:10px}
   .plogo-img{height:28px;max-height:28px;max-width:min(100%, 140px)}
   .plogo--ms .plogo-img,.plogo--huawei .plogo-img{height:28px;max-height:28px;max-width:min(100%, 160px)}
-  .section.services{--svc-card-w:calc(100vw - var(--pad-x) - 20px)}
+  .section.services{--svc-card-w:calc(100% - var(--pad-x) - 16px)}
+  .partners-grid,.cases-grid{grid-template-columns:1fr}
   .submit-btn{min-height:48px;padding:16px}
   .input,.select,.textarea{min-height:48px;padding:14px 16px;font-size:16px}
 }
 
 /* Small phone */
 @media (max-width:480px){
-  :root{--pad-x:20px;--section-y:44px;--head-gap:24px;--display-size:clamp(28px, 9vw, 38px)}
+  :root{--pad-x:16px;--nav-inset:16px;--section-y:44px;--head-gap:24px;--display-size:clamp(26px, 8.6vw, 34px)}
+  .nav{width:calc(100% - var(--nav-inset))}
   .hero{padding-top:88px}
   .h1-line > span{letter-spacing:-0.5px;line-height:1.12}
   .h1-line .word{white-space:normal}
@@ -2698,7 +2707,7 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
   .contact-card{padding:22px 18px}
   .svc-card__body{padding:24px 20px 20px}
   .partner{padding:28px 22px}
-  .viz{width:min(280px, calc(100vw - var(--pad-x) * 2));height:min(280px, calc(100vw - var(--pad-x) * 2))}
+  .viz{width:min(280px, calc(100% - 8px));height:min(280px, calc(100% - 8px))}
   .partner-card{border-radius:20px}
   .partners-grid,.cases-grid{grid-template-columns:1fr}
   .blogs{--blogs-card-h:min(180px,42vw)}
@@ -2745,8 +2754,8 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
 
 /* Narrow mobile (320px+) */
 @media (max-width:360px){
-  :root{--pad-x:16px;--section-y:40px;--head-gap:24px;--h1-size:28px;--display-size:26px}
-  .nav{width:calc(100% - 16px)}
+  :root{--pad-x:14px;--nav-inset:12px;--section-y:40px;--head-gap:24px;--h1-size:24px;--display-size:24px}
+  .nav{width:calc(100% - var(--nav-inset))}
   .hero{padding-top:80px}
   .nav-intro-logo{height:140px}
 }
@@ -2781,7 +2790,7 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
 }
 </style>
 <link rel="stylesheet" href="css/tv.css?v=9" />
-<link rel="stylesheet" href="css/responsive.css?v=11" />
+<link rel="stylesheet" href="css/responsive.css?v=24" />
 </head>
 <body>
 <script>

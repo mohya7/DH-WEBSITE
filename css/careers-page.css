@@ -364,9 +364,11 @@
 }
 @media(max-width:640px){
   .careers-values__grid{
-    display:block;
-    column-count:2;
-    column-gap:clamp(16px,4.5vw,20px);
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:12px;
+    column-count:unset;
+    column-gap:0;
   }
   .careers-values__col{display:contents}
   .careers-values__col--1,
@@ -379,9 +381,21 @@
     break-inside:avoid;
     -webkit-column-break-inside:avoid;
     page-break-inside:avoid;
-    margin-bottom:clamp(16px,4.5vw,20px);
+    margin-bottom:0;
     width:100%;
     box-sizing:border-box;
+    align-self:start;
+  }
+  .page-careers .careers-values__badge,
+  .page-careers .careers-values__photo{
+    aspect-ratio:3 / 4;
+    overflow:hidden;
+  }
+  /* Same 3:4 footprint as the photo tiles; grows only if the copy can't fit. */
+  .page-careers .careers-values__card{
+    aspect-ratio:3 / 4;
+    min-height:max-content;
+    justify-content:center;
   }
   .careers-values__badge{
     min-height:0;
@@ -398,7 +412,14 @@
     margin-bottom:8px;
     font-size:clamp(14px,3.6vw,17px);
   }
-  .careers-values__card p{font-size:clamp(11px,2.8vw,13px);line-height:1.55}
+  .careers-values__card p{
+    display:block;
+    overflow:visible;
+    font-size:clamp(11px,2.8vw,13px);
+    line-height:1.55;
+    -webkit-box-orient:initial;
+    -webkit-line-clamp:unset;
+  }
   .careers-opps__head{align-items:flex-start}
   .careers-detail__meta{align-items:flex-start}
   .careers-apply-form .field-row{grid-template-columns:1fr}

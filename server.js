@@ -1236,7 +1236,8 @@ function serveStatic(req, res, url) {
   const etag = `W/"${stat.size.toString(16)}-${Math.trunc(stat.mtimeMs).toString(16)}"`;
   const headers = {
     'Content-Type': type,
-    'Cache-Control': noCache ? 'no-store' : (/^(?:\.png|\.jpe?g|\.webp|\.gif|\.svg|\.woff2?)$/.test(extension) ? 'public, max-age=2592000, immutable' : (extension === '.html' ? 'public, max-age=300' : 'public, max-age=3600')),
+    /* HTML is always revalidated so content updates show up on refresh; versioned assets stay cacheable. */
+    'Cache-Control': noCache ? 'no-store' : (/^(?:\.png|\.jpe?g|\.webp|\.gif|\.svg|\.woff2?)$/.test(extension) ? 'public, max-age=2592000, immutable' : (extension === '.html' ? 'no-cache' : 'public, max-age=3600')),
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     'Last-Modified': stat.mtime.toUTCString(),
