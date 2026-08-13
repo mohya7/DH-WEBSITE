@@ -4,7 +4,7 @@
   var collectionInfo = {
     services: { title: 'Services', singular: 'service', description: 'Manage the core service cards and Digital Hub capabilities.', icon: 'ti-stack-2', color: '#2ca8ea' },
     caseStudies: { title: 'Case Studies', singular: 'case study', description: 'Manage project outcomes shown on the homepage and work pages.', icon: 'ti-briefcase', color: '#f29a32' },
-    blogs: { title: 'Blog', singular: 'article', description: 'Manage expert insights, categories, and reading time.', icon: 'ti-news', color: '#8f78ed' },
+    blogs: { title: 'Blog', singular: 'article', description: 'Manage article body, cluster, FAQ, and static page output.', icon: 'ti-news', color: '#8f78ed' },
     partners: { title: 'Partners', singular: 'partner', description: 'Manage technology partners, logos, summaries, and page links.', icon: 'ti-building-skyscraper', color: '#36c99a' },
     jobs: { title: 'Careers', singular: 'job opening', description: 'Manage open roles, locations, departments, and contract types.', icon: 'ti-id-badge-2', color: '#e56883' },
     team: { title: 'Leadership Team', singular: 'team member', description: 'Manage leadership profiles, contact details, and display order.', icon: 'ti-users-group', color: '#4fb3d7' }
@@ -27,12 +27,25 @@
     ],
     blogs: [
       { name: 'title', label: 'Article title', required: true, full: true },
-      { name: 'summary', label: 'Short introduction', type: 'textarea', required: true, full: true, max: 700 },
+      { name: 'summary', label: 'Card summary', type: 'textarea', required: true, full: true, max: 700, hint: 'Short blurb for cards and listings — not the answer block.' },
+      { name: 'cluster', label: 'Cluster', type: 'select', required: true, full: true, options: [
+        ['DEX & Digital Employee Experience', 'DEX & Digital Employee Experience'],
+        ['Enterprise Software', 'Enterprise Software'],
+        ['Data, Cloud & Digital Egypt 2030', 'Data, Cloud & Digital Egypt 2030'],
+        ['AI & Automation', 'AI & Automation'],
+        ['Technical Talent & Outsourcing', 'Technical Talent & Outsourcing']
+      ] },
+      { name: 'answerBlock', label: 'Answer block (40–60 words)', type: 'wordcount', full: true, minWords: 40, maxWords: 60, max: 2000 },
+      { name: 'body', label: 'Article body (HTML)', type: 'html', full: true, hint: 'Use H2 headings for the table of contents. Body is the source of truth for the static page.' },
+      { name: 'faq', label: 'FAQ (min 5 before publish)', type: 'faq', full: true },
+      { name: 'dataCallouts', label: 'Data callouts', type: 'callouts', full: true },
+      { name: 'relatedPosts', label: 'Related posts (same cluster, max 3)', type: 'related', full: true },
+      { name: 'comparisonTable', label: 'Comparison table (required for vs titles)', type: 'comparison', full: true },
       { name: 'image', label: 'Cover image', type: 'image', full: true, imageSize: '1620 × 1000 px', imageNote: 'Wide landscape' },
-      { name: 'category', label: 'Technical category', type: 'select', options: [['enterprise-software', 'Enterprise Software'], ['data-analytics', 'Data & Analytics'], ['ai-automation', 'AI & Automation'], ['outsourcing', 'Outsourcing']] },
+      { name: 'category', label: 'Filter category', type: 'select', options: [['enterprise-software', 'Enterprise Software'], ['data-analytics', 'Data & Analytics'], ['ai-automation', 'AI & Automation'], ['outsourcing', 'Outsourcing']] },
       { name: 'categoryLabel', label: 'Visible category label', placeholder: 'Enterprise Software' },
-      { name: 'readTime', label: 'Reading time in minutes', type: 'number', min: 1 },
-      { name: 'accent', label: 'Category color', type: 'select', options: [['blue', 'Blue'], ['orange', 'Orange']] }
+      { name: 'accent', label: 'Category color', type: 'select', options: [['blue', 'Blue'], ['orange', 'Orange']] },
+      { name: 'readTime', label: 'Reading time (auto)', type: 'readonly', hint: 'Derived from word count at 225 wpm on save.' }
     ],
     partners: [
       { name: 'name', label: 'Partner name', required: true, full: true },
@@ -347,7 +360,7 @@
 
   function itemMeta(item, collection) {
     var values = [];
-    if (collection === 'blogs') values = [['ti-clock', item.readTime + ' min'], ['ti-tag', item.categoryLabel || item.category]];
+    if (collection === 'blogs') values = [['ti-clock', (item.readTime || 0) + ' min'], ['ti-tag', item.cluster || item.categoryLabel || item.category]];
     if (collection === 'caseStudies') values = [['ti-chart-bar', item.metric], ['ti-tags', (item.categories || []).join(', ')]];
     if (collection === 'jobs') values = [['ti-building', item.department], ['ti-map-pin', item.location], ['ti-clock', item.type]];
     if (collection === 'team') values = [['ti-briefcase', item.role], ['ti-mail', item.email]];
@@ -391,6 +404,12 @@
     $('#contentGrid').classList.toggle('is-hidden', filtered.length === 0);
   }
 
+  function wordCount(value) {
+    var text = String(value || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!text) return 0;
+    return text.split(' ').filter(Boolean).length;
+  }
+
   function fieldHtml(field, item) {
     var value = item && item[field.name] != null ? item[field.name] : '';
     if (field.name === 'categories' && Array.isArray(value)) value = value.join(', ');
@@ -402,6 +421,44 @@
     if (field.type === 'image') {
       return '<label class="dynamic-field image-field">' + label + '<div class="image-drop"><input type="file" data-image-upload accept="image/png,image/jpeg,image/webp,image/gif"><div class="image-drop__empty"><i class="ti ti-cloud-upload"></i><strong>Drop an image or click to browse</strong><small>PNG, JPG, WEBP — up to 5MB</small><span class="image-size-hint"><b>' + escapeHtml(field.imageSize || 'Use a high-resolution image') + '</b>' + (field.imageNote ? '<em>' + escapeHtml(field.imageNote) + '</em>' : '') + '</span></div>' +
         (value ? '<img class="image-preview" src="' + escapeHtml(publicUrl(value)) + '" alt="Preview"><button class="image-remove" type="button" data-remove-image><i class="ti ti-x"></i></button>' : '') + '</div><input class="image-path" name="' + field.name + '" value="' + escapeHtml(value) + '" placeholder="assets/path/image.jpg"' + direction + '></label>';
+    }
+    if (field.type === 'readonly') {
+      return '<label class="dynamic-field' + full + '">' + label + '<input name="' + field.name + '" type="text" value="' + escapeHtml(value || '—') + '" readonly>' + (field.hint ? '<small>' + escapeHtml(field.hint) + '</small>' : '') + '</label>';
+    }
+    if (field.type === 'wordcount') {
+      var count = wordCount(value);
+      return '<label class="dynamic-field' + full + '">' + label + '<textarea name="' + field.name + '" rows="4" maxlength="' + (field.max || 2000) + '" data-wordcount data-min-words="' + (field.minWords || 40) + '" data-max-words="' + (field.maxWords || 60) + '" placeholder="' + escapeHtml(field.placeholder || '') + '"' + required + direction + '>' + escapeHtml(value) + '</textarea><small class="word-count" data-wordcount-label>' + count + ' words (target ' + (field.minWords || 40) + '–' + (field.maxWords || 60) + ')</small></label>';
+    }
+    if (field.type === 'html') {
+      return '<label class="dynamic-field' + full + '">' + label + '<textarea name="' + field.name + '" rows="16" class="html-body" placeholder="<h2>...</h2><p>...</p>"' + direction + '>' + escapeHtml(value) + '</textarea>' + (field.hint ? '<small>' + escapeHtml(field.hint) + '</small>' : '') + '</label>';
+    }
+    if (field.type === 'faq') {
+      var rows = Array.isArray(value) && value.length ? value : [{ question: '', answer: '' }];
+      return '<div class="dynamic-field' + full + '" data-repeatable="faq">' + label + '<div class="repeatable-list" data-faq-list>' + rows.map(function (row, index) {
+        return '<div class="repeatable-row" data-faq-row><input name="faq[' + index + '].question" placeholder="Question" value="' + escapeHtml(row.question || '') + '"><textarea name="faq[' + index + '].answer" rows="3" data-wordcount data-min-words="40" data-max-words="60" placeholder="Answer (40–60 words)">' + escapeHtml(row.answer || '') + '</textarea><small class="word-count">' + wordCount(row.answer || '') + ' words</small><button type="button" class="card-action is-danger" data-remove-row>Remove</button></div>';
+      }).join('') + '</div><button type="button" class="edit-btn" data-add-faq><i class="ti ti-plus"></i> Add FAQ</button><small>Warns under 5 entries on publish (warn-only for now).</small></div>';
+    }
+    if (field.type === 'callouts') {
+      var callouts = Array.isArray(value) && value.length ? value : [];
+      return '<div class="dynamic-field' + full + '" data-repeatable="callouts">' + label + '<div class="repeatable-list" data-callout-list>' + (callouts.length ? callouts.map(function (row, index) {
+        return '<div class="repeatable-row" data-callout-row><input name="dataCallouts[' + index + '].figure" placeholder="Figure / claim" value="' + escapeHtml(row.figure || '') + '"><input name="dataCallouts[' + index + '].source" placeholder="Source" value="' + escapeHtml(row.source || '') + '"><button type="button" class="card-action is-danger" data-remove-row>Remove</button></div>';
+      }).join('') : '') + '</div><button type="button" class="edit-btn" data-add-callout><i class="ti ti-plus"></i> Add callout</button></div>';
+    }
+    if (field.type === 'related') {
+      var selected = Array.isArray(value) ? value : [];
+      var cluster = item && item.cluster;
+      var options = ((state.data && state.data.collections.blogs) || []).filter(function (post) {
+        return post.id !== (item && item.id) && (!cluster || post.cluster === cluster);
+      });
+      return '<div class="dynamic-field' + full + '">' + label + '<div class="related-list">' + (options.length ? options.map(function (post) {
+        return '<label class="related-option"><input type="checkbox" name="relatedPosts" value="' + escapeHtml(post.id) + '"' + (selected.indexOf(post.id) > -1 ? ' checked' : '') + '> ' + escapeHtml(post.title) + '</label>';
+      }).join('') : '<small>No other posts in this cluster yet.</small>') + '</div><small>Select up to 3 siblings in the same cluster.</small></div>';
+    }
+    if (field.type === 'comparison') {
+      var table = value && typeof value === 'object' ? value : { columns: [], rows: [] };
+      var columns = (table.columns || []).join(' | ');
+      var rows = (table.rows || []).map(function (row) { return (row || []).join(' | '); }).join('\n');
+      return '<div class="dynamic-field' + full + '">' + label + '<input name="comparisonColumns" placeholder="Column A | Column B | Column C" value="' + escapeHtml(columns) + '"><textarea name="comparisonRows" rows="6" placeholder="One row per line, cells separated by |">' + escapeHtml(rows) + '</textarea><small>Required when the title contains “vs” (warn-only for now).</small></div>';
     }
     var control;
     if (field.type === 'textarea') control = '<textarea name="' + field.name + '" rows="4" maxlength="' + (field.max || 1500) + '" placeholder="' + escapeHtml(field.placeholder || '') + '"' + required + direction + '>' + escapeHtml(value) + '</textarea>';
@@ -447,22 +504,54 @@
     var existing = state.editingId ? state.data.collections[state.currentCollection].find(function (entry) { return entry.id === state.editingId; }) : null;
     var payload = {};
     schemas[state.currentCollection].forEach(function (field) {
+      if (field.type === 'faq' || field.type === 'callouts' || field.type === 'related' || field.type === 'comparison' || field.type === 'readonly') return;
       var input = $('#itemForm [name="' + field.name + '"]');
       if (!input) return;
       if (field.type === 'number') payload[field.name] = Number(input.value || 0);
       else if (field.name === 'categories') payload[field.name] = input.value.split(',').map(function (value) { return value.trim(); }).filter(Boolean);
       else payload[field.name] = input.value.trim();
     });
+    if (state.currentCollection === 'blogs') {
+      payload.faq = $$('[data-faq-row]', $('#itemForm')).map(function (row) {
+        return {
+          question: ($('input', row) || {}).value || '',
+          answer: ($('textarea', row) || {}).value || ''
+        };
+      }).filter(function (entry) { return entry.question.trim() || entry.answer.trim(); });
+      payload.dataCallouts = $$('[data-callout-row]', $('#itemForm')).map(function (row) {
+        var inputs = $$('input', row);
+        return { figure: (inputs[0] && inputs[0].value) || '', source: (inputs[1] && inputs[1].value) || '' };
+      }).filter(function (entry) { return entry.figure.trim() || entry.source.trim(); });
+      payload.relatedPosts = $$('input[name="relatedPosts"]:checked', $('#itemForm')).map(function (input) { return input.value; }).slice(0, 3);
+      var columnsRaw = (($('#itemForm [name="comparisonColumns"]') || {}).value || '').trim();
+      var rowsRaw = (($('#itemForm [name="comparisonRows"]') || {}).value || '').trim();
+      if (columnsRaw || rowsRaw) {
+        payload.comparisonTable = {
+          columns: columnsRaw.split('|').map(function (value) { return value.trim(); }).filter(Boolean),
+          rows: rowsRaw.split(/\r?\n/).map(function (line) {
+            return line.split('|').map(function (value) { return value.trim(); });
+          }).filter(function (row) { return row.some(Boolean); })
+        };
+      } else {
+        payload.comparisonTable = null;
+      }
+      if (existing && existing.datePublished) payload.datePublished = existing.datePublished;
+    }
     payload.status = $('#publishToggle').checked ? 'published' : 'draft';
     payload.featured = $('#featuredToggle').checked;
     payload.order = existing ? existing.order : 0;
     try {
       setBusy(button, true);
       var url = '/api/admin/items/' + state.currentCollection + (state.editingId ? '/' + encodeURIComponent(state.editingId) : '');
-      state.data = await api(url, { method: state.editingId ? 'PUT' : 'POST', body: JSON.stringify(payload) });
+      var result = await api(url, { method: state.editingId ? 'PUT' : 'POST', body: JSON.stringify(payload) });
+      state.data = result;
       renderAll();
       closeEditor();
-      toast(existing ? 'The card was updated and the latest version is now live.' : 'The card was added to the content library.');
+      if (result.warnings && result.warnings.length) {
+        toast('Saved with warnings: ' + result.warnings.join(' · '), true);
+      } else {
+        toast(existing ? 'The card was updated and the latest version is now live.' : 'The card was added to the content library.');
+      }
     } catch (error) { toast(error.message, true); }
     finally { setBusy(button, false); }
   }
@@ -994,7 +1083,51 @@
     $('#drawerBackdrop').addEventListener('click', closeEditor);
     $('#drawerDeleteBtn').addEventListener('click', function () { if (state.editingId) askDelete(state.editingId); });
     $('#dynamicFields').addEventListener('change', function (event) { if (event.target.matches('[data-image-upload]')) uploadImage(event.target.files[0]); });
-    $('#dynamicFields').addEventListener('click', function (event) { var button = event.target.closest('[data-remove-image]'); if (!button) return; event.preventDefault(); var input = $('.image-path', $('#dynamicFields')); if (input) input.value = ''; var preview = $('.image-preview', $('#dynamicFields')); if (preview) preview.remove(); button.remove(); });
+    $('#dynamicFields').addEventListener('click', function (event) {
+      var removeImage = event.target.closest('[data-remove-image]');
+      if (removeImage) {
+        event.preventDefault();
+        var input = $('.image-path', $('#dynamicFields')); if (input) input.value = '';
+        var preview = $('.image-preview', $('#dynamicFields')); if (preview) preview.remove();
+        removeImage.remove();
+        return;
+      }
+      if (event.target.closest('[data-add-faq]')) {
+        var faqList = $('[data-faq-list]', $('#dynamicFields'));
+        var faqIndex = $$('[data-faq-row]', faqList).length;
+        var faqRow = document.createElement('div');
+        faqRow.className = 'repeatable-row';
+        faqRow.dataset.faqRow = '';
+        faqRow.innerHTML = '<input name="faq[' + faqIndex + '].question" placeholder="Question" value=""><textarea name="faq[' + faqIndex + '].answer" rows="3" data-wordcount data-min-words="40" data-max-words="60" placeholder="Answer (40–60 words)"></textarea><small class="word-count">0 words</small><button type="button" class="card-action is-danger" data-remove-row>Remove</button>';
+        faqList.appendChild(faqRow);
+        return;
+      }
+      if (event.target.closest('[data-add-callout]')) {
+        var calloutList = $('[data-callout-list]', $('#dynamicFields'));
+        var calloutIndex = $$('[data-callout-row]', calloutList).length;
+        var calloutRow = document.createElement('div');
+        calloutRow.className = 'repeatable-row';
+        calloutRow.dataset.calloutRow = '';
+        calloutRow.innerHTML = '<input name="dataCallouts[' + calloutIndex + '].figure" placeholder="Figure / claim" value=""><input name="dataCallouts[' + calloutIndex + '].source" placeholder="Source" value=""><button type="button" class="card-action is-danger" data-remove-row>Remove</button>';
+        calloutList.appendChild(calloutRow);
+        return;
+      }
+      var removeRow = event.target.closest('[data-remove-row]');
+      if (removeRow) {
+        var row = removeRow.closest('.repeatable-row');
+        if (row) row.remove();
+      }
+    });
+    $('#dynamicFields').addEventListener('input', function (event) {
+      if (!event.target.matches('[data-wordcount]')) return;
+      var label = event.target.parentElement && event.target.parentElement.querySelector('.word-count');
+      if (!label) return;
+      var min = Number(event.target.dataset.minWords || 40);
+      var max = Number(event.target.dataset.maxWords || 60);
+      var count = wordCount(event.target.value);
+      label.textContent = count + ' words (target ' + min + '–' + max + ')';
+      label.style.color = (count < min || count > max) ? '#e56883' : '';
+    });
 
     $('#cancelConfirmBtn').addEventListener('click', closeConfirm);
     $('#confirmDeleteBtn').addEventListener('click', confirmDelete);

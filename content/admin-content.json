@@ -1,8 +1,8 @@
 {
   "meta": {
     "version": 1,
-    "revision": 30,
-    "updatedAt": "2026-07-14T12:01:15.218Z",
+    "revision": 31,
+    "updatedAt": "2026-08-12T14:43:13.751Z",
     "updatedBy": "admin",
     "audit": [
       {
@@ -224,13 +224,13 @@
       "lead": "Digital Hub helps Egypt’s enterprises, ministries, and banks build the software, data infrastructure, and AI capabilities that make strategy executable — not just presentable.",
       "sectionTitle": "Four capabilities. One integrated team.",
       "sectionLead": "",
-      "seoTitle": "Digital Hub | Enterprise Technology Partner"
+      "seoTitle": "Digital Hub | Digital Transformation Company in Egypt"
     },
     "blogs": {
       "label": "Blog & Insights",
       "title": "Explore expert perspectives on enterprise digital",
-      "lead": "Practical takes on DEX, digital transformation, and enterprise cloud from practitioners who deliver across Egypt and the GCC — not theory from the sidelines.",
-      "sectionTitle": "From the Digital Hub team.",
+      "lead": "Practical takes on DEX, digital transformation, and enterprise cloud from practitioners who deliver — not theory from the sidelines.",
+      "sectionTitle": "Latest insights.",
       "sectionLead": "Filter by service or browse all insights below."
     },
     "cases": {
@@ -250,7 +250,7 @@
     "careers": {
       "label": "Careers",
       "title": "Build your career at Digital Hub",
-      "lead": "Innovation, transparency, and diversity drive how we deliver across Data Science, AI, software, and enterprise programs in Egypt and the GCC.",
+      "lead": "Innovation, transparency, and diversity drive how we deliver across Data Science, AI, software, and enterprise programs.",
       "sectionTitle": "Current Opportunities",
       "sectionLead": "We’re always on the lookout for talented people"
     },
@@ -441,11 +441,30 @@
         "image": "assets/blog/dex.jpg",
         "category": "enterprise-software",
         "categoryLabel": "Enterprise Software",
-        "readTime": 6,
+        "readTime": 1,
         "accent": "blue",
         "status": "published",
         "featured": true,
-        "order": 10
+        "order": 10,
+        "cluster": "DEX & Digital Employee Experience",
+        "body": "<h2>Experience is now an operational metric</h2>\n        <p>In banking, every delayed device, slow application, or unstable endpoint affects service quality. Digital Employee Experience brings these signals together so IT teams can act before employees and customers feel the impact.</p>\n        <p>For institutions managing hundreds or thousands of endpoints, DEX helps translate technical telemetry into business language: productivity loss, recurring friction, compliance risk, and support effort.</p>\n        <blockquote>DEX is not only about happier employees. It is about reducing operational drag across the systems people depend on every day.</blockquote>\n        <h2>What banks should measure</h2>\n        <ul>\n          <li>Endpoint health, boot time, crashes, and recurring device issues.</li>\n          <li>Application performance across branch, office, and remote environments.</li>\n          <li>Employee sentiment and incident patterns before they become escalations.</li>\n          <li>Remediation success across patches, rollouts, and support workflows.</li>\n        </ul>\n        <p>With platforms such as Nexthink, banks can move from reactive support to proactive experience management, improving reliability while giving leadership a measurable view of technology impact.</p>",
+        "answerBlock": "",
+        "faq": [],
+        "dataCallouts": [],
+        "relatedPosts": [],
+        "comparisonTable": null,
+        "datePublished": "2026-06-15",
+        "dateModified": "2026-08-12",
+        "tableOfContents": [
+          {
+            "id": "experience-is-now-an-operational-metric",
+            "text": "Experience is now an operational metric"
+          },
+          {
+            "id": "what-banks-should-measure",
+            "text": "What banks should measure"
+          }
+        ]
       },
       {
         "id": "blog-transformation",
@@ -455,11 +474,54 @@
         "image": "assets/blog/transformation.jpg",
         "category": "enterprise-software",
         "categoryLabel": "Enterprise Software",
-        "readTime": 12,
+        "readTime": 5,
         "accent": "orange",
         "status": "published",
         "featured": true,
-        "order": 20
+        "order": 20,
+        "cluster": "Enterprise Software",
+        "body": "<h2>Transformation starts inside the business</h2><p>If customer-facing channels look modern but internal processes remain manual, disconnected, or dependent on spreadsheets, the organization has not transformed. It has only repackaged the front door. A redesigned website can improve first impressions, but it does not fix slow approvals, fragmented data, repeated manual entry, or teams that cannot see the same operational truth.</p><p>Real digital transformation connects strategy, software, data, automation, security, and people into workflows that are measurable and repeatable. It changes how work moves through the business, how leaders make decisions, and how customers experience the organization at every touchpoint.</p><p>For enterprises, the pressure is increasing. Customers expect faster service, leadership expects accurate reporting, regulators expect stronger controls, and employees expect tools that help them work instead of slowing them down. When legacy systems and manual processes sit underneath a modern brand, the gap becomes expensive.</p><blockquote>The clearest signal is not an outdated website. It is the amount of work your people still do outside the system.</blockquote><h2>1. Critical reports still require manual consolidation</h2><p>One of the most common signs of digital maturity gaps is the monthly reporting cycle. If teams spend days collecting spreadsheets, cleaning inconsistent formats, reconciling numbers, and building presentations manually, your organization is relying on human effort to compensate for disconnected systems.</p><p>This creates more than inefficiency. It introduces risk. By the time leadership sees the report, the data may already be outdated. If two departments define the same metric differently, decision-making becomes a negotiation instead of a fact-based process.</p><p>A transformed organization treats data as an operational asset. Data pipelines, governance rules, dashboards, and access controls allow leaders to see performance continuously, not only at the end of the month.</p><h2>2. Teams re-enter the same data across multiple systems</h2><p>Repeated data entry is a strong signal that systems are not integrated. A customer request may start in email, move to a spreadsheet, get copied into an ERP, then appear again in a reporting file. Every handoff creates delay, duplication, and potential error.</p><p>Employees often develop workarounds because they need to move quickly. Over time, these workarounds become the unofficial operating model. The business may appear functional, but its knowledge is scattered across inboxes, files, and individual memory.</p><p>Digital transformation reduces this friction by designing around workflows, not isolated tools. Integration-ready platforms, APIs, and automation allow data to move once and be reused across functions.</p><h2>3. Managers cannot see operational performance without chasing updates</h2><p>If managers need to ask for updates before they can understand what is happening, the organization lacks operational visibility. This slows decisions and creates a culture where reporting becomes reactive.</p><p>Modern enterprises need dashboards that reflect live or near-real-time activity: project progress, customer requests, system health, SLA performance, financial indicators, and service bottlenecks. The goal is not dashboards for decoration. The goal is shared visibility that allows teams to act faster.</p><p>When performance data is transparent, leaders can identify root causes earlier. Teams can prioritize based on evidence. Executives can focus on strategy instead of chasing status reports.</p><h2>4. Legacy platforms slow down product and service delivery</h2><p>Legacy systems are not automatically bad. Many run critical business processes reliably. The problem begins when they cannot integrate, scale, support new channels, or adapt to changing requirements.</p><p>If every new feature requires custom workarounds, long release cycles, or manual coordination between vendors, technology becomes a constraint on strategy. This is especially painful for banks, ministries, telecoms, and large enterprises where service expectations are rising quickly.</p><p>The answer is not always a full replacement. Often, the practical path is modernization in layers: stabilize the core, expose secure integrations, build new digital experiences around reusable services, and retire outdated components over time.</p><h2>5. Automation pilots exist, but none are embedded into daily work</h2><p>Many organizations have experimented with automation, AI, or workflow tools. A pilot may prove that a task can be automated, but the business value only appears when that automation becomes part of the operating model.</p><p>If pilots stay isolated, employees continue working the old way. If AI tools are not connected to trusted data, permissions, audit requirements, and business rules, they remain demos rather than production capabilities.</p><p>Successful automation starts with a clear business outcome. It defines ownership, integrates with existing systems, measures impact, and includes change management so teams actually adopt the new way of working.</p><h2>What a real transformation roadmap looks like</h2><p>A practical roadmap does not start with technology selection. It starts with business pain: where work is slow, where decisions are delayed, where data is unreliable, and where customer or employee experience is suffering.</p><p>From there, organizations can prioritize initiatives that connect directly to measurable outcomes. Typical workstreams include enterprise software modernization, data platform development, cybersecurity improvements, automation, AI enablement, and operating model change.</p><ul><li>Map the end-to-end workflows that create the most delay or risk.</li><li>Identify the data sources and system integrations needed to support those workflows.</li><li>Define governance, security, and ownership before scaling new platforms.</li><li>Deliver in phases so each release creates visible operational value.</li><li>Measure adoption, cycle time, data quality, and service performance continuously.</li></ul><p>Transformation succeeds when business and technology teams work as one delivery system. The organizations that win are not the ones with the most tools. They are the ones that make the right work easier, faster, safer, and more measurable.</p><h2>Final takeaway</h2><p>If these signs appear together, your organization does not need another surface-level digital project. It needs an integrated modernization program that connects software, data, automation, security, and people into a more effective operating model.</p><p>That is where transformation becomes real: when employees stop working around systems and start working through systems designed for the business they are trying to build.</p>",
+        "answerBlock": "",
+        "faq": [],
+        "dataCallouts": [],
+        "relatedPosts": [],
+        "comparisonTable": null,
+        "datePublished": "2026-06-15",
+        "dateModified": "2026-08-12",
+        "tableOfContents": [
+          {
+            "id": "transformation-starts-inside-the-business",
+            "text": "Transformation starts inside the business"
+          },
+          {
+            "id": "1-critical-reports-still-require-manual-consolidation",
+            "text": "1. Critical reports still require manual consolidation"
+          },
+          {
+            "id": "2-teams-re-enter-the-same-data-across-multiple-systems",
+            "text": "2. Teams re-enter the same data across multiple systems"
+          },
+          {
+            "id": "3-managers-cannot-see-operational-performance-without-chasing-updates",
+            "text": "3. Managers cannot see operational performance without chasing updates"
+          },
+          {
+            "id": "4-legacy-platforms-slow-down-product-and-service-delivery",
+            "text": "4. Legacy platforms slow down product and service delivery"
+          },
+          {
+            "id": "5-automation-pilots-exist-but-none-are-embedded-into-daily-work",
+            "text": "5. Automation pilots exist, but none are embedded into daily work"
+          },
+          {
+            "id": "what-a-real-transformation-roadmap-looks-like",
+            "text": "What a real transformation roadmap looks like"
+          },
+          {
+            "id": "final-takeaway",
+            "text": "Final takeaway"
+          }
+        ]
       },
       {
         "id": "blog-azure-egypt",
@@ -469,11 +531,30 @@
         "image": "assets/blog/azure.jpg",
         "category": "data-analytics",
         "categoryLabel": "Data & Analytics",
-        "readTime": 8,
+        "readTime": 1,
         "accent": "blue",
         "status": "published",
         "featured": true,
-        "order": 30
+        "order": 30,
+        "cluster": "Data, Cloud & Digital Egypt 2030",
+        "body": "<h2>Cloud is an execution layer for national strategy</h2><p>Digital Egypt 2030 depends on resilient platforms, governed data, and services that can evolve quickly. Azure gives ministries and large enterprises a secure foundation for modernization while reducing the burden of managing every infrastructure layer internally.</p><p>The value is not only hosting. It is the combination of identity, security, data services, analytics, automation, and integration patterns that make delivery more repeatable.</p><blockquote>For ministries, the cloud conversation should start with governance and outcomes, not servers.</blockquote><h2>Where Azure creates leverage</h2><ul><li>Secure application modernization with controlled identity and access.</li><li>Data platforms that consolidate reporting across agencies and departments.</li><li>Analytics and AI services that turn operational data into decision support.</li><li>Hybrid architectures that respect existing systems while enabling gradual migration.</li></ul><p>The strongest programs pair cloud adoption with data governance, cybersecurity, and a delivery team that understands public-sector constraints.</p>",
+        "answerBlock": "",
+        "faq": [],
+        "dataCallouts": [],
+        "relatedPosts": [],
+        "comparisonTable": null,
+        "datePublished": "2026-06-15",
+        "dateModified": "2026-08-12",
+        "tableOfContents": [
+          {
+            "id": "cloud-is-an-execution-layer-for-national-strategy",
+            "text": "Cloud is an execution layer for national strategy"
+          },
+          {
+            "id": "where-azure-creates-leverage",
+            "text": "Where Azure creates leverage"
+          }
+        ]
       },
       {
         "id": "blog-enterprise-ai",
@@ -483,11 +564,30 @@
         "image": "assets/blog/transformation.jpg",
         "category": "ai-automation",
         "categoryLabel": "AI & Automation",
-        "readTime": 7,
+        "readTime": 1,
         "accent": "orange",
         "status": "published",
         "featured": false,
-        "order": 40
+        "order": 40,
+        "cluster": "AI & Automation",
+        "body": "<h2>The pilot trap</h2><p>Many organizations prove that an AI model can answer a question, summarize content, or automate a task. The harder question is whether that workflow can be trusted inside real operations.</p><p>Production AI must handle permissions, auditability, data freshness, exception handling, and human approval paths.</p><blockquote>The gap between a demo and a production AI workflow is usually not the model. It is the operating model around it.</blockquote><h2>What production needs</h2><ul><li>Clear business owner and measurable target outcome.</li><li>Trusted data sources and rules for sensitive information.</li><li>Integration with existing systems, not a standalone experiment.</li><li>Monitoring, feedback loops, and human-in-the-loop controls.</li></ul><p>Enterprises that succeed treat AI as a delivery program: data, software, security, and change management moving together.</p>",
+        "answerBlock": "",
+        "faq": [],
+        "dataCallouts": [],
+        "relatedPosts": [],
+        "comparisonTable": null,
+        "datePublished": "2026-06-15",
+        "dateModified": "2026-08-12",
+        "tableOfContents": [
+          {
+            "id": "the-pilot-trap",
+            "text": "The pilot trap"
+          },
+          {
+            "id": "what-production-needs",
+            "text": "What production needs"
+          }
+        ]
       },
       {
         "id": "blog-outsourcing",
@@ -497,11 +597,30 @@
         "image": "assets/blog/dex.jpg",
         "category": "outsourcing",
         "categoryLabel": "Outsourcing",
-        "readTime": 6,
+        "readTime": 1,
         "accent": "blue",
         "status": "published",
         "featured": false,
-        "order": 50
+        "order": 50,
+        "cluster": "Technical Talent & Outsourcing",
+        "body": "<h2>Two models, different responsibilities</h2><p>Team augmentation gives you skilled people inside your operating model. Outsourcing gives you a partner accountable for a defined outcome, delivery rhythm, and management overhead.</p><p>Neither model is always better. The decision depends on whether you need capacity, specialist expertise, or full delivery ownership.</p><blockquote>Augment when you can manage the work. Outsource when you need the work owned end to end.</blockquote><h2>How to decide</h2><ul><li>Use augmentation when internal product and engineering leadership is strong.</li><li>Use outsourcing when scope, deadlines, and accountability need a delivery partner.</li><li>Blend both models for transformation programs with multiple workstreams.</li><li>Define security, communication, and quality gates before onboarding any team.</li></ul><p>The best partnerships feel like an extension of your organization while still bringing external discipline, velocity, and specialist experience.</p>",
+        "answerBlock": "",
+        "faq": [],
+        "dataCallouts": [],
+        "relatedPosts": [],
+        "comparisonTable": null,
+        "datePublished": "2026-06-15",
+        "dateModified": "2026-08-12",
+        "tableOfContents": [
+          {
+            "id": "two-models-different-responsibilities",
+            "text": "Two models, different responsibilities"
+          },
+          {
+            "id": "how-to-decide",
+            "text": "How to decide"
+          }
+        ]
       },
       {
         "id": "blogs-e0805004-b52c-4f6f-bec7-e220c4115526",
@@ -511,12 +630,31 @@
         "image": "assets/blog/dex.jpg",
         "category": "enterprise-software",
         "categoryLabel": "Enterprise Software",
-        "readTime": 6,
+        "readTime": 1,
         "accent": "blue",
         "status": "draft",
         "featured": false,
         "order": 60,
-        "updatedAt": "2026-07-14T10:57:00.816Z"
+        "updatedAt": "2026-07-14T10:57:00.816Z",
+        "cluster": "DEX & Digital Employee Experience",
+        "body": "<h2>Experience is now an operational metric</h2>\n        <p>In banking, every delayed device, slow application, or unstable endpoint affects service quality. Digital Employee Experience brings these signals together so IT teams can act before employees and customers feel the impact.</p>\n        <p>For institutions managing hundreds or thousands of endpoints, DEX helps translate technical telemetry into business language: productivity loss, recurring friction, compliance risk, and support effort.</p>\n        <blockquote>DEX is not only about happier employees. It is about reducing operational drag across the systems people depend on every day.</blockquote>\n        <h2>What banks should measure</h2>\n        <ul>\n          <li>Endpoint health, boot time, crashes, and recurring device issues.</li>\n          <li>Application performance across branch, office, and remote environments.</li>\n          <li>Employee sentiment and incident patterns before they become escalations.</li>\n          <li>Remediation success across patches, rollouts, and support workflows.</li>\n        </ul>\n        <p>With platforms such as Nexthink, banks can move from reactive support to proactive experience management, improving reliability while giving leadership a measurable view of technology impact.</p>",
+        "answerBlock": "",
+        "faq": [],
+        "dataCallouts": [],
+        "relatedPosts": [],
+        "comparisonTable": null,
+        "datePublished": "2026-06-15",
+        "dateModified": "2026-08-12",
+        "tableOfContents": [
+          {
+            "id": "experience-is-now-an-operational-metric",
+            "text": "Experience is now an operational metric"
+          },
+          {
+            "id": "what-banks-should-measure",
+            "text": "What banks should measure"
+          }
+        ]
       }
     ],
     "jobs": [

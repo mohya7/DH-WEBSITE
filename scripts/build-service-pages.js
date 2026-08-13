@@ -54,10 +54,10 @@ const pages = [
   {
     slug: 'data-analytics.html',
     title: 'Data &amp; Analytics Solutions | Digital Hub S.A.E',
-    description: 'We transform fragmented data into governed, trusted, and actionable intelligence that drives faster and smarter decisions for Egypt and GCC enterprises.',
+    description: 'We transform fragmented data into governed, trusted, and actionable intelligence that drives faster and smarter decisions for enterprises.',
     heroEyebrow: 'Data &amp; Analytics',
     heroH1: 'Turn fragmented data into governed intelligence',
-    heroSub: 'Whether you&rsquo;re unifying enterprise sources or building executive dashboards, Digital Hub is the data partner trusted by ministries, banks, and enterprises across Egypt and the GCC.',
+    heroSub: 'Whether you&rsquo;re unifying enterprise sources or building executive dashboards, Digital Hub is the data partner trusted by ministries, banks, and enterprises.',
     heroCta: 'Discuss your data program',
     heroChecks: [
       'Data strategy, warehousing, and modern lakehouse platforms',
@@ -159,7 +159,7 @@ const pages = [
   {
     slug: 'ai-automation.html',
     title: 'AI &amp; Intelligent Automation | Digital Hub S.A.E',
-    description: 'Secure, business-ready AI solutions that automate work, unlock knowledge, and elevate decision-making at scale for Egypt and GCC organizations.',
+    description: 'Secure, business-ready AI solutions that automate work, unlock knowledge, and elevate decision-making at scale for organizations.',
     heroEyebrow: 'AI &amp; Intelligent Automation',
     heroH1: 'Deploy business-ready AI at enterprise scale',
     heroSub: 'Whether you&rsquo;re automating document-heavy workflows or deploying governed AI assistants, Digital Hub helps Egyptian and Gulf organizations move from pilots to production safely.',
@@ -271,7 +271,7 @@ const pages = [
     heroChecks: [
       'Data engineers, developers, AI specialists, and QA engineers',
       'Screened for enterprise stacks and regulated-sector delivery',
-      'Flexible engagement models across Egypt and GCC time zones',
+      'Flexible engagement models with flexible time zone coverage',
     ],
     heroBadge: 'Technical Talent',
     heroFrameTitle: 'Your delivery team, extended — without the hiring friction',
@@ -335,10 +335,10 @@ const pages = [
         mock: { tests: ['API suite', 'Regression', 'E2E', 'Performance'], pass: [98, 100, 92, 88] },
       },
     ],
-    methodIntro: 'From role definition to ongoing delivery &mdash; a staffing model built for long-term partnerships in Egypt and the GCC.',
+    methodIntro: 'From role definition to ongoing delivery &mdash; a staffing model built for long-term partnerships.',
     methodSteps: [
       ['Define &amp; match', 'Clarify roles, skills, timeline, and engagement model. Match screened candidates aligned with your stack and sector requirements.', 'ti-compass'],
-      ['Onboard &amp; integrate', 'Embed talent into your tools, ceremonies, and security policies. Bilingual professionals aligned with Egypt and GCC time zones.', 'ti-ruler-2'],
+      ['Onboard &amp; integrate', 'Embed talent into your tools, ceremonies, and security policies. Bilingual professionals aligned with flexible time zone coverage.', 'ti-ruler-2'],
       ['Deliver &amp; govern', 'Accountable contributors working to your backlog, with NDAs, access controls, and compliance suited to regulated sectors.', 'ti-code'],
       ['Scale &amp; retain', 'Flex team size as priorities shift. Long-term partnerships that reduce hiring friction and keep delivery velocity consistent.', 'ti-rocket'],
     ],

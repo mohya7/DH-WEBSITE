@@ -80,7 +80,7 @@ const PARTNERS = [
     homeSummary:
       'Huawei Cloud and enterprise infrastructure for telcos, government, and large enterprises \u2014 secure, scalable platforms across Egypt and the Gulf.',
     seoDescription:
-      'Digital Hub partners with Huawei to deliver cloud infrastructure, networking, storage, and AI-ready enterprise technology across Egypt and the GCC.',
+      'Digital Hub partners with Huawei to deliver cloud infrastructure, networking, storage, and AI-ready enterprise technology.',
   },
   {
     slug: 'nexthink',
@@ -111,7 +111,7 @@ const PARTNERS = [
     homeSummary:
       'Authorized Nexthink partner for banks, telcos, and enterprises \u2014 deploy the leading Digital Employee Experience platform at scale.',
     seoDescription:
-      'Digital Hub is an authorized Nexthink partner delivering Digital Employee Experience monitoring, deployment, and optimization across Egypt and the GCC.',
+      'Digital Hub is an authorized Nexthink reseller delivering Digital Employee Experience monitoring, deployment, and optimization across Egypt, Saudi Arabia, and North Africa.',
   },
   {
     slug: 'efinance',
@@ -173,7 +173,7 @@ const PARTNERS = [
     homeSummary:
       'Vodafone cloud and enterprise connectivity combined with Digital Hub integration expertise for scalable, connected digital operations.',
     seoDescription:
-      'Digital Hub partners with Vodafone to deliver cloud solutions, enterprise connectivity, and integrated digital infrastructure across Egypt and the GCC.',
+      'Digital Hub partners with Vodafone to deliver cloud solutions, enterprise connectivity, and integrated digital infrastructure.',
   },
 ];
 
@@ -229,11 +229,11 @@ function shell({ depth, activeNav, bodyClass, title, description, canonical, con
 <meta property="og:title" content="${esc(title)}" />
 <meta property="og:description" content="${esc(description)}" />
 <meta property="og:url" content="${esc(canonical)}" />
-<meta property="og:image" content="https://www.digitalhub.com.eg/assets/digital-hub-logo.png" />
+<meta property="og:image" content="https://digitalhub.com.eg/assets/digital-hub-logo.png" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="${esc(title)}" />
 <meta name="twitter:description" content="${esc(description)}" />
-<meta name="twitter:image" content="https://www.digitalhub.com.eg/assets/digital-hub-logo.png" />
+<meta name="twitter:image" content="https://digitalhub.com.eg/assets/digital-hub-logo.png" />
 ${jsonLd ? `<script type="application/ld+json">\n${jsonLd}\n</script>\n` : ''}<meta name="theme-color" content="#0A1628" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -315,7 +315,7 @@ ${content}
     <div class="footer-top">
       <div>
         <img class="footer-logo" src="${up}assets/digital-hub-logo.png" alt="Digital Hub">
-        <p class="footer-tagline">Empowering Digital Evolution &mdash; Egypt &amp; GCC</p>
+        <p class="footer-tagline">Empowering Digital Evolution</p>
       </div>
       <div class="footer-cols">
         <div class="footer-col">
@@ -412,7 +412,7 @@ function buildIndexPage() {
       '@type': 'CollectionPage',
       name: 'Digital Hub Strategic Partners',
       description: INTRO[0],
-      url: 'https://www.digitalhub.com.eg/partners/',
+      url: 'https://digitalhub.com.eg/partners/',
       publisher: { '@type': 'Organization', name: 'Digital Hub S.A.E' },
     },
     null,
@@ -425,7 +425,7 @@ function buildIndexPage() {
     bodyClass: 'page-hub page-partners',
     title: 'Strategic Partners | Digital Hub S.A.E',
     description: INTRO[0],
-    canonical: 'https://www.digitalhub.com.eg/partners/',
+    canonical: 'https://digitalhub.com.eg/partners/',
     content,
     jsonLd,
   });
@@ -548,7 +548,7 @@ function buildPartnerPage(partner) {
       '@type': 'WebPage',
       name: `${partner.name} Partnership | Digital Hub`,
       description: partner.seoDescription,
-      url: `https://www.digitalhub.com.eg/partners/${partner.slug}.html`,
+      url: `https://digitalhub.com.eg/partners/${partner.slug}.html`,
       publisher: { '@type': 'Organization', name: 'Digital Hub S.A.E' },
     },
     null,
@@ -561,7 +561,7 @@ function buildPartnerPage(partner) {
     bodyClass: 'page-hub page-partner-view',
     title: `${partner.name} Partnership | Digital Hub S.A.E`,
     description: partner.seoDescription,
-    canonical: `https://www.digitalhub.com.eg/partners/${partner.slug}.html`,
+    canonical: `https://digitalhub.com.eg/partners/${partner.slug}.html`,
     content,
     jsonLd,
   });
@@ -589,7 +589,7 @@ function updateNavInFile(filePath) {
   });
 
   html = html.replace(
-    /Microsoft Partner &middot; Nexthink Authorized Reseller &middot; AWS Partner/g,
+    /Microsoft Partner &middot; Nexthink Authorized Reseller &middot; Huawei &middot; eFinance &middot; Vodafone/g,
     'Microsoft Partner &middot; Nexthink Authorized Reseller &middot; Huawei &middot; eFinance &middot; Vodafone'
   );
 

@@ -4,26 +4,48 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
-const SITE_URL = 'https://www.digitalhub.com.eg';
+const SITE_URL = 'https://digitalhub.com.eg';
 const ORGANIZATION_ID = `${SITE_URL}/#organization`;
 const WEBSITE_ID = `${SITE_URL}/#website`;
 
 const overrides = {
   'index.html': {
-    title: 'Digital Hub | Enterprise Technology Partner',
-    description: 'Digital Hub helps enterprises, ministries, and banks across Egypt and the GCC deliver secure software, data, cloud, AI, and automation programs.',
+    title: 'Digital Hub | Digital Transformation Company in Egypt',
+    description: 'Digital Hub is an Egyptian digital transformation company delivering enterprise software, data and analytics, AI automation, and technical talent to government, banking, and enterprise clients across Egypt and Saudi Arabia.',
   },
   'about-us.html': {
     description: 'Meet Digital Hub, an Egypt-based enterprise technology partner delivering software, data, AI, automation, and outsourcing solutions across EMEA.',
   },
   'partners/index.html': {
-    description: 'Explore Digital Hub partnerships with Microsoft, Huawei, Nexthink, eFinance, and Vodafone for secure enterprise transformation across Egypt and the GCC.',
+    description: 'Explore Digital Hub partnerships with Microsoft, Huawei, Nexthink, eFinance, and Vodafone for secure enterprise transformation.',
+  },
+  'partners/huawei.html': {
+    description: 'Digital Hub partners with Huawei to deliver cloud infrastructure, networking, storage, and AI-ready enterprise technology.',
+  },
+  'partners/vodafone.html': {
+    description: 'Digital Hub partners with Vodafone to deliver cloud solutions, enterprise connectivity, and integrated digital infrastructure.',
   },
   'partners/microsoft.html': {
     description: 'Digital Hub partners with Microsoft to deliver Azure, Microsoft 365, Power Platform, Dynamics 365, and AI solutions for enterprise and government.',
   },
+  'partners/nexthink.html': {
+    description: 'Digital Hub is an authorized Nexthink reseller delivering Digital Employee Experience monitoring, deployment, and optimization across Egypt, Saudi Arabia, and North Africa.',
+  },
+  'services/enterprise-software.html': {
+    title: 'Enterprise Software Solutions | Digital Hub S.A.E',
+    description: 'We build secure, scalable platforms around how your teams actually operate — custom applications, digital portals, and integrations engineered for regulated enterprises.',
+  },
+  'services/data-analytics.html': {
+    title: 'Data & Analytics Solutions | Digital Hub S.A.E',
+    description: 'We turn scattered, untrusted data into one beautiful, governed source of truth, engineered on Microsoft Fabric and Azure, and designed in Power BI so decisions get made in seconds, not weeks.',
+  },
+  'services/ai-automation.html': {
+    title: 'AI & Intelligent Automation | Digital Hub S.A.E',
+    description: 'We design AI agents that think, act and scale: digital co-workers embedded in your real workflows, connecting email, CRM, documents and dashboards into one intelligent operation — with governance suited to regulated enterprises.',
+  },
   'services/outsourcing.html': {
-    description: 'Scale delivery with screened technical talent from Digital Hub across software engineering, data, cloud, AI, quality assurance, and enterprise operations.',
+    title: 'Outsourcing Technical Talents | Digital Hub S.A.E',
+    description: 'When delivery timelines outpace hiring, Digital Hub embeds screened, deployment-ready professionals — data engineers, developers, AI specialists, and QA — as a seamless extension of your team with flexible time zone coverage.',
   },
   'cases/ministry-planning.html': {
     description: 'How Digital Hub supports Egypt’s national planning systems with a governed data warehouse, cybersecurity, dashboards, and continuous platform support.',
@@ -81,7 +103,7 @@ function escapeAttribute(value) {
 }
 
 function textFrom(html) {
-  return decodeHtml(String(html || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim());
+  return decodeHtml(String(html || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').replace(/\s+([.,;:!?])/g, '$1').trim());
 }
 
 function match(html, expression) {
@@ -120,24 +142,48 @@ function organization() {
   return {
     '@type': 'Organization',
     '@id': ORGANIZATION_ID,
-    name: 'Digital Hub S.A.E',
+    name: 'Digital Hub',
+    legalName: 'Digital Hub S.A.E.',
+    alternateName: 'Digital Hub Egypt',
     url: `${SITE_URL}/`,
     logo: {
       '@type': 'ImageObject',
       url: `${SITE_URL}/assets/digital-hub-logo.png`,
     },
+    foundingDate: '2019',
+    slogan: 'Empowering Digital Evolution',
+    description: 'Digital Hub is a digital transformation company founded in 2019 and headquartered in New Cairo, Egypt, providing enterprise software, data and analytics, AI automation, and technical talent outsourcing to government, banking, and enterprise clients.',
+    email: 'sales@digitalhub.com.eg',
+    telephone: '+201555553064',
     address: {
       '@type': 'PostalAddress',
-      streetAddress: 'B7, Pearl des-rois',
+      streetAddress: 'Pearl des Rois Administrative Building, B07, Unit 311, Fifth Settlement',
       addressLocality: 'New Cairo',
+      addressRegion: 'Cairo Governorate',
       addressCountry: 'EG',
     },
     contactPoint: {
       '@type': 'ContactPoint',
-      telephone: '+20-155-555-3064',
-      email: 'info@digitalhub.com.eg',
-      contactType: 'customer service',
+      contactType: 'sales',
+      email: 'sales@digitalhub.com.eg',
+      telephone: '+201555553064',
+      availableLanguage: ['en', 'ar'],
     },
+    knowsAbout: [
+      'Digital Employee Experience',
+      'Enterprise Software Development',
+      'Data Analytics',
+      'Artificial Intelligence Automation',
+      'IT Outsourcing',
+      'Digital Transformation',
+    ],
+    sameAs: [
+      'https://www.linkedin.com/company/digital-hub-eg',
+      'https://www.facebook.com/DigitalHub19/',
+      'https://www.instagram.com/digitalhub_eg/',
+      'https://www.amcham.org.eg/recruitment/employers/6284/digital-hub',
+      'https://wuzzuf.net/jobs/careers/Digital-Hub-Egypt-22501',
+    ],
   };
 }
 
@@ -185,7 +231,13 @@ function schemaFor(relativePath, title, description, canonical, image, html, exi
     return { '@context': 'https://schema.org', '@graph': graph };
   }
 
-  graph.push(breadcrumb(posixPath, title, canonical));
+  const serviceName = posixPath.startsWith('services/')
+    ? (textFrom(match(html, /<h1\b[^>]*class="[^"]*svc-display[^"]*"[^>]*>([\s\S]*?)<\/h1>/i)) || title.split('|')[0].trim())
+    : '';
+  const serviceDescription = posixPath.startsWith('services/')
+    ? (textFrom(match(html, /<p\b[^>]*class="[^"]*svc-lede[^"]*"[^>]*>([\s\S]*?)<\/p>/i)) || description)
+    : '';
+  graph.push(breadcrumb(posixPath, serviceName || title, canonical));
   let page;
   if (/^blogs\/(?!index\.html)/.test(posixPath)) {
     const published = existing.published || '2026-06-15';
@@ -237,11 +289,10 @@ function schemaFor(relativePath, title, description, canonical, image, html, exi
     page = {
       '@type': 'Service',
       '@id': `${canonical}#service`,
-      name: title.split('|')[0].trim(),
-      description,
+      name: serviceName,
+      description: serviceDescription,
       url: canonical,
       provider: { '@id': ORGANIZATION_ID },
-      areaServed: ['Egypt', 'GCC', 'EMEA'],
     };
   } else if (/^cases\/(?!index\.html)/.test(posixPath)) {
     page = {
@@ -273,6 +324,17 @@ function schemaFor(relativePath, title, description, canonical, image, html, exi
     };
   }
   graph.push(page);
+  if (posixPath === 'partners/nexthink.html') {
+    graph.push({
+      '@type': 'Service',
+      '@id': `${canonical}#service`,
+      name: 'Nexthink Digital Employee Experience',
+      description,
+      url: canonical,
+      provider: { '@id': ORGANIZATION_ID },
+      areaServed: ['Egypt', 'Saudi Arabia', 'North Africa'],
+    });
+  }
   return { '@context': 'https://schema.org', '@graph': graph };
 }
 
@@ -319,6 +381,8 @@ function seoBlock(relativePath, title, description, canonical, image, schema, ex
 
 function processPage(filePath) {
   const relativePath = path.relative(ROOT, filePath).replace(/\\/g, '/');
+  // Blog articles are authored via CMS and written by scripts/blog-pages.js.
+  if (/^blogs\/(?!index\.html$).+\.html$/i.test(relativePath)) return;
   let html = fs.readFileSync(filePath, 'utf8').replace(/ � /g, ' — ');
   const headMatch = html.match(/<head>([\s\S]*?)<\/head>/i);
   if (!headMatch) throw new Error(`Missing <head> in ${relativePath}`);
