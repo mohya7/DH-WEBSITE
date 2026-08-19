@@ -307,7 +307,7 @@ html.nav-shown #nav,html.subpage #nav{opacity:1;visibility:visible;pointer-event
 .footer-bottom{
   padding-top:24px;border-top:1px solid rgba(255,255,255,0.06);
   display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;
-  font-size:12px;color:rgba(255,255,255,0.35);
+  font-size:11px;color:rgba(255,255,255,0.35);
 }
 
 body.theme-orange{--accent:var(--orange);--accent-light:#FBB851;--accent-dim:rgba(244,151,11,0.16)}

@@ -128,13 +128,13 @@ function absoluteAsset(source, relativePath) {
 
 function imageFor(relativePath, html, existingImage) {
   const posixPath = relativePath.replace(/\\/g, '/');
-  if (posixPath === 'index.html' || posixPath.startsWith('services/')) return `${SITE_URL}/assets/blog/transformation.jpg`;
-  if (posixPath.startsWith('careers/')) return `${SITE_URL}/assets/careers/hero.png`;
+  if (posixPath === 'index.html' || posixPath.startsWith('services/')) return `${SITE_URL}/assets/blog/transformation.webp`;
+  if (posixPath.startsWith('careers/')) return `${SITE_URL}/assets/careers/hero.webp`;
   if (existingImage) return existingImage;
   const scopedImage = match(html, /<img\b[^>]*src="([^"]*assets\/(?:blog|cases)\/[^"]+)"/i);
   if (scopedImage) return absoluteAsset(scopedImage, posixPath);
-  if (posixPath.startsWith('blogs/')) return `${SITE_URL}/assets/blog/dex.jpg`;
-  if (posixPath.startsWith('cases/')) return `${SITE_URL}/assets/cases/planning.jpg`;
+  if (posixPath.startsWith('blogs/')) return `${SITE_URL}/assets/blog/dex.webp`;
+  if (posixPath.startsWith('cases/')) return `${SITE_URL}/assets/cases/planning.webp`;
   return `${SITE_URL}/assets/digital-hub-logo.png`;
 }
 

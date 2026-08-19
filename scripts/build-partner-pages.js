@@ -331,7 +331,6 @@ ${content}
           <a href="${up}cases/index.html">Case Studies</a>
           <a href="${up}blogs/index.html">Blogs</a>
           <a href="${partnersIndex}">Partners</a>
-          <a href="${up}get-in-touch.html">Contact</a>
         </div>
       </div>
       <div class="footer-contact">

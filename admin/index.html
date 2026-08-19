@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
-  <link rel="stylesheet" href="/admin/admin.css">
+  <link rel="stylesheet" href="/admin/admin.css?v=20260817-interview-mail">
 </head>
 <body>
   <div class="ambient" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -34,7 +34,7 @@
       <form class="login-form" id="loginForm">
         <label>
           <span>Username</span>
-          <span class="field-control"><i class="ti ti-user"></i><input id="loginUsername" name="username" autocomplete="username" value="admin" required></span>
+          <span class="field-control"><i class="ti ti-user"></i><input id="loginUsername" name="username" autocomplete="username" required></span>
         </label>
         <label>
           <span>Password</span>
@@ -44,6 +44,20 @@
         <button class="primary-btn primary-btn--wide" type="submit"><span>Sign in to Content Studio</span><i class="ti ti-arrow-right"></i></button>
         <p class="login-hint"><i class="ti ti-shield-check"></i> Secure session. Automatically expires after 8 hours.</p>
       </form>
+      <form class="login-form is-hidden" id="setupPasswordForm">
+        <p class="setup-lead">Create a password for your HR account. You’ll use it with your username to sign in.</p>
+        <label>
+          <span>New password</span>
+          <span class="field-control"><i class="ti ti-lock"></i><input id="setupPassword" name="password" type="password" minlength="10" autocomplete="new-password" required><button type="button" class="password-toggle" id="setupPasswordToggle" aria-label="Show password"><i class="ti ti-eye"></i></button></span>
+        </label>
+        <label>
+          <span>Confirm password</span>
+          <span class="field-control"><i class="ti ti-lock-check"></i><input id="setupPasswordConfirm" name="passwordConfirm" type="password" minlength="10" autocomplete="new-password" required></span>
+        </label>
+        <p class="form-error" id="setupError" role="alert"></p>
+        <button class="primary-btn primary-btn--wide" type="submit"><span>Save password &amp; continue</span><i class="ti ti-arrow-right"></i></button>
+        <p class="login-hint"><i class="ti ti-key"></i> At least 10 characters. This invite link works once.</p>
+      </form>
     </div>
   </section>
 
@@ -51,76 +65,200 @@
     <aside class="sidebar" id="sidebar">
       <a class="sidebar-brand" href="../index.html" target="_blank" rel="noopener">
         <img src="../assets/digital-hub-logo.png" alt="Digital Hub">
-        <span>CONTENT STUDIO</span>
+        <span id="sidebarBrandLabel">CONTENT STUDIO</span>
       </a>
 
       <nav class="side-nav" aria-label="Admin navigation">
         <button class="side-link is-active" type="button" data-view="dashboard"><i class="ti ti-layout-dashboard"></i><span>Overview</span></button>
-        <p class="side-label">CONTENT MANAGEMENT</p>
+        <p class="side-label" data-admin-only>WEBSITE CONTENT</p>
         <button class="side-link" type="button" data-collection="services" data-admin-only><i class="ti ti-stack-2"></i><span>Services</span><b data-count="services">0</b></button>
         <button class="side-link" type="button" data-collection="caseStudies" data-admin-only><i class="ti ti-briefcase"></i><span>Case Studies</span><b data-count="caseStudies">0</b></button>
         <button class="side-link" type="button" data-collection="blogs" data-admin-only><i class="ti ti-news"></i><span>Blog</span><b data-count="blogs">0</b></button>
+        <button class="side-link" type="button" data-collection="news" data-admin-only><i class="ti ti-antenna"></i><span>News</span><b data-count="news">0</b></button>
         <button class="side-link" type="button" data-collection="partners" data-admin-only><i class="ti ti-building-skyscraper"></i><span>Partners</span><b data-count="partners">0</b></button>
-        <button class="side-link" type="button" data-collection="jobs"><i class="ti ti-id-badge-2"></i><span>Careers</span><b data-count="jobs">0</b></button>
-        <button class="side-link" type="button" data-view="applications"><i class="ti ti-file-cv"></i><span>Applications</span><b data-application-count>0</b></button>
         <button class="side-link" type="button" data-view="contactRequests" data-admin-only><i class="ti ti-mail-forward"></i><span>Get in Touch</span><b data-contact-count>0</b></button>
         <button class="side-link" type="button" data-collection="team" data-admin-only><i class="ti ti-users-group"></i><span>Leadership Team</span><b data-count="team">0</b></button>
-        <p class="side-label">WEBSITE &amp; SYSTEM</p>
-        <button class="side-link" type="button" data-view="pages"><i class="ti ti-file-text"></i><span>Page Content</span></button>
+        <p class="side-label" data-hr-only>HIRING</p>
+        <button class="side-link" type="button" data-collection="jobs" data-hr-only><i class="ti ti-id-badge-2"></i><span>Vacancies</span><b data-count="jobs">0</b></button>
+        <button class="side-link" type="button" data-view="applications" data-hr-only><i class="ti ti-file-cv"></i><span>Applications</span><b data-application-count>0</b></button>
+        <button class="side-link" type="button" data-view="hrPortal" data-hr-only><i class="ti ti-user-search"></i><span>Active Hiring Process</span><b data-hr-pipeline-count>0</b></button>
+        <button class="side-link" type="button" data-view="hrAnalytics" data-hr-only><i class="ti ti-chart-histogram"></i><span>Analytics &amp; History</span></button>
+        <button class="side-link" type="button" data-view="hrCalendar" data-hr-only><i class="ti ti-calendar-event"></i><span>Interview Calendar</span></button>
+        <button class="side-link" type="button" data-view="interviewLog" data-hr-only><i class="ti ti-notebook"></i><span>Interview Log</span><b data-interview-log-count>0</b></button>
+        <p class="side-label" data-onboarding>PEOPLE</p>
+        <button class="side-link" type="button" data-view="onboarding" data-onboarding><i class="ti ti-user-plus"></i><span>Employee Onboarding</span><b data-onboarding-count>0</b></button>
+        <p class="side-label" data-admin-only>WEBSITE &amp; SYSTEM</p>
+        <button class="side-link" type="button" data-view="pages" data-admin-only><i class="ti ti-file-text"></i><span>Page Content</span></button>
         <button class="side-link" type="button" data-view="users" data-admin-only><i class="ti ti-user-shield"></i><span>User Management</span><b data-user-count>0</b></button>
         <button class="side-link" type="button" data-view="tools" data-admin-only><i class="ti ti-adjustments-horizontal"></i><span>Backups &amp; Tools</span></button>
       </nav>
 
       <div class="sidebar-foot">
         <div class="publish-health"><span class="health-dot"></span><div><strong>Website connected</strong><small id="sideRevision">Revision —</small></div></div>
-        <button class="side-logout" id="logoutBtn" type="button"><i class="ti ti-logout-2"></i><span>Sign out</span></button>
       </div>
     </aside>
 
     <div class="workspace">
       <header class="topbar">
-        <button class="icon-btn menu-toggle" id="menuToggle" type="button" aria-label="Open menu"><i class="ti ti-menu-2"></i></button>
+        <button class="icon-btn menu-toggle" id="menuToggle" type="button" aria-label="Toggle sidebar" aria-controls="sidebar" aria-expanded="true"><i class="ti ti-layout-sidebar-left-collapse" id="menuToggleIcon"></i></button>
         <div class="top-search"><i class="ti ti-search"></i><input id="globalSearch" type="search" placeholder="Search all content..." aria-label="Search"><kbd>⌘ K</kbd></div>
         <div class="top-actions">
           <a class="view-site" href="../index.html" target="_blank" rel="noopener"><i class="ti ti-external-link"></i><span>View website</span></a>
           <button class="notification-btn" type="button" aria-label="Notifications"><i class="ti ti-bell"></i><span></span></button>
-          <div class="user-chip"><div class="user-avatar" id="currentUserAvatar">DH</div><div><strong id="currentUserName">Administrator</strong><small id="currentUserRole">Content manager</small></div></div>
+          <div class="user-menu" id="userMenu">
+            <button class="user-chip" id="userMenuBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="userMenuDropdown">
+              <div class="user-avatar" id="currentUserAvatar">DH</div>
+              <div class="user-chip__text"><strong id="currentUserName">Administrator</strong><small id="currentUserRole">Content manager</small></div>
+              <i class="ti ti-chevron-down user-chip__caret" aria-hidden="true"></i>
+            </button>
+            <div class="user-menu__dropdown" id="userMenuDropdown" role="menu" hidden>
+              <button type="button" role="menuitem" id="changePasswordBtn"><i class="ti ti-lock"></i><span>Change password</span></button>
+              <button type="button" role="menuitem" id="logoutBtn" class="is-danger"><i class="ti ti-logout-2"></i><span>Sign out</span></button>
+            </div>
+          </div>
         </div>
       </header>
 
       <main class="main-content">
         <section class="view is-active" id="dashboardView">
           <div class="welcome-row">
-            <div><span class="page-kicker">DIGITAL HUB CMS</span><h1>Good morning <span>👋</span></h1><p>Every website card and headline, organized in one place.</p></div>
-            <button class="primary-btn" type="button" data-quick-add><i class="ti ti-plus"></i><span>Add content</span></button>
+            <div>
+              <span class="page-kicker" id="dashKicker">DIGITAL HUB CMS</span>
+              <h1 id="dashGreeting">Welcome</h1>
+              <p id="dashWelcomeText">Your hiring and content workspace at a glance.</p>
+            </div>
+            <div class="welcome-actions" data-hr-only>
+              <button class="secondary-btn" type="button" data-view-link="hrCalendar"><i class="ti ti-calendar-event"></i><span>Calendar</span></button>
+              <button class="primary-btn" type="button" data-view-link="applications"><i class="ti ti-file-cv"></i><span>Applications</span></button>
+            </div>
+            <div class="welcome-actions" data-marketing-only>
+              <button class="primary-btn" type="button" data-view-link="onboarding"><i class="ti ti-user-plus"></i><span>Onboarding queue</span></button>
+            </div>
+            <div class="welcome-actions" data-admin-only>
+              <button class="secondary-btn" type="button" data-view-link="pages"><i class="ti ti-file-text"></i><span>Page Content</span></button>
+              <button class="primary-btn" type="button" data-view-link="contactRequests"><i class="ti ti-mail-forward"></i><span>Get in Touch</span></button>
+            </div>
           </div>
 
-          <div class="stats-grid">
-            <article class="stat-card stat-card--blue"><div class="stat-icon"><i class="ti ti-box-multiple"></i></div><div><span>Total cards</span><strong id="statTotal">0</strong><small><i class="ti ti-trending-up"></i> One source for the website</small></div><div class="stat-spark"><i></i><i></i><i></i><i></i><i></i><i></i></div></article>
+          <div class="dash-metrics" id="dashOnboardingMetrics" data-onboarding>
+            <button class="dash-metric dash-metric--orange" type="button" data-view-link="onboarding" data-onboarding-filter="sent">
+              <span class="dash-metric__icon"><i class="ti ti-send"></i></span>
+              <span class="dash-metric__copy"><small>Waiting on Marketing</small><strong id="dashOnboardingSent">0</strong><em>Sent packages</em></span>
+            </button>
+            <button class="dash-metric dash-metric--cyan" type="button" data-view-link="onboarding" data-onboarding-filter="returned">
+              <span class="dash-metric__icon"><i class="ti ti-package"></i></span>
+              <span class="dash-metric__copy"><small>Returned to HR</small><strong id="dashOnboardingReturned">0</strong><em>Ready to review</em></span>
+            </button>
+            <button class="dash-metric dash-metric--blue" type="button" data-view-link="onboarding" data-onboarding-filter="draft" data-onboarding-hr>
+              <span class="dash-metric__icon"><i class="ti ti-pencil"></i></span>
+              <span class="dash-metric__copy"><small>Draft packages</small><strong id="dashOnboardingDraft">0</strong><em>Not sent yet</em></span>
+            </button>
+            <button class="dash-metric dash-metric--green" type="button" data-view-link="onboarding" data-onboarding-filter="completed">
+              <span class="dash-metric__icon"><i class="ti ti-circle-check"></i></span>
+              <span class="dash-metric__copy"><small>Completed</small><strong id="dashOnboardingCompleted">0</strong><em>Closed requests</em></span>
+            </button>
+          </div>
+
+          <div class="dash-metrics" id="dashHiringMetrics" data-hr-only>
+            <button class="dash-metric dash-metric--blue" type="button" data-view-link="applications">
+              <span class="dash-metric__icon"><i class="ti ti-sparkles"></i></span>
+              <span class="dash-metric__copy"><small>New applications</small><strong id="dashNewApps">0</strong><em>Status: New (no date filter)</em></span>
+            </button>
+            <button class="dash-metric dash-metric--cyan" type="button" data-view-link="hrPortal">
+              <span class="dash-metric__icon"><i class="ti ti-route"></i></span>
+              <span class="dash-metric__copy"><small>Open pipelines</small><strong id="dashOpenPipelines">0</strong><em>Active hiring</em></span>
+            </button>
+            <button class="dash-metric dash-metric--orange" type="button" data-view-link="hrCalendar">
+              <span class="dash-metric__icon"><i class="ti ti-calendar-stats"></i></span>
+              <span class="dash-metric__copy"><small>Interviews this week</small><strong id="dashInterviewsWeek">0</strong><em id="dashInterviewsToday">Sun 10:00 – Thu 18:00</em></span>
+            </button>
+            <button class="dash-metric dash-metric--violet" type="button" data-view-link="hrPortal">
+              <span class="dash-metric__icon"><i class="ti ti-briefcase"></i></span>
+              <span class="dash-metric__copy"><small>In offer stage</small><strong id="dashOffers">0</strong><em>Ready to close</em></span>
+            </button>
+            <button class="dash-metric dash-metric--green" type="button" data-view-link="content" data-dash-collection="jobs">
+              <span class="dash-metric__icon"><i class="ti ti-id-badge-2"></i></span>
+              <span class="dash-metric__copy"><small>Open vacancies</small><strong id="dashOpenJobs">0</strong><em>Published roles</em></span>
+            </button>
+            <button class="dash-metric dash-metric--mint" type="button" data-view-link="hrAnalytics">
+              <span class="dash-metric__icon"><i class="ti ti-user-check"></i></span>
+              <span class="dash-metric__copy"><small>Hired</small><strong id="dashHired">0</strong><em>Joined candidates</em></span>
+            </button>
+          </div>
+
+          <div class="stats-grid dash-content-stats" data-admin-only>
+            <article class="stat-card stat-card--blue"><div class="stat-icon"><i class="ti ti-box-multiple"></i></div><div><span>Total cards</span><strong id="statTotal">0</strong><small><i class="ti ti-trending-up"></i> Website content</small></div><div class="stat-spark"><i></i><i></i><i></i><i></i><i></i><i></i></div></article>
             <article class="stat-card stat-card--green"><div class="stat-icon"><i class="ti ti-circle-check"></i></div><div><span>Published content</span><strong id="statPublished">0</strong><small>Visible to visitors now</small></div><div class="stat-ring" id="publishedRing"><span>0%</span></div></article>
             <article class="stat-card stat-card--orange"><div class="stat-icon"><i class="ti ti-pencil"></i></div><div><span>Drafts</span><strong id="statDrafts">0</strong><small>Ready for review</small></div><span class="stat-badge">Draft</span></article>
             <article class="stat-card stat-card--violet"><div class="stat-icon"><i class="ti ti-clock-edit"></i></div><div><span>Last updated</span><strong class="stat-date" id="statUpdated">—</strong><small id="statUpdatedBy">By —</small></div></article>
           </div>
 
+          <section class="panel dash-funnel" data-hr-only>
+            <header class="panel-head">
+              <div><h2>Hiring funnel</h2><p>Where open candidates sit right now</p></div>
+              <button class="text-btn" type="button" data-view-link="hrPortal">Open pipelines <i class="ti ti-arrow-right"></i></button>
+            </header>
+            <div class="dash-funnel__track" id="dashFunnel"></div>
+          </section>
+
+          <div class="dashboard-grid dash-ops-grid" data-hr-only>
+            <section class="panel">
+              <header class="panel-head">
+                <div><h2>Upcoming interviews</h2><p>Next scheduled conversations</p></div>
+                <button class="text-btn" type="button" data-view-link="hrCalendar">Full calendar <i class="ti ti-arrow-right"></i></button>
+              </header>
+              <div class="dash-list" id="dashUpcomingList"></div>
+              <div class="empty-state dash-empty is-hidden" id="dashUpcomingEmpty">
+                <span><i class="ti ti-calendar-off"></i></span>
+                <h2>No upcoming interviews</h2>
+                <p>Schedule interview dates in Active Hiring Process to see them here.</p>
+              </div>
+            </section>
+            <section class="panel">
+              <header class="panel-head">
+                <div><h2>Needs attention</h2><p>Candidates waiting on the next step</p></div>
+                <button class="text-btn" type="button" data-view-link="hrPortal">Review <i class="ti ti-arrow-right"></i></button>
+              </header>
+              <div class="dash-list" id="dashAttentionList"></div>
+              <div class="empty-state dash-empty is-hidden" id="dashAttentionEmpty">
+                <span><i class="ti ti-checks"></i></span>
+                <h2>All clear</h2>
+                <p>No new applications or stalled pipelines right now.</p>
+              </div>
+            </section>
+          </div>
+
           <div class="dashboard-grid">
             <section class="panel activity-panel">
-              <header class="panel-head"><div><h2>Recent activity</h2><p>A clear history of content changes</p></div><button class="text-btn" type="button" data-view-link="tools">View tools <i class="ti ti-arrow-right"></i></button></header>
+              <header class="panel-head">
+                <div><h2>Recent activity</h2><p>Latest changes in this workspace</p></div>
+                <button class="text-btn" type="button" id="dashActivityLink" data-view-link="hrAnalytics">History <i class="ti ti-arrow-right"></i></button>
+              </header>
               <div class="activity-list" id="activityList"></div>
             </section>
-            <section class="panel distribution-panel">
-              <header class="panel-head"><div><h2>Content distribution</h2><p>Cards grouped by content type</p></div></header>
+            <section class="panel distribution-panel" id="dashSidePanel">
+              <header class="panel-head">
+                <div>
+                  <h2 id="dashSideTitle">Content distribution</h2>
+                  <p id="dashSideMeta">Cards grouped by content type</p>
+                </div>
+              </header>
               <div class="distribution-chart" id="distributionChart"></div>
             </section>
           </div>
 
           <section class="panel quick-panel">
-            <header class="panel-head"><div><h2>Quick actions</h2><p>Your most-used content workflows</p></div></header>
+            <header class="panel-head"><div><h2>Quick actions</h2><p>Jump into the workflows you use most</p></div></header>
             <div class="quick-grid">
+              <button type="button" data-view-link="applications" data-hr-only><span class="quick-icon quick-icon--violet"><i class="ti ti-file-cv"></i></span><span><strong>Review applications</strong><small>Inbox &amp; vacancy filters</small></span><i class="ti ti-chevron-right"></i></button>
+              <button type="button" data-view-link="hrPortal" data-hr-only><span class="quick-icon quick-icon--cyan"><i class="ti ti-user-search"></i></span><span><strong>Active hiring</strong><small>Continue pipelines</small></span><i class="ti ti-chevron-right"></i></button>
+              <button type="button" data-view-link="hrCalendar" data-hr-only><span class="quick-icon quick-icon--orange"><i class="ti ti-calendar-event"></i></span><span><strong>Interview calendar</strong><small>Dates across candidates</small></span><i class="ti ti-chevron-right"></i></button>
+              <button type="button" data-view-link="interviewLog" data-hr-only><span class="quick-icon quick-icon--violet"><i class="ti ti-notebook"></i></span><span><strong>Interview log</strong><small>Scores, notes &amp; results</small></span><i class="ti ti-chevron-right"></i></button>
+              <button type="button" data-view-link="hrAnalytics" data-hr-only><span class="quick-icon quick-icon--green"><i class="ti ti-chart-histogram"></i></span><span><strong>Analytics &amp; history</strong><small>Hires, rejects, speed</small></span><i class="ti ti-chevron-right"></i></button>
+              <button type="button" data-quick-collection="jobs" data-hr-only><span class="quick-icon quick-icon--blue"><i class="ti ti-id-badge-2"></i></span><span><strong>New job opening</strong><small>Publish a role</small></span><i class="ti ti-chevron-right"></i></button>
               <button type="button" data-quick-collection="blogs" data-admin-only><span class="quick-icon quick-icon--blue"><i class="ti ti-news"></i></span><span><strong>New article</strong><small>Publish a new insight</small></span><i class="ti ti-chevron-right"></i></button>
               <button type="button" data-quick-collection="caseStudies" data-admin-only><span class="quick-icon quick-icon--orange"><i class="ti ti-briefcase"></i></span><span><strong>New case study</strong><small>Document a new result</small></span><i class="ti ti-chevron-right"></i></button>
-              <button type="button" data-quick-collection="jobs"><span class="quick-icon quick-icon--green"><i class="ti ti-id-badge-2"></i></span><span><strong>New job opening</strong><small>Publish a new role</small></span><i class="ti ti-chevron-right"></i></button>
-              <button type="button" data-view-link="applications"><span class="quick-icon quick-icon--violet"><i class="ti ti-file-cv"></i></span><span><strong>Review applications</strong><small>Open the HR inbox</small></span><i class="ti ti-chevron-right"></i></button>
-              <button type="button" data-view-link="contactRequests" data-admin-only><span class="quick-icon quick-icon--blue"><i class="ti ti-mail-forward"></i></span><span><strong>Get in Touch requests</strong><small>Sales &amp; enquiry inbox</small></span><i class="ti ti-chevron-right"></i></button>
+              <button type="button" data-view-link="contactRequests" data-admin-only><span class="quick-icon quick-icon--blue"><i class="ti ti-mail-forward"></i></span><span><strong>Get in Touch</strong><small>Sales &amp; enquiry inbox</small></span><i class="ti ti-chevron-right"></i></button>
             </div>
           </section>
         </section>
@@ -140,7 +278,7 @@
 
         <section class="view" id="applicationsView">
           <div class="section-title-row">
-            <div><button class="back-dashboard" type="button" data-view-link="dashboard"><i class="ti ti-arrow-left"></i> Overview</button><h1>Job Applications</h1><p>Review every candidate, download their CV, and track follow-up.</p></div>
+            <div><button class="back-dashboard" type="button" data-view-link="dashboard"><i class="ti ti-arrow-left"></i> Overview</button><h1>Job Applications</h1><p>Review candidates, download CVs, then open a candidate to start the hiring pipeline.</p></div>
             <a class="secondary-btn" href="../careers/index.html" target="_blank" rel="noopener"><i class="ti ti-external-link"></i> View open jobs</a>
           </div>
           <div class="application-summary-grid">
@@ -148,23 +286,293 @@
             <article class="panel application-summary"><span class="tool-icon tool-icon--orange"><i class="ti ti-sparkles"></i></span><div><small>New</small><strong id="applicationsNew">0</strong></div></article>
             <article class="panel application-summary"><span class="tool-icon tool-icon--green"><i class="ti ti-user-check"></i></span><div><small>In progress</small><strong id="applicationsProgress">0</strong></div></article>
           </div>
-          <section class="vacancy-picker">
-            <header class="vacancy-picker__head"><div><span class="page-kicker">OPEN VACANCIES</span><h2>Choose a vacancy</h2><p>Select a role to review and filter its candidates.</p></div><div class="vacancy-scroll-controls is-hidden" id="vacancyScrollControls"><button type="button" id="vacancyScrollPrev" aria-label="Previous vacancies"><i class="ti ti-arrow-left"></i></button><button type="button" id="vacancyScrollNext" aria-label="Next vacancies"><i class="ti ti-arrow-right"></i></button></div></header>
-            <div class="vacancy-card-grid" id="applicationVacancyCards"></div>
+          <div class="apps-workspace">
+            <aside class="panel apps-vacancy-panel">
+              <header class="panel-head">
+                <div><h2>Vacancies</h2><p>Filter candidates by role</p></div>
+              </header>
+              <div class="apps-vacancy-list" id="applicationVacancyCards"></div>
+            </aside>
+            <section class="panel apps-inbox-panel">
+              <header class="apps-inbox-head">
+                <div>
+                  <h2 id="applicationsInboxTitle">All applications</h2>
+                  <p id="applicationsInboxMeta">Select a vacancy to review candidates</p>
+                </div>
+              </header>
+              <div class="application-toolbar apps-inbox-toolbar is-hidden" id="applicationSecondaryFilters">
+                <label class="inline-search"><i class="ti ti-search"></i><input id="applicationSearch" type="search" placeholder="Search name, email, phone..."></label>
+                <div class="application-filter-grid">
+                  <label class="application-filter"><span>Status</span><select id="applicationStatusFilter"><option value="all">All statuses</option><option value="new">New</option><option value="reviewing">Reviewing</option><option value="contacted">Contacted</option><option value="rejected">Rejected</option></select></label>
+                  <label class="application-filter"><span>Experience</span><select id="applicationExperienceFilter"><option value="all">All experience</option></select></label>
+                  <label class="application-filter"><span>Max notice</span><select id="applicationNoticeFilter"><option value="all">Any notice period</option><option value="0">Immediate / 0 weeks</option><option value="1">Up to 1 week</option><option value="2">Up to 2 weeks</option><option value="4">Up to 4 weeks</option><option value="8">Up to 8 weeks</option></select></label>
+                  <label class="application-filter"><span>Max expected salary (K)</span><input id="applicationSalaryFilter" type="number" min="0" step="1" placeholder="Any salary"></label>
+                  <button class="secondary-btn application-clear" id="clearApplicationFilters" type="button"><i class="ti ti-filter-x"></i> Clear</button>
+                </div>
+              </div>
+              <div class="empty-state apps-inbox-empty" id="applicationsPickPrompt"><span><i class="ti ti-briefcase"></i></span><h2>Choose a vacancy</h2><p>Select a role on the left to review applicants and filters.</p></div>
+              <div class="applications-list is-hidden" id="applicationsList"></div>
+              <div class="empty-state apps-inbox-empty is-hidden" id="applicationsEmpty"><span><i class="ti ti-file-search"></i></span><h2>No applications found</h2><p>Try clearing filters, or wait for new Careers submissions.</p></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="hrPortalView">
+          <div class="section-title-row">
+            <div><button class="back-dashboard" type="button" data-view-link="dashboard"><i class="ti ti-arrow-left"></i> Overview</button><h1>Active Hiring Process</h1><p>Active candidates until joined or rejected. Ending a vacancy keeps ongoing pipelines running; new starts need an open role.</p></div>
+            <button class="secondary-btn" type="button" data-view-link="applications"><i class="ti ti-file-cv"></i> Start from Applications</button>
+          </div>
+          <div class="hr-metrics" id="hrMetrics">
+            <button class="hr-metric is-active" type="button" data-hr-filter="open"><small>Open</small><strong id="hrOpenCount">0</strong></button>
+            <button class="hr-metric" type="button" data-hr-filter="phone_screen"><small>Phone</small><strong id="hrPhoneCount">0</strong></button>
+            <button class="hr-metric" type="button" data-hr-filter="task"><small>Tasks</small><strong id="hrTaskCount">0</strong></button>
+            <button class="hr-metric" type="button" data-hr-filter="interview"><small>Interviews</small><strong id="hrInterviewCount">0</strong></button>
+            <button class="hr-metric" type="button" data-hr-filter="offer"><small>Offer</small><strong id="hrOfferCount">0</strong></button>
+            <button class="hr-metric" type="button" data-hr-filter="all"><small>All</small><strong id="hrPipelineTotal">0</strong></button>
+          </div>
+          <div class="hr-workspace" id="hrPortalLayout">
+            <aside class="panel hr-list-panel">
+              <header class="panel-head">
+                <div>
+                  <h2>Pipeline</h2>
+                  <p id="hrListMeta">Active candidates</p>
+                </div>
+              </header>
+              <div class="hr-toolbar" id="hrPipelineFilters">
+                <label class="hr-search"><i class="ti ti-search"></i><input id="hrCandidateSearch" type="search" placeholder="Search name, role, email..."></label>
+              </div>
+              <div class="hr-candidate-list" id="hrPipelineList"></div>
+              <div class="empty-state hr-list-empty is-hidden" id="hrPickPrompt"><span><i class="ti ti-route"></i></span><h2>No active hiring</h2><p>Start a candidate from Applications on an open vacancy. Joined and rejected candidates appear in Analytics &amp; History.</p><div class="hr-empty-actions"><button class="primary-btn" type="button" data-view-link="applications"><i class="ti ti-file-cv"></i> Go to Applications</button><button class="secondary-btn" type="button" data-view-link="hrAnalytics"><i class="ti ti-chart-histogram"></i> Analytics &amp; History</button></div></div>
+            </aside>
+            <section class="panel hr-detail-panel" id="hrPipelinePanel">
+              <div class="empty-state hr-detail-empty" id="hrCandidatePrompt"><span><i class="ti ti-user-search"></i></span><h2>Select a candidate</h2><p>Choose someone from the pipeline list to continue their hiring process.</p></div>
+              <div class="hr-pipeline-detail is-hidden" id="hrPipelineDetail"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="hrAnalyticsView">
+          <div class="section-title-row">
+            <div>
+              <button class="back-dashboard" type="button" data-view-link="dashboard"><i class="ti ti-arrow-left"></i> Overview</button>
+              <h1>Analytics &amp; History</h1>
+              <p>Track accepted and rejected candidates, hiring speed, interview volume, and closed-vacancy performance.</p>
+            </div>
+            <button class="secondary-btn" type="button" data-view-link="hrPortal"><i class="ti ti-user-search"></i> Open Active Hiring Process</button>
+          </div>
+
+          <div class="panel analytics-filters">
+            <label class="application-filter"><span>From</span><input id="analyticsFrom" type="date"></label>
+            <label class="application-filter"><span>To</span><input id="analyticsTo" type="date"></label>
+            <label class="application-filter"><span>Outcome</span>
+              <select id="analyticsOutcomeFilter">
+                <option value="all">All closed outcomes</option>
+                <option value="accepted">Accepted / hired</option>
+                <option value="rejected">Rejected</option>
+              </select>
+            </label>
+            <button class="secondary-btn" id="analyticsClearRange" type="button"><i class="ti ti-filter-x"></i> Clear range</button>
+          </div>
+
+          <div class="analytics-metrics" id="analyticsMetrics">
+            <article class="panel analytics-metric"><small>Accepted / hired</small><strong id="analyticsHiredCount">0</strong><span>In selected range</span></article>
+            <article class="panel analytics-metric"><small>Rejected</small><strong id="analyticsRejectedCount">0</strong><span>In selected range</span></article>
+            <article class="panel analytics-metric"><small>Avg. time to hire</small><strong id="analyticsAvgHire">—</strong><span>Days from apply to join</span></article>
+            <article class="panel analytics-metric"><small>Interviews conducted</small><strong id="analyticsInterviewCount">0</strong><span>HR rounds with activity</span></article>
+          </div>
+
+          <div class="analytics-grid">
+            <section class="panel analytics-panel">
+              <header class="panel-head"><div><h2>Accepted candidates</h2><p>Joined / hired in the selected range</p></div></header>
+              <div class="analytics-table-wrap" id="analyticsAcceptedList"></div>
+              <div class="empty-state is-hidden" id="analyticsAcceptedEmpty"><span><i class="ti ti-user-check"></i></span><h2>No hires in this range</h2><p>Candidates marked as joined will appear here.</p></div>
+            </section>
+            <section class="panel analytics-panel">
+              <header class="panel-head"><div><h2>Rejected candidates</h2><p>Closed without hire in the selected range</p></div></header>
+              <div class="analytics-table-wrap" id="analyticsRejectedList"></div>
+              <div class="empty-state is-hidden" id="analyticsRejectedEmpty"><span><i class="ti ti-user-x"></i></span><h2>No rejections in this range</h2><p>Rejected phone screens, tasks, interviews, and declined offers appear here.</p></div>
+            </section>
+          </div>
+
+          <section class="panel analytics-panel analytics-panel--wide">
+            <header class="panel-head"><div><h2>Closed vacancy analytics</h2><p>Interview volume and time-to-hire by position once a vacancy has a hire or the job is unpublished</p></div></header>
+            <div class="analytics-table-wrap" id="analyticsVacancyList"></div>
+            <div class="empty-state is-hidden" id="analyticsVacancyEmpty"><span><i class="ti ti-briefcase-off"></i></span><h2>No closed vacancies yet</h2><p>When a role is hired or unpublished, its hiring metrics will show here.</p></div>
           </section>
-          <div class="application-toolbar panel is-hidden" id="applicationSecondaryFilters">
-            <label class="inline-search"><i class="ti ti-search"></i><input id="applicationSearch" type="search" placeholder="Search name, role, email..."></label>
-            <div class="application-filter-grid">
-              <label class="application-filter"><span>Status</span><select id="applicationStatusFilter"><option value="all">All statuses</option><option value="new">New</option><option value="reviewing">Reviewing</option><option value="contacted">Contacted</option><option value="rejected">Rejected</option></select></label>
-              <label class="application-filter"><span>Experience</span><select id="applicationExperienceFilter"><option value="all">All experience</option></select></label>
-              <label class="application-filter"><span>Max notice</span><select id="applicationNoticeFilter"><option value="all">Any notice period</option><option value="0">Immediate / 0 weeks</option><option value="1">Up to 1 week</option><option value="2">Up to 2 weeks</option><option value="4">Up to 4 weeks</option><option value="8">Up to 8 weeks</option></select></label>
-              <label class="application-filter"><span>Max expected salary (K)</span><input id="applicationSalaryFilter" type="number" min="0" step="1" placeholder="Any salary"></label>
-              <button class="secondary-btn application-clear" id="clearApplicationFilters" type="button"><i class="ti ti-filter-x"></i> Clear filters</button>
+        </section>
+
+        <section class="view" id="hrCalendarView">
+          <div class="section-title-row">
+            <div>
+              <button class="back-dashboard" type="button" data-view-link="dashboard"><i class="ti ti-arrow-left"></i> Overview</button>
+              <h1>Interview Calendar</h1>
+              <p>Scheduled interviews across candidates — pick a day to open the agenda.</p>
+            </div>
+            <button class="secondary-btn" type="button" data-view-link="hrPortal"><i class="ti ti-user-search"></i> Active Hiring</button>
+          </div>
+
+          <div class="calendar-summary" id="calendarSummary">
+            <article class="panel calendar-summary__card"><small>This month</small><strong id="calendarStatMonth">0</strong><span>Scheduled</span></article>
+            <article class="panel calendar-summary__card"><small>Today</small><strong id="calendarStatToday">0</strong><span>On the calendar</span></article>
+            <article class="panel calendar-summary__card"><small>Upcoming</small><strong id="calendarStatUpcoming">0</strong><span>From tomorrow</span></article>
+            <article class="panel calendar-summary__card calendar-summary__legend">
+              <small>Status</small>
+              <div class="calendar-legend">
+                <span class="is-pending">Pending</span>
+                <span class="is-pass">Pass</span>
+                <span class="is-fail">Fail</span>
+              </div>
+            </article>
+          </div>
+
+          <div class="calendar-workspace">
+            <section class="panel calendar-board">
+              <header class="calendar-board__head">
+                <div class="calendar-board__nav">
+                  <button class="icon-btn" id="calendarPrevMonth" type="button" aria-label="Previous month"><i class="ti ti-chevron-left"></i></button>
+                  <button class="icon-btn" id="calendarNextMonth" type="button" aria-label="Next month"><i class="ti ti-chevron-right"></i></button>
+                </div>
+                <div class="calendar-board__title">
+                  <h2 id="calendarMonthLabel">Month</h2>
+                  <p id="calendarMonthMeta">0 interviews this month</p>
+                </div>
+                <button class="secondary-btn" id="calendarTodayBtn" type="button"><i class="ti ti-calendar-event"></i> Today</button>
+              </header>
+              <div class="calendar-weekdays" aria-hidden="true">
+                <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+              </div>
+              <div class="calendar-grid" id="calendarGrid"></div>
+            </section>
+
+            <aside class="panel calendar-agenda">
+              <header class="panel-head">
+                <div>
+                  <h2 id="calendarAgendaTitle">Selected day</h2>
+                  <p id="calendarAgendaMeta">Pick a day with interviews</p>
+                </div>
+              </header>
+              <div class="calendar-agenda__list" id="calendarAgendaList"></div>
+              <div class="empty-state calendar-agenda__empty is-hidden" id="calendarAgendaEmpty">
+                <span><i class="ti ti-calendar-off"></i></span>
+                <h2>No interviews</h2>
+                <p>Schedule interview dates in Active Hiring to see them here.</p>
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        <section class="view" id="interviewLogView" data-hr-only>
+          <div class="section-title-row">
+            <div>
+              <button class="back-dashboard" type="button" data-view-link="dashboard"><i class="ti ti-arrow-left"></i> Overview</button>
+              <h1>Interview Log</h1>
+              <p>Full interview history per candidate — rounds, scores, interviewers, and notes.</p>
+            </div>
+            <button class="secondary-btn" type="button" data-view-link="hrPortal"><i class="ti ti-user-search"></i> Active Hiring</button>
+          </div>
+          <div class="panel ilog-filters">
+            <label class="inline-search ilog-search"><i class="ti ti-search"></i><input id="interviewLogSearch" type="search" placeholder="Search name, role, interviewer, notes..."></label>
+            <div class="ilog-filter-grid">
+              <label class="application-filter"><span>Result</span>
+                <select id="interviewLogResultFilter">
+                  <option value="all">All results</option>
+                  <option value="pass">Has pass</option>
+                  <option value="fail">Has fail</option>
+                  <option value="pending">Has pending</option>
+                  <option value="conducted">Conducted only</option>
+                </select>
+              </label>
+              <label class="application-filter"><span>Role</span>
+                <select id="interviewLogRoleFilter"><option value="all">All roles</option></select>
+              </label>
+              <label class="application-filter"><span>Interview type</span>
+                <select id="interviewLogTypeFilter">
+                  <option value="all">All types</option>
+                  <option value="HR">HR</option>
+                  <option value="Tech">Tech</option>
+                  <option value="CEO">CEO</option>
+                  <option value="CTO">CTO</option>
+                  <option value="Marketing">Marketing</option>
+                  <option value="Sales">Sales</option>
+                  <option value="AI & Data">AI &amp; Data</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </label>
+              <label class="application-filter"><span>Format</span>
+                <select id="interviewLogFormatFilter">
+                  <option value="all">All formats</option>
+                  <option value="online">Online</option>
+                  <option value="onsite">Onsite</option>
+                </select>
+              </label>
+              <label class="application-filter"><span>Interviewer</span>
+                <select id="interviewLogInterviewerFilter"><option value="all">All interviewers</option></select>
+              </label>
+              <label class="application-filter"><span>From</span><input id="interviewLogFrom" type="date"></label>
+              <label class="application-filter"><span>To</span><input id="interviewLogTo" type="date"></label>
+              <label class="application-filter"><span>Score</span>
+                <select id="interviewLogScoreFilter">
+                  <option value="all">All scores</option>
+                  <option value="high">High (8–10)</option>
+                  <option value="mid">Mid (5–7.9)</option>
+                  <option value="low">Low (below 5)</option>
+                  <option value="none">No score</option>
+                </select>
+              </label>
+              <label class="application-filter"><span>Pipeline status</span>
+                <select id="interviewLogStatusFilter">
+                  <option value="all">All statuses</option>
+                  <option value="active">Active</option>
+                  <option value="joined">Joined</option>
+                  <option value="closed">Rejected / closed</option>
+                </select>
+              </label>
+              <label class="application-filter"><span>Notes</span>
+                <select id="interviewLogNotesFilter">
+                  <option value="all">All notes</option>
+                  <option value="has">Has notes</option>
+                  <option value="missing">Missing notes</option>
+                </select>
+              </label>
+              <label class="application-filter"><span>Rounds</span>
+                <select id="interviewLogRoundsFilter">
+                  <option value="all">Any rounds</option>
+                  <option value="1">1 round</option>
+                  <option value="2plus">2+</option>
+                  <option value="3plus">3+</option>
+                </select>
+              </label>
+              <label class="application-filter"><span>Latest activity</span>
+                <select id="interviewLogActivityFilter">
+                  <option value="all">Any time</option>
+                  <option value="week">This week</option>
+                  <option value="month">This month</option>
+                </select>
+              </label>
+              <button class="secondary-btn application-clear" id="interviewLogClearFilters" type="button"><i class="ti ti-filter-x"></i> Clear filters</button>
             </div>
           </div>
-          <div class="empty-state panel" id="applicationsPickPrompt"><span><i class="ti ti-briefcase"></i></span><h2>Choose a vacancy</h2><p>Select one of the vacancy cards above to see its applicants and filters.</p></div>
-          <div class="applications-list is-hidden" id="applicationsList"></div>
-          <div class="empty-state panel is-hidden" id="applicationsEmpty"><span><i class="ti ti-file-search"></i></span><h2>No applications found</h2><p>New applications submitted through the Careers page will appear here.</p></div>
+          <div class="ilog-layout">
+            <section class="panel ilog-list-panel">
+              <header class="panel-head">
+                <div><h2>Candidates</h2><p id="interviewLogListMeta">With interview activity</p></div>
+              </header>
+              <div class="ilog-list" id="interviewLogList"></div>
+              <div class="empty-state is-hidden" id="interviewLogListEmpty">
+                <span><i class="ti ti-notebook-off"></i></span>
+                <h2>No interview logs match</h2>
+                <p>Try clearing filters, or record interview rounds in Active Hiring.</p>
+              </div>
+            </section>
+            <section class="panel ilog-detail-panel">
+              <div class="empty-state" id="interviewLogDetailEmpty">
+                <span><i class="ti ti-user-search"></i></span>
+                <h2>Select a candidate</h2>
+                <p>Open a profile to review every interview round, score, and note.</p>
+              </div>
+              <div class="ilog-detail is-hidden" id="interviewLogDetail"></div>
+            </section>
+          </div>
         </section>
 
         <section class="view" id="contactRequestsView">
@@ -203,6 +611,16 @@
                 <label class="form-field"><span>Section description</span><textarea name="sectionLead" rows="3" maxlength="500"></textarea></label>
                 <label class="form-field form-field--full seo-only"><span>SEO title</span><input name="seoTitle" maxlength="70"><small>Recommended length: 50–60 characters.</small></label>
               </div>
+              <div class="home-social-fields is-hidden" id="homeSocialFields">
+                <div class="form-section-label"><i class="ti ti-share"></i> Footer social buttons</div>
+                <div class="form-grid">
+                  <label class="form-field form-field--full"><span>LinkedIn URL</span><input name="social.linkedin" type="url" direction="ltr" placeholder="https://www.linkedin.com/company/..."><small>Leave blank to hide the LinkedIn button.</small></label>
+                  <label class="form-field form-field--full"><span>Facebook URL</span><input name="social.facebook" type="url" direction="ltr" placeholder="https://www.facebook.com/..."></label>
+                  <label class="form-field form-field--full"><span>Instagram URL</span><input name="social.instagram" type="url" direction="ltr" placeholder="https://www.instagram.com/..."></label>
+                  <label class="form-field form-field--full"><span>TikTok URL</span><input name="social.tiktok" type="url" direction="ltr" placeholder="https://www.tiktok.com/@..."></label>
+                </div>
+              </div>
+              <div class="about-history-fields is-hidden" id="aboutHistoryFields"></div>
               <footer class="form-footer"><p><i class="ti ti-info-circle"></i> Changes appear after the page is refreshed.</p><button class="primary-btn" type="submit"><i class="ti ti-device-floppy"></i> Save changes</button></footer>
             </form>
           </div>
@@ -213,23 +631,68 @@
           <div class="tools-grid">
             <section class="panel tool-card"><span class="tool-icon tool-icon--blue"><i class="ti ti-download"></i></span><div><h2>Export a backup</h2><p>Download every page and content card as one JSON file.</p></div><button class="secondary-btn" id="exportBtn" type="button"><i class="ti ti-download"></i> Download backup</button></section>
             <section class="panel tool-card"><span class="tool-icon tool-icon--orange"><i class="ti ti-upload"></i></span><div><h2>Import content</h2><p>Restore a previous backup. Its structure is validated before saving.</p></div><label class="secondary-btn file-btn"><i class="ti ti-upload"></i> Choose file<input id="importInput" type="file" accept="application/json"></label></section>
-            <section class="panel tool-card tool-card--wide"><div class="system-head"><span class="tool-icon tool-icon--green"><i class="ti ti-heartbeat"></i></span><div><h2>System health</h2><p>The server and content files are operating normally.</p></div><span class="system-live"><i></i> Operational</span></div><div class="system-details"><div><span>Data revision</span><strong id="toolRevision">—</strong></div><div><span>Last write</span><strong id="toolUpdated">—</strong></div><div><span>Collections</span><strong>6</strong></div><div><span>Storage</span><strong>JSON + Assets</strong></div></div></section>
+            <section class="panel tool-card tool-card--wide"><div class="system-head"><span class="tool-icon tool-icon--green"><i class="ti ti-heartbeat"></i></span><div><h2>System health</h2><p>The server and content files are operating normally.</p></div><span class="system-live"><i></i> Operational</span></div><div class="system-details"><div><span>Data revision</span><strong id="toolRevision">—</strong></div><div><span>Last write</span><strong id="toolUpdated">—</strong></div><div><span>Collections</span><strong>7</strong></div><div><span>Storage</span><strong>JSON + Assets</strong></div></div></section>
             <section class="panel tool-card tool-card--wide security-note"><span class="tool-icon tool-icon--violet"><i class="ti ti-shield-lock"></i></span><div><h2>Production ready</h2><p>Set <code>ADMIN_USER</code> and <code>ADMIN_PASSWORD</code> in your production environment. Sessions are HttpOnly, while write actions use CSRF and revision protection.</p></div></section>
+          </div>
+        </section>
+
+        <section class="view" id="onboardingView" data-onboarding>
+          <div class="section-title-row">
+            <div>
+              <button class="back-dashboard" type="button" data-view-link="dashboard"><i class="ti ti-arrow-left"></i> Overview</button>
+              <h1>Employee Onboarding</h1>
+              <p id="onboardingViewSubtitle">HR prepares the joining package; Marketing returns posts, business card, and ID assets.</p>
+            </div>
+          </div>
+          <div class="onboarding-layout">
+            <section class="panel onboarding-list-panel">
+              <header class="panel-head">
+                <div><h2>Requests</h2><p>Filter by status</p></div>
+                <label class="application-filter onboarding-status-filter">
+                  <span class="sr-only">Status</span>
+                  <select id="onboardingStatusFilter">
+                    <option value="all">All</option>
+                    <option value="draft">Draft</option>
+                    <option value="sent">Sent</option>
+                    <option value="returned">Returned</option>
+                    <option value="completed">Completed</option>
+                  </select>
+                </label>
+              </header>
+              <div class="onboarding-list" id="onboardingList"></div>
+              <div class="empty-state is-hidden" id="onboardingListEmpty">
+                <span><i class="ti ti-user-plus"></i></span>
+                <h2>No onboarding requests</h2>
+                <p id="onboardingListEmptyCopy">Start onboarding from a Joined candidate in Active Hiring or Analytics.</p>
+              </div>
+            </section>
+            <section class="panel onboarding-detail-panel">
+              <div class="empty-state" id="onboardingDetailEmpty">
+                <span><i class="ti ti-package"></i></span>
+                <h2>Select a request</h2>
+                <p>Choose a package from the list to review or update it.</p>
+              </div>
+              <div class="onboarding-detail is-hidden" id="onboardingDetail"></div>
+            </section>
           </div>
         </section>
 
         <section class="view" id="usersView" data-admin-only>
           <div class="section-title-row">
-            <div><button class="back-dashboard" type="button" data-view-link="dashboard"><i class="ti ti-arrow-left"></i> Overview</button><h1>User Management</h1><p>Create and manage HR accounts with Careers-only access.</p></div>
-            <button class="primary-btn" id="addUserBtn" type="button"><i class="ti ti-user-plus"></i><span>Add HR account</span></button>
+            <div><button class="back-dashboard" type="button" data-view-link="dashboard"><i class="ti ti-arrow-left"></i> Overview</button><h1>User Management</h1><p>Create HR and Marketing accounts with an initial password they can change after signing in.</p></div>
+            <div class="welcome-actions">
+              <button class="secondary-btn" id="addMarketingUserBtn" type="button"><i class="ti ti-speakerphone"></i><span>Add Marketing</span></button>
+              <button class="primary-btn" id="addUserBtn" type="button"><i class="ti ti-user-plus"></i><span>Add HR account</span></button>
+            </div>
           </div>
           <div class="user-summary-grid">
             <article class="panel user-summary"><span class="tool-icon tool-icon--blue"><i class="ti ti-users"></i></span><div><small>Total accounts</small><strong id="usersTotal">0</strong></div></article>
-            <article class="panel user-summary"><span class="tool-icon tool-icon--green"><i class="ti ti-user-check"></i></span><div><small>Active HR accounts</small><strong id="usersActive">0</strong></div></article>
+            <article class="panel user-summary"><span class="tool-icon tool-icon--green"><i class="ti ti-user-check"></i></span><div><small>Active HR</small><strong id="usersActive">0</strong></div></article>
+            <article class="panel user-summary"><span class="tool-icon tool-icon--violet"><i class="ti ti-speakerphone"></i></span><div><small>Active Marketing</small><strong id="usersMarketing">0</strong></div></article>
             <article class="panel user-summary"><span class="tool-icon tool-icon--orange"><i class="ti ti-user-pause"></i></span><div><small>Disabled accounts</small><strong id="usersDisabled">0</strong></div></article>
           </div>
           <section class="panel users-panel">
-            <header class="panel-head"><div><h2>Team access</h2><p>HR users can only edit job cards and Careers page copy.</p></div><span class="access-policy"><i class="ti ti-shield-check"></i> Server-enforced access</span></header>
+            <header class="panel-head"><div><h2>Team access</h2><p>HR manages hiring and onboarding packages. Marketing handles onboarding deliverables only.</p></div><span class="access-policy"><i class="ti ti-shield-check"></i> Server-enforced access</span></header>
             <div class="users-list" id="usersList"></div>
           </section>
         </section>
@@ -251,23 +714,108 @@
   </div>
 
   <div class="modal-backdrop" id="userModalBackdrop">
-    <section class="account-modal" role="dialog" aria-modal="true" aria-labelledby="userModalTitle">
-      <header><div><span class="drawer-kicker" id="userModalKicker">NEW HR ACCOUNT</span><h2 id="userModalTitle">Add HR account</h2><p>Careers-only access is enforced by the server.</p></div><button class="icon-btn" id="closeUserModalBtn" type="button" aria-label="Close"><i class="ti ti-x"></i></button></header>
-      <form id="userForm">
-        <div class="account-form-grid">
-          <label class="form-field form-field--full"><span>Full name</span><input name="name" maxlength="100" placeholder="e.g. Sarah Ahmed" required></label>
-          <label class="form-field"><span>Username</span><input name="username" maxlength="40" autocomplete="off" placeholder="sarah.hr" required></label>
-          <label class="form-field"><span>Role</span><input value="HR — Careers only" disabled></label>
-          <label class="form-field form-field--full"><span>Password <em id="passwordRequirement">At least 10 characters</em></span><span class="account-password"><input name="password" type="password" minlength="10" autocomplete="new-password" placeholder="Create a strong password"><button type="button" id="userPasswordToggle" aria-label="Show password"><i class="ti ti-eye"></i></button></span><small id="passwordEditHint">Required for new accounts.</small></label>
-          <label class="account-active"><span><strong>Account active</strong><small>Disabled users are signed out immediately.</small></span><span class="switch"><input name="active" type="checkbox" checked><span></span></span></label>
+    <section class="account-modal account-modal--wide" role="dialog" aria-modal="true" aria-labelledby="userModalTitle">
+      <header class="account-modal__head">
+        <div class="account-modal__brand">
+          <span class="account-modal__icon" aria-hidden="true"><i class="ti ti-user-plus" id="userModalIcon"></i></span>
+          <div>
+            <span class="drawer-kicker" id="userModalKicker">NEW HR ACCOUNT</span>
+            <h2 id="userModalTitle">Add HR account</h2>
+            <p id="userModalSubtitle">Set an initial password now. They can change it later after signing in.</p>
+          </div>
         </div>
-        <footer><button class="secondary-btn" id="cancelUserModalBtn" type="button">Cancel</button><button class="primary-btn" type="submit"><i class="ti ti-user-check"></i><span>Save account</span></button></footer>
+        <button class="icon-btn" id="closeUserModalBtn" type="button" aria-label="Close"><i class="ti ti-x"></i></button>
+      </header>
+      <form id="userForm">
+        <div class="account-form-body">
+          <div class="account-identity-row">
+            <label class="user-photo-field">
+              <div class="image-drop image-drop--avatar">
+                <input type="file" data-user-image-upload accept="image/png,image/jpeg,image/webp,image/gif">
+                <div class="image-drop__empty">
+                  <i class="ti ti-camera-plus"></i>
+                  <strong>Photo</strong>
+                </div>
+              </div>
+              <input class="image-path" type="hidden" name="photo" value="">
+            </label>
+            <div class="account-identity-meta">
+              <div class="account-role-chip" id="userRoleChip" aria-hidden="true">
+                <i class="ti ti-id-badge-2" id="userRoleChipIcon"></i>
+                <div>
+                  <strong id="userRoleChipTitle">HR access</strong>
+                  <small id="userRoleChipCopy">Careers &amp; hiring only</small>
+                </div>
+              </div>
+              <div class="account-invite-callout" id="userPasswordHint">
+                <i class="ti ti-key"></i>
+                <div>
+                  <strong>Initial password</strong>
+                  <small>Share it securely. They can change it anytime from Change password.</small>
+                </div>
+              </div>
+            </div>
+          </div>
+          <input type="hidden" name="role" id="userRoleInput" value="hr">
+          <div class="account-form-grid">
+            <label class="form-field"><span>Full name</span><span class="field-shell"><i class="ti ti-user"></i><input name="name" maxlength="100" placeholder="e.g. Sarah Ahmed" required></span></label>
+            <label class="form-field"><span>Username</span><span class="field-shell"><i class="ti ti-at"></i><input name="username" maxlength="40" minlength="2" pattern="[A-Za-z0-9._\-]{2,40}" title="2–40 characters: letters, numbers, dots, dashes, or underscores" autocomplete="off" placeholder="sarah.hr" required></span><small>Letters, numbers, dots, dashes, underscores only.</small></label>
+            <label class="form-field"><span>Work email</span><span class="field-shell"><i class="ti ti-mail"></i><input name="email" type="email" maxlength="160" placeholder="sarah@digitalhub.com.eg" required></span></label>
+            <label class="form-field"><span>Job title</span><span class="field-shell"><i class="ti ti-briefcase"></i><input name="jobTitle" maxlength="120" placeholder="e.g. HR Specialist" required></span></label>
+            <label class="form-field form-field--full" id="userPasswordField">
+              <span>Password <em id="passwordRequirement">At least 10 characters</em></span>
+              <span class="account-password field-shell">
+                <i class="ti ti-lock"></i>
+                <input name="password" type="password" minlength="10" autocomplete="new-password" placeholder="Create a password">
+                <button type="button" id="userPasswordToggle" aria-label="Show password"><i class="ti ti-eye"></i></button>
+              </span>
+              <small id="passwordEditHint">Required for new accounts.</small>
+            </label>
+            <label class="account-active">
+              <span class="account-active__copy"><i class="ti ti-user-check"></i><span><strong>Account active</strong><small>Disabled users are signed out immediately.</small></span></span>
+              <span class="switch"><input name="active" type="checkbox" checked><span></span></span>
+            </label>
+          </div>
+        </div>
+        <footer class="account-modal__foot">
+          <button class="secondary-btn" id="cancelUserModalBtn" type="button">Cancel</button>
+          <button class="primary-btn" type="submit"><i class="ti ti-user-check"></i><span>Save account</span></button>
+        </footer>
+      </form>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" id="changePasswordBackdrop">
+    <section class="account-modal" role="dialog" aria-modal="true" aria-labelledby="changePasswordTitle">
+      <header class="account-modal__head">
+        <div class="account-modal__brand">
+          <span class="account-modal__icon" aria-hidden="true"><i class="ti ti-lock"></i></span>
+          <div>
+            <span class="drawer-kicker">SECURITY</span>
+            <h2 id="changePasswordTitle">Change password</h2>
+            <p>Enter your current password, then choose a new one.</p>
+          </div>
+        </div>
+        <button class="icon-btn" id="closeChangePasswordBtn" type="button" aria-label="Close"><i class="ti ti-x"></i></button>
+      </header>
+      <form id="changePasswordForm">
+        <div class="account-form-body">
+          <div class="account-form-grid" style="grid-template-columns:1fr">
+            <label class="form-field"><span>Current password</span><span class="field-shell"><i class="ti ti-lock"></i><input name="currentPassword" type="password" autocomplete="current-password" required></span></label>
+            <label class="form-field"><span>New password</span><span class="field-shell"><i class="ti ti-key"></i><input name="password" type="password" minlength="10" autocomplete="new-password" required></span><small>At least 10 characters.</small></label>
+            <label class="form-field"><span>Confirm new password</span><span class="field-shell"><i class="ti ti-lock-check"></i><input name="passwordConfirm" type="password" minlength="10" autocomplete="new-password" required></span></label>
+          </div>
+        </div>
+        <footer class="account-modal__foot">
+          <button class="secondary-btn" id="cancelChangePasswordBtn" type="button">Cancel</button>
+          <button class="primary-btn" type="submit"><i class="ti ti-device-floppy"></i><span>Update password</span></button>
+        </footer>
       </form>
     </section>
   </div>
 
   <div class="toast-stack" id="toastStack" aria-live="polite"></div>
   <div class="mobile-overlay" id="mobileOverlay"></div>
-  <script src="/admin/admin.js"></script>
+  <script src="/admin/admin.js?v=20260817-interview-mail"></script>
 </body>
 </html>

@@ -1,17 +1,24 @@
 'use strict';
 
+process.env.TZ = process.env.TZ || process.env.MAIL_TZ || 'Africa/Cairo';
+
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const zlib = require('zlib');
+const sharp = require('sharp');
 
 const ROOT = __dirname;
 const PORT = Number(process.env.PORT || 8765);
 const HOST = process.env.HOST || '127.0.0.1';
 const SITE_URL = 'https://digitalhub.com.eg';
 const ADMIN_USER = process.env.ADMIN_USER || 'admin';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'DigitalHub@2026';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+if (!ADMIN_PASSWORD) {
+  console.error('[fatal] ADMIN_PASSWORD is required. Set it in the environment before starting the server.');
+  process.exit(1);
+}
 const DATA_FILE = path.join(ROOT, 'content', 'admin-content.json');
 const USERS_FILE = path.join(ROOT, 'content', 'admin-users.json');
 const PUBLIC_JSON_FILE = path.join(ROOT, 'content', 'site-content.json');
@@ -20,32 +27,71 @@ const UPLOAD_DIR = path.join(ROOT, 'assets', 'uploads');
 const APPLICATIONS_FILE = path.join(ROOT, 'content', 'job-applications.json');
 const APPLICATION_FILES_DIR = path.join(ROOT, 'content', 'application-files');
 const CONTACT_REQUESTS_FILE = path.join(ROOT, 'content', 'contact-requests.json');
-const MAX_JSON_BYTES = 7 * 1024 * 1024;
+const ONBOARDING_FILE = path.join(ROOT, 'content', 'onboarding-requests.json');
+const CONTENT_DIR = path.resolve(path.join(ROOT, 'content'));
+/** Compare paths in a filesystem-aware way (case-insensitive on Windows). */
+function pathKey(absPath) {
+  const resolved = path.resolve(absPath);
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+}
+/** Default-deny under content/: only these resolved absolute paths may be served statically. */
+const CONTENT_PUBLIC_ALLOW = new Set([
+  pathKey(PUBLIC_JSON_FILE),
+  pathKey(PUBLIC_JS_FILE),
+]);
+const CONTENT_DIR_KEY = pathKey(CONTENT_DIR);
+const ONBOARDING_STATUSES = new Set(['draft', 'sent', 'returned', 'completed']);
+const ONBOARDING_ASSET_KEYS = ['onboardingPost', 'joiningPost', 'businessCard', 'employeeId'];
+const MAX_JSON_BYTES = 9 * 1024 * 1024;
 const MAX_RESUME_BYTES = 5 * 1024 * 1024;
 const MAX_APPLICATION_BYTES = MAX_RESUME_BYTES + (512 * 1024);
 const SESSION_TTL = 8 * 60 * 60 * 1000;
+
+function sessionCookieSecure() {
+  // COOKIE_SECURE is the only authority — never trust client X-Forwarded-Proto.
+  return process.env.COOKIE_SECURE === 'true' || process.env.COOKIE_SECURE === '1';
+}
+
+function sessionCookieHeader(token, maxAgeSeconds, req) {
+  const parts = [
+    `dh_admin_session=${token}`,
+    'HttpOnly',
+    'SameSite=Strict',
+    'Path=/',
+    `Max-Age=${maxAgeSeconds}`,
+  ];
+  if (sessionCookieSecure()) parts.push('Secure');
+  return parts.join('; ');
+}
 const CONTACT_SITUATIONS = {
   gov: 'Government / public sector digital services',
   dx: 'Enterprise digital transformation',
   dex: 'Nexthink DEX (200+ endpoints)',
   other: 'Something else',
 };
-const COLLECTIONS = new Set(['services', 'partners', 'caseStudies', 'blogs', 'jobs', 'team']);
-const PAGES = new Set(['home', 'blogs', 'cases', 'partners', 'careers', 'about']);
+const COLLECTIONS = new Set(['services', 'partners', 'caseStudies', 'blogs', 'news', 'jobs', 'team']);
+const PAGES = new Set(['home', 'blogs', 'cases', 'partners', 'careers', 'about', 'news']);
 const VALIDATION_CONFIG_FILE = path.join(ROOT, 'content', 'validation-config.json');
 const blogPages = require('./scripts/blog-pages');
+const partnerLogos = require('./scripts/partner-logos');
+const serviceSuiteImages = require('./scripts/service-suite-images');
+const serviceMethodology = require('./scripts/service-methodology');
+const aboutHistory = require('./scripts/about-history');
+const siteSocial = require('./scripts/site-social');
+const mail = require('./lib/mail');
 
 const fields = {
-  services: ['title', 'summary', 'href', 'icon', 'visual', 'status', 'featured', 'order'],
-  partners: ['name', 'summary', 'href', 'image', 'variant', 'status', 'featured', 'order'],
+  services: ['title', 'summary', 'href', 'icon', 'visual', 'suiteScenes', 'methodology', 'status', 'featured', 'order'],
+  partners: ['name', 'summary', 'href', 'image', 'alt', 'variant', 'status', 'featured', 'order'],
   caseStudies: ['title', 'summary', 'href', 'image', 'alt', 'categories', 'metric', 'status', 'featured', 'order'],
+  news: ['title', 'summary', 'details', 'image', 'alt', 'category', 'location', 'year', 'month', 'status', 'featured', 'order'],
   blogs: [
-    'title', 'summary', 'href', 'image', 'category', 'categoryLabel', 'readTime', 'accent', 'status', 'featured', 'order',
+    'title', 'summary', 'seoTitle', 'metaDescription', 'href', 'image', 'alt', 'category', 'categoryLabel', 'readTime', 'accent', 'status', 'featured', 'order',
     'cluster', 'answerBlock', 'body', 'faq', 'dataCallouts', 'relatedPosts', 'comparisonTable',
     'datePublished', 'dateModified', 'tableOfContents',
   ],
-  jobs: ['title', 'summary', 'href', 'department', 'location', 'type', 'status', 'featured', 'order'],
-  team: ['name', 'role', 'image', 'email', 'linkedin', 'status', 'featured', 'order'],
+  jobs: ['title', 'summary', 'aboutRole', 'keyResponsibilities', 'requiredSkills', 'niceToHave', 'roleOffers', 'interviewStages', 'href', 'department', 'location', 'type', 'status', 'featured', 'order'],
+  team: ['name', 'role', 'image', 'alt', 'email', 'linkedin', 'status', 'featured', 'order'],
 };
 
 const mime = {
@@ -68,9 +114,9 @@ const mime = {
 };
 
 const sessions = new Map();
-const loginAttempts = new Map();
 const applicationAttempts = new Map();
 const contactAttempts = new Map();
+const loginAttempts = new Map();
 
 function json(res, status, payload, extraHeaders = {}) {
   const body = JSON.stringify(payload);
@@ -91,6 +137,21 @@ function readUsers() {
   return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
 }
 
+function writeUsers(data) {
+  const temp = `${USERS_FILE}.tmp`;
+  data.updatedAt = new Date().toISOString();
+  fs.writeFileSync(temp, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+  fs.copyFileSync(temp, USERS_FILE);
+  fs.unlinkSync(temp);
+}
+
+function mutateUsers(mutator) {
+  const users = readUsers();
+  const result = mutator(users);
+  writeUsers(users);
+  return result === undefined ? users : result;
+}
+
 function readApplications() {
   if (!fs.existsSync(APPLICATIONS_FILE)) return { version: 1, updatedAt: null, applications: [] };
   return JSON.parse(fs.readFileSync(APPLICATIONS_FILE, 'utf8'));
@@ -102,6 +163,413 @@ function writeApplications(data) {
   fs.writeFileSync(temp, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
   fs.copyFileSync(temp, APPLICATIONS_FILE);
   fs.unlinkSync(temp);
+}
+
+const DEFAULT_INTERVIEW_STAGES = ['HR', 'Tech', 'CEO', 'CTO', 'Marketing', 'Sales', 'AI & Data'];
+const INTERVIEW_STAGE_SET = new Set(DEFAULT_INTERVIEW_STAGES);
+const PHONE_SCREEN_OUTCOMES = new Set(['pending', 'accepted', 'rejected', 'shortlisted', 'requirements_not_met']);
+const TASK_STATUSES = new Set(['sent', 'in_progress', 'done']);
+const TASK_DECISIONS = new Set(['pending', 'approved', 'rejected']);
+const INTERVIEW_RESULTS = new Set(['pending', 'pass', 'fail']);
+const INTERVIEW_FORMATS = new Set(['onsite', 'online']);
+const OFFER_STATUSES = new Set(['none', 'sent', 'joined', 'declined']);
+const PATHWAYS = new Set(['with_tasks', 'no_tasks']);
+
+function normalizeInterviewStages(value, fallback = DEFAULT_INTERVIEW_STAGES) {
+  const raw = Array.isArray(value) ? value : fallback;
+  const stages = raw
+    .map((entry) => text(entry, 40))
+    .filter((entry) => INTERVIEW_STAGE_SET.has(entry));
+  const unique = [...new Set(stages)];
+  return unique.length ? unique : [...DEFAULT_INTERVIEW_STAGES];
+}
+
+function defaultPipeline() {
+  return {
+    stage: 'phone_screen',
+    phoneScreen: 'pending',
+    pathway: null,
+    task: { title: '', notes: '', status: 'sent', decision: 'pending' },
+    interviews: [],
+    offer: { status: 'none', declinedReason: '' },
+    history: [],
+  };
+}
+
+function jobStagesForApplication(application) {
+  try {
+    const data = readData();
+    const jobs = (data.collections && data.collections.jobs) || [];
+    const slug = String(application.roleSlug || '');
+    const title = String(application.role || '');
+    const job = jobs.find((entry) => {
+      const hrefSlug = path.basename(String(entry.href || ''), path.extname(String(entry.href || '')));
+      return (slug && hrefSlug === slug) || (title && entry.title === title);
+    });
+    return normalizeInterviewStages(job && job.interviewStages);
+  } catch (_) {
+    return [...DEFAULT_INTERVIEW_STAGES];
+  }
+}
+
+function findStaffInterviewer(userId) {
+  const id = text(userId, 80);
+  if (!id) return null;
+  try {
+    const users = readUsers();
+    const account = (users.users || []).find((user) => user.id === id && user.active !== false);
+    if (!account) return null;
+    if (account.role !== 'hr' && account.role !== 'admin') return null;
+    const email = text(account.email, 160).toLowerCase();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return null;
+    return {
+      id: account.id,
+      name: text(account.name || account.username, 120) || account.username,
+      email,
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
+function listStaffInterviewers() {
+  try {
+    const users = readUsers();
+    return (users.users || [])
+      .filter((user) => user.active !== false && (user.role === 'hr' || user.role === 'admin'))
+      .map((user) => {
+        const email = text(user.email, 160).toLowerCase();
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return null;
+        return {
+          id: user.id,
+          name: text(user.name || user.username, 120) || user.username,
+          email,
+          role: user.role,
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  } catch (_) {
+    return [];
+  }
+}
+
+function normalizeInterviewEntry(entry, index, fallbackLabel = '') {
+  const label = text(entry && entry.label, 40) || text(fallbackLabel, 40) || `Stage ${index + 1}`;
+  const result = INTERVIEW_RESULTS.has(entry && entry.result) ? entry.result : 'pending';
+  let score = null;
+  if (entry && entry.score !== '' && entry.score != null) {
+    const num = Number(entry.score);
+    if (!Number.isFinite(num) || num < 0 || num > 10) {
+      throw Object.assign(new Error('Interview scores must be between 0 and 10.'), { status: 422 });
+    }
+    if (Math.round(num * 2) !== num * 2) {
+      throw Object.assign(new Error('Interview scores must use half-point steps (e.g. 7 or 7.5).'), { status: 422 });
+    }
+    score = Math.round(num * 10) / 10;
+  }
+  if ((result === 'pass' || result === 'fail') && score == null) {
+    throw Object.assign(new Error(`Add a score (0–10) before marking ${label || `round ${index + 1}`} as Pass or Fail.`), { status: 422 });
+  }
+
+  const scheduledAt = text(entry && entry.scheduledAt, 40);
+  const interviewerUserId = text(entry && entry.interviewerUserId, 80);
+  const staff = interviewerUserId ? findStaffInterviewer(interviewerUserId) : null;
+  if (scheduledAt && !staff) {
+    throw Object.assign(new Error(`Pick a staff interviewer with an email before scheduling ${label || `round ${index + 1}`}.`), { status: 422 });
+  }
+  const interviewer = staff
+    ? staff.name
+    : text(entry && entry.interviewer, 120);
+  const interviewerEmail = staff
+    ? staff.email
+    : text(entry && entry.interviewerEmail, 160).toLowerCase();
+  const reminderSentOn = text(entry && entry.reminderSentOn, 12);
+
+  return {
+    id: text(entry && entry.id, 80) || `interview-${contentSlug(label, index + 1)}`,
+    label,
+    format: INTERVIEW_FORMATS.has(entry && entry.format) ? entry.format : 'online',
+    interviewer,
+    interviewerUserId: staff ? staff.id : '',
+    interviewerEmail: staff ? staff.email : interviewerEmail,
+    scheduledAt,
+    reminderSentOn: /^\d{4}-\d{2}-\d{2}$/.test(reminderSentOn) ? reminderSentOn : '',
+    score,
+    notes: text(entry && entry.notes, 2000),
+    result,
+  };
+}
+
+function detectInterviewScheduleChanges(previousInterviews, nextInterviews) {
+  const prevMap = new Map((previousInterviews || []).map((entry) => [String(entry.id || ''), entry]));
+  const changed = [];
+  (nextInterviews || []).forEach((entry) => {
+    if (!entry || !entry.scheduledAt) return;
+    const prev = prevMap.get(String(entry.id || ''));
+    const prevAt = prev && prev.scheduledAt ? String(prev.scheduledAt) : '';
+    const nextAt = String(entry.scheduledAt || '');
+    if (prevAt === nextAt) return;
+    changed.push({
+      round: entry,
+      rescheduled: Boolean(prevAt),
+    });
+  });
+  return changed;
+}
+
+async function notifyInterviewSchedules(application, changes, req) {
+  const baseUrl = mail.publicBaseUrl(req && req.headers && req.headers.host);
+  const results = [];
+  for (const change of changes) {
+    const round = change.round;
+    if (!round.interviewerEmail) {
+      results.push({ id: round.id, sent: false, skipped: true, reason: 'no_interviewer_email' });
+      continue;
+    }
+    const outcome = await mail.sendInterviewScheduleEmail({ application, round, baseUrl });
+    results.push(Object.assign({ id: round.id, interviewer: round.interviewer }, outcome));
+  }
+  return results;
+}
+
+let reminderJobRunning = false;
+let reminderLastSlot = '';
+
+async function runInterviewDayReminders() {
+  if (reminderJobRunning) return;
+  if (!mail.mailEnabled() || !mail.smtpConfigured()) return;
+  const now = new Date();
+  const hm = mail.zonedHm(now);
+  if (hm.hour !== 10 || hm.minute > 1) return;
+  const today = mail.zonedYmd(now);
+  const slot = `${today}T10`;
+  if (reminderLastSlot === slot) return;
+  reminderJobRunning = true;
+  try {
+    const data = readApplications();
+    let changed = false;
+    const baseUrl = mail.publicBaseUrl();
+    for (const application of data.applications || []) {
+      const pipe = application.pipeline && typeof application.pipeline === 'object' ? application.pipeline : null;
+      if (!pipe || !Array.isArray(pipe.interviews)) continue;
+      for (const round of pipe.interviews) {
+        if (!round || !round.scheduledAt) continue;
+        if (round.result === 'fail') continue;
+        if (round.reminderSentOn === today) continue;
+        const when = new Date(round.scheduledAt);
+        if (Number.isNaN(when.getTime())) continue;
+        if (mail.zonedYmd(when) !== today) continue;
+        if (when.getTime() < now.getTime()) continue;
+        let email = round.interviewerEmail;
+        if (!email && round.interviewerUserId) {
+          const staff = findStaffInterviewer(round.interviewerUserId);
+          if (staff) {
+            email = staff.email;
+            round.interviewerEmail = staff.email;
+            round.interviewer = staff.name;
+          }
+        }
+        if (!email) continue;
+        const outcome = await mail.sendInterviewReminderEmail({
+          application,
+          round: Object.assign({}, round, { interviewerEmail: email }),
+          baseUrl,
+        });
+        if (outcome.sent || outcome.skipped) {
+          round.reminderSentOn = today;
+          changed = true;
+        }
+      }
+    }
+    if (changed) writeApplications(data);
+    reminderLastSlot = slot;
+  } catch (error) {
+    console.error('[mail] Day reminder job failed:', error.message || error);
+  } finally {
+    reminderJobRunning = false;
+  }
+}
+
+function startInterviewReminderJob() {
+  setInterval(() => {
+    runInterviewDayReminders().catch((error) => {
+      console.error('[mail] Reminder tick failed:', error.message || error);
+    });
+  }, 60 * 1000);
+  setTimeout(() => {
+    runInterviewDayReminders().catch(() => {});
+  }, 5000);
+}
+
+function seedInterviews(stages, existing = []) {
+  const byLabel = new Map((existing || []).map((entry) => [String(entry.label || ''), entry]));
+  return stages.map((label, index) => normalizeInterviewEntry(byLabel.get(label) || { label }, index, label));
+}
+
+function derivePipelineStage(pipeline) {
+  const phone = pipeline.phoneScreen;
+  if (phone === 'rejected' || phone === 'requirements_not_met') return 'closed';
+  if (phone === 'pending' || phone === 'shortlisted') return 'phone_screen';
+  if (phone !== 'accepted') return 'phone_screen';
+  if (!pipeline.pathway) return 'phone_screen';
+  if (pipeline.pathway === 'with_tasks') {
+    const decision = (pipeline.task && pipeline.task.decision) || 'pending';
+    if (decision === 'rejected') return 'closed';
+    if (decision !== 'approved') return 'task';
+  }
+  if (pipeline.offer.status === 'joined' || pipeline.offer.status === 'declined') return 'closed';
+  if (pipeline.offer.status === 'sent') return 'offer';
+  const interviews = pipeline.interviews || [];
+  if (!interviews.length) return 'interview';
+  const allResolved = interviews.every((entry) => entry.result === 'pass' || entry.result === 'fail');
+  if (allResolved && interviews.every((entry) => entry.result === 'pass')) return 'offer';
+  if (allResolved && interviews.some((entry) => entry.result === 'fail')) return 'closed';
+  return 'interview';
+}
+
+function mirrorInboxStatus(pipeline) {
+  if (
+    pipeline.phoneScreen === 'rejected'
+    || pipeline.phoneScreen === 'requirements_not_met'
+    || pipeline.offer.status === 'declined'
+    || (pipeline.task && pipeline.task.decision === 'rejected')
+  ) {
+    return 'rejected';
+  }
+  if (pipeline.phoneScreen === 'accepted' || pipeline.offer.status === 'sent' || pipeline.offer.status === 'joined') {
+    return 'contacted';
+  }
+  if (pipeline.phoneScreen === 'shortlisted' || pipeline.phoneScreen === 'pending' || pipeline.stage === 'phone_screen') {
+    return pipeline.phoneScreen === 'pending' ? 'reviewing' : 'reviewing';
+  }
+  return 'reviewing';
+}
+
+function cleanPipelinePayload(input, existingApplication, session) {
+  const existing = existingApplication.pipeline && typeof existingApplication.pipeline === 'object'
+    ? existingApplication.pipeline
+    : defaultPipeline();
+  const incoming = input && typeof input === 'object' ? input : {};
+  const phoneScreen = PHONE_SCREEN_OUTCOMES.has(incoming.phoneScreen) ? incoming.phoneScreen : (existing.phoneScreen || 'pending');
+  let pathway = incoming.pathway == null || incoming.pathway === ''
+    ? (existing.pathway || null)
+    : (PATHWAYS.has(incoming.pathway) ? incoming.pathway : null);
+
+  if (phoneScreen !== 'accepted') pathway = null;
+
+  const taskIncoming = incoming.task && typeof incoming.task === 'object' ? incoming.task : {};
+  const taskExisting = existing.task && typeof existing.task === 'object' ? existing.task : {};
+  const task = {
+    title: text(taskIncoming.title != null ? taskIncoming.title : taskExisting.title, 200),
+    notes: text(taskIncoming.notes != null ? taskIncoming.notes : taskExisting.notes, 4000),
+    status: TASK_STATUSES.has(taskIncoming.status) ? taskIncoming.status : (TASK_STATUSES.has(taskExisting.status) ? taskExisting.status : 'sent'),
+    decision: TASK_DECISIONS.has(taskIncoming.decision) ? taskIncoming.decision : (TASK_DECISIONS.has(taskExisting.decision) ? taskExisting.decision : 'pending'),
+  };
+
+  if (task.decision === 'approved' && task.status !== 'done') {
+    task.status = 'done';
+  }
+
+  if (pathway === 'with_tasks' && phoneScreen === 'accepted' && !task.title) {
+    throw Object.assign(new Error('Add a task title before continuing on the tasks pathway.'), { status: 422 });
+  }
+
+  let interviews = Array.isArray(incoming.interviews) ? incoming.interviews : (existing.interviews || []);
+  if (phoneScreen === 'accepted') {
+    const stages = jobStagesForApplication(existingApplication);
+    const justAccepted = incoming.phoneScreen === 'accepted' && existing.phoneScreen !== 'accepted';
+    const justChosePathway = Boolean(pathway) && !existing.pathway;
+    const justApprovedTask = pathway === 'with_tasks' && task.decision === 'approved' && taskExisting.decision !== 'approved';
+    if (task.decision === 'rejected') {
+      interviews = [];
+    } else if (!interviews.length && (justAccepted || justChosePathway || justApprovedTask)) {
+      if (pathway === 'no_tasks' || task.decision === 'approved') {
+        interviews = seedInterviews(stages.slice(0, 1), interviews);
+      }
+    } else if (interviews.length) {
+      // Keep filled rounds + at most one open/pending blank round from older multi-seed data.
+      const existingById = new Map((existing.interviews || []).map((entry) => [String(entry.id || ''), entry]));
+      const normalized = interviews.slice(0, 12).map((entry, index) => {
+        const prev = existingById.get(String((entry && entry.id) || ''));
+        const merged = Object.assign({}, entry || {});
+        if (prev && String(prev.scheduledAt || '') === String(merged.scheduledAt || '')) {
+          merged.reminderSentOn = prev.reminderSentOn || '';
+        } else {
+          merged.reminderSentOn = '';
+        }
+        return normalizeInterviewEntry(merged, index, stages[index] || '');
+      });
+      const kept = [];
+      let openKept = false;
+      normalized.forEach((entry) => {
+        const blank = !entry.interviewer && !entry.interviewerUserId && !entry.scheduledAt && !entry.notes && entry.score == null && entry.result === 'pending';
+        if (!blank) {
+          kept.push(entry);
+          openKept = false;
+        } else if (!openKept) {
+          kept.push(entry);
+          openKept = true;
+        }
+      });
+      interviews = kept.length ? kept : normalized.slice(0, 1);
+    }
+  } else if (phoneScreen === 'pending' || phoneScreen === 'shortlisted') {
+    interviews = Array.isArray(existing.interviews) ? existing.interviews : [];
+  } else {
+    interviews = [];
+  }
+
+  const offerIncoming = incoming.offer && typeof incoming.offer === 'object' ? incoming.offer : {};
+  const offerExisting = existing.offer && typeof existing.offer === 'object' ? existing.offer : {};
+  let offerStatus = OFFER_STATUSES.has(offerIncoming.status) ? offerIncoming.status : (OFFER_STATUSES.has(offerExisting.status) ? offerExisting.status : 'none');
+  const declinedReason = text(
+    offerIncoming.declinedReason != null ? offerIncoming.declinedReason : offerExisting.declinedReason,
+    2000,
+  );
+
+  if (phoneScreen !== 'accepted') {
+    offerStatus = 'none';
+  }
+  if (offerStatus === 'declined' && !declinedReason) {
+    throw Object.assign(new Error('Provide a reason when the candidate declines.'), { status: 422 });
+  }
+  if (offerStatus !== 'none' && offerStatus !== 'declined') {
+    if (pathway === 'with_tasks' && task.decision !== 'approved') {
+      throw Object.assign(new Error('Approve the task before moving to the offer stage.'), { status: 422 });
+    }
+  }
+
+  const pipeline = {
+    stage: 'phone_screen',
+    phoneScreen,
+    pathway,
+    task: {
+      title: task.title,
+      notes: task.notes,
+      status: task.status || 'sent',
+      decision: task.decision || 'pending',
+    },
+    interviews: phoneScreen === 'accepted' ? interviews : interviews,
+    offer: {
+      status: offerStatus,
+      declinedReason: offerStatus === 'declined' ? declinedReason : '',
+    },
+    history: Array.isArray(existing.history) ? existing.history.slice(0, 40) : [],
+  };
+
+  pipeline.stage = derivePipelineStage(pipeline);
+
+  const detail = text(incoming.historyDetail, 300) || text(incoming.action, 80) || 'Pipeline updated';
+  pipeline.history.unshift({
+    at: new Date().toISOString(),
+    by: session.username || 'hr',
+    action: text(incoming.action, 80) || 'update',
+    detail,
+  });
+  pipeline.history = pipeline.history.slice(0, 40);
+
+  return pipeline;
 }
 
 function readContactRequests() {
@@ -117,13 +585,7 @@ function writeContactRequests(data) {
   fs.unlinkSync(temp);
 }
 
-function writeUsers(data) {
-  const temp = `${USERS_FILE}.tmp`;
-  data.updatedAt = new Date().toISOString();
-  fs.writeFileSync(temp, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
-  fs.copyFileSync(temp, USERS_FILE);
-  fs.unlinkSync(temp);
-}
+const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 function passwordHash(password, salt = crypto.randomBytes(16).toString('hex')) {
   const hash = crypto.scryptSync(String(password), salt, 64).toString('hex');
@@ -138,37 +600,182 @@ function verifyPassword(password, stored) {
   return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
 }
 
+function hashInviteToken(raw) {
+  return crypto.createHash('sha256').update(String(raw || '')).digest('hex');
+}
+
+function createInvite() {
+  const raw = crypto.randomBytes(32).toString('hex');
+  return {
+    raw,
+    inviteTokenHash: hashInviteToken(raw),
+    inviteExpiresAt: new Date(Date.now() + INVITE_TTL_MS).toISOString(),
+  };
+}
+
+function applyInvite(account, invite) {
+  account.inviteTokenHash = invite.inviteTokenHash;
+  account.inviteExpiresAt = invite.inviteExpiresAt;
+  account.mustSetPassword = true;
+  account.passwordHash = null;
+}
+
+function clearInvite(account) {
+  account.inviteTokenHash = null;
+  account.inviteExpiresAt = null;
+  account.mustSetPassword = false;
+}
+
+function inviteUrlFor(rawToken) {
+  return `/admin/?setup=${encodeURIComponent(rawToken)}`;
+}
+
+function cleanWorkEmail(value) {
+  const email = text(value, 160).toLowerCase();
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw Object.assign(new Error('Enter a valid work email address.'), { status: 422 });
+  }
+  return email;
+}
+
+function cleanJobTitle(value) {
+  const title = text(value, 120);
+  if (!title) throw Object.assign(new Error('Enter a job title.'), { status: 422 });
+  return title;
+}
+
+function cleanPhotoPath(value) {
+  const photo = text(value, 300);
+  if (!photo) return '';
+  if (!/^assets\/(?:uploads\/)?[A-Za-z0-9._/-]+$/.test(photo) || photo.includes('..')) {
+    throw Object.assign(new Error('Invalid profile photo path.'), { status: 422 });
+  }
+  return photo;
+}
+
 function safeUser(user) {
   return {
     id: user.id,
     username: user.username,
     name: user.name,
+    email: user.email || '',
+    jobTitle: user.jobTitle || '',
+    photo: user.photo || '',
     role: user.role,
     active: user.active,
+    mustSetPassword: Boolean(user.mustSetPassword) || !user.passwordHash,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
     lastLoginAt: user.lastLoginAt || null,
   };
 }
 
+function isPipelineClosedRecord(pipeline) {
+  if (!pipeline || typeof pipeline !== 'object') return true;
+  if (pipeline.stage === 'closed') return true;
+  if (pipeline.phoneScreen === 'rejected' || pipeline.phoneScreen === 'requirements_not_met') return true;
+  if (pipeline.task && pipeline.task.decision === 'rejected') return true;
+  if (pipeline.offer && (pipeline.offer.status === 'joined' || pipeline.offer.status === 'declined')) return true;
+  return false;
+}
+
+function applicationMatchesJob(application, job) {
+  const title = String((job && job.title) || '');
+  const hrefSlug = path.basename(String((job && job.href) || ''), path.extname(String((job && job.href) || '')));
+  const roleSlug = String((application && application.roleSlug) || '');
+  return Boolean((title && application.role === title) || (hrefSlug && roleSlug && hrefSlug === roleSlug));
+}
+
+function shouldClearPipelineOnVacancyEnd(application) {
+  if (!application || !application.pipeline || typeof application.pipeline !== 'object') return false;
+  const joined = application.pipeline.offer && application.pipeline.offer.status === 'joined';
+  const active = !isPipelineClosedRecord(application.pipeline);
+  return active || joined;
+}
+
+function closeOpenPipelinesForJob(job, session, reason) {
+  const appsData = readApplications();
+  let closedCount = 0;
+  const stamp = new Date().toISOString();
+  const detail = text(reason, 300) || 'Vacancy ended — hiring closed without continuing active process';
+  (appsData.applications || []).forEach((application) => {
+    if (!applicationMatchesJob(application, job)) return;
+    if (!application.pipeline || typeof application.pipeline !== 'object') return;
+    if (application.pipeline.offer && application.pipeline.offer.status === 'joined') return;
+    if (isPipelineClosedRecord(application.pipeline)) return;
+
+    const pipe = application.pipeline;
+    if (pipe.phoneScreen === 'pending' || pipe.phoneScreen === 'shortlisted' || !pipe.phoneScreen) {
+      pipe.phoneScreen = 'rejected';
+    } else if (pipe.offer && pipe.offer.status === 'sent') {
+      pipe.offer.status = 'declined';
+      pipe.offer.declinedReason = pipe.offer.declinedReason || detail;
+    } else if (pipe.pathway === 'with_tasks' && pipe.task && pipe.task.decision === 'pending') {
+      pipe.task.decision = 'rejected';
+    }
+    pipe.stage = 'closed';
+    pipe.history = Array.isArray(pipe.history) ? pipe.history : [];
+    pipe.history.unshift({
+      at: stamp,
+      by: (session && session.username) || 'hr',
+      action: 'vacancy-ended',
+      detail,
+    });
+    pipe.history = pipe.history.slice(0, 40);
+    application.pipeline = pipe;
+    application.status = 'rejected';
+    application.updatedAt = stamp;
+    closedCount += 1;
+  });
+  writeApplications(appsData);
+  return { closedCount, applications: appsData.applications || [] };
+}
+
 function permissionsFor(role) {
   const admin = role === 'admin';
+  const hr = role === 'hr';
+  const marketing = role === 'marketing';
   return {
-    collections: admin ? Array.from(COLLECTIONS) : ['jobs'],
-    pages: admin ? Array.from(PAGES) : ['careers'],
+    collections: admin
+      ? Array.from(COLLECTIONS).filter((name) => name !== 'jobs')
+      : (hr ? ['jobs'] : []),
+    pages: admin ? Array.from(PAGES) : [],
     canManageUsers: admin,
     canUseTools: admin,
+    canUseHiring: hr,
+    canUseOnboarding: hr || marketing,
   };
 }
 
 function adminView(data, session) {
-  if (session.role === 'admin') return data;
+  if (session.role === 'admin') {
+    const collections = {};
+    for (const name of COLLECTIONS) {
+      if (name === 'jobs') continue;
+      collections[name] = data.collections[name] || [];
+    }
+    return {
+      meta: data.meta,
+      pages: data.pages,
+      collections,
+    };
+  }
+  if (session.role === 'marketing') {
+    return {
+      meta: {
+        ...data.meta,
+        audit: (data.meta.audit || []).filter((event) => event.by === session.username).slice(0, 20),
+      },
+      pages: {},
+      collections: {},
+    };
+  }
   return {
     meta: {
       ...data.meta,
       audit: (data.meta.audit || []).filter((event) => event.by === session.username).slice(0, 20),
     },
-    pages: { careers: data.pages.careers },
+    pages: {},
     collections: { jobs: data.collections.jobs || [] },
   };
 }
@@ -200,6 +807,11 @@ function writeDerivedFiles(data) {
     'utf8'
   );
   blogPages.writeBlogPages(data);
+  partnerLogos.syncPartnerLogos(data);
+  serviceSuiteImages.syncServiceSuiteImages(data);
+  serviceMethodology.syncServiceMethodology(data);
+  aboutHistory.syncAboutHistory(data);
+  siteSocial.syncSiteSocial(data);
 }
 
 function blogValidationMode() {
@@ -245,7 +857,176 @@ function ensureStorage() {
   }
   if (!fs.existsSync(APPLICATIONS_FILE)) writeApplications({ version: 1, updatedAt: null, applications: [] });
   if (!fs.existsSync(CONTACT_REQUESTS_FILE)) writeContactRequests({ version: 1, updatedAt: null, requests: [] });
+  if (!fs.existsSync(ONBOARDING_FILE)) writeOnboarding({ version: 1, updatedAt: null, requests: [] });
   writeDerivedFiles(readData());
+}
+
+function readOnboarding() {
+  ensureStorage();
+  if (!fs.existsSync(ONBOARDING_FILE)) return { version: 1, updatedAt: null, requests: [] };
+  return JSON.parse(fs.readFileSync(ONBOARDING_FILE, 'utf8'));
+}
+
+function writeOnboarding(data) {
+  data.updatedAt = new Date().toISOString();
+  const temp = `${ONBOARDING_FILE}.tmp`;
+  fs.writeFileSync(temp, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+  fs.copyFileSync(temp, ONBOARDING_FILE);
+  fs.unlinkSync(temp);
+}
+
+function emptyOnboardingAssets() {
+  return {
+    onboardingPost: '',
+    joiningPost: '',
+    businessCard: '',
+    employeeId: '',
+  };
+}
+
+function cleanOnboardingAssetPath(value) {
+  const raw = text(value, 260);
+  if (!raw) return '';
+  if (/^assets\/uploads\/[a-z0-9._-]+$/i.test(raw)) return raw;
+  throw Object.assign(new Error('Asset path must be an uploaded file under assets/uploads.'), { status: 422 });
+}
+
+function cleanLinkedInUrl(value) {
+  const raw = text(value, 300);
+  if (!raw) return '';
+  if (!/^https?:\/\/(www\.)?linkedin\.com\//i.test(raw)) {
+    throw Object.assign(new Error('Enter a valid LinkedIn profile URL.'), { status: 422 });
+  }
+  return raw;
+}
+
+function findOpenOnboarding(requests, applicationId) {
+  return (requests || []).find((item) => (
+    item.applicationId === applicationId
+    && item.status !== 'completed'
+  ));
+}
+
+function cleanOnboardingEmail(value, required = false) {
+  const email = text(value, 160).toLowerCase();
+  if (!email) {
+    if (required) throw Object.assign(new Error('Enter an email address.'), { status: 422 });
+    return '';
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw Object.assign(new Error('Enter a valid email address.'), { status: 422 });
+  }
+  return email;
+}
+
+function cleanOnboardingMobile(value, required = false) {
+  const mobile = text(value, 40);
+  if (!mobile) {
+    if (required) throw Object.assign(new Error('Enter a mobile number.'), { status: 422 });
+    return '';
+  }
+  if (mobile.replace(/[\s()-]/g, '').length < 7) {
+    throw Object.assign(new Error('Enter a valid mobile number.'), { status: 422 });
+  }
+  return mobile;
+}
+
+function createOnboardingDraftFromApplication(application, username, overrides = {}) {
+  const now = new Date().toISOString();
+  const request = {
+    id: `onb-${crypto.randomUUID()}`,
+    applicationId: application.id,
+    reference: text(application.reference || application.id, 80),
+    fullName: text(overrides.fullName || application.fullName || application.name, 120),
+    jobTitle: text(overrides.jobTitle || application.role || application.roleTitle || application.jobTitle, 120),
+    email: text(overrides.email || application.email || '', 160).toLowerCase(),
+    mobile: text(overrides.mobile || application.phone || application.mobile || '', 40),
+    linkedin: text(overrides.linkedin || application.linkedin || '', 300),
+    idNumber: text(overrides.idNumber || '', 80),
+    status: 'draft',
+    assets: emptyOnboardingAssets(),
+    notesHr: text(overrides.notesHr || '', 2000),
+    notesMarketing: '',
+    createdBy: text(username || 'hr', 80) || 'hr',
+    sentAt: null,
+    returnedAt: null,
+    completedAt: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+  if (request.linkedin) {
+    try {
+      request.linkedin = cleanLinkedInUrl(request.linkedin);
+    } catch (_) {
+      request.linkedin = text(overrides.linkedin || application.linkedin || '', 300);
+    }
+  }
+  return request;
+}
+
+function enrichOnboardingFromApplication(request, application) {
+  if (!request || !application) return false;
+  let changed = false;
+  if (!request.email && application.email) {
+    request.email = text(application.email, 160).toLowerCase();
+    changed = true;
+  }
+  if (!request.mobile && (application.phone || application.mobile)) {
+    request.mobile = text(application.phone || application.mobile, 40);
+    changed = true;
+  }
+  return changed;
+}
+
+function ensureOnboardingDraftForApplication(application, username, overrides = {}) {
+  if (!application || !application.id) return { request: null, created: false, store: readOnboarding() };
+  const offerStatus = String((((application.pipeline || {}).offer || {}).status) || '').toLowerCase();
+  if (offerStatus !== 'joined') {
+    return { request: null, created: false, store: readOnboarding() };
+  }
+  const store = readOnboarding();
+  const existing = findOpenOnboarding(store.requests, application.id);
+  if (existing) return { request: existing, created: false, store, existing: true };
+  const request = createOnboardingDraftFromApplication(application, username, overrides);
+  store.requests.unshift(request);
+  writeOnboarding(store);
+  return { request, created: true, store };
+}
+
+function syncJoinedApplicationsIntoOnboarding(username) {
+  const appsData = readApplications();
+  const appsById = new Map((appsData.applications || []).map((item) => [item.id, item]));
+  const store = readOnboarding();
+  let created = 0;
+  let enriched = 0;
+  (appsData.applications || []).forEach((application) => {
+    const offerStatus = String((((application.pipeline || {}).offer || {}).status) || '').toLowerCase();
+    if (offerStatus !== 'joined') return;
+    if (findOpenOnboarding(store.requests, application.id)) return;
+    store.requests.unshift(createOnboardingDraftFromApplication(application, username));
+    created += 1;
+  });
+  (store.requests || []).forEach((request) => {
+    if (request.status === 'completed') return;
+    const application = appsById.get(request.applicationId);
+    if (enrichOnboardingFromApplication(request, application)) enriched += 1;
+  });
+  if (created || enriched) writeOnboarding(store);
+  return { created, store: (created || enriched) ? readOnboarding() : store };
+}
+
+function requireOnboarding(req, res, mutation = false) {
+  const session = mutation ? requireMutationAuth(req, res) : requireAuth(req, res);
+  if (!session) return null;
+  if (session.role !== 'hr' && session.role !== 'marketing') {
+    json(res, 403, { error: 'FORBIDDEN', message: 'Employee onboarding is available to HR and Marketing accounts only.' });
+    return null;
+  }
+  return session;
+}
+
+function canUploadAssets(session) {
+  return session && (session.role === 'admin' || session.role === 'hr' || session.role === 'marketing');
 }
 
 function parseCookies(req) {
@@ -311,11 +1092,28 @@ function requireAdmin(req, res, mutation = false) {
 }
 
 function canEditCollection(session, collection) {
-  return session.role === 'admin' || (session.role === 'hr' && collection === 'jobs');
+  if (collection === 'jobs') return session.role === 'hr';
+  return session.role === 'admin';
 }
 
 function canEditPage(session, page) {
-  return session.role === 'admin' || (session.role === 'hr' && page === 'careers');
+  return session.role === 'admin' && PAGES.has(page);
+}
+
+function requireHr(req, res, mutation) {
+  const session = mutation ? requireMutationAuth(req, res) : requireAuth(req, res);
+  if (!session) return null;
+  if (session.role !== 'hr') {
+    json(res, 403, { error: 'FORBIDDEN', message: 'Hiring tools are available to HR accounts only.' });
+    return null;
+  }
+  return session;
+}
+
+function normalizeAccountRole(value, fallback = 'hr') {
+  const role = String(value || fallback).trim().toLowerCase();
+  if (role === 'hr' || role === 'marketing') return role;
+  throw Object.assign(new Error('Role must be HR or Marketing.'), { status: 422 });
 }
 
 function readBody(req) {
@@ -407,8 +1205,8 @@ function text(value, max = 3000) {
 
 function cleanUsername(value) {
   const username = text(value, 40).toLowerCase();
-  if (!/^[a-z0-9._-]{3,40}$/.test(username)) {
-    throw Object.assign(new Error('Username must be 3–40 characters using letters, numbers, dots, dashes, or underscores.'), { status: 422 });
+  if (!/^[a-z0-9._-]{2,40}$/.test(username)) {
+    throw Object.assign(new Error('Username must be 2–40 characters using letters, numbers, dots, dashes, or underscores.'), { status: 422 });
   }
   return username;
 }
@@ -420,6 +1218,12 @@ function validatePassword(value, required = true) {
     throw Object.assign(new Error('Password must be between 10 and 200 characters.'), { status: 422 });
   }
   return password;
+}
+
+function findUserByInviteToken(users, rawToken) {
+  const tokenHash = hashInviteToken(rawToken);
+  if (!tokenHash || !rawToken) return null;
+  return users.find((user) => user.inviteTokenHash && safeEqual(user.inviteTokenHash, tokenHash)) || null;
 }
 
 const DETAIL_PATHS = {
@@ -472,12 +1276,78 @@ function cleanItem(collection, input, existing = {}) {
     else if (key === 'categories') {
       const raw = Array.isArray(value) ? value : String(value || '').split(',');
       output[key] = raw.map((entry) => text(entry, 80)).filter(Boolean).slice(0, 10);
+    } else if (key === 'suiteScenes') {
+      const raw = Array.isArray(value) ? value : (Array.isArray(existing.suiteScenes) ? existing.suiteScenes : []);
+      output[key] = raw.slice(0, 8).map((entry, index) => {
+        const existingScene = Array.isArray(existing.suiteScenes) ? existing.suiteScenes[index] || {} : {};
+        const title = text(entry && (entry.title || entry.label), 160)
+          || text(existingScene.title || existingScene.label, 160)
+          || `Scene ${index + 1}`;
+        const featuresRaw = Array.isArray(entry && entry.features)
+          ? entry.features
+          : (Array.isArray(existingScene.features) ? existingScene.features : []);
+        const features = featuresRaw.slice(0, 6).map((feature) => {
+          const iconRaw = text(feature && feature.icon, 80);
+          const iconName = (iconRaw.match(/\bti-[a-z0-9-]+\b/i) || [])[0] || 'ti-circle';
+          return {
+            icon: iconName,
+            text: text(feature && feature.text, 200),
+          };
+        }).filter((feature) => feature.text);
+        return {
+          title,
+          label: title,
+          description: text(entry && entry.description, 2000) || text(existingScene.description, 2000),
+          features,
+          image: text(entry && entry.image, 1000) || text(existingScene.image, 1000),
+          alt: text(entry && entry.alt, 300) || text(existingScene.alt, 300) || `${title} visual`,
+        };
+      }).filter((entry) => entry.image || entry.title || entry.description);
+    } else if (key === 'methodology') {
+      const incoming = value && typeof value === 'object' ? value : {};
+      const existingMethod = existing.methodology && typeof existing.methodology === 'object' ? existing.methodology : {};
+      const stagesRaw = Array.isArray(incoming.stages)
+        ? incoming.stages
+        : (Array.isArray(existingMethod.stages) ? existingMethod.stages : []);
+      output[key] = {
+        label: text(incoming.label, 120) || text(existingMethod.label, 120) || 'Our methodology',
+        title: text(incoming.title, 200) || text(existingMethod.title, 200),
+        lead: text(incoming.lead, 2000) || text(existingMethod.lead, 2000),
+        stages: stagesRaw.slice(0, 6).map((entry, index) => {
+          const existingStage = Array.isArray(existingMethod.stages) ? existingMethod.stages[index] || {} : {};
+          const title = text(entry && entry.title, 160) || text(existingStage.title, 160) || `Stage ${index + 1}`;
+          return {
+            title,
+            description: text(entry && entry.description, 2000) || text(existingStage.description, 2000),
+            image: text(entry && entry.image, 1000) || text(existingStage.image, 1000),
+            alt: text(entry && entry.alt, 300) || text(existingStage.alt, 300) || `${title} visual`,
+          };
+        }).filter((entry) => entry.title || entry.description || entry.image),
+      };
     } else if (key === 'status') output[key] = value === 'draft' ? 'draft' : 'published';
-    else output[key] = text(value, key === 'summary' ? 5000 : 1000);
+    else if (key === 'type' && collection === 'jobs') {
+      const raw = text(value == null ? existing.type : value, 40);
+      const normalized = raw.toLowerCase().replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim();
+      if (normalized === 'remote') output[key] = 'Remote';
+      else if (normalized === 'hybrid' || normalized === 'hybird') output[key] = 'Hybrid';
+      else output[key] = 'Full time';
+    }
+    else if (key === 'interviewStages') {
+      output[key] = normalizeInterviewStages(value != null ? value : existing.interviewStages);
+    }
+    else if (['body', 'aboutRole', 'keyResponsibilities', 'requiredSkills', 'niceToHave', 'roleOffers'].includes(key)) {
+      output[key] = blogPages.sanitizeHtml(String(value == null ? (existing[key] || '') : value).slice(0, 100000));
+    }
+    else output[key] = text(value, key === 'summary' || key === 'details' ? 5000 : 1000);
   }
   const title = output.title || output.name;
   if (!title) throw Object.assign(new Error('A title or name is required.'), { status: 422 });
   if (fields[collection].includes('href') && !output.href) output.href = automaticHref(collection, title, output.id);
+  if (fields[collection].includes('alt') && output.image && !output.alt) {
+    if (collection === 'partners') output.alt = `${title} logo`;
+    else if (collection === 'team') output.alt = output.role ? `${title}, ${output.role}` : title;
+    else output.alt = title;
+  }
   output.updatedAt = new Date().toISOString();
   return output;
 }
@@ -532,8 +1402,9 @@ function cleanBlogItem(input, existing = {}, id) {
     summary: text(input.summary, 5000),
     href: text(input.href, 1000) || existing.href || '',
     image: text(input.image, 1000),
-    category: text(input.category, 80),
-    categoryLabel: text(input.categoryLabel, 120),
+    alt: text(input.alt, 300),
+    seoTitle: text(input.seoTitle, 200),
+    metaDescription: text(input.metaDescription, 400),
     accent: text(input.accent, 40) === 'orange' ? 'orange' : 'blue',
     status,
     featured: Boolean(input.featured),
@@ -553,6 +1424,12 @@ function cleanBlogItem(input, existing = {}, id) {
   if (!output.href) output.href = automaticHref('blogs', title, output.id);
   if (status === 'published' && !output.datePublished) output.datePublished = blogPages.dateOnly(now);
   output.readTime = blogPages.computeReadTime(output);
+  const taxonomy = blogPages.categoryFromCluster(cluster);
+  output.category = taxonomy.category;
+  output.categoryLabel = taxonomy.categoryLabel;
+  if (output.image && !output.alt) {
+    throw Object.assign(new Error('Add an accessible image description for the cover image.'), { status: 422 });
+  }
 
   const warnings = blogPages.blogWarnings(output);
   if (status === 'published' && blogValidationMode() === 'enforce' && warnings.length) {
@@ -568,12 +1445,50 @@ function finalizeBlogItem(item) {
   return warnings;
 }
 
-function cleanPage(input) {
+function cleanPage(input, existing = {}) {
   const allowed = ['label', 'title', 'lead', 'sectionTitle', 'sectionLead', 'seoTitle'];
-  return allowed.reduce((out, key) => {
+  const output = allowed.reduce((out, key) => {
     out[key] = text(input[key], key === 'lead' || key === 'sectionLead' ? 5000 : 1000);
     return out;
   }, {});
+  const historySource = input && input.history && typeof input.history === 'object'
+    ? input.history
+    : (existing && existing.history && typeof existing.history === 'object' ? existing.history : null);
+  if (historySource) {
+    const milestonesRaw = Array.isArray(historySource.milestones) ? historySource.milestones : [];
+    output.history = {
+      label: text(historySource.label, 120) || 'Since 2019',
+      title: text(historySource.title, 200) || 'Our History',
+      lead: text(historySource.lead, 2000),
+      milestones: milestonesRaw.slice(0, 16).map((entry, index) => {
+        const year = text(entry && entry.year, 40) || String(2019 + index);
+        return {
+          year,
+          text: text(entry && entry.text, 500),
+          image: text(entry && entry.image, 1000),
+          alt: text(entry && entry.alt, 300) || `${year} milestone`,
+        };
+      }).filter((entry) => entry.year || entry.text || entry.image),
+    };
+  }
+  const socialSource = input && input.social && typeof input.social === 'object'
+    ? input.social
+    : (existing && existing.social && typeof existing.social === 'object' ? existing.social : null);
+  if (socialSource) {
+    const cleanSocialUrl = (value) => {
+      const raw = text(value, 500);
+      if (!raw) return '';
+      if (/^https?:\/\//i.test(raw)) return raw;
+      return '';
+    };
+    output.social = {
+      linkedin: cleanSocialUrl(socialSource.linkedin),
+      facebook: cleanSocialUrl(socialSource.facebook),
+      instagram: cleanSocialUrl(socialSource.instagram),
+      tiktok: cleanSocialUrl(socialSource.tiktok),
+    };
+  }
+  return output;
 }
 
 function addAudit(data, action, label, by) {
@@ -608,23 +1523,6 @@ function clientAddress(req) {
   return String(req.socket.remoteAddress || 'local');
 }
 
-function canAttemptLogin(req) {
-  const ip = clientAddress(req);
-  const now = Date.now();
-  const state = loginAttempts.get(ip) || { count: 0, resetAt: now + 10 * 60 * 1000 };
-  if (state.resetAt < now) {
-    state.count = 0;
-    state.resetAt = now + 10 * 60 * 1000;
-  }
-  state.count += 1;
-  loginAttempts.set(ip, state);
-  return state.count <= 8;
-}
-
-function clearLoginAttempts(req) {
-  loginAttempts.delete(clientAddress(req));
-}
-
 function canSubmitApplication(req) {
   const ip = clientAddress(req);
   const now = Date.now();
@@ -649,6 +1547,21 @@ function canSubmitContact(req) {
   state.count += 1;
   contactAttempts.set(ip, state);
   return state.count <= 10;
+}
+
+/** Same sliding window pattern as applications/contact; key = IP + username. Limit 8 / hour. */
+function canAttemptLogin(req, username) {
+  const ip = clientAddress(req);
+  const key = `${ip}\0${String(username || '').trim().toLowerCase()}`;
+  const now = Date.now();
+  const state = loginAttempts.get(key) || { count: 0, resetAt: now + 60 * 60 * 1000 };
+  if (state.resetAt < now) {
+    state.count = 0;
+    state.resetAt = now + 60 * 60 * 1000;
+  }
+  state.count += 1;
+  loginAttempts.set(key, state);
+  return state.count <= 8;
 }
 
 function cleanContactRequest(input) {
@@ -791,26 +1704,57 @@ async function handleApi(req, res, url) {
     return json(res, 201, { ok: true, reference: request.reference });
   }
 
-  if (pathname === '/api/admin/login' && req.method === 'POST') {
-    if (!canAttemptLogin(req)) return json(res, 429, { error: 'RATE_LIMITED', message: 'Too many attempts. Try again later.' });
+  if (pathname === '/api/admin/auth/setup-password' && req.method === 'POST') {
     const body = await readBody(req);
+    const rawToken = text(body.token, 200);
+    const password = validatePassword(body.password, true);
+    if (body.passwordConfirm != null && String(body.passwordConfirm) !== password) {
+      return json(res, 422, { error: 'PASSWORD_MISMATCH', message: 'Password confirmation does not match.' });
+    }
     const users = readUsers();
+    const account = findUserByInviteToken(users.users, rawToken);
+    if (!account || !account.active) {
+      return json(res, 400, { error: 'INVALID_INVITE', message: 'This invite link is invalid or has already been used.' });
+    }
+    if (!account.inviteExpiresAt || Date.parse(account.inviteExpiresAt) < Date.now()) {
+      return json(res, 400, { error: 'INVITE_EXPIRED', message: 'This invite link has expired. Ask an administrator for a new one.' });
+    }
+    account.passwordHash = passwordHash(password);
+    clearInvite(account);
+    account.updatedAt = new Date().toISOString();
+    writeUsers(users);
+    return json(res, 200, { ok: true, username: account.username, message: 'Password saved. You can sign in now.' });
+  }
+
+  if (pathname === '/api/admin/login' && req.method === 'POST') {
+    const body = await readBody(req);
     const username = text(body.username, 40).toLowerCase();
+    if (!canAttemptLogin(req, username)) {
+      return json(res, 429, { error: 'RATE_LIMITED', message: 'Too many sign-in attempts. Please try again later.' });
+    }
+    const users = readUsers();
     const account = users.users.find((user) => user.username === username);
-    if (!account || !account.active || !verifyPassword(body.password || '', account.passwordHash)) {
+    if (!account || !account.active || !account.passwordHash || account.mustSetPassword) {
       return json(res, 401, { error: 'INVALID_CREDENTIALS', message: 'Username or password is incorrect.' });
     }
-    clearLoginAttempts(req);
-    account.lastLoginAt = new Date().toISOString();
-    writeUsers(users);
+    if (!verifyPassword(body.password || '', account.passwordHash)) {
+      return json(res, 401, { error: 'INVALID_CREDENTIALS', message: 'Username or password is incorrect.' });
+    }
+    // Re-read before write so concurrent HR account creates are not wiped by login.
+    const latest = mutateUsers((store) => {
+      const current = store.users.find((user) => user.id === account.id);
+      if (current) current.lastLoginAt = new Date().toISOString();
+      return current || account;
+    });
+    const signedIn = latest && latest.id ? latest : account;
     const token = crypto.randomBytes(32).toString('hex');
     const csrf = crypto.randomBytes(24).toString('hex');
-    sessions.set(token, { userId: account.id, csrf, expiresAt: Date.now() + SESSION_TTL });
+    sessions.set(token, { userId: signedIn.id, csrf, expiresAt: Date.now() + SESSION_TTL });
     return json(
       res,
       200,
-      { authenticated: true, user: safeUser(account), permissions: permissionsFor(account.role), csrf },
-      { 'Set-Cookie': `dh_admin_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${SESSION_TTL / 1000}` }
+      { authenticated: true, user: safeUser(signedIn), permissions: permissionsFor(signedIn.role), csrf },
+      { 'Set-Cookie': sessionCookieHeader(token, SESSION_TTL / 1000, req) }
     );
   }
 
@@ -825,7 +1769,7 @@ async function handleApi(req, res, url) {
     const session = requireMutationAuth(req, res);
     if (!session) return;
     sessions.delete(session.token);
-    return json(res, 200, { ok: true }, { 'Set-Cookie': 'dh_admin_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0' });
+    return json(res, 200, { ok: true }, { 'Set-Cookie': sessionCookieHeader('', 0, req) });
   }
 
   if (!pathname.startsWith('/api/admin/')) return json(res, 404, { error: 'NOT_FOUND' });
@@ -836,31 +1780,78 @@ async function handleApi(req, res, url) {
     return json(res, 200, { updatedAt: users.updatedAt, users: users.users.map(safeUser) });
   }
 
+  if (pathname === '/api/admin/auth/change-password' && req.method === 'POST') {
+    const session = requireMutationAuth(req, res);
+    if (!session) return;
+    const body = await readBody(req);
+    const currentPassword = String(body.currentPassword || '');
+    const password = validatePassword(body.password, true);
+    if (body.passwordConfirm != null && String(body.passwordConfirm) !== password) {
+      return json(res, 422, { error: 'PASSWORD_MISMATCH', message: 'Password confirmation does not match.' });
+    }
+    if (currentPassword === password) {
+      return json(res, 422, { error: 'PASSWORD_UNCHANGED', message: 'Choose a new password that is different from the current one.' });
+    }
+    const users = readUsers();
+    const account = users.users.find((user) => user.id === session.userId);
+    if (!account || !account.active || !account.passwordHash || !verifyPassword(currentPassword, account.passwordHash)) {
+      return json(res, 403, { error: 'INVALID_PASSWORD', message: 'Current password is incorrect.' });
+    }
+    account.passwordHash = passwordHash(password);
+    clearInvite(account);
+    account.updatedAt = new Date().toISOString();
+    writeUsers(users);
+    return json(res, 200, { ok: true, message: 'Password updated.' });
+  }
+
   if (pathname === '/api/admin/users' && req.method === 'POST') {
     const session = requireAdmin(req, res, true);
     if (!session) return;
     const body = await readBody(req);
     const users = readUsers();
     const username = cleanUsername(body.username);
+    const email = cleanWorkEmail(body.email);
+    const jobTitle = cleanJobTitle(body.jobTitle);
+    const photo = cleanPhotoPath(body.photo);
+    const name = text(body.name, 100) || username;
+    const password = validatePassword(body.password, true);
+    if (!name) return json(res, 422, { error: 'NAME_REQUIRED', message: 'Enter the full name for this account.' });
     if (users.users.some((user) => user.username === username)) {
       return json(res, 409, { error: 'USERNAME_EXISTS', message: 'This username is already in use.' });
     }
-    const password = validatePassword(body.password, true);
+    if (users.users.some((user) => String(user.email || '').toLowerCase() === email)) {
+      return json(res, 409, { error: 'EMAIL_EXISTS', message: 'This work email is already in use.' });
+    }
+    let role;
+    try {
+      role = normalizeAccountRole(body.role, 'hr');
+    } catch (error) {
+      return json(res, error.status || 422, { error: 'INVALID_ROLE', message: error.message });
+    }
     const now = new Date().toISOString();
     const account = {
       id: `user-${crypto.randomUUID()}`,
       username,
-      name: text(body.name, 100) || username,
-      role: 'hr',
+      name,
+      email,
+      jobTitle,
+      photo,
+      role,
       active: body.active !== false,
       passwordHash: passwordHash(password),
+      mustSetPassword: false,
+      inviteTokenHash: null,
+      inviteExpiresAt: null,
       createdAt: now,
       updatedAt: now,
       lastLoginAt: null,
     };
     users.users.push(account);
     writeUsers(users);
-    return json(res, 201, { user: safeUser(account), users: users.users.map(safeUser) });
+    return json(res, 201, {
+      user: safeUser(account),
+      users: users.users.map(safeUser),
+    });
   }
 
   if (pathname.startsWith('/api/admin/users/') && ['PUT', 'DELETE'].includes(req.method)) {
@@ -886,19 +1877,32 @@ async function handleApi(req, res, url) {
 
     const body = await readBody(req);
     const username = cleanUsername(body.username);
+    const email = cleanWorkEmail(body.email);
+    const jobTitle = cleanJobTitle(body.jobTitle);
+    const photo = cleanPhotoPath(body.photo);
+    const name = text(body.name, 100) || username;
     if (users.users.some((user) => user.id !== account.id && user.username === username)) {
       return json(res, 409, { error: 'USERNAME_EXISTS', message: 'This username is already in use.' });
     }
+    if (users.users.some((user) => user.id !== account.id && String(user.email || '').toLowerCase() === email)) {
+      return json(res, 409, { error: 'EMAIL_EXISTS', message: 'This work email is already in use.' });
+    }
     account.username = username;
-    account.name = text(body.name, 100) || username;
+    account.name = name;
+    account.email = email;
+    account.jobTitle = jobTitle;
+    account.photo = photo;
     account.active = body.active !== false;
+
     const password = validatePassword(body.password, false);
     if (password) {
       account.passwordHash = passwordHash(password);
+      clearInvite(account);
       for (const [token, activeSession] of sessions.entries()) {
         if (activeSession.userId === account.id) sessions.delete(token);
       }
     }
+
     account.updatedAt = new Date().toISOString();
     if (!account.active) {
       for (const [token, activeSession] of sessions.entries()) {
@@ -906,7 +1910,10 @@ async function handleApi(req, res, url) {
       }
     }
     writeUsers(users);
-    return json(res, 200, { user: safeUser(account), users: users.users.map(safeUser) });
+    return json(res, 200, {
+      user: safeUser(account),
+      users: users.users.map(safeUser),
+    });
   }
 
   if (pathname === '/api/admin/content' && req.method === 'GET') {
@@ -923,7 +1930,7 @@ async function handleApi(req, res, url) {
     const body = await readBody(req);
     if (!body.pages || !body.collections) return json(res, 422, { error: 'INVALID_IMPORT', message: 'The import file has an invalid structure.' });
     const next = { meta: current.meta, pages: {}, collections: {} };
-    for (const page of PAGES) next.pages[page] = cleanPage(body.pages[page] || {});
+    for (const page of PAGES) next.pages[page] = cleanPage(body.pages[page] || {}, (current.pages && current.pages[page]) || {});
     for (const collection of COLLECTIONS) {
       const items = Array.isArray(body.collections[collection]) ? body.collections[collection] : [];
       next.collections[collection] = items.slice(0, 500).map((item) => {
@@ -938,14 +1945,198 @@ async function handleApi(req, res, url) {
   }
 
   if (pathname === '/api/admin/applications' && req.method === 'GET') {
-    if (!requireAuth(req, res)) return;
+    if (!requireHr(req, res, false)) return;
     const data = readApplications();
     return json(res, 200, { updatedAt: data.updatedAt, applications: data.applications || [] });
   }
 
-  const applicationMatch = pathname.match(/^\/api\/admin\/applications\/([^/]+)(?:\/(resume))?$/);
+  if (pathname === '/api/admin/staff-interviewers' && req.method === 'GET') {
+    if (!requireHr(req, res, false)) return;
+    return json(res, 200, { interviewers: listStaffInterviewers() });
+  }
+
+  if (pathname === '/api/admin/onboarding' && req.method === 'GET') {
+    const session = requireOnboarding(req, res, false);
+    if (!session) return;
+    let data = readOnboarding();
+    if (session.role === 'hr') {
+      const sync = syncJoinedApplicationsIntoOnboarding(session.username);
+      data = sync.store;
+    }
+    let requests = data.requests || [];
+    if (session.role === 'marketing') {
+      requests = requests.filter((item) => item.status === 'sent' || item.status === 'returned');
+    }
+    return json(res, 200, { updatedAt: data.updatedAt, requests });
+  }
+
+  if (pathname === '/api/admin/onboarding' && req.method === 'POST') {
+    const session = requireOnboarding(req, res, true);
+    if (!session) return;
+    if (session.role !== 'hr') {
+      return json(res, 403, { error: 'FORBIDDEN', message: 'Only HR can start employee onboarding.' });
+    }
+    const body = await readBody(req);
+    const applicationId = text(body.applicationId, 80);
+    if (!applicationId) {
+      return json(res, 422, { error: 'APPLICATION_REQUIRED', message: 'Select a joined candidate to start onboarding.' });
+    }
+    const appsData = readApplications();
+    const application = (appsData.applications || []).find((item) => item.id === applicationId);
+    if (!application) {
+      return json(res, 404, { error: 'APPLICATION_NOT_FOUND', message: 'Application not found.' });
+    }
+    const offerStatus = String((((application.pipeline || {}).offer || {}).status) || '').toLowerCase();
+    if (offerStatus !== 'joined') {
+      return json(res, 422, { error: 'NOT_JOINED', message: 'Onboarding can only start for candidates marked as Joined.' });
+    }
+    const result = ensureOnboardingDraftForApplication(application, session.username, body);
+    return json(res, result.created ? 201 : 200, {
+      request: result.request,
+      requests: result.store.requests,
+      existing: !result.created,
+    });
+  }
+
+  if (pathname.startsWith('/api/admin/onboarding/') && req.method === 'PUT') {
+    const session = requireOnboarding(req, res, true);
+    if (!session) return;
+    const id = pathname.split('/').pop();
+    const store = readOnboarding();
+    const index = (store.requests || []).findIndex((item) => item.id === id);
+    if (index < 0) return json(res, 404, { error: 'NOT_FOUND', message: 'Onboarding request not found.' });
+    const request = store.requests[index];
+    const body = await readBody(req);
+    const action = text(body.action || '', 40).toLowerCase();
+    const now = new Date().toISOString();
+
+    if (session.role === 'hr') {
+      if (action === 'send') {
+        if (request.status !== 'draft' && request.status !== 'returned') {
+          return json(res, 422, { error: 'INVALID_STATUS', message: 'Only draft or returned requests can be sent to Marketing.' });
+        }
+        try {
+          request.fullName = text(body.fullName != null ? body.fullName : request.fullName, 120);
+          request.jobTitle = text(body.jobTitle != null ? body.jobTitle : request.jobTitle, 120);
+          request.email = cleanOnboardingEmail(body.email != null ? body.email : request.email, true);
+          request.mobile = cleanOnboardingMobile(body.mobile != null ? body.mobile : request.mobile, true);
+          request.linkedin = cleanLinkedInUrl(body.linkedin != null ? body.linkedin : request.linkedin);
+          request.idNumber = text(body.idNumber != null ? body.idNumber : request.idNumber, 80);
+          request.notesHr = text(body.notesHr != null ? body.notesHr : request.notesHr, 2000);
+        } catch (error) {
+          return json(res, error.status || 422, { error: 'INVALID_PACKAGE', message: error.message });
+        }
+        if (!request.fullName || !request.jobTitle || !request.email || !request.mobile || !request.linkedin || !request.idNumber) {
+          return json(res, 422, { error: 'PACKAGE_INCOMPLETE', message: 'Full name, job title, email, mobile, LinkedIn, and ID number are required before sending.' });
+        }
+        request.status = 'sent';
+        request.sentAt = now;
+        request.updatedAt = now;
+        writeOnboarding(store);
+        return json(res, 200, { request, requests: store.requests });
+      }
+      if (action === 'complete') {
+        if (request.status !== 'returned') {
+          return json(res, 422, { error: 'INVALID_STATUS', message: 'Mark completed only after Marketing returns deliverables.' });
+        }
+        request.status = 'completed';
+        request.completedAt = now;
+        request.updatedAt = now;
+        writeOnboarding(store);
+        return json(res, 200, { request, requests: store.requests });
+      }
+      if (request.status !== 'draft') {
+        return json(res, 422, { error: 'LOCKED', message: 'Package fields can only be edited while the request is in draft.' });
+      }
+      try {
+        if (body.fullName != null) request.fullName = text(body.fullName, 120);
+        if (body.jobTitle != null) request.jobTitle = text(body.jobTitle, 120);
+        if (body.email != null) request.email = body.email === '' ? '' : cleanOnboardingEmail(body.email, false);
+        if (body.mobile != null) request.mobile = body.mobile === '' ? '' : cleanOnboardingMobile(body.mobile, false);
+        if (body.linkedin != null) request.linkedin = body.linkedin === '' ? '' : cleanLinkedInUrl(body.linkedin);
+        if (body.idNumber != null) request.idNumber = text(body.idNumber, 80);
+        if (body.notesHr != null) request.notesHr = text(body.notesHr, 2000);
+      } catch (error) {
+        return json(res, error.status || 422, { error: 'INVALID_PACKAGE', message: error.message });
+      }
+      request.updatedAt = now;
+      writeOnboarding(store);
+      return json(res, 200, { request, requests: store.requests });
+    }
+
+    // Marketing
+    if (request.status !== 'sent' && request.status !== 'returned') {
+      return json(res, 422, { error: 'INVALID_STATUS', message: 'Marketing can only update requests that were sent by HR.' });
+    }
+    if (!request.assets) request.assets = emptyOnboardingAssets();
+    try {
+      if (body.assets && typeof body.assets === 'object') {
+        for (const key of ONBOARDING_ASSET_KEYS) {
+          if (body.assets[key] != null) {
+            request.assets[key] = cleanOnboardingAssetPath(body.assets[key]);
+          }
+        }
+      }
+      if (body.notesMarketing != null) request.notesMarketing = text(body.notesMarketing, 2000);
+    } catch (error) {
+      return json(res, error.status || 422, { error: 'INVALID_ASSETS', message: error.message });
+    }
+    if (action === 'return') {
+      const missing = ONBOARDING_ASSET_KEYS.filter((key) => !request.assets[key]);
+      if (missing.length) {
+        return json(res, 422, {
+          error: 'ASSETS_INCOMPLETE',
+          message: 'Upload all four deliverables before returning to HR.',
+        });
+      }
+      request.status = 'returned';
+      request.returnedAt = now;
+    }
+    request.updatedAt = now;
+    writeOnboarding(store);
+    return json(res, 200, { request, requests: store.requests });
+  }
+
+  if (pathname === '/api/admin/vacancies/end' && req.method === 'POST') {
+    const session = requireMutationAuth(req, res);
+    if (!session) return;
+    if (!canEditCollection(session, 'jobs')) {
+      return json(res, 403, { error: 'FORBIDDEN', message: 'You do not have permission to end vacancies.' });
+    }
+    const body = await readBody(req);
+    const jobId = text(body.jobId, 120);
+    if (!jobId) return json(res, 422, { error: 'MISSING_JOB', message: 'Select a vacancy to end.' });
+    const data = readData();
+    const jobs = data.collections.jobs || [];
+    const job = jobs.find((entry) => entry.id === jobId);
+    if (!job) return json(res, 404, { error: 'JOB_NOT_FOUND', message: 'Vacancy not found.' });
+    if (job.status !== 'published') {
+      return json(res, 422, { error: 'ALREADY_ENDED', message: 'This vacancy is already ended or unpublished.' });
+    }
+
+    job.status = 'draft';
+    job.updatedAt = new Date().toISOString();
+    addAudit(data, 'update', `Ended vacancy “${job.title || jobId}”`, session.username);
+    writeData(data);
+
+    const appsData = readApplications();
+    const activeCount = (appsData.applications || []).filter((application) => {
+      if (!applicationMatchesJob(application, job)) return false;
+      if (!application.pipeline || typeof application.pipeline !== 'object') return false;
+      return !isPipelineClosedRecord(application.pipeline);
+    }).length;
+
+    return json(res, 200, {
+      content: adminView(data, session),
+      applications: appsData.applications || [],
+      activeCount,
+      job: { id: job.id, title: job.title, status: job.status },
+    });
+  }
+
+  const applicationMatch = pathname.match(/^\/api\/admin\/applications\/([^/]+)(?:\/(resume|pipeline))?$/);
   if (applicationMatch && req.method === 'GET' && applicationMatch[2] === 'resume') {
-    if (!requireAuth(req, res)) return;
+    if (!requireHr(req, res, false)) return;
     const id = decodeURIComponent(applicationMatch[1]);
     const application = readApplications().applications.find((entry) => entry.id === id);
     if (!application) return json(res, 404, { error: 'APPLICATION_NOT_FOUND', message: 'Application not found.' });
@@ -967,7 +2158,7 @@ async function handleApi(req, res, url) {
   }
 
   if (applicationMatch && req.method === 'PUT' && !applicationMatch[2]) {
-    if (!requireMutationAuth(req, res)) return;
+    if (!requireHr(req, res, true)) return;
     const allowedStatuses = new Set(['new', 'reviewing', 'contacted', 'rejected']);
     const body = await readBody(req);
     const status = text(body.status, 30);
@@ -979,6 +2170,53 @@ async function handleApi(req, res, url) {
     application.updatedAt = new Date().toISOString();
     writeApplications(data);
     return json(res, 200, { application, applications: data.applications });
+  }
+
+  if (applicationMatch && req.method === 'PUT' && applicationMatch[2] === 'pipeline') {
+    if (!requireHr(req, res, true)) return;
+    const body = await readBody(req);
+    const data = readApplications();
+    const application = data.applications.find((entry) => entry.id === decodeURIComponent(applicationMatch[1]));
+    if (!application) return json(res, 404, { error: 'APPLICATION_NOT_FOUND', message: 'Application not found.' });
+    const session = getSession(req);
+    try {
+      const previousInterviews = application.pipeline && Array.isArray(application.pipeline.interviews)
+        ? application.pipeline.interviews.slice()
+        : [];
+      application.pipeline = cleanPipelinePayload(body.pipeline || body, application, session || {});
+      application.status = mirrorInboxStatus(application.pipeline);
+      application.updatedAt = new Date().toISOString();
+      const scheduleChanges = detectInterviewScheduleChanges(previousInterviews, application.pipeline.interviews || []);
+      writeApplications(data);
+      let mailResults = [];
+      if (scheduleChanges.length) {
+        mailResults = await notifyInterviewSchedules(application, scheduleChanges, req);
+      }
+      let onboarding = null;
+      if (application.pipeline && application.pipeline.offer && application.pipeline.offer.status === 'joined') {
+        const ensured = ensureOnboardingDraftForApplication(application, session && session.username);
+        if (ensured.request) {
+          onboarding = {
+            request: ensured.request,
+            created: ensured.created,
+            existing: !ensured.created,
+          };
+        }
+      }
+      return json(res, 200, {
+        application,
+        applications: data.applications,
+        onboarding,
+        mail: {
+          scheduleNotices: mailResults,
+          sent: mailResults.filter((entry) => entry.sent).length,
+          failed: mailResults.filter((entry) => !entry.sent && !entry.skipped).length,
+          skipped: mailResults.filter((entry) => entry.skipped).length,
+        },
+      });
+    } catch (error) {
+      return json(res, error.status || 500, { error: 'PIPELINE_INVALID', message: error.message || 'Could not update the hiring pipeline.' });
+    }
   }
 
   if (pathname === '/api/admin/contact-requests' && req.method === 'GET') {
@@ -1008,27 +2246,52 @@ async function handleApi(req, res, url) {
     if (!session) return;
     const page = pathname.split('/').pop();
     if (!PAGES.has(page)) return json(res, 404, { error: 'UNKNOWN_PAGE' });
-    if (!canEditPage(session, page)) return json(res, 403, { error: 'FORBIDDEN', message: 'You can only edit Careers page content.' });
+    if (!canEditPage(session, page)) return json(res, 403, { error: 'FORBIDDEN', message: 'Only administrators can edit page content.' });
     const data = readData();
     if (!checkRevision(req, res, data)) return;
-    data.pages[page] = cleanPage(await readBody(req));
+    data.pages[page] = cleanPage(await readBody(req), data.pages[page] || {});
     addAudit(data, 'page-update', `Updated ${page} page content`, session.username);
     writeData(data);
     return json(res, 200, adminView(data, session));
   }
 
   if (pathname === '/api/admin/upload' && req.method === 'POST') {
-    const session = requireAdmin(req, res, true);
+    const session = requireMutationAuth(req, res);
     if (!session) return;
+    if (!canUploadAssets(session)) {
+      return json(res, 403, { error: 'FORBIDDEN', message: 'You do not have permission to upload files.' });
+    }
     const body = await readBody(req);
-    const match = String(body.dataUrl || '').match(/^data:image\/(png|jpeg|webp|gif);base64,([a-z0-9+/=]+)$/i);
-    if (!match) return json(res, 422, { error: 'INVALID_IMAGE', message: 'Use a PNG, JPG, WEBP, or GIF image.' });
-    const buffer = Buffer.from(match[2], 'base64');
-    if (!buffer.length || buffer.length > 5 * 1024 * 1024) return json(res, 413, { error: 'IMAGE_TOO_LARGE', message: 'Image size must be under 5 MB.' });
-    const ext = match[1].toLowerCase() === 'jpeg' ? 'jpg' : match[1].toLowerCase();
-    const base = path.basename(text(body.name || 'image', 100), path.extname(body.name || '')).replace(/[^a-z0-9_-]+/gi, '-').replace(/^-|-$/g, '') || 'image';
-    const filename = `${Date.now()}-${base.toLowerCase()}.${ext}`;
-    fs.writeFileSync(path.join(UPLOAD_DIR, filename), buffer);
+    const dataUrl = String(body.dataUrl || '');
+    const pdfMatch = dataUrl.match(/^data:application\/pdf;base64,([a-z0-9+/=]+)$/i);
+    const imageMatch = dataUrl.match(/^data:image\/(png|jpeg|webp|gif);base64,([a-z0-9+/=]+)$/i);
+    if (!pdfMatch && !imageMatch) {
+      return json(res, 422, { error: 'INVALID_FILE', message: 'Use a PNG, JPG, WEBP, GIF, or PDF file.' });
+    }
+    const buffer = Buffer.from((pdfMatch ? pdfMatch[1] : imageMatch[2]), 'base64');
+    if (!buffer.length) return json(res, 422, { error: 'INVALID_FILE', message: 'The file is empty.' });
+    if (buffer.length > 5 * 1024 * 1024) {
+      return json(res, 413, { error: 'FILE_TOO_LARGE', message: 'File is over 5 MB. Compress or resize it before uploading.' });
+    }
+    const base = path.basename(text(body.name || (pdfMatch ? 'document' : 'image'), 100), path.extname(body.name || '')).replace(/[^a-z0-9_-]+/gi, '-').replace(/^-|-$/g, '') || (pdfMatch ? 'document' : 'image');
+    let filename;
+    let payload;
+    if (pdfMatch) {
+      filename = `${Date.now()}-${base.toLowerCase()}.pdf`;
+      payload = buffer;
+    } else {
+      filename = `${Date.now()}-${base.toLowerCase()}.webp`;
+      try {
+        payload = await sharp(buffer, { failOn: 'none' })
+          .rotate()
+          .resize({ width: 1620, height: 1620, fit: 'inside', withoutEnlargement: true })
+          .webp({ quality: 80, effort: 5 })
+          .toBuffer();
+      } catch (_) {
+        return json(res, 422, { error: 'INVALID_IMAGE', message: 'Could not process that image. Try another PNG, JPG, or WEBP file.' });
+      }
+    }
+    fs.writeFileSync(path.join(UPLOAD_DIR, filename), payload);
     const data = readData();
     addAudit(data, 'upload', `Uploaded ${filename}`, session.username);
     writeData(data);
@@ -1075,6 +2338,19 @@ async function handleApi(req, res, url) {
       const [removed] = list.splice(index, 1);
       addAudit(data, 'delete', `Deleted ${removed.title || removed.name}`, session.username);
       writeData(data);
+      if (collection === 'jobs') {
+        const appsData = readApplications();
+        const activeCount = (appsData.applications || []).filter((application) => {
+          if (!applicationMatchesJob(application, removed)) return false;
+          if (!application.pipeline || typeof application.pipeline !== 'object') return false;
+          return !isPipelineClosedRecord(application.pipeline);
+        }).length;
+        return json(res, 200, {
+          content: adminView(data, session),
+          applications: appsData.applications || [],
+          activeCount,
+        });
+      }
       return json(res, 200, adminView(data, session));
     }
   }
@@ -1147,6 +2423,7 @@ function sitemapXml() {
     'careers/dotnet-backend-developer.html',
     'careers/data-analyst.html',
     'careers/full-stack-developer.html',
+    'news/index.html',
   ];
   fixedPages.forEach((relativePath) => {
     const target = path.join(ROOT, ...relativePath.split('/'));
@@ -1187,6 +2464,8 @@ function sitemapXml() {
 
 function findGeneratedDetail(pathname) {
   const cleanPath = pathname.replace(/^\/+/, '');
+  // Full custom service HTML must never be replaced by the CMS stub renderer.
+  if (/^services\//i.test(cleanPath)) return null;
   const data = readData();
   for (const collection of Object.keys(DETAIL_PATHS)) {
     const item = (data.collections[collection] || []).find((entry) => {
@@ -1283,20 +2562,229 @@ function generatedDetailSchema(collection, item, canonical, imageUrl) {
   return { '@context': 'https://schema.org', '@graph': [organization, entity] };
 }
 
+function postedAgoLabel(iso) {
+  const stamp = Date.parse(iso || '') || Date.now();
+  const days = Math.max(0, Math.floor((Date.now() - stamp) / 86400000));
+  if (days <= 0) return 'Posted today';
+  if (days === 1) return 'Posted 1 day ago';
+  if (days < 30) return `Posted ${days} days ago`;
+  const months = Math.floor(days / 30);
+  if (months === 1) return 'Posted 1 month ago';
+  if (months < 12) return `Posted ${months} months ago`;
+  return 'Posted over a year ago';
+}
+
+function jobSectionHtml(title, html) {
+  const content = String(html || '').trim();
+  if (!content) return '';
+  return `<section class="careers-detail__block careers-detail__body"><h2>${htmlEscape(title)}</h2>${blogPages.sanitizeHtml(content)}</section>`;
+}
+
+function renderJobDetail(item) {
+  const name = item.title || 'Open role';
+  const href = publicItemHref('jobs', item);
+  const canonical = absolutePublicUrl(href);
+  const imageUrl = absolutePublicUrl('/assets/careers/hero.webp');
+  const schema = generatedDetailSchema('jobs', item, canonical, imageUrl);
+  const roleSlug = path.basename(String(href || ''), path.extname(String(href || ''))) || 'role';
+  const applyHref = `/careers/apply.html?role=${encodeURIComponent(roleSlug)}`;
+  const tags = [item.type, item.location, item.department].filter(Boolean);
+  const sectionsHtml = [
+    jobSectionHtml('About the Role', item.aboutRole),
+    jobSectionHtml('Key Responsibilities', item.keyResponsibilities),
+    jobSectionHtml('Required Skills & Experience', item.requiredSkills),
+    jobSectionHtml('Nice to Have', item.niceToHave),
+    jobSectionHtml('What This Role Offers', item.roleOffers),
+  ].join('') || (item.body
+    ? `<section class="careers-detail__block careers-detail__body">${blogPages.sanitizeHtml(item.body)}</section>`
+    : `<section class="careers-detail__block"><p>${htmlEscape(item.summary || '')}</p></section>`);
+  const year = new Date().getFullYear();
+  return `<!doctype html>
+<html lang="en" class="nav-shown">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>${htmlEscape(name)} | Careers | Digital Hub S.A.E</title>
+<meta name="description" content="${htmlEscape(item.summary || name)}" />
+<meta name="robots" content="index, follow, max-image-preview:large" />
+<link rel="canonical" href="${htmlEscape(canonical)}" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Digital Hub S.A.E" />
+<meta property="og:title" content="${htmlEscape(name)} | Careers | Digital Hub S.A.E" />
+<meta property="og:description" content="${htmlEscape(item.summary || name)}" />
+<meta property="og:url" content="${htmlEscape(canonical)}" />
+<meta property="og:image" content="${htmlEscape(imageUrl)}" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="${htmlEscape(name)} | Careers | Digital Hub S.A.E" />
+<meta name="twitter:description" content="${htmlEscape(item.summary || name)}" />
+<meta name="twitter:image" content="${htmlEscape(imageUrl)}" />
+<script type="application/ld+json">${JSON.stringify(schema).replace(/</g, '\\u003c')}</script>
+<meta name="theme-color" content="#0A1628" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css" />
+<link rel="stylesheet" href="/css/service-page.css" />
+<link rel="stylesheet" href="/css/hub-pages.css" />
+<link rel="stylesheet" href="/css/careers-page.css" />
+<link rel="stylesheet" href="/css/tv.css" />
+<link rel="stylesheet" href="/css/responsive.css" />
+</head>
+<body class="page-hub page-careers">
+<div class="site-bg" aria-hidden="true">
+  <div class="site-grid"></div>
+  <div class="site-waves">
+    <div class="wave wave-1"><svg viewBox="0 0 2400 800" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"><path d="M0,200 C200,100 400,300 600,200 C800,100 1000,300 1200,200 C1400,100 1600,300 1800,200 C2000,100 2200,300 2400,200" fill="none" stroke="#1A9AD6" stroke-opacity="0.16" stroke-width="1.5"/></svg></div>
+    <div class="wave wave-2"><svg viewBox="0 0 2400 800" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"><path d="M0,320 C300,260 500,380 800,320 C1100,260 1300,380 1600,320 C1900,260 2100,380 2400,320" fill="none" stroke="#1A9AD6" stroke-opacity="0.12" stroke-width="1.25"/></svg></div>
+    <div class="wave wave-3"><svg viewBox="0 0 2400 800" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"><path d="M0,420 C240,300 480,560 720,420 C960,280 1200,560 1440,420 C1680,280 1920,560 2160,420 C2280,360 2340,400 2400,420" fill="none" stroke="#36B0E5" stroke-opacity="0.10" stroke-width="1.25"/></svg></div>
+    <div class="wave wave-4"><svg viewBox="0 0 2400 800" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"><path d="M0,540 C300,480 500,600 800,540 C1100,480 1300,600 1600,540 C1900,480 2100,600 2400,540" fill="none" stroke="#F4970B" stroke-opacity="0.12" stroke-width="1.25"/></svg></div>
+  </div>
+</div>
+<nav class="nav" id="nav" aria-label="Primary">
+  <div class="nav-inner glass-surface">
+    <a href="/" class="brand" aria-label="Digital Hub home"><img class="brand-logo" src="/assets/digital-hub-logo.png" alt="Digital Hub" decoding="async" width="180" height="48" loading="eager"></a>
+    <ul class="nav-links" role="menubar">
+      <li class="has-dd" role="none">
+        <a class="nav-link" role="menuitem" tabindex="0">Services <i class="ti ti-chevron-down"></i></a>
+        <div class="dd" role="menu">
+          <a href="/services/enterprise-software.html"><i class="ti ti-code"></i> Enterprise Software Solutions</a>
+          <a href="/services/data-analytics.html"><i class="ti ti-chart-bar"></i> Data &amp; Analytics Solutions</a>
+          <a href="/services/ai-automation.html"><i class="ti ti-brain"></i> AI &amp; Intelligent Automation</a>
+          <a href="/services/outsourcing.html"><i class="ti ti-users"></i> Outsourcing Technical Talents</a>
+        </div>
+      </li>
+      <li class="has-dd" role="none">
+        <a class="nav-link" role="menuitem" tabindex="0">Partners <i class="ti ti-chevron-down"></i></a>
+        <div class="dd" role="menu">
+          <a href="/partners/microsoft.html"><i class="ti ti-brand-windows"></i> Microsoft</a>
+          <a href="/partners/huawei.html"><i class="ti ti-cloud"></i> Huawei</a>
+          <a href="/partners/nexthink.html"><i class="ti ti-device-desktop-analytics"></i> Nexthink</a>
+          <a href="/partners/efinance.html"><i class="ti ti-credit-card"></i> eFinance</a>
+          <a href="/partners/vodafone.html"><i class="ti ti-antenna-bars-5"></i> Vodafone</a>
+        </div>
+      </li>
+      <li><a class="nav-link" href="/cases/">Case Studies</a></li>
+      <li><a class="nav-link" href="/blogs/">Blogs</a></li>
+      <li><a class="nav-link" href="/about-us.html">About Us</a></li>
+      <li><a class="nav-link is-active" href="/careers/" aria-current="page">Careers</a></li>
+    </ul>
+    <a class="nav-cta" href="/get-in-touch.html">Get in touch <i class="ti ti-arrow-right"></i></a>
+    <button class="nav-burger" id="navBurger" aria-label="Open menu" aria-expanded="false"><i class="ti ti-menu-2"></i></button>
+  </div>
+</nav>
+<div class="mobile-nav" id="mobileNav" aria-hidden="true">
+  <details>
+    <summary>Services <i class="ti ti-chevron-down"></i></summary>
+    <div class="sub">
+      <a href="/services/enterprise-software.html">Enterprise Software Solutions</a>
+      <a href="/services/data-analytics.html">Data &amp; Analytics Solutions</a>
+      <a href="/services/ai-automation.html">AI &amp; Intelligent Automation</a>
+      <a href="/services/outsourcing.html">Outsourcing Technical Talents</a>
+    </div>
+  </details>
+  <details>
+    <summary>Partners <i class="ti ti-chevron-down"></i></summary>
+    <div class="sub">
+      <a href="/partners/">All partners</a>
+      <a href="/partners/microsoft.html">Microsoft</a>
+      <a href="/partners/huawei.html">Huawei</a>
+      <a href="/partners/nexthink.html">Nexthink</a>
+      <a href="/partners/efinance.html">eFinance</a>
+      <a href="/partners/vodafone.html">Vodafone</a>
+    </div>
+  </details>
+  <a href="/cases/">Case Studies</a>
+  <a href="/blogs/">Blogs</a>
+  <a href="/about-us.html">About Us</a>
+  <a href="/careers/">Careers</a>
+  <a class="mn-cta" href="/get-in-touch.html">Get in Touch</a>
+</div>
+<main>
+  <section class="careers-detail-hero" aria-label="Careers">
+    <p class="careers-detail-hero__title">Careers</p>
+  </section>
+  <section class="careers-detail">
+    <div class="careers-detail__inner">
+      <nav class="careers-crumb" aria-label="Breadcrumb">
+        <a href="/"><i class="ti ti-home" aria-hidden="true"></i> Home</a>
+        <span class="careers-crumb__sep" aria-hidden="true">/</span>
+        <a href="/careers/">Careers</a>
+        <span class="careers-crumb__sep" aria-hidden="true">/</span>
+        <span class="careers-crumb__current">${htmlEscape(name)}</span>
+      </nav>
+      <header class="careers-detail__meta">
+        <div>
+          <h1>${htmlEscape(name)}</h1>
+          ${tags.length ? `<div class="careers-detail__tags">${tags.map((tag) => `<span>${htmlEscape(tag)}</span>`).join('')}</div>` : ''}
+        </div>
+        <p class="careers-detail__posted"><i class="ti ti-calendar" aria-hidden="true"></i> ${htmlEscape(postedAgoLabel(item.updatedAt))}</p>
+      </header>
+      ${sectionsHtml}
+      <section class="careers-apply" id="apply">
+        <p>All the above requirements and responsibilities are crucial for you to be able to take on in this role. We are looking for someone who has the energy and passion to bring together new ideas.</p>
+        <a class="btn-pill" href="${htmlEscape(applyHref)}">Apply Now <i class="ti ti-arrow-right" aria-hidden="true"></i></a>
+      </section>
+    </div>
+  </section>
+</main>
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-top">
+      <div>
+        <img class="footer-logo" src="/assets/digital-hub-logo.png" alt="Digital Hub" width="180" height="48" loading="eager" decoding="async">
+        <p class="footer-tagline">Empowering Digital Evolution</p>
+      </div>
+      <div class="footer-cols">
+        <div class="footer-col">
+          <h4>Services</h4>
+          <a href="/services/enterprise-software.html">Enterprise Software</a>
+          <a href="/services/data-analytics.html">Data &amp; Analytics</a>
+          <a href="/services/ai-automation.html">AI &amp; Automation</a>
+          <a href="/services/outsourcing.html">Outsourcing</a>
+        </div>
+        <div class="footer-col">
+          <h4>Company</h4>
+          <a href="/about-us.html">About Us</a>
+          <a href="/cases/">Case Studies</a>
+          <a href="/blogs/">Blogs</a>
+          <a href="/careers/">Careers</a>
+        </div>
+      </div>
+      <div class="footer-contact">
+        <h4>Contact</h4>
+        <a href="mailto:careers@digitalhub.com.eg">careers@digitalhub.com.eg</a>
+        <a href="tel:+201555553064">+20 155 555 3064</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>&copy; ${year} Digital Hub S.A.E. All rights reserved.</span>
+      <span>Microsoft Partner &middot; Nexthink Authorized Reseller &middot; Huawei &middot; eFinance &middot; Vodafone</span>
+    </div>
+  </div>
+</footer>
+<script src="/js/shared.js"></script>
+<script src="/js/nav-stay-on-page.js"></script>
+<script src="/js/hub-pages.js"></script>
+</body>
+</html>`;
+}
+
 function renderGeneratedDetail(collection, item) {
-  const labels = { services: 'Service', partners: 'Strategic Partner', caseStudies: 'Case Study', blogs: 'Insight', jobs: 'Career Opportunity' };
-  const sections = { services: 'Services', partners: 'Partners', caseStudies: 'Case Studies', blogs: 'Blogs & Insights', jobs: 'Careers' };
-  const sectionPaths = { services: '/#services', partners: '/partners/', caseStudies: '/cases/', blogs: '/blogs/', jobs: '/careers/' };
+  if (collection === 'jobs') return renderJobDetail(item);
+  const labels = { services: 'Service', partners: 'Strategic Partner', caseStudies: 'Case Study', blogs: 'Insight', news: 'News', jobs: 'Career Opportunity' };
+  const sections = { services: 'Services', partners: 'Partners', caseStudies: 'Case Studies', blogs: 'Blogs & Insights', news: 'Latest News', jobs: 'Careers' };
+  const sectionPaths = { services: '/#services', partners: '/partners/', caseStudies: '/cases/', blogs: '/blogs/', news: '/news/', jobs: '/careers/' };
   const name = item.title || item.name;
   const href = publicItemHref(collection, item);
   const canonical = absolutePublicUrl(href);
-  const imagePath = item.image ? `/${String(item.image).replace(/^\/+/, '')}` : '/assets/blog/transformation.jpg';
+  const imagePath = item.image ? `/${String(item.image).replace(/^\/+/, '')}` : '/assets/blog/transformation.webp';
   const imageUrl = absolutePublicUrl(imagePath);
   const schema = generatedDetailSchema(collection, item, canonical, imageUrl);
-  const meta = [item.department, item.type, item.location, item.categoryLabel, item.metric].filter(Boolean);
-  const ctaHref = collection === 'jobs' ? `/careers/apply.html?role=${encodeURIComponent(name)}` : '/get-in-touch.html';
-  const ctaText = collection === 'jobs' ? 'Apply now' : 'Talk to our team';
+  const meta = [item.department, item.type, item.location, item.categoryLabel, item.category, item.metric, [item.month, item.year].filter(Boolean).join(' ')].filter(Boolean);
+  const ctaHref = '/get-in-touch.html';
+  const ctaText = 'Talk to our team';
   const ogType = collection === 'blogs' || collection === 'caseStudies' ? 'article' : 'website';
+  const jobBody = `<p>${htmlEscape(item.summary || '')}</p>`;
   return `<!doctype html>
 <html lang="en" class="nav-shown">
 <head>
@@ -1326,13 +2814,13 @@ function renderGeneratedDetail(collection, item) {
 <link rel="stylesheet" href="/css/hub-pages.css" />
 <link rel="stylesheet" href="/css/responsive.css" />
 <style>
-.generated-detail-main{padding:clamp(130px,16vw,190px) 0 90px;min-height:75vh}.generated-detail-card{max-width:920px;padding:clamp(28px,5vw,58px);border:1px solid rgba(255,255,255,.1);border-radius:24px;background:rgba(13,28,48,.78);box-shadow:0 24px 70px rgba(0,0,0,.28)}.generated-detail-card h1{max-width:19ch;margin:16px 0;font-size:clamp(34px,5vw,62px);line-height:1.08}.generated-detail-card>p{max-width:760px;color:var(--text-2);font-size:clamp(15px,1.7vw,19px);line-height:1.8}.generated-detail-meta{display:flex;flex-wrap:wrap;gap:8px;margin:24px 0}.generated-detail-meta span{padding:8px 12px;border:1px solid rgba(54,176,229,.22);border-radius:999px;background:rgba(54,176,229,.08);color:var(--text-2);font-size:12px}.generated-detail-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px}.generated-detail-back{display:inline-flex;align-items:center;gap:7px;color:var(--blue-light);text-decoration:none;font-weight:600}.generated-detail-back:hover{text-decoration:underline}
+.generated-detail-main{padding:clamp(130px,16vw,190px) 0 90px;min-height:75vh}.generated-detail-card{max-width:920px;padding:clamp(28px,5vw,58px);border:1px solid rgba(255,255,255,.1);border-radius:24px;background:rgba(13,28,48,.78);box-shadow:0 24px 70px rgba(0,0,0,.28)}.generated-detail-card h1{max-width:19ch;margin:16px 0;font-size:clamp(34px,5vw,62px);line-height:1.08}.generated-detail-card>p,.generated-detail-body{max-width:760px;color:var(--text-2);font-size:clamp(15px,1.7vw,19px);line-height:1.8}.generated-detail-body p{margin:0 0 1em}.generated-detail-body h1{margin:0 0 .55em;font-size:clamp(28px,3.5vw,40px);line-height:1.15;color:#fff}.generated-detail-body h2{margin:1.2em 0 .5em;font-size:clamp(22px,2.6vw,30px);line-height:1.2;color:#fff}.generated-detail-body h3{margin:1.1em 0 .45em;font-size:clamp(18px,2vw,24px);line-height:1.25;color:#fff}.generated-detail-body ul,.generated-detail-body ol{margin:0 0 1em;padding-left:1.35em}.generated-detail-body li{margin:0.35em 0}.generated-detail-body strong,.generated-detail-body b{color:#fff;font-weight:700}.generated-detail-meta{display:flex;flex-wrap:wrap;gap:8px;margin:24px 0}.generated-detail-meta span{padding:8px 12px;border:1px solid rgba(54,176,229,.22);border-radius:999px;background:rgba(54,176,229,.08);color:var(--text-2);font-size:12px}.generated-detail-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px}.generated-detail-back{display:inline-flex;align-items:center;gap:7px;color:var(--blue-light);text-decoration:none;font-weight:600}.generated-detail-back:hover{text-decoration:underline}
 </style>
 </head>
 <body class="page-hub page-generated-detail">
 <div class="site-bg" aria-hidden="true"><div class="site-grid"></div></div>
 <nav class="nav" id="nav" aria-label="Primary"><div class="nav-inner glass-surface"><a href="/" class="brand" aria-label="Digital Hub home"><img class="brand-logo" src="/assets/digital-hub-logo.png" alt="Digital Hub" decoding="async"></a><ul class="nav-links"><li><a class="nav-link" href="/#services">Services</a></li><li><a class="nav-link" href="/partners/">Partners</a></li><li><a class="nav-link" href="/cases/">Case Studies</a></li><li><a class="nav-link" href="/blogs/">Blogs</a></li><li><a class="nav-link" href="/careers/">Careers</a></li></ul><a class="nav-cta" href="/get-in-touch.html">Get in Touch <i class="ti ti-arrow-right"></i></a></div></nav>
-<main class="generated-detail-main"><section class="section-inner"><article class="generated-detail-card"><a class="generated-detail-back" href="${sectionPaths[collection]}"><i class="ti ti-arrow-left"></i> ${sections[collection]}</a><span class="label" style="display:block;margin-top:28px">${labels[collection]}</span><h1>${htmlEscape(name)}</h1><p>${htmlEscape(item.summary)}</p>${meta.length ? `<div class="generated-detail-meta">${meta.map((value) => `<span>${htmlEscape(value)}</span>`).join('')}</div>` : ''}<div class="generated-detail-actions"><a class="btn-primary" href="${htmlEscape(ctaHref)}">${ctaText} <i class="ti ti-arrow-right"></i></a></div></article></section></main>
+<main class="generated-detail-main"><section class="section-inner"><article class="generated-detail-card"><a class="generated-detail-back" href="${sectionPaths[collection]}"><i class="ti ti-arrow-left"></i> ${sections[collection]}</a><span class="label" style="display:block;margin-top:28px">${labels[collection]}</span><h1>${htmlEscape(name)}</h1>${meta.length ? `<div class="generated-detail-meta">${meta.map((value) => `<span>${htmlEscape(value)}</span>`).join('')}</div>` : ''}${jobBody}<div class="generated-detail-actions"><a class="btn-primary" href="${htmlEscape(ctaHref)}">${ctaText} <i class="ti ti-arrow-right"></i></a></div></article></section></main>
 <footer class="footer"><div class="section-inner"><div class="footer-bottom"><span>&copy; ${new Date().getFullYear()} Digital Hub S.A.E. All rights reserved.</span><a href="/">Digital Hub</a></div></div></footer>
 <script src="/js/shared.js"></script><script src="/js/nav-stay-on-page.js"></script>
 </body></html>`;
@@ -1361,6 +2849,26 @@ function sendBuffer(req, res, status, body, headers = {}) {
   res.writeHead(status, responseHeaders);
   if (req.method === 'HEAD') return res.end();
   return res.end(payload);
+}
+
+function isInsideContentDir(absPath) {
+  const resolved = pathKey(absPath);
+  return resolved === CONTENT_DIR_KEY || resolved.startsWith(`${CONTENT_DIR_KEY}${path.sep}`);
+}
+
+/** Default-deny: any resolved path under content/ except the public allowlist. */
+function isDeniedContentTarget(absPath) {
+  const resolved = pathKey(absPath);
+  if (!isInsideContentDir(resolved)) return false;
+  return !CONTENT_PUBLIC_ALLOW.has(resolved);
+}
+
+function staticNotFound(req, res) {
+  return sendBuffer(req, res, 404, '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="robots" content="noindex, nofollow"><title>Page not found | Digital Hub</title></head><body><h1>404</h1><p>Page not found.</p></body></html>', {
+    'Content-Type': 'text/html; charset=utf-8',
+    'Cache-Control': 'no-store',
+    'X-Robots-Tag': 'noindex, nofollow, noarchive',
+  });
 }
 
 function serveStatic(req, res, url) {
@@ -1392,16 +2900,12 @@ function serveStatic(req, res, url) {
     });
   }
   if (pathname === '/') pathname = '/index.html';
-  if (/^\/content\/(?:admin-|job-applications|contact-requests|application-files(?:\/|$))/i.test(pathname)) {
-    return sendBuffer(req, res, 404, '<h1>404</h1><p>Page not found.</p>', {
-      'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'no-store',
-      'X-Robots-Tag': 'noindex, nofollow, noarchive',
-    });
-  }
   let target = path.resolve(ROOT, `.${pathname}`);
   if (!target.startsWith(`${ROOT}${path.sep}`) && target !== ROOT) {
     return sendBuffer(req, res, 403, 'Forbidden', { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+  }
+  if (isDeniedContentTarget(target)) {
+    return staticNotFound(req, res);
   }
   if (fs.existsSync(target) && fs.statSync(target).isDirectory()) {
     if (!pathname.endsWith('/')) {
@@ -1412,6 +2916,9 @@ function serveStatic(req, res, url) {
       return res.end();
     }
     target = path.join(target, 'index.html');
+    if (isDeniedContentTarget(target)) {
+      return staticNotFound(req, res);
+    }
   }
   if (!path.extname(target) && fs.existsSync(`${target}.html`)) {
     res.writeHead(308, {
@@ -1420,21 +2927,22 @@ function serveStatic(req, res, url) {
     });
     return res.end();
   }
-  if (!fs.existsSync(target) || !fs.statSync(target).isFile()) {
-    const generated = findGeneratedDetail(pathname);
+  // Prefer on-disk HTML for designed pages. CMS stubs are only for paths with no static file.
+  // Service pages are never stubbed — CMS content is synced into the full HTML design instead.
+  {
+    const hasStaticHtml = fs.existsSync(target) && fs.statSync(target).isFile();
+    const generated = hasStaticHtml ? null : findGeneratedDetail(pathname);
     if (generated) {
       return sendBuffer(req, res, 200, renderGeneratedDetail(generated.collection, generated.item), {
         'Content-Type': 'text/html; charset=utf-8',
-        'Cache-Control': 'public, max-age=300',
+        'Cache-Control': 'no-cache',
         'X-Content-Type-Options': 'nosniff',
         'Referrer-Policy': 'strict-origin-when-cross-origin',
       });
     }
-    return sendBuffer(req, res, 404, '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="robots" content="noindex, nofollow"><title>Page not found | Digital Hub</title></head><body><h1>404</h1><p>Page not found.</p></body></html>', {
-      'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'no-store',
-      'X-Robots-Tag': 'noindex, nofollow, noarchive',
-    });
+  }
+  if (!fs.existsSync(target) || !fs.statSync(target).isFile()) {
+    return staticNotFound(req, res);
   }
   const type = mime[path.extname(target).toLowerCase()] || 'application/octet-stream';
   const noCache = target === PUBLIC_JS_FILE || target === PUBLIC_JSON_FILE || pathname.startsWith('/admin');
@@ -1483,5 +2991,10 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, HOST, () => {
   console.log(`Digital Hub CMS running at http://${HOST}:${PORT}`);
-  if (!process.env.ADMIN_PASSWORD) console.log('Development login: admin / DigitalHub@2026 (set ADMIN_PASSWORD before production)');
+  if (mail.mailEnabled() && mail.smtpConfigured()) {
+    console.log(`[mail] Amazon SES enabled · day reminders at 10:00 ${mail.MAIL_TZ}`);
+  } else {
+    console.log('[mail] Disabled (set SES_SMTP_USER, SES_SMTP_PASS, SES_FROM, and AWS_REGION or SES_SMTP_HOST)');
+  }
+  startInterviewReminderJob();
 });

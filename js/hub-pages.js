@@ -6,12 +6,10 @@
     var grid = group.nextElementSibling;
     if (!filters.length || !grid) return;
 
-    var cards = grid.querySelectorAll('[data-category]');
-    if (!cards.length) return;
-
     filters.forEach(function(btn){
       btn.addEventListener('click', function(){
         var cat = btn.getAttribute('data-filter') || 'all';
+        var cards = grid.querySelectorAll('[data-category]');
         filters.forEach(function(b){
           b.classList.toggle('is-active', b === btn);
           b.setAttribute('aria-selected', b === btn ? 'true' : 'false');
@@ -87,4 +85,19 @@
       visIO.observe(el);
     });
   }
+
+  document.addEventListener('click', function(event){
+    var btn = event.target.closest('.news-hub-grid .news-slide__details');
+    if (!btn) return;
+    var item = btn.closest('.news-hub-item');
+    if (!item) return;
+    var panel = item.querySelector('.news-slide__panel');
+    if (!panel) return;
+    var open = !item.classList.contains('is-open');
+    item.classList.toggle('is-open', open);
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) panel.removeAttribute('hidden');
+    else panel.setAttribute('hidden', '');
+    btn.innerHTML = (open ? 'Hide details' : 'Full details') + ' <i class="ti ti-arrow-down" aria-hidden="true"></i>';
+  });
 })();

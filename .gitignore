@@ -6,6 +6,7 @@ content/*.tmp
 content/admin-users.json
 content/job-applications.json
 content/contact-requests.json
+content/onboarding-requests.json
 content/application-files/
 server.out.log
 server.err.log

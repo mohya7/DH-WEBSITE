@@ -44,6 +44,34 @@ const PILLAR_BY_CLUSTER = {
   },
 };
 
+/** Blog index filter chip slug + visible label derived from cluster. */
+const CLUSTER_FILTER_MAP = {
+  'DEX & Digital Employee Experience': {
+    category: 'digital-employee-experience',
+    categoryLabel: 'Digital Employee Experience',
+  },
+  'Enterprise Software': {
+    category: 'enterprise-software',
+    categoryLabel: 'Enterprise Software',
+  },
+  'Data, Cloud & Digital Egypt 2030': {
+    category: 'data-analytics',
+    categoryLabel: 'Data & Analytics',
+  },
+  'AI & Automation': {
+    category: 'ai-automation',
+    categoryLabel: 'AI & Automation',
+  },
+  'Technical Talent & Outsourcing': {
+    category: 'outsourcing',
+    categoryLabel: 'Outsourcing',
+  },
+};
+
+function categoryFromCluster(cluster) {
+  return CLUSTER_FILTER_MAP[cluster] || { category: '', categoryLabel: '' };
+}
+
 function escapeHtml(value) {
   return String(value == null ? '' : value)
     .replace(/&/g, '&amp;')
@@ -317,14 +345,15 @@ function buildBlogHtml(item, allBlogs = []) {
   const href = String(item.href || '').replace(/^\/+/, '');
   const fileName = path.basename(href);
   const canonical = `${SITE_URL}/${href}`;
-  const imagePath = String(item.image || 'assets/blog/dex.jpg').replace(/^\/+/, '');
+  const imagePath = String(item.image || 'assets/blog/dex.webp').replace(/^\/+/, '');
   const imageUrl = `${SITE_URL}/${imagePath}`;
   const published = dateOnly(item.datePublished, item.updatedAt);
   const modified = dateOnly(item.dateModified, item.updatedAt || published);
   const { toc, body } = extractTocAndBody(item.body || '');
   const readTime = computeReadTime({ ...item, body });
-  const description = stripTags(item.answerBlock || item.summary || item.title).slice(0, 300);
-  const pageTitle = `${item.title} | Digital Hub`;
+  const description = stripTags(item.metaDescription || item.answerBlock || item.summary || item.title).slice(0, 300);
+  const seoTitle = stripTags(item.seoTitle || item.title).trim() || item.title;
+  const pageTitle = /\| Digital Hub\s*$/i.test(seoTitle) ? seoTitle : `${seoTitle} | Digital Hub`;
   const accentClass = item.accent === 'orange' ? ' blog-view-tag--orange' : '';
   const clusterLabel = item.cluster || item.categoryLabel || 'Insights';
   const faq = Array.isArray(item.faq) ? item.faq.filter((entry) => entry && entry.question && entry.answer) : [];
@@ -441,7 +470,7 @@ ${JSON.stringify(schema, null, 2).replace(/</g, '\\u003c')}
         <h1 class="blog-view-title">${escapeHtml(item.title)}</h1>
         <p class="blog-view-byline">${bylineMeta.join(' · ')}</p>
       </div>
-      <div class="blog-view-media" data-reveal><img src="../${escapeAttr(imagePath)}" alt="${escapeAttr(item.title)}" loading="eager" decoding="async"></div>
+      <div class="blog-view-media" data-reveal><img src="../${escapeAttr(imagePath)}" alt="${escapeAttr(item.alt || item.title)}" width="810" height="500" loading="eager" fetchpriority="high" decoding="async"></div>
     </div>
   </section>
   <section class="blog-view-body">
@@ -458,7 +487,7 @@ ${JSON.stringify(schema, null, 2).replace(/</g, '\\u003c')}
   </section>
   ${renderRelated(item, siblings, pillar)}
 </main>
-<footer class="footer"><div class="footer-inner"><div class="footer-top"><div><img class="footer-logo" src="../assets/digital-hub-logo.png" alt="Digital Hub"><p class="footer-tagline">Empowering Digital Evolution</p></div><div class="footer-cols"><div class="footer-col"><h4>Services</h4><a href="../services/enterprise-software.html">Enterprise Software Solutions</a><a href="../services/data-analytics.html">Data &amp; Analytics Solutions</a><a href="../services/ai-automation.html">AI &amp; Intelligent Automation Solutions</a><a href="../services/outsourcing.html">Outsourcing Technical Talents</a></div><div class="footer-col"><h4>Company</h4><a href="../about-us.html">About Us</a><a href="../cases/index.html">Case Studies</a><a href="index.html">Blogs</a><a href="../partners/index.html">Partners</a><a href="../get-in-touch.html">Contact</a></div></div><div class="footer-contact"><h4>Contact</h4><a href="mailto:sales@digitalhub.com.eg">sales@digitalhub.com.eg</a><a href="tel:+201555553064">+20 155 555 3064</a></div></div><div class="footer-bottom"><span>&copy; 2024 Digital Hub S.A.E. All rights reserved.</span><span>Microsoft Partner &middot; Nexthink Authorized Reseller &middot; Huawei &middot; eFinance &middot; Vodafone</span></div></div></footer>
+<footer class="footer"><div class="footer-inner"><div class="footer-top"><div><img class="footer-logo" src="../assets/digital-hub-logo.png" alt="Digital Hub"><p class="footer-tagline">Empowering Digital Evolution</p></div><div class="footer-cols"><div class="footer-col"><h4>Services</h4><a href="../services/enterprise-software.html">Enterprise Software Solutions</a><a href="../services/data-analytics.html">Data &amp; Analytics Solutions</a><a href="../services/ai-automation.html">AI &amp; Intelligent Automation Solutions</a><a href="../services/outsourcing.html">Outsourcing Technical Talents</a></div><div class="footer-col"><h4>Company</h4><a href="../about-us.html">About Us</a><a href="../cases/index.html">Case Studies</a><a href="index.html">Blogs</a><a href="../partners/index.html">Partners</a></div></div><div class="footer-contact"><h4>Contact</h4><a href="mailto:sales@digitalhub.com.eg">sales@digitalhub.com.eg</a><a href="tel:+201555553064">+20 155 555 3064</a></div></div><div class="footer-bottom"><span>&copy; 2024 Digital Hub S.A.E. All rights reserved.</span><span>Microsoft Partner &middot; Nexthink Authorized Reseller &middot; Huawei &middot; eFinance &middot; Vodafone</span></div></div></footer>
 <script src="../js/shared.js"></script>
 <script src="../js/nav-stay-on-page.js"></script>
 </body>
@@ -500,6 +529,8 @@ function writeBlogPages(data) {
 module.exports = {
   BLOG_CLUSTERS,
   PILLAR_BY_CLUSTER,
+  CLUSTER_FILTER_MAP,
+  categoryFromCluster,
   WORDS_PER_MINUTE,
   wordCount,
   computeReadTime,

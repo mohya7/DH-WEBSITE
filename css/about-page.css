@@ -779,12 +779,14 @@
   opacity:0;
 }
 .team-card__actions{
-  position:absolute;left:50%;bottom:clamp(18px,2.2vw,28px);
+  position:static;
+  z-index:4;
   display:flex;align-items:center;justify-content:center;gap:10px;
-  transform:translate(-50%,12px);
+  margin-top:14px;
   opacity:0;
-  pointer-events:auto;
-  transition:transform .55s var(--team-strip-expo),opacity .4s var(--team-strip-ease);
+  transform:translateY(10px);
+  pointer-events:none;
+  transition:opacity .4s var(--team-strip-ease),transform .55s var(--team-strip-expo);
 }
 .team-card__action{
   display:inline-flex;align-items:center;justify-content:center;
@@ -792,6 +794,7 @@
   border:1px solid rgba(255,255,255,0.18);
   background:rgba(10,22,40,0.72);
   color:var(--text-1);text-decoration:none;
+  pointer-events:auto;
   transition:border-color .25s var(--ease),background .25s var(--ease),color .25s var(--ease),transform .25s var(--ease);
 }
 .team-card__action i{font-size:17px;line-height:1}
@@ -815,17 +818,24 @@
     background:rgba(10,22,40,0.42);
   }
   .team-card:hover .team-card__role,
-  .team-card:hover .team-card__name,
-  .team-card:hover .team-card__actions{
+  .team-card:hover .team-card__name{
     opacity:1;
     transform:translateY(0);
   }
-  .team-card:hover .team-card__actions{transform:translate(-50%,0)}
+  .team-card:hover .team-card__actions{
+    opacity:1;
+    transform:translateY(0);
+    pointer-events:auto;
+  }
   .team-strip.is-dragging .team-card:hover .team-card__photo img{
     filter:grayscale(0.85) brightness(0.92);
     transform:none;
   }
   .team-strip.is-dragging .team-card:hover .team-card__overlay{opacity:0}
+  .team-strip.is-dragging .team-card:hover .team-card__actions{
+    opacity:0;
+    pointer-events:none;
+  }
 }
 
 .team-strip__progress{
@@ -857,16 +867,18 @@
     opacity:1;
     background:linear-gradient(180deg,transparent 35%,rgba(10,22,40,0.82) 100%);
     justify-content:flex-end;
-    padding-bottom:clamp(56px,12vw,72px);
+    padding-bottom:clamp(22px,4vw,32px);
   }
   .team-card__role,
   .team-card__name{
     opacity:1;
     transform:none;
   }
+  /* Touch / small screens: no hover — keep LinkedIn under the name */
   .team-card__actions{
     opacity:1;
-    transform:translate(-50%,0);
+    transform:none;
+    pointer-events:auto;
   }
   .team-strip__viewport{
     overflow-x:auto;

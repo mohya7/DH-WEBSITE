@@ -10,17 +10,16 @@ npm start
 
 - Website: `http://127.0.0.1:8765/`
 - Admin panel: `http://127.0.0.1:8765/admin/`
-- Development login: `admin` / `DigitalHub@2026`
 
-Before production, run the server with private credentials:
+`ADMIN_PASSWORD` **must** be set in the environment before starting the server. The process exits on startup if it is missing. Optionally set `ADMIN_USER` (defaults to `admin` for the initial account only when `content/admin-users.json` is first created).
 
 ```powershell
-$env:ADMIN_USER='content-admin'
-$env:ADMIN_PASSWORD='use-a-long-unique-password'
+$env:ADMIN_USER='content-admin'   # optional; used only when creating the first admin account
+$env:ADMIN_PASSWORD='...'         # required — long unique value; never commit it
 npm start
 ```
 
-Set these values before the first production start. The initial administrator is then stored in `content/admin-users.json` with a Scrypt password hash.
+Set these values before the first start that creates the administrator. The initial administrator is then stored in `content/admin-users.json` with a Scrypt password hash.
 
 ## Roles and accounts
 
@@ -64,7 +63,7 @@ Do not edit the two public content files manually. They are regenerated after ev
 - Eight-hour `HttpOnly`, `SameSite=Strict` sessions.
 - CSRF protection for every write operation.
 - Revision checks prevent overwriting newer content.
-- Rate limiting for login attempts.
+- Rate limiting for login attempts (per IP and username, same window pattern as public forms).
 - Rate limiting and a honeypot field for public job applications and Get in Touch requests.
 - PDF and Word CV uploads only, up to 5MB.
 - PNG, JPG, WEBP, and GIF uploads only, up to 5MB.

@@ -222,7 +222,7 @@
   position:relative;min-height:clamp(220px,32vw,360px);
   margin-top:clamp(88px,10vh,104px);
   border-radius:0 0 24px 24px;overflow:hidden;
-  background:url(../assets/careers/hero.png) center/cover no-repeat;
+  background:url(../assets/careers/hero.webp) center/cover no-repeat;
 }
 .careers-detail-hero::after{
   content:'';position:absolute;inset:0;
@@ -272,6 +272,27 @@
   content:'';position:absolute;left:0;top:0.65em;
   width:6px;height:6px;border-radius:50%;background:var(--orange);
 }
+.careers-detail__body > * + *{margin-top:1.1em}
+.careers-detail__body h1,
+.careers-detail__body h2,
+.careers-detail__body h3{
+  margin:1.35em 0 .55em;font-weight:600;letter-spacing:-0.02em;color:var(--blue-light);
+}
+.careers-detail__body h1:first-child,
+.careers-detail__body h2:first-child,
+.careers-detail__body h3:first-child{margin-top:0}
+.careers-detail__body h1{font-size:clamp(26px,3vw,34px);line-height:1.15;color:var(--text-1)}
+.careers-detail__body h2{font-size:var(--h2-size)}
+.careers-detail__body h3{font-size:clamp(18px,2vw,22px)}
+.careers-detail__body p{margin:0;max-width:72ch}
+.careers-detail__body strong,
+.careers-detail__body b{color:var(--text-1);font-weight:700}
+.careers-detail__body ol{
+  margin:0;padding-left:1.35em;max-width:72ch;
+  display:flex;flex-direction:column;gap:14px;
+}
+.careers-detail__body ol li{padding-left:0}
+.careers-detail__body ol li::before{display:none}
 .careers-apply{
   border-radius:22px;overflow:hidden;
   padding:clamp(28px,4vw,48px) clamp(24px,5vw,10%);

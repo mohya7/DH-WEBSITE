@@ -16,7 +16,7 @@ function buildCasesSection() {
           <div class="case-glass" aria-hidden="true"></div>
           <a class="case-link" href="../cases/ministry-planning.html" aria-label="Read case study: Ministry of Planning and Economic Development">
             <div class="case-media">
-              <img src="../assets/cases/planning.jpg" alt="Government planning and data systems" loading="lazy" decoding="async">
+              <img src="../assets/cases/planning.webp" alt="Government planning and data systems" loading="lazy" decoding="async">
             </div>
             <div class="case-body">
               <h3 class="case-title">3+ years powering Egypt&rsquo;s national planning systems</h3>
@@ -30,7 +30,7 @@ function buildCasesSection() {
           <div class="case-glass" aria-hidden="true"></div>
           <a class="case-link" href="../cases/data-center-transformation.html" aria-label="Read case study: Credit Guarantee Corporation">
             <div class="case-media">
-              <img src="../assets/cases/banking.jpg" alt="Banking infrastructure transformation" loading="lazy" decoding="async">
+              <img src="../assets/cases/banking.webp" alt="Banking infrastructure transformation" loading="lazy" decoding="async">
             </div>
             <div class="case-body">
               <h3 class="case-title">End-to-end data center transformation for Central Bank of Egypt</h3>
@@ -44,7 +44,7 @@ function buildCasesSection() {
           <div class="case-glass" aria-hidden="true"></div>
           <a class="case-link" href="../cases/nexthink-dex-bank.html" aria-label="Read case study: Leading Egyptian Bank DEX">
             <div class="case-media">
-              <img src="../assets/cases/dex.jpg" alt="Digital employee experience monitoring" loading="lazy" decoding="async">
+              <img src="../assets/cases/dex.webp" alt="Digital employee experience monitoring" loading="lazy" decoding="async">
             </div>
             <div class="case-body">
               <h3 class="case-title">500+ endpoints under real-time Nexthink DEX monitoring</h3>
@@ -58,7 +58,7 @@ function buildCasesSection() {
           <div class="case-glass" aria-hidden="true"></div>
           <a class="case-link" href="../cases/index.html" aria-label="Case study coming soon">
             <div class="case-media">
-              <img src="../assets/cases/banking.jpg" alt="Enterprise digital transformation" loading="lazy" decoding="async">
+              <img src="../assets/cases/banking.webp" alt="Enterprise digital transformation" loading="lazy" decoding="async">
             </div>
             <div class="case-body">
               <h3 class="case-title">National e-services portal for a government ministry</h3>

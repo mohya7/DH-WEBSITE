@@ -1,219 +1,359 @@
 {
   "meta": {
     "version": 1,
-    "revision": 31,
-    "updatedAt": "2026-08-12T14:43:13.751Z",
-    "updatedBy": "admin",
+    "revision": 115,
+    "updatedAt": "2026-08-17T12:57:33.695Z",
+    "updatedBy": "ali.mohi",
     "audit": [
       {
-        "id": "audit-b644ab47-00a3-4aea-9117-d10353cd7cab",
-        "action": "delete",
-        "label": "Deleted Mohamed Mostafa",
-        "at": "2026-07-14T12:01:15.218Z",
-        "by": "admin"
-      },
-      {
-        "id": "audit-2c06bd3d-7567-4961-bebf-086aa0740006",
+        "id": "audit-5da07c01-d208-4708-a78a-c7f1efbfee10",
         "action": "update",
-        "label": "Updated Microsoft",
-        "at": "2026-07-14T12:01:03.776Z",
-        "by": "admin"
+        "label": "Ended vacancy “Senior Full-Stack Developer”",
+        "at": "2026-08-17T12:57:33.695Z",
+        "by": "ali.mohi"
       },
       {
-        "id": "audit-8f6ad8a2-7e64-4f99-881a-28cb64d5bfb3",
-        "action": "update",
-        "label": "Updated Huawei",
-        "at": "2026-07-14T12:01:03.768Z",
-        "by": "admin"
-      },
-      {
-        "id": "audit-67385b3c-5745-4f05-a780-a46fecbc2b87",
-        "action": "update",
-        "label": "Updated Huawei",
-        "at": "2026-07-14T12:01:01.916Z",
-        "by": "admin"
-      },
-      {
-        "id": "audit-bbfb54e4-9337-4fcc-9c5a-12a9271c224a",
-        "action": "update",
-        "label": "Updated Microsoft",
-        "at": "2026-07-14T12:01:01.908Z",
-        "by": "admin"
-      },
-      {
-        "id": "audit-ea86ac56-7ebd-4644-ba1d-86c4f0cc982b",
-        "action": "delete",
-        "label": "Deleted Marketing Coordinator",
-        "at": "2026-07-14T11:55:18.208Z",
-        "by": "endi.galal"
-      },
-      {
-        "id": "audit-9fc35437-441a-442d-baff-8a9565b80cf5",
-        "action": "update",
-        "label": "Updated Data Analyst",
-        "at": "2026-07-14T11:52:26.017Z",
-        "by": "endi.galal"
-      },
-      {
-        "id": "audit-cf72be09-cea1-4938-9e14-624c8d3fb0c4",
-        "action": "update",
-        "label": "Updated .NET Backend Developer",
-        "at": "2026-07-14T11:52:26.007Z",
-        "by": "endi.galal"
-      },
-      {
-        "id": "audit-59618b96-c912-48cd-9406-932a121b7961",
-        "action": "create",
-        "label": "Created Marketing Coordinator",
-        "at": "2026-07-14T11:51:04.946Z",
-        "by": "endi.galal"
-      },
-      {
-        "id": "audit-72cf6c95-0f2c-433c-958a-ff2401a00b4e",
-        "action": "page-update",
-        "label": "Updated home page content",
-        "at": "2026-07-14T11:49:09.873Z",
-        "by": "admin"
-      },
-      {
-        "id": "audit-2306eb7e-21b3-45c0-8466-8e39be11c175",
-        "action": "create",
-        "label": "Created What is Digital Employee Experience and why Egyptian banks can’t ignore it — Copy",
-        "at": "2026-07-14T10:57:00.816Z",
-        "by": "admin"
-      },
-      {
-        "id": "audit-853f7cd3-2725-4654-8811-aa9b6ed80f97",
-        "action": "update",
-        "label": "Updated Kareem Adel",
-        "at": "2026-07-14T10:36:11.546Z",
-        "by": "admin"
-      },
-      {
-        "id": "audit-014ea0af-d512-489f-92ce-1e0ee9b4fc4f",
-        "action": "update",
-        "label": "Updated Mohamed Mostafa",
-        "at": "2026-07-14T10:36:11.541Z",
-        "by": "admin"
-      },
-      {
-        "id": "audit-1d7172d7-9e00-4b04-adb7-f829b4e7a513",
-        "action": "update",
-        "label": "Updated Mohamed Mansour",
-        "at": "2026-07-14T10:36:10.222Z",
-        "by": "admin"
-      },
-      {
-        "id": "audit-07a90840-3d2a-47c1-a9dd-1ba951e20909",
-        "action": "update",
-        "label": "Updated Mohamed Mostafa",
-        "at": "2026-07-14T10:36:10.215Z",
-        "by": "admin"
-      },
-      {
-        "id": "audit-bdc5f1cc-0ae6-438f-a063-131f5c34807a",
+        "id": "audit-e9142196-7b61-4289-8bdc-86d0d10daa0f",
         "action": "update",
         "label": "Updated Mahmoud Yasser",
-        "at": "2026-07-14T10:36:08.546Z",
+        "at": "2026-08-17T11:02:20.765Z",
         "by": "admin"
       },
       {
-        "id": "audit-6a8535a5-8622-4dbe-bb64-486ea6a487d1",
+        "id": "audit-4eeeeebc-dc9b-45da-a82d-75fee76dee87",
         "action": "update",
-        "label": "Updated Mohamed Mostafa",
-        "at": "2026-07-14T10:36:08.542Z",
+        "label": "Updated Khaled Kassab",
+        "at": "2026-08-17T11:02:20.736Z",
         "by": "admin"
       },
       {
-        "id": "audit-9126c77a-f40d-4c52-b3bc-ee6160059b24",
-        "action": "update",
-        "label": "Updated Nada Younes",
-        "at": "2026-07-14T10:36:07.693Z",
-        "by": "admin"
-      },
-      {
-        "id": "audit-ec7f07b5-d127-4a9a-a7de-452ffb2dceb4",
-        "action": "update",
-        "label": "Updated Mohamed Mostafa",
-        "at": "2026-07-14T10:36:07.687Z",
-        "by": "admin"
-      },
-      {
-        "id": "audit-ed088516-7fc3-49b3-8333-e9f45febcbae",
+        "id": "audit-04ea63a5-da5c-4d18-b9a5-d6463cb38a41",
         "action": "update",
         "label": "Updated Mohamed Elbadry",
-        "at": "2026-07-14T10:36:06.232Z",
+        "at": "2026-08-17T11:02:18.253Z",
         "by": "admin"
       },
       {
-        "id": "audit-46fb7fa7-3d0f-4174-9c3e-c4d4773e502c",
-        "action": "update",
-        "label": "Updated Mohamed Mostafa",
-        "at": "2026-07-14T10:36:06.225Z",
-        "by": "admin"
-      },
-      {
-        "id": "audit-9f66f474-31a5-42f8-b68c-a6e495357d6e",
+        "id": "audit-3986cff7-56d3-47bf-8c69-46fd3385e4d9",
         "action": "update",
         "label": "Updated Khaled Kassab",
-        "at": "2026-07-14T10:36:02.034Z",
+        "at": "2026-08-17T11:02:18.222Z",
         "by": "admin"
       },
       {
-        "id": "audit-6e2c70cb-41bf-4d81-a0a0-ed7e65f513dd",
-        "action": "update",
-        "label": "Updated Mohamed Mostafa",
-        "at": "2026-07-14T10:36:02.027Z",
-        "by": "admin"
-      },
-      {
-        "id": "audit-fbe6a88b-452c-41a0-bec9-85a4ed0e3636",
-        "action": "update",
-        "label": "Updated Mohamed Mostafa",
-        "at": "2026-07-14T10:36:01.281Z",
-        "by": "admin"
-      },
-      {
-        "id": "audit-dd7cea86-dc69-459a-8f53-9005942925f7",
-        "action": "update",
-        "label": "Updated Khaled Kassab",
-        "at": "2026-07-14T10:36:01.267Z",
-        "by": "admin"
-      },
-      {
-        "id": "audit-9be5798c-88ac-413c-9148-8c1cbd8a443b",
-        "action": "update",
-        "label": "Updated Khaled Kassab",
-        "at": "2026-07-14T10:36:01.099Z",
-        "by": "admin"
-      },
-      {
-        "id": "audit-b48c4e69-d529-4437-a587-0b5b552f142c",
-        "action": "update",
-        "label": "Updated Mohamed Mostafa",
-        "at": "2026-07-14T10:36:01.092Z",
-        "by": "admin"
-      },
-      {
-        "id": "audit-7a697a75-f834-4344-8a45-bbe64c0e25c4",
-        "action": "create",
-        "label": "Created Mohamed Mostafa",
-        "at": "2026-07-14T10:35:57.281Z",
-        "by": "admin"
-      },
-      {
-        "id": "audit-df04e57b-ebb1-4be6-a31b-d7e33a0ed7b0",
+        "id": "audit-8396431e-cb06-4ee4-8093-af7721d49162",
         "action": "upload",
-        "label": "Uploaded 1784025335169-1746738612565.jpg",
-        "at": "2026-07-14T10:35:35.170Z",
+        "label": "Uploaded 1786955834381-headsss-for-the-website-06.webp",
+        "at": "2026-08-17T08:37:14.973Z",
+        "by": "nada.azzam"
+      },
+      {
+        "id": "audit-19573a78-8197-4361-a3d0-b406039bd3bd",
+        "action": "upload",
+        "label": "Uploaded 1786955831211-headsss-for-the-website-05.webp",
+        "at": "2026-08-17T08:37:11.773Z",
+        "by": "nada.azzam"
+      },
+      {
+        "id": "audit-0e31f5b8-7100-49d8-9648-ffa081f97492",
+        "action": "upload",
+        "label": "Uploaded 1786955827236-logos-for-website-02-1.webp",
+        "at": "2026-08-17T08:37:07.769Z",
+        "by": "nada.azzam"
+      },
+      {
+        "id": "audit-308f6d1c-56d2-4074-be24-8be0070f40a4",
+        "action": "upload",
+        "label": "Uploaded 1786955823972-logos-for-website-05.webp",
+        "at": "2026-08-17T08:37:04.343Z",
+        "by": "nada.azzam"
+      },
+      {
+        "id": "audit-97ab9588-29a9-4f75-8237-f4a679cb1295",
+        "action": "upload",
+        "label": "Uploaded 1786954907287-logos-for-website-05.webp",
+        "at": "2026-08-17T08:21:47.619Z",
+        "by": "nada.azzam"
+      },
+      {
+        "id": "audit-1d32a474-c508-4318-aa95-1b6c4d284b9a",
+        "action": "upload",
+        "label": "Uploaded 1786954904716-logos-for-website-02-1.webp",
+        "at": "2026-08-17T08:21:45.200Z",
+        "by": "nada.azzam"
+      },
+      {
+        "id": "audit-388f5065-ffd3-4ce3-ae65-3b528f20531b",
+        "action": "upload",
+        "label": "Uploaded 1786954902098-logos-for-website-01.webp",
+        "at": "2026-08-17T08:21:42.698Z",
+        "by": "nada.azzam"
+      },
+      {
+        "id": "audit-db057266-8e45-44b6-8d38-6bf9c540be8d",
+        "action": "upload",
+        "label": "Uploaded 1786954896859-logos-for-website-04.webp",
+        "at": "2026-08-17T08:21:37.439Z",
+        "by": "nada.azzam"
+      },
+      {
+        "id": "audit-c11427d8-6d09-415f-a625-1ba95aaf09ed",
+        "action": "upload",
+        "label": "Uploaded 1786901848191-whatsapp-image-2025-12-18-at-4-55-44-pm.webp",
+        "at": "2026-08-16T17:37:28.999Z",
         "by": "admin"
       },
       {
-        "id": "audit-initial-import",
-        "action": "import",
-        "label": "Initial website content import",
-        "at": "2026-07-14T10:00:00.000Z",
-        "by": "system"
+        "id": "audit-8ebc9897-e195-456d-8814-10937de66227",
+        "action": "upload",
+        "label": "Uploaded 1786900746131-whatsapp-image-2025-12-18-at-4-55-44-pm.webp",
+        "at": "2026-08-16T17:19:06.994Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-e5dafced-0cb3-4a05-82b5-8f61235d0bc0",
+        "action": "page-update",
+        "label": "Updated home page content",
+        "at": "2026-08-16T15:01:11.352Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-e2d32065-cec0-402b-aaf6-798329da7572",
+        "action": "update",
+        "label": "Updated Enterprise Software Solutions",
+        "at": "2026-08-16T14:03:31.332Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-153f45eb-3825-4003-b6c9-6f9b58037005",
+        "action": "upload",
+        "label": "Uploaded 1786889009024-9449bae08994d066b8c890a06db1fa3e.webp",
+        "at": "2026-08-16T14:03:29.381Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-8c52fb0d-4d49-4b8c-8713-bcc7de68dc5f",
+        "action": "update",
+        "label": "Updated Enterprise Software Solutions",
+        "at": "2026-08-16T14:00:47.350Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-f55ad947-29e3-4778-886d-241640145deb",
+        "action": "create",
+        "label": "Created Senior Full-Stack Developer",
+        "at": "2026-08-16T12:31:00.996Z",
+        "by": "endii.galal"
+      },
+      {
+        "id": "audit-e45a752e-659e-4875-83cb-a50e003860e0",
+        "action": "delete",
+        "label": "Deleted Full Stack Developer",
+        "at": "2026-08-16T12:01:07.333Z",
+        "by": "endii.galal"
+      },
+      {
+        "id": "audit-f3499edf-727d-4242-8021-f3a1a796d025",
+        "action": "create",
+        "label": "Created Full Stack Developer",
+        "at": "2026-08-16T09:03:50.230Z",
+        "by": "endii.galal"
+      },
+      {
+        "id": "audit-a54554df-f4d7-4ea2-aeae-b4629e8c5345",
+        "action": "delete",
+        "label": "Deleted Full Stack Developer",
+        "at": "2026-08-16T08:53:02.686Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-06bf3a8c-a2f2-4461-be20-3b141d10ed81",
+        "action": "update",
+        "label": "Updated Full Stack Developer",
+        "at": "2026-08-16T08:38:24.680Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-804b4590-64ae-4bdb-9515-42c2ef4d5bee",
+        "action": "create",
+        "label": "Created Full Stack Developer",
+        "at": "2026-08-16T08:37:01.345Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-ab266c11-eb54-458a-abb4-90ee0c819336",
+        "action": "page-update",
+        "label": "Updated about page content",
+        "at": "2026-08-13T15:30:21.593Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-69ddd6d6-432b-471b-8f3a-f87f8c93dc7f",
+        "action": "update",
+        "label": "Updated Enterprise Software Solutions",
+        "at": "2026-08-13T15:11:19.687Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-02f34763-9074-459a-8e4a-2e1db4a1bc79",
+        "action": "update",
+        "label": "Updated Enterprise Software Solutions",
+        "at": "2026-08-13T14:58:13.512Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-6cac230f-7d6b-4bff-8844-0d25d17f088f",
+        "action": "update",
+        "label": "Updated Mahmoud Yasser",
+        "at": "2026-08-13T14:42:18.890Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-9b555134-caf4-484c-b0b0-adf3de0c676a",
+        "action": "update",
+        "label": "Updated Nada Younes",
+        "at": "2026-08-13T14:42:18.876Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-b0e4b607-6662-4434-a16c-ce74728b03ef",
+        "action": "update",
+        "label": "Updated Khaled Kassab",
+        "at": "2026-08-13T14:32:05.255Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-93d249c8-3265-43f9-a57a-b606e325d5b7",
+        "action": "upload",
+        "label": "Uploaded 1786631523968-headsss-for-the-website-06.webp",
+        "at": "2026-08-13T14:32:04.525Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-bf61c528-b12b-4fb6-8a47-ff023eb28093",
+        "action": "update",
+        "label": "Updated Khaled Kassab",
+        "at": "2026-08-13T14:31:45.135Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-604381a8-e499-4d21-83eb-c890ca6694c5",
+        "action": "update",
+        "label": "Updated Mohamed Elbadry",
+        "at": "2026-08-13T14:31:25.018Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-9498aed2-b60d-4363-8f1b-998054e51022",
+        "action": "update",
+        "label": "Updated Mohamed Elbadry",
+        "at": "2026-08-13T14:31:21.684Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-6a5acf7b-8801-4bdd-9cf0-23c56662ab56",
+        "action": "upload",
+        "label": "Uploaded 1786631464473-headsss-for-the-website-05.webp",
+        "at": "2026-08-13T14:31:05.054Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-d3073faa-8eac-4982-9cd6-51e16dedbc72",
+        "action": "update",
+        "label": "Updated Mahmoud Yasser",
+        "at": "2026-08-13T14:30:01.212Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-dce3de2d-d3a1-4b65-9309-b1a022f425c8",
+        "action": "upload",
+        "label": "Uploaded 1786631398708-headsss-for-the-website-03.webp",
+        "at": "2026-08-13T14:29:59.264Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-9ced7660-82f6-4dba-a72d-42aa3718f665",
+        "action": "update",
+        "label": "Updated Nada Younes",
+        "at": "2026-08-13T14:29:28.378Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-5fe0d504-38a7-4c89-b62b-cfedd6ce40a4",
+        "action": "upload",
+        "label": "Uploaded 1786631359904-headsss-for-the-website-04.webp",
+        "at": "2026-08-13T14:29:20.562Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-766edb65-7018-4ca6-9c3f-22b36c89dced",
+        "action": "update",
+        "label": "Updated Nada Younes",
+        "at": "2026-08-13T14:29:12.201Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-de1ffd21-b1e1-4bff-9a04-b7337e8ad4ae",
+        "action": "update",
+        "label": "Updated Mahmoud Yasser",
+        "at": "2026-08-13T14:29:02.119Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-f1ab9b0a-7a85-44a0-8c6e-da39fde4bc4f",
+        "action": "update",
+        "label": "Updated Mohamed Mansour",
+        "at": "2026-08-13T14:28:41.585Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-af47cf82-73fe-462c-b289-a764287a51a9",
+        "action": "update",
+        "label": "Updated Mohamed Mansour",
+        "at": "2026-08-13T14:28:23.327Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-aeea1aaa-debb-4a44-8dcd-64f8398b32f9",
+        "action": "upload",
+        "label": "Uploaded 1786631301742-headsss-for-the-website-02.webp",
+        "at": "2026-08-13T14:28:22.332Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-622d4c52-4267-492c-b087-6d1aff9b974d",
+        "action": "update",
+        "label": "Updated Kareem Adel",
+        "at": "2026-08-13T14:28:14.801Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-c9e2fd84-c8c5-44e3-b013-248c4acaf0dd",
+        "action": "upload",
+        "label": "Uploaded 1786631263690-headsss-for-the-website-01.webp",
+        "at": "2026-08-13T14:27:44.259Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-a97e181a-1a82-4f23-853c-03780848fcdc",
+        "action": "update",
+        "label": "Updated Huawei",
+        "at": "2026-08-13T14:26:58.086Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-bcdddf2a-2e5c-419e-a6e5-e1073f7a6522",
+        "action": "upload",
+        "label": "Uploaded 1786631216764-logos-for-website-02.webp",
+        "at": "2026-08-13T14:26:57.110Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-94f3b40d-598a-4858-b7f8-7acecca79cce",
+        "action": "upload",
+        "label": "Uploaded 1786631210664-logos-for-website-02.webp",
+        "at": "2026-08-13T14:26:51.034Z",
+        "by": "admin"
       }
     ]
   },
@@ -224,7 +364,13 @@
       "lead": "Digital Hub helps Egypt’s enterprises, ministries, and banks build the software, data infrastructure, and AI capabilities that make strategy executable — not just presentable.",
       "sectionTitle": "Four capabilities. One integrated team.",
       "sectionLead": "",
-      "seoTitle": "Digital Hub | Digital Transformation Company in Egypt"
+      "seoTitle": "Digital Hub | Digital Transformation Company in Egypt",
+      "social": {
+        "linkedin": "https://www.linkedin.com/company/digital-hub-eg/",
+        "facebook": "https://www.facebook.com/DigitalHub19",
+        "instagram": "https://www.instagram.com/digitalhub_eg/",
+        "tiktok": "https://www.tiktok.com/@digitalhub.eg?_r=1&_t=ZS-98vx4nHcDJ6"
+      }
     },
     "blogs": {
       "label": "Blog & Insights",
@@ -259,7 +405,70 @@
       "title": "Built in Egypt. Trusted across EMEA.",
       "lead": "Welcome to Digital Hub (S.A.E), established in 2019 with a common vision to create innovative solutions that have a real impact on our clients and partners.",
       "sectionTitle": "Meet the leadership.",
-      "sectionLead": "The team guiding Digital Hub’s growth across Data Science, AI, software, and delivery."
+      "sectionLead": "The team guiding Digital Hub’s growth across Data Science, AI, software, and delivery.",
+      "seoTitle": "",
+      "history": {
+        "label": "Since 2019",
+        "title": "Our History",
+        "lead": "From a 5-person system integrator to a 60+ expert team delivering Data Science & AI across the EMEA region.",
+        "milestones": [
+          {
+            "year": "2019",
+            "text": "Company launch as system integrator — first customer, 5 employees",
+            "image": "assets/history/launch.webp",
+            "alt": "Digital Hub company launch in 2019"
+          },
+          {
+            "year": "2020",
+            "text": "Starting our consultant services",
+            "image": "assets/history/consult.webp",
+            "alt": "Consulting services expansion in 2020"
+          },
+          {
+            "year": "2021",
+            "text": "Expanded from system integrator to software development",
+            "image": "assets/history/code.webp",
+            "alt": "Software development growth in 2021"
+          },
+          {
+            "year": "2022",
+            "text": "Growth phase, Kaspersky Best Deal Award, Data Science unit added",
+            "image": "assets/history/growth.webp",
+            "alt": "Company growth and data science expansion in 2022"
+          },
+          {
+            "year": "2023",
+            "text": "Shifted delivery focus toward Data Science & AI programs",
+            "image": "assets/history/ai.webp",
+            "alt": "Data science and AI focus in 2023"
+          },
+          {
+            "year": "2024",
+            "text": "Scaled AI & analytics practice — 60+ employees",
+            "image": "assets/history/ai.webp",
+            "alt": "AI practice scale-up in 2024"
+          },
+          {
+            "year": "2025",
+            "text": "Expanded EMEA partnerships and enterprise delivery programs",
+            "image": "assets/history/growth.webp",
+            "alt": "EMEA partnerships expansion in 2025"
+          },
+          {
+            "year": "2026",
+            "text": "Advancing governed AI and digital platforms across the region",
+            "image": "assets/history/code.webp",
+            "alt": "Governed AI and digital platforms in 2026"
+          }
+        ]
+      }
+    },
+    "news": {
+      "label": "Latest News",
+      "title": "What’s happening at Digital Hub",
+      "lead": "Partnerships, events, and delivery milestones from our work across Egypt and the EMEA region.",
+      "sectionTitle": "News & announcements.",
+      "sectionLead": "Browse the latest partnership, event, and project updates from Digital Hub."
     }
   },
   "collections": {
@@ -271,9 +480,127 @@
         "href": "services/enterprise-software.html",
         "icon": "ti-stack-2",
         "visual": "code",
+        "suiteScenes": [
+          {
+            "title": "Enterprise applications",
+            "label": "Enterprise applications",
+            "description": "Custom business applications built around how your teams actually work — mission-critical, governance-aware, and engineered for scale.",
+            "features": [
+              {
+                "icon": "ti-apps",
+                "text": "Custom enterprise applications"
+              },
+              {
+                "icon": "ti-device-mobile",
+                "text": "Mobile & workforce apps"
+              },
+              {
+                "icon": "ti-checklist",
+                "text": "Mission-critical workflow systems"
+              }
+            ],
+            "image": "assets/uploads/1786889009024-9449bae08994d066b8c890a06db1fa3e.webp",
+            "alt": "Enterprise application dashboard and operations workspace"
+          },
+          {
+            "title": "Digital portals & platforms",
+            "label": "Digital portals & platforms",
+            "description": "High-performance portals that deliver seamless digital services to citizens, customers, and stakeholders — with the polish of a consumer product.",
+            "features": [
+              {
+                "icon": "ti-layout-grid",
+                "text": "Web portals & service platforms"
+              },
+              {
+                "icon": "ti-users",
+                "text": "Citizen & customer experiences"
+              },
+              {
+                "icon": "ti-bolt",
+                "text": "High-performance digital delivery"
+              }
+            ],
+            "image": "assets/services/digital-portals.jpg",
+            "alt": "Digital portal and citizen services platform"
+          },
+          {
+            "title": "Integration & automation",
+            "label": "Integration & automation",
+            "description": "Robust integration layers that connect legacy systems, databases, and third-party services into one unified ecosystem — with workflow automation on top.",
+            "features": [
+              {
+                "icon": "ti-plug-connected",
+                "text": "System integration & APIs"
+              },
+              {
+                "icon": "ti-git-branch",
+                "text": "Workflow automation & case management"
+              },
+              {
+                "icon": "ti-network",
+                "text": "Unified ecosystem connectivity"
+              }
+            ],
+            "image": "assets/services/integration.jpg",
+            "alt": "Enterprise systems integration and automation"
+          },
+          {
+            "title": "Modernization & delivery",
+            "label": "Modernization & delivery",
+            "description": "Legacy modernization, DevOps, QA, and application support — transforming outdated systems into cloud-ready platforms built for long-term agility.",
+            "features": [
+              {
+                "icon": "ti-refresh",
+                "text": "Legacy modernization"
+              },
+              {
+                "icon": "ti-shield-check",
+                "text": "DevOps, QA & application support"
+              },
+              {
+                "icon": "ti-cloud",
+                "text": "Cloud-ready platform operations"
+              }
+            ],
+            "image": "assets/services/modernization.jpg",
+            "alt": "Cloud modernization and delivery pipeline"
+          }
+        ],
+        "methodology": {
+          "label": "Our methodology",
+          "title": "Four stages. No surprises.",
+          "lead": "Every engagement follows the same structured delivery model. You know what’s happening at every stage.",
+          "stages": [
+            {
+              "title": "Discover & Define",
+              "description": "We map your current processes, identify the pain points, and define the outcome we’re building toward. No assumptions. We sit with your teams until we understand what done looks like.",
+              "image": "assets/method/discover.jpg",
+              "alt": "Discovery and requirements workshop with stakeholders"
+            },
+            {
+              "title": "Architect & Design",
+              "description": "We design the solution architecture, data model, and user experience before writing a line of code. You see and approve how the system works before it’s built. Changes here are free.",
+              "image": "assets/method/architect.jpg",
+              "alt": "Solution architecture and design planning"
+            },
+            {
+              "title": "Build & Integrate",
+              "description": "We develop in iterative sprints with regular demos. Every two weeks you see working software, not status reports. Integration with existing systems happens in parallel — not as an afterthought.",
+              "image": "assets/method/build.jpg",
+              "alt": "Agile development and system integration"
+            },
+            {
+              "title": "Deploy, Support & Improve",
+              "description": "We manage production deployment, run UAT with your team, and stay on after go-live. Performance is monitored. Bugs are fixed. Enhancements planned against a shared roadmap.",
+              "image": "assets/method/deploy.jpg",
+              "alt": "Production deployment and continuous improvement"
+            }
+          ]
+        },
         "status": "published",
         "featured": true,
-        "order": 10
+        "order": 10,
+        "updatedAt": "2026-08-16T14:03:31.331Z"
       },
       {
         "id": "service-data-analytics",
@@ -284,7 +611,124 @@
         "visual": "data",
         "status": "published",
         "featured": true,
-        "order": 20
+        "order": 20,
+        "suiteScenes": [
+          {
+            "title": "Data strategy & assessment",
+            "label": "Data strategy & assessment",
+            "description": "A clear data roadmap that aligns business objectives, maturity, governance needs, and future analytics capabilities.",
+            "features": [
+              {
+                "icon": "ti-compass",
+                "text": "Data maturity assessment"
+              },
+              {
+                "icon": "ti-map",
+                "text": "Source & governance mapping"
+              },
+              {
+                "icon": "ti-list-check",
+                "text": "Prioritized analytics roadmap"
+              }
+            ],
+            "image": "assets/services/enterprise-apps.jpg",
+            "alt": "Enterprise application dashboard and operations workspace"
+          },
+          {
+            "title": "Enterprise data warehousing",
+            "label": "Enterprise data warehousing",
+            "description": "Centralized warehouses that unify multiple sources into a reliable foundation for reporting and decision-making.",
+            "features": [
+              {
+                "icon": "ti-database",
+                "text": "Multi-source warehouse design"
+              },
+              {
+                "icon": "ti-cloud",
+                "text": "Azure & cloud-native platforms"
+              },
+              {
+                "icon": "ti-chart-dots",
+                "text": "Executive reporting foundations"
+              }
+            ],
+            "image": "assets/services/digital-portals.jpg",
+            "alt": "Digital portal and citizen services platform"
+          },
+          {
+            "title": "Data engineering & pipelines",
+            "label": "Data engineering & pipelines",
+            "description": "Automated ETL/ELT pipelines that collect, cleanse, transform, and deliver reliable data across enterprise systems.",
+            "features": [
+              {
+                "icon": "ti-git-merge",
+                "text": "ETL/ELT pipeline development"
+              },
+              {
+                "icon": "ti-layers-linked",
+                "text": "Lakehouse & modern platforms"
+              },
+              {
+                "icon": "ti-bolt",
+                "text": "Real-time ingestion patterns"
+              }
+            ],
+            "image": "assets/services/integration.jpg",
+            "alt": "Enterprise systems integration and automation"
+          },
+          {
+            "title": "BI, portals & DataOps",
+            "label": "BI, portals & DataOps",
+            "description": "Dashboards, open data portals, and operational discipline that keep data platforms reliable and continuously improving.",
+            "features": [
+              {
+                "icon": "ti-chart-bar",
+                "text": "Executive BI dashboards"
+              },
+              {
+                "icon": "ti-world",
+                "text": "Open data & citizen portals"
+              },
+              {
+                "icon": "ti-settings-automation",
+                "text": "DataOps monitoring & support"
+              }
+            ],
+            "image": "assets/services/modernization.jpg",
+            "alt": "Cloud modernization and delivery pipeline"
+          }
+        ],
+        "methodology": {
+          "label": "Our methodology",
+          "title": "Four stages. No surprises.",
+          "lead": "From data strategy through governed platforms — a delivery model that turns fragmented sources into trusted intelligence.",
+          "stages": [
+            {
+              "title": "Assess & roadmap",
+              "description": "Evaluate data maturity, sources, governance gaps, and analytics goals. Define a prioritized roadmap aligned to business objectives.",
+              "image": "assets/method/discover.jpg",
+              "alt": "Discovery and requirements workshop"
+            },
+            {
+              "title": "Architect & govern",
+              "description": "Design warehouse, lakehouse, or hybrid platforms with quality frameworks, MDM, and security controls built in from day one.",
+              "image": "assets/method/architect.jpg",
+              "alt": "Solution architecture and design planning"
+            },
+            {
+              "title": "Engineer & integrate",
+              "description": "Build ETL/ELT pipelines, unify enterprise sources, and deploy dashboards and portals stakeholders can trust daily.",
+              "image": "assets/method/build.jpg",
+              "alt": "Agile development and system integration"
+            },
+            {
+              "title": "Operate & improve",
+              "description": "Apply DataOps discipline — monitored pipelines, controlled changes, and continuous refinement of data quality and insights.",
+              "image": "assets/method/deploy.jpg",
+              "alt": "Production deployment and continuous improvement"
+            }
+          ]
+        }
       },
       {
         "id": "service-ai-automation",
@@ -295,7 +739,124 @@
         "visual": "ai",
         "status": "published",
         "featured": true,
-        "order": 30
+        "order": 30,
+        "suiteScenes": [
+          {
+            "title": "AI strategy & readiness",
+            "label": "AI strategy & readiness",
+            "description": "A practical adoption roadmap that identifies high-value use cases, data foundations, risks, and implementation priorities.",
+            "features": [
+              {
+                "icon": "ti-compass",
+                "text": "Use-case prioritization"
+              },
+              {
+                "icon": "ti-scan",
+                "text": "Data & risk assessment"
+              },
+              {
+                "icon": "ti-route",
+                "text": "Responsible AI roadmap"
+              }
+            ],
+            "image": "assets/services/enterprise-apps.jpg",
+            "alt": "Enterprise application dashboard and operations workspace"
+          },
+          {
+            "title": "Generative AI assistants",
+            "label": "Generative AI assistants",
+            "description": "Conversational assistants that provide instant, accurate, multilingual access to services, systems, and enterprise knowledge.",
+            "features": [
+              {
+                "icon": "ti-message-chatbot",
+                "text": "Enterprise chatbots & copilots"
+              },
+              {
+                "icon": "ti-language",
+                "text": "Multilingual service assistants"
+              },
+              {
+                "icon": "ti-shield-check",
+                "text": "Secure user experiences"
+              }
+            ],
+            "image": "assets/services/digital-portals.jpg",
+            "alt": "Digital portal and citizen services platform"
+          },
+          {
+            "title": "Document intelligence",
+            "label": "Document intelligence",
+            "description": "AI-powered extraction, classification, validation, and processing of documents, forms, certificates, invoices, and records.",
+            "features": [
+              {
+                "icon": "ti-file-search",
+                "text": "Intelligent document processing"
+              },
+              {
+                "icon": "ti-forms",
+                "text": "Form & certificate extraction"
+              },
+              {
+                "icon": "ti-checkbox",
+                "text": "Validation workflows"
+              }
+            ],
+            "image": "assets/services/integration.jpg",
+            "alt": "Enterprise systems integration and automation"
+          },
+          {
+            "title": "Agents & governance",
+            "label": "Agents & governance",
+            "description": "Autonomous workflows and control frameworks that ensure AI solutions are secure, auditable, compliant, and scalable.",
+            "features": [
+              {
+                "icon": "ti-robot",
+                "text": "AI agents & agentic workflows"
+              },
+              {
+                "icon": "ti-books",
+                "text": "RAG knowledge assistants"
+              },
+              {
+                "icon": "ti-gavel",
+                "text": "Responsible AI governance"
+              }
+            ],
+            "image": "assets/services/modernization.jpg",
+            "alt": "Cloud modernization and delivery pipeline"
+          }
+        ],
+        "methodology": {
+          "label": "Our methodology",
+          "title": "Four stages. No surprises.",
+          "lead": "A governed path from use-case identification to production AI — secure, auditable, and aligned with enterprise policy.",
+          "stages": [
+            {
+              "title": "Assess & prioritize",
+              "description": "Identify high-value use cases, data readiness, risks, and governance requirements. Build a practical adoption roadmap.",
+              "image": "assets/method/discover.jpg",
+              "alt": "Discovery and requirements workshop"
+            },
+            {
+              "title": "Design & govern",
+              "description": "Architect solutions with responsible AI controls — RAG grounding, access policies, audit trails, and compliance alignment.",
+              "image": "assets/method/architect.jpg",
+              "alt": "Solution architecture and design planning"
+            },
+            {
+              "title": "Build & automate",
+              "description": "Develop assistants, agents, and document processing workflows integrated with cloud AI and existing systems.",
+              "image": "assets/method/build.jpg",
+              "alt": "Agile development and system integration"
+            },
+            {
+              "title": "Deploy & scale",
+              "description": "Production rollout with monitoring, feedback loops, and continuous optimization as adoption grows.",
+              "image": "assets/method/deploy.jpg",
+              "alt": "Production deployment and continuous improvement"
+            }
+          ]
+        }
       },
       {
         "id": "service-outsourcing",
@@ -306,7 +867,124 @@
         "visual": "team",
         "status": "published",
         "featured": true,
-        "order": 40
+        "order": 40,
+        "suiteScenes": [
+          {
+            "title": "Data engineers",
+            "label": "Data engineers",
+            "description": "Pipeline builders, warehouse specialists, and analytics engineers who integrate with your data platforms and governance standards.",
+            "features": [
+              {
+                "icon": "ti-database",
+                "text": "ETL/ELT & pipeline engineers"
+              },
+              {
+                "icon": "ti-layers-linked",
+                "text": "Warehouse & lakehouse specialists"
+              },
+              {
+                "icon": "ti-chart-dots",
+                "text": "Analytics engineering support"
+              }
+            ],
+            "image": "assets/services/enterprise-apps.jpg",
+            "alt": "Enterprise application dashboard and operations workspace"
+          },
+          {
+            "title": "Software developers",
+            "label": "Software developers",
+            "description": "Full-stack and enterprise developers across .NET, cloud-native, and integration stacks ready to join your sprints and rituals.",
+            "features": [
+              {
+                "icon": "ti-code",
+                "text": "Enterprise application developers"
+              },
+              {
+                "icon": "ti-cloud",
+                "text": "Cloud-native & API engineers"
+              },
+              {
+                "icon": "ti-plug-connected",
+                "text": "Integration specialists"
+              }
+            ],
+            "image": "assets/services/digital-portals.jpg",
+            "alt": "Digital portal and citizen services platform"
+          },
+          {
+            "title": "AI specialists",
+            "label": "AI specialists",
+            "description": "Practitioners in generative AI, RAG, and intelligent automation who can move use cases from roadmap to production safely.",
+            "features": [
+              {
+                "icon": "ti-brain",
+                "text": "Generative AI engineers"
+              },
+              {
+                "icon": "ti-message-chatbot",
+                "text": "RAG & assistant developers"
+              },
+              {
+                "icon": "ti-robot",
+                "text": "Automation workflow specialists"
+              }
+            ],
+            "image": "assets/services/integration.jpg",
+            "alt": "Enterprise systems integration and automation"
+          },
+          {
+            "title": "QA engineers",
+            "label": "QA engineers",
+            "description": "Test automation and quality assurance specialists ensuring enterprise-grade delivery across web, mobile, and API layers.",
+            "features": [
+              {
+                "icon": "ti-test-pipe",
+                "text": "Test automation engineers"
+              },
+              {
+                "icon": "ti-bug",
+                "text": "Manual & regression QA"
+              },
+              {
+                "icon": "ti-gauge",
+                "text": "API & performance testing"
+              }
+            ],
+            "image": "assets/services/modernization.jpg",
+            "alt": "Cloud modernization and delivery pipeline"
+          }
+        ],
+        "methodology": {
+          "label": "Our methodology",
+          "title": "Four stages. No surprises.",
+          "lead": "From role definition to ongoing delivery — a staffing model built for long-term partnerships.",
+          "stages": [
+            {
+              "title": "Define & match",
+              "description": "Clarify roles, skills, timeline, and engagement model. Match screened candidates aligned with your stack and sector requirements.",
+              "image": "assets/method/discover.jpg",
+              "alt": "Discovery and requirements workshop"
+            },
+            {
+              "title": "Onboard & integrate",
+              "description": "Embed talent into your tools, ceremonies, and security policies. Bilingual professionals aligned with flexible time zone coverage.",
+              "image": "assets/method/architect.jpg",
+              "alt": "Solution architecture and design planning"
+            },
+            {
+              "title": "Deliver & govern",
+              "description": "Accountable contributors working to your backlog, with NDAs, access controls, and compliance suited to regulated sectors.",
+              "image": "assets/method/build.jpg",
+              "alt": "Agile development and system integration"
+            },
+            {
+              "title": "Scale & retain",
+              "description": "Flex team size as priorities shift. Long-term partnerships that reduce hiring friction and keep delivery velocity consistent.",
+              "image": "assets/method/deploy.jpg",
+              "alt": "Production deployment and continuous improvement"
+            }
+          ]
+        }
       }
     ],
     "partners": [
@@ -315,57 +993,65 @@
         "name": "Microsoft",
         "summary": "Azure, Microsoft 365, Power Platform, and Dynamics 365 for government and enterprise digital transformation across Egypt and the Gulf.",
         "href": "partners/microsoft.html",
-        "image": "assets/microsoft-logo.png",
+        "image": "assets/uploads/partner-microsoft-logo-unified.webp",
+        "alt": "Microsoft logo",
         "variant": "ms",
         "status": "published",
         "featured": true,
         "order": 10,
-        "updatedAt": "2026-07-14T12:01:03.776Z"
+        "updatedAt": "2026-08-13T14:03:14.771Z"
       },
       {
         "id": "partner-huawei",
         "name": "Huawei",
         "summary": "Huawei Cloud and enterprise infrastructure for telcos, government, and large enterprises — secure, scalable platforms across Egypt and the Gulf.",
         "href": "partners/huawei.html",
-        "image": "assets/huawei-logo.png",
+        "image": "assets/uploads/1786631216764-logos-for-website-02.webp",
+        "alt": "Huawei logo",
         "variant": "default",
         "status": "published",
         "featured": true,
         "order": 20,
-        "updatedAt": "2026-07-14T12:01:03.768Z"
+        "updatedAt": "2026-08-13T14:26:58.086Z"
       },
       {
         "id": "partner-nexthink",
         "name": "Nexthink",
         "summary": "Authorized Nexthink partner for banks, telcos, and enterprises — deploy the leading Digital Employee Experience platform at scale.",
         "href": "partners/nexthink.html",
-        "image": "assets/nexthink-logo.png",
+        "image": "assets/uploads/partner-nexthink-logo-unified.webp",
+        "alt": "Nexthink logo",
         "variant": "default",
         "status": "published",
         "featured": true,
-        "order": 30
+        "order": 30,
+        "updatedAt": "2026-08-13T14:07:43.430Z"
       },
       {
         "id": "partner-efinance",
         "name": "eFinance",
         "summary": "Digital payments, fintech integration, and sovereign cloud capabilities for secure transaction-based government and enterprise services.",
         "href": "partners/efinance.html",
-        "image": "assets/efinance-logo.svg",
+        "image": "assets/uploads/partner-efinance-logo-unified.webp",
+        "alt": "eFinance logo",
         "variant": "default",
         "status": "published",
         "featured": true,
-        "order": 40
+        "order": 40,
+        "updatedAt": "2026-08-13T14:07:53.084Z"
       },
       {
         "id": "partner-vodafone",
         "name": "Vodafone",
         "summary": "Vodafone cloud and enterprise connectivity combined with Digital Hub integration expertise for scalable, connected digital operations.",
         "href": "partners/vodafone.html",
-        "image": "assets/vodafone-logo.svg",
+        "image": "assets/uploads/partner-vodafone-logo-unified.webp",
+        "alt": "Vodafone logo",
         "variant": "default",
         "status": "published",
         "featured": true,
-        "order": 50
+        "order": 50,
+        "updatedAt": "2026-08-13T14:07:58.684Z"
       }
     ],
     "caseStudies": [
@@ -374,7 +1060,7 @@
         "title": "3+ years powering Egypt’s national planning systems",
         "summary": "Full development of Egyptian planning systems for the Ministry of Planning & Economic Development — data warehouse, cybersecurity, advanced dashboards, and platform support.",
         "href": "cases/ministry-planning.html",
-        "image": "assets/cases/planning.jpg",
+        "image": "assets/cases/planning.webp",
         "alt": "Government planning and data systems",
         "categories": [
           "data-analytics",
@@ -390,7 +1076,7 @@
         "title": "End-to-end data center transformation for Central Bank of Egypt",
         "summary": "Infrastructure and digital transformation consulting for the Credit Guarantee Corporation — establishing a complete data center and enterprise information infrastructure.",
         "href": "cases/data-center-transformation.html",
-        "image": "assets/cases/banking.jpg",
+        "image": "assets/cases/banking.webp",
         "alt": "Banking infrastructure transformation",
         "categories": [
           "data-analytics"
@@ -405,7 +1091,7 @@
         "title": "500+ endpoints under real-time Nexthink DEX monitoring",
         "summary": "Deployed Nexthink DEX across a major bank’s full IT environment — giving the IT team live visibility into endpoint health and employee experience at scale.",
         "href": "cases/nexthink-dex-bank.html",
-        "image": "assets/cases/dex.jpg",
+        "image": "assets/cases/dex.webp",
         "alt": "Digital employee experience monitoring",
         "categories": [
           "enterprise-software"
@@ -420,7 +1106,7 @@
         "title": "National e-services portal for a government ministry",
         "summary": "End-to-end design and delivery of a citizen-facing digital services platform — unified identity, workflow automation, and analytics for leadership dashboards.",
         "href": "get-in-touch.html",
-        "image": "assets/cases/banking.jpg",
+        "image": "assets/cases/banking.webp",
         "alt": "Enterprise digital transformation",
         "categories": [
           "enterprise-software",
@@ -438,9 +1124,9 @@
         "title": "What is Digital Employee Experience and why Egyptian banks can’t ignore it",
         "summary": "A practical guide to digital employee experience for banking and enterprise leaders.",
         "href": "blogs/digital-employee-experience.html",
-        "image": "assets/blog/dex.jpg",
-        "category": "enterprise-software",
-        "categoryLabel": "Enterprise Software",
+        "image": "assets/blog/dex.webp",
+        "category": "digital-employee-experience",
+        "categoryLabel": "Digital Employee Experience",
         "readTime": 1,
         "accent": "blue",
         "status": "published",
@@ -467,68 +1153,11 @@
         ]
       },
       {
-        "id": "blog-transformation",
-        "title": "5 signs your company needs digital transformation — not just a new website",
-        "summary": "How to recognize when isolated digital upgrades are no longer enough.",
-        "href": "blogs/digital-transformation-signs.html",
-        "image": "assets/blog/transformation.jpg",
-        "category": "enterprise-software",
-        "categoryLabel": "Enterprise Software",
-        "readTime": 5,
-        "accent": "orange",
-        "status": "published",
-        "featured": true,
-        "order": 20,
-        "cluster": "Enterprise Software",
-        "body": "<h2>Transformation starts inside the business</h2><p>If customer-facing channels look modern but internal processes remain manual, disconnected, or dependent on spreadsheets, the organization has not transformed. It has only repackaged the front door. A redesigned website can improve first impressions, but it does not fix slow approvals, fragmented data, repeated manual entry, or teams that cannot see the same operational truth.</p><p>Real digital transformation connects strategy, software, data, automation, security, and people into workflows that are measurable and repeatable. It changes how work moves through the business, how leaders make decisions, and how customers experience the organization at every touchpoint.</p><p>For enterprises, the pressure is increasing. Customers expect faster service, leadership expects accurate reporting, regulators expect stronger controls, and employees expect tools that help them work instead of slowing them down. When legacy systems and manual processes sit underneath a modern brand, the gap becomes expensive.</p><blockquote>The clearest signal is not an outdated website. It is the amount of work your people still do outside the system.</blockquote><h2>1. Critical reports still require manual consolidation</h2><p>One of the most common signs of digital maturity gaps is the monthly reporting cycle. If teams spend days collecting spreadsheets, cleaning inconsistent formats, reconciling numbers, and building presentations manually, your organization is relying on human effort to compensate for disconnected systems.</p><p>This creates more than inefficiency. It introduces risk. By the time leadership sees the report, the data may already be outdated. If two departments define the same metric differently, decision-making becomes a negotiation instead of a fact-based process.</p><p>A transformed organization treats data as an operational asset. Data pipelines, governance rules, dashboards, and access controls allow leaders to see performance continuously, not only at the end of the month.</p><h2>2. Teams re-enter the same data across multiple systems</h2><p>Repeated data entry is a strong signal that systems are not integrated. A customer request may start in email, move to a spreadsheet, get copied into an ERP, then appear again in a reporting file. Every handoff creates delay, duplication, and potential error.</p><p>Employees often develop workarounds because they need to move quickly. Over time, these workarounds become the unofficial operating model. The business may appear functional, but its knowledge is scattered across inboxes, files, and individual memory.</p><p>Digital transformation reduces this friction by designing around workflows, not isolated tools. Integration-ready platforms, APIs, and automation allow data to move once and be reused across functions.</p><h2>3. Managers cannot see operational performance without chasing updates</h2><p>If managers need to ask for updates before they can understand what is happening, the organization lacks operational visibility. This slows decisions and creates a culture where reporting becomes reactive.</p><p>Modern enterprises need dashboards that reflect live or near-real-time activity: project progress, customer requests, system health, SLA performance, financial indicators, and service bottlenecks. The goal is not dashboards for decoration. The goal is shared visibility that allows teams to act faster.</p><p>When performance data is transparent, leaders can identify root causes earlier. Teams can prioritize based on evidence. Executives can focus on strategy instead of chasing status reports.</p><h2>4. Legacy platforms slow down product and service delivery</h2><p>Legacy systems are not automatically bad. Many run critical business processes reliably. The problem begins when they cannot integrate, scale, support new channels, or adapt to changing requirements.</p><p>If every new feature requires custom workarounds, long release cycles, or manual coordination between vendors, technology becomes a constraint on strategy. This is especially painful for banks, ministries, telecoms, and large enterprises where service expectations are rising quickly.</p><p>The answer is not always a full replacement. Often, the practical path is modernization in layers: stabilize the core, expose secure integrations, build new digital experiences around reusable services, and retire outdated components over time.</p><h2>5. Automation pilots exist, but none are embedded into daily work</h2><p>Many organizations have experimented with automation, AI, or workflow tools. A pilot may prove that a task can be automated, but the business value only appears when that automation becomes part of the operating model.</p><p>If pilots stay isolated, employees continue working the old way. If AI tools are not connected to trusted data, permissions, audit requirements, and business rules, they remain demos rather than production capabilities.</p><p>Successful automation starts with a clear business outcome. It defines ownership, integrates with existing systems, measures impact, and includes change management so teams actually adopt the new way of working.</p><h2>What a real transformation roadmap looks like</h2><p>A practical roadmap does not start with technology selection. It starts with business pain: where work is slow, where decisions are delayed, where data is unreliable, and where customer or employee experience is suffering.</p><p>From there, organizations can prioritize initiatives that connect directly to measurable outcomes. Typical workstreams include enterprise software modernization, data platform development, cybersecurity improvements, automation, AI enablement, and operating model change.</p><ul><li>Map the end-to-end workflows that create the most delay or risk.</li><li>Identify the data sources and system integrations needed to support those workflows.</li><li>Define governance, security, and ownership before scaling new platforms.</li><li>Deliver in phases so each release creates visible operational value.</li><li>Measure adoption, cycle time, data quality, and service performance continuously.</li></ul><p>Transformation succeeds when business and technology teams work as one delivery system. The organizations that win are not the ones with the most tools. They are the ones that make the right work easier, faster, safer, and more measurable.</p><h2>Final takeaway</h2><p>If these signs appear together, your organization does not need another surface-level digital project. It needs an integrated modernization program that connects software, data, automation, security, and people into a more effective operating model.</p><p>That is where transformation becomes real: when employees stop working around systems and start working through systems designed for the business they are trying to build.</p>",
-        "answerBlock": "",
-        "faq": [],
-        "dataCallouts": [],
-        "relatedPosts": [],
-        "comparisonTable": null,
-        "datePublished": "2026-06-15",
-        "dateModified": "2026-08-12",
-        "tableOfContents": [
-          {
-            "id": "transformation-starts-inside-the-business",
-            "text": "Transformation starts inside the business"
-          },
-          {
-            "id": "1-critical-reports-still-require-manual-consolidation",
-            "text": "1. Critical reports still require manual consolidation"
-          },
-          {
-            "id": "2-teams-re-enter-the-same-data-across-multiple-systems",
-            "text": "2. Teams re-enter the same data across multiple systems"
-          },
-          {
-            "id": "3-managers-cannot-see-operational-performance-without-chasing-updates",
-            "text": "3. Managers cannot see operational performance without chasing updates"
-          },
-          {
-            "id": "4-legacy-platforms-slow-down-product-and-service-delivery",
-            "text": "4. Legacy platforms slow down product and service delivery"
-          },
-          {
-            "id": "5-automation-pilots-exist-but-none-are-embedded-into-daily-work",
-            "text": "5. Automation pilots exist, but none are embedded into daily work"
-          },
-          {
-            "id": "what-a-real-transformation-roadmap-looks-like",
-            "text": "What a real transformation roadmap looks like"
-          },
-          {
-            "id": "final-takeaway",
-            "text": "Final takeaway"
-          }
-        ]
-      },
-      {
         "id": "blog-azure-egypt",
         "title": "How Microsoft Azure is accelerating Digital Egypt 2030 — what ministries need to know",
         "summary": "Cloud foundations and delivery priorities for public-sector modernization.",
         "href": "blogs/azure-digital-egypt-2030.html",
-        "image": "assets/blog/azure.jpg",
+        "image": "assets/blog/azure.webp",
         "category": "data-analytics",
         "categoryLabel": "Data & Analytics",
         "readTime": 1,
@@ -554,14 +1183,15 @@
             "id": "where-azure-creates-leverage",
             "text": "Where Azure creates leverage"
           }
-        ]
+        ],
+        "alt": "How Microsoft Azure is accelerating Digital Egypt 2030 — what ministries need to know"
       },
       {
         "id": "blog-enterprise-ai",
         "title": "From pilots to production: what Egyptian enterprises get wrong about AI deployment",
         "summary": "AI pilots are easy to launch. Production AI requires governance, integration, data quality, security, and ownership.",
         "href": "blogs/enterprise-ai-production.html",
-        "image": "assets/blog/transformation.jpg",
+        "image": "assets/blog/transformation.webp",
         "category": "ai-automation",
         "categoryLabel": "AI & Automation",
         "readTime": 1,
@@ -587,114 +1217,34 @@
             "id": "what-production-needs",
             "text": "What production needs"
           }
-        ]
-      },
-      {
-        "id": "blog-outsourcing",
-        "title": "When to augment vs. outsource your tech team — a guide for GCC enterprise leaders",
-        "summary": "A decision framework for choosing the right delivery model.",
-        "href": "blogs/augment-vs-outsource-tech-team.html",
-        "image": "assets/blog/dex.jpg",
-        "category": "outsourcing",
-        "categoryLabel": "Outsourcing",
-        "readTime": 1,
-        "accent": "blue",
-        "status": "published",
-        "featured": false,
-        "order": 50,
-        "cluster": "Technical Talent & Outsourcing",
-        "body": "<h2>Two models, different responsibilities</h2><p>Team augmentation gives you skilled people inside your operating model. Outsourcing gives you a partner accountable for a defined outcome, delivery rhythm, and management overhead.</p><p>Neither model is always better. The decision depends on whether you need capacity, specialist expertise, or full delivery ownership.</p><blockquote>Augment when you can manage the work. Outsource when you need the work owned end to end.</blockquote><h2>How to decide</h2><ul><li>Use augmentation when internal product and engineering leadership is strong.</li><li>Use outsourcing when scope, deadlines, and accountability need a delivery partner.</li><li>Blend both models for transformation programs with multiple workstreams.</li><li>Define security, communication, and quality gates before onboarding any team.</li></ul><p>The best partnerships feel like an extension of your organization while still bringing external discipline, velocity, and specialist experience.</p>",
-        "answerBlock": "",
-        "faq": [],
-        "dataCallouts": [],
-        "relatedPosts": [],
-        "comparisonTable": null,
-        "datePublished": "2026-06-15",
-        "dateModified": "2026-08-12",
-        "tableOfContents": [
-          {
-            "id": "two-models-different-responsibilities",
-            "text": "Two models, different responsibilities"
-          },
-          {
-            "id": "how-to-decide",
-            "text": "How to decide"
-          }
-        ]
-      },
-      {
-        "id": "blogs-e0805004-b52c-4f6f-bec7-e220c4115526",
-        "title": "What is Digital Employee Experience and why Egyptian banks can’t ignore it — Copy",
-        "summary": "A practical guide to digital employee experience for banking and enterprise leaders.",
-        "href": "blogs/digital-employee-experience.html",
-        "image": "assets/blog/dex.jpg",
-        "category": "enterprise-software",
-        "categoryLabel": "Enterprise Software",
-        "readTime": 1,
-        "accent": "blue",
-        "status": "draft",
-        "featured": false,
-        "order": 60,
-        "updatedAt": "2026-07-14T10:57:00.816Z",
-        "cluster": "DEX & Digital Employee Experience",
-        "body": "<h2>Experience is now an operational metric</h2>\n        <p>In banking, every delayed device, slow application, or unstable endpoint affects service quality. Digital Employee Experience brings these signals together so IT teams can act before employees and customers feel the impact.</p>\n        <p>For institutions managing hundreds or thousands of endpoints, DEX helps translate technical telemetry into business language: productivity loss, recurring friction, compliance risk, and support effort.</p>\n        <blockquote>DEX is not only about happier employees. It is about reducing operational drag across the systems people depend on every day.</blockquote>\n        <h2>What banks should measure</h2>\n        <ul>\n          <li>Endpoint health, boot time, crashes, and recurring device issues.</li>\n          <li>Application performance across branch, office, and remote environments.</li>\n          <li>Employee sentiment and incident patterns before they become escalations.</li>\n          <li>Remediation success across patches, rollouts, and support workflows.</li>\n        </ul>\n        <p>With platforms such as Nexthink, banks can move from reactive support to proactive experience management, improving reliability while giving leadership a measurable view of technology impact.</p>",
-        "answerBlock": "",
-        "faq": [],
-        "dataCallouts": [],
-        "relatedPosts": [],
-        "comparisonTable": null,
-        "datePublished": "2026-06-15",
-        "dateModified": "2026-08-12",
-        "tableOfContents": [
-          {
-            "id": "experience-is-now-an-operational-metric",
-            "text": "Experience is now an operational metric"
-          },
-          {
-            "id": "what-banks-should-measure",
-            "text": "What banks should measure"
-          }
-        ]
+        ],
+        "alt": "From pilots to production: what Egyptian enterprises get wrong about AI deployment"
       }
     ],
     "jobs": [
       {
-        "id": "job-dotnet",
-        "title": ".NET Backend Developer",
-        "summary": "Build reliable enterprise backends and integrations with our software delivery team.",
-        "href": "careers/dotnet-backend-developer.html",
+        "id": "jobs-022aa45d-4ac8-4b77-a662-69159a047044",
+        "title": "Senior Full-Stack Developer",
+        "summary": "Build and ship enterprise web products with Digital Hub’s delivery team. You’ll work across .NET, modern frontends, and cloud integrations for government and private-sector clients.",
+        "aboutRole": "<p class=\"ui-markdown__paragraph ui-z80ra4 ui-uu7i3w ui-1nhcn8o ui-j7cesy ui-13faqbe ui-14l7nz5 ui-zboxd6\" style=\"--tw-space-y-reverse: 0; margin-block: 0px 16px; -electron-corner-smoothing: 60%; word-break: break-word; margin-bottom: 10px; margin-top: 10px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box; color: rgb(240, 240, 240); font-family: &quot;Segoe WPC&quot;, &quot;Segoe UI&quot;, sans-serif; font-size: 15px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: start; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(20, 20, 20); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\">We are hiring a Senior Full-Stack Developer to join Digital Hub’s product engineering team. You will design, build, and maintain production systems used by enterprise and public-sector clients across Egypt and the region.</p><p class=\"ui-markdown__paragraph ui-z80ra4 ui-uu7i3w ui-1nhcn8o ui-j7cesy ui-13faqbe ui-14l7nz5 ui-zboxd6\" style=\"--tw-space-y-reverse: 0; margin-block: 0px 16px; -electron-corner-smoothing: 60%; word-break: break-word; margin-bottom: 10px; margin-top: 10px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box; color: rgb(240, 240, 240); font-family: &quot;Segoe WPC&quot;, &quot;Segoe UI&quot;, sans-serif; font-size: 15px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: start; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(20, 20, 20); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\">This role suits someone who enjoys ownership end to end — from discovery and architecture through implementation, testing, and release.</p><p><!--StartFragment--><br class=\"Apple-interchange-newline\"><!--EndFragment--></p>",
+        "keyResponsibilities": "<p><!--StartFragment--><!--EndFragment--></p><ul class=\"ui-markdown__list ui-78zum5 ui-dt5ytf ui-1ae8yn7 ui-z80ra4 ui-1nhcn8o ui-j7cesy ui-1bae07f\" style=\"--tw-space-y-reverse: 0; margin-block: 0px 16px; -electron-corner-smoothing: 60%; gap: 6px; display: flex; flex-direction: column; margin-bottom: 10px; margin-top: 10px; padding-left: 2em; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box; color: rgb(240, 240, 240); font-family: &quot;Segoe WPC&quot;, &quot;Segoe UI&quot;, sans-serif; font-size: 15px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: start; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(20, 20, 20); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\"><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">Design and implement scalable web applications and APIs</li><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">Collaborate with product, design, and delivery leads on sprint outcomes</li><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">Write clean, tested code and review pull requests</li><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">Integrate third-party platforms, identity, and cloud services</li><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">Support production releases and continuous improvement</li></ul>",
+        "requiredSkills": "<p><!--StartFragment--><!--EndFragment--></p><ul class=\"ui-markdown__list ui-78zum5 ui-dt5ytf ui-1ae8yn7 ui-z80ra4 ui-1nhcn8o ui-j7cesy ui-1bae07f\" style=\"--tw-space-y-reverse: 0; margin-block: 0px 16px; -electron-corner-smoothing: 60%; gap: 6px; display: flex; flex-direction: column; margin-bottom: 10px; margin-top: 10px; padding-left: 2em; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box; color: rgb(240, 240, 240); font-family: &quot;Segoe WPC&quot;, &quot;Segoe UI&quot;, sans-serif; font-size: 15px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: start; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(20, 20, 20); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\"><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">5+ years professional software development experience</li><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">Strong .NET / C# and REST API experience</li><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">Solid frontend skills (JavaScript/TypeScript, HTML, CSS)</li><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">Experience with SQL databases and Git-based workflows</li><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">Ability to communicate clearly with technical and non-technical stakeholders</li></ul>",
+        "niceToHave": "<p><!--StartFragment--><!--EndFragment--></p><ul class=\"ui-markdown__list ui-78zum5 ui-dt5ytf ui-1ae8yn7 ui-z80ra4 ui-1nhcn8o ui-j7cesy ui-1bae07f\" style=\"--tw-space-y-reverse: 0; margin-block: 0px 16px; -electron-corner-smoothing: 60%; gap: 6px; display: flex; flex-direction: column; margin-bottom: 10px; margin-top: 10px; padding-left: 2em; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box; color: rgb(240, 240, 240); font-family: &quot;Segoe WPC&quot;, &quot;Segoe UI&quot;, sans-serif; font-size: 15px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: start; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(20, 20, 20); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\"><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">Azure cloud experience</li><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">React or Angular</li><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">CI/CD pipelines (Azure DevOps / GitHub Actions)</li><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">Enterprise integration or government project experience</li></ul>",
+        "roleOffers": "<p><!--StartFragment--><!--EndFragment--></p><ul class=\"ui-markdown__list ui-78zum5 ui-dt5ytf ui-1ae8yn7 ui-z80ra4 ui-1nhcn8o ui-j7cesy ui-1bae07f\" style=\"--tw-space-y-reverse: 0; margin-block: 0px 16px; -electron-corner-smoothing: 60%; gap: 6px; display: flex; flex-direction: column; margin-bottom: 10px; margin-top: 10px; padding-left: 2em; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box; color: rgb(240, 240, 240); font-family: &quot;Segoe WPC&quot;, &quot;Segoe UI&quot;, sans-serif; font-size: 15px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: start; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(20, 20, 20); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\"><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">Hybrid work model with a New Cairo base</li><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">Exposure to high-impact digital transformation projects</li><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">Mentorship and clear growth paths</li><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">Competitive salary and performance-based progression</li></ul>",
+        "interviewStages": [
+          "HR",
+          "Tech",
+          "CEO",
+          "CTO"
+        ],
+        "href": "careers/senior-full-stack-developer.html",
         "department": "Engineering",
         "location": "Cairo, New Cairo",
-        "type": "Full time",
-        "status": "published",
-        "featured": true,
-        "order": 20,
-        "updatedAt": "2026-07-14T11:52:26.007Z"
-      },
-      {
-        "id": "job-data-analyst",
-        "title": "Data Analyst",
-        "summary": "Turn complex data into practical insight across enterprise and public-sector programs.",
-        "href": "careers/data-analyst.html",
-        "department": "Data & Analytics",
-        "location": "Cairo, New Cairo",
-        "type": "Project-based internship",
-        "status": "published",
-        "featured": true,
+        "type": "Hybrid",
+        "status": "draft",
+        "featured": false,
         "order": 10,
-        "updatedAt": "2026-07-14T11:52:26.017Z"
-      },
-      {
-        "id": "job-full-stack",
-        "title": "Full Stack Developer",
-        "summary": "Deliver polished digital products across front-end and back-end systems.",
-        "href": "careers/full-stack-developer.html",
-        "department": "Engineering",
-        "location": "Cairo, New Cairo",
-        "type": "Full time",
-        "status": "published",
-        "featured": true,
-        "order": 30
+        "updatedAt": "2026-08-17T12:57:33.695Z"
       }
     ],
     "team": [
@@ -702,73 +1252,129 @@
         "id": "team-kareem-adel",
         "name": "Kareem Adel",
         "role": "CEO",
-        "image": "assets/team/kareem-adel.jpeg",
-        "email": "kareem.adel@digitalhub.com.eg",
-        "linkedin": "#",
+        "image": "assets/uploads/1786631263690-headsss-for-the-website-01.webp",
+        "alt": "Kareem Adel, CEO of Digital Hub",
+        "email": "",
+        "linkedin": "",
         "status": "published",
         "featured": true,
         "order": 20,
-        "updatedAt": "2026-07-14T10:36:11.546Z"
+        "updatedAt": "2026-08-13T14:28:14.801Z"
       },
       {
         "id": "team-mohamed-mansour",
         "name": "Mohamed Mansour",
         "role": "CTO",
-        "image": "assets/team/mohamed-mansour.jpeg",
-        "email": "mohamed.mansour@digitalhub.com.eg",
-        "linkedin": "#",
+        "image": "assets/uploads/1786631301742-headsss-for-the-website-02.webp",
+        "alt": "Mohamed Mansour, CTO of Digital Hub",
+        "email": "",
+        "linkedin": "",
         "status": "published",
         "featured": true,
         "order": 30,
-        "updatedAt": "2026-07-14T10:36:10.222Z"
+        "updatedAt": "2026-08-13T14:28:41.585Z"
       },
       {
         "id": "team-mahmoud-yasser",
         "name": "Mahmoud Yasser",
-        "role": "HR Head",
-        "image": "assets/team/mahmoud-yasser.jpeg",
-        "email": "mahmoud.yasser@digitalhub.com.eg",
-        "linkedin": "#",
+        "role": "HR Manager",
+        "image": "assets/uploads/1786631398708-headsss-for-the-website-03.webp",
+        "alt": "Mahmoud Yasser, HR Manager of Digital Hub",
+        "email": "",
+        "linkedin": "",
         "status": "published",
         "featured": true,
-        "order": 40,
-        "updatedAt": "2026-07-14T10:36:08.546Z"
+        "order": 60,
+        "updatedAt": "2026-08-17T11:02:20.765Z"
       },
       {
         "id": "team-nada-younes",
         "name": "Nada Younes",
-        "role": "Marketing Head",
-        "image": "assets/team/nada-younes.jpeg",
-        "email": "nada.younes@digitalhub.com.eg",
-        "linkedin": "#",
+        "role": "Marketing Manager",
+        "image": "assets/uploads/1786631359904-headsss-for-the-website-04.webp",
+        "alt": "Nada Younes, Marketing Manager of Digital Hub",
+        "email": "",
+        "linkedin": "",
         "status": "published",
         "featured": true,
-        "order": 50,
-        "updatedAt": "2026-07-14T10:36:07.693Z"
+        "order": 40,
+        "updatedAt": "2026-08-13T14:42:18.876Z"
       },
       {
         "id": "team-mohamed-elbadry",
         "name": "Mohamed Elbadry",
-        "role": "Sales Head",
-        "image": "assets/team/mohamed-elbadry.jpeg",
-        "email": "mohamed.elbadry@digitalhub.com.eg",
-        "linkedin": "#",
+        "role": "Account Manager",
+        "image": "assets/uploads/1786631464473-headsss-for-the-website-05.webp",
+        "alt": "Mohamed Elbadry, Account Manager of Digital Hub",
+        "email": "",
+        "linkedin": "",
         "status": "published",
         "featured": true,
-        "order": 60,
-        "updatedAt": "2026-07-14T10:36:06.232Z"
+        "order": 70,
+        "updatedAt": "2026-08-17T11:02:18.253Z"
       },
       {
         "id": "team-khaled-kassab",
         "name": "Khaled Kassab",
-        "role": "Software Dev Head",
-        "image": "assets/team/khaled-kassab.jpeg",
-        "email": "khaled.kassab@digitalhub.com.eg",
-        "linkedin": "#",
+        "role": "Tech Lead",
+        "image": "assets/uploads/1786631523968-headsss-for-the-website-06.webp",
+        "alt": "Khaled Kassab, Tech Lead of Digital Hub",
+        "email": "",
+        "linkedin": "",
         "status": "published",
         "featured": true,
-        "order": 70,
-        "updatedAt": "2026-07-14T10:36:02.034Z"
+        "order": 50,
+        "updatedAt": "2026-08-17T11:02:20.736Z"
+      }
+    ],
+    "news": [
+      {
+        "id": "news-nexthink-reseller",
+        "title": "Digital Hub signs Nexthink authorized reseller agreement for Egypt and Saudi Arabia",
+        "summary": "Expanding our DEX platform coverage to serve banks and telcos across both markets.",
+        "details": "Digital Hub is now an authorized Nexthink reseller for Egypt and Saudi Arabia, extending Digital Employee Experience coverage for banks, telcos, and large enterprises. The partnership strengthens our ability to deploy DEX platforms, improve endpoint visibility, and support continuous workplace optimization across both markets.",
+        "image": "assets/news/partnership.webp",
+        "alt": "Digital Hub partnership signing",
+        "category": "Partnership",
+        "location": "Egypt & Saudi Arabia",
+        "year": "2025",
+        "month": "May",
+        "status": "published",
+        "featured": true,
+        "order": 10,
+        "updatedAt": "2026-08-13T15:40:35.959Z"
+      },
+      {
+        "id": "news-egypt-ict-2024",
+        "title": "Digital Hub presents enterprise AI transformation solutions at Egypt ICT 2024",
+        "summary": "Our team showcased AI and data solutions for Egyptian government and enterprise clients.",
+        "details": "At Egypt ICT 2024, Digital Hub presented practical enterprise AI and data solutions for government and private-sector organizations. Sessions focused on production-ready automation, trusted data foundations, and delivery models that move AI from pilots into day-to-day operations.",
+        "image": "assets/news/events.webp",
+        "alt": "Digital Hub at Egypt ICT conference",
+        "category": "Events",
+        "location": "Cairo, Egypt",
+        "year": "2025",
+        "month": "Mar",
+        "status": "published",
+        "featured": true,
+        "order": 20,
+        "updatedAt": "2026-08-13T15:40:35.959Z"
+      },
+      {
+        "id": "news-mped-milestone",
+        "title": "Digital Hub delivers MPED data infrastructure and analytics platform milestone",
+        "summary": "Three-year engagement with Egypt’s Ministry of Planning reaches key delivery phase.",
+        "details": "Digital Hub reached a major milestone on the Ministry of Planning data infrastructure and analytics platform. The delivery strengthens governed data pipelines, reporting capabilities, and decision-support tools used across planning programs in this multi-year engagement.",
+        "image": "assets/news/projects.webp",
+        "alt": "MPED data infrastructure analytics platform",
+        "category": "Projects",
+        "location": "Ministry of Planning",
+        "year": "2025",
+        "month": "Feb",
+        "status": "published",
+        "featured": false,
+        "order": 30,
+        "updatedAt": "2026-08-13T15:40:35.959Z"
       }
     ]
   }
