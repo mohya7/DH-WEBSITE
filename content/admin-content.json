@@ -1,10 +1,87 @@
 {
   "meta": {
     "version": 1,
-    "revision": 115,
-    "updatedAt": "2026-08-17T12:57:33.695Z",
-    "updatedBy": "ali.mohi",
+    "revision": 126,
+    "updatedAt": "2026-08-21T03:33:50.914Z",
+    "updatedBy": "admin",
     "audit": [
+      {
+        "id": "audit-4a680229-edba-467a-8383-ca8630745a2c",
+        "action": "page-update",
+        "label": "Updated home page content",
+        "at": "2026-08-21T03:33:50.914Z",
+        "by": "admin"
+      },
+      {
+        "id": "audit-90f626a1-c70a-48e5-aad2-37263d9d7ae8",
+        "action": "update",
+        "label": "Ended vacancy “Senior Full-Stack Developer — Copy”",
+        "at": "2026-08-21T03:04:57.518Z",
+        "by": "ali.mohi"
+      },
+      {
+        "id": "audit-9c349c05-842d-4ad0-ba23-1dc0baa0da6f",
+        "action": "update",
+        "label": "Updated Senior Full-Stack Developer — Copy",
+        "at": "2026-08-21T03:04:52.238Z",
+        "by": "ali.mohi"
+      },
+      {
+        "id": "audit-75aa5548-2c2f-4f42-a3f7-88f541f92259",
+        "action": "update",
+        "label": "Updated Senior Full-Stack Developer — Copy",
+        "at": "2026-08-21T03:04:44.747Z",
+        "by": "ali.mohi"
+      },
+      {
+        "id": "audit-44ab9c74-45fd-4845-be02-fb781fe5877a",
+        "action": "create",
+        "label": "Created Senior Full-Stack Developer — Copy",
+        "at": "2026-08-21T03:04:36.921Z",
+        "by": "ali.mohi"
+      },
+      {
+        "id": "audit-1531aa51-0989-4a49-8dfb-a7e2805ef032",
+        "action": "update",
+        "label": "Ended vacancy “Senior Full-Stack Developer”",
+        "at": "2026-08-21T03:03:24.546Z",
+        "by": "ali.mohi"
+      },
+      {
+        "id": "audit-1447bb16-7aad-45c7-9844-8b839b5a3196",
+        "action": "update",
+        "label": "Updated Senior Full-Stack Developer",
+        "at": "2026-08-21T03:03:21.472Z",
+        "by": "ali.mohi"
+      },
+      {
+        "id": "audit-bad11126-4376-457d-8390-d41fb66e377e",
+        "action": "update",
+        "label": "Ended vacancy “Senior Full-Stack Developer”",
+        "at": "2026-08-21T02:59:12.279Z",
+        "by": "ali.mohi"
+      },
+      {
+        "id": "audit-bb89d761-ef5f-4364-881a-0f88a90d88cf",
+        "action": "create",
+        "label": "Created Senior Full-Stack Developer",
+        "at": "2026-08-20T00:23:02.801Z",
+        "by": "ali.mohi"
+      },
+      {
+        "id": "audit-1c3562e1-cd59-4d61-819c-9764f580f5e5",
+        "action": "delete",
+        "label": "Deleted Senior Full-Stack Developer",
+        "at": "2026-08-20T00:09:06.531Z",
+        "by": "ali.mohi"
+      },
+      {
+        "id": "audit-7721335a-8ba0-4c70-9bd6-0b1fd7e29f14",
+        "action": "update",
+        "label": "Updated Senior Full-Stack Developer",
+        "at": "2026-08-19T21:35:25.372Z",
+        "by": "ali.mohi"
+      },
       {
         "id": "audit-5da07c01-d208-4708-a78a-c7f1efbfee10",
         "action": "update",
@@ -277,83 +354,6 @@
         "label": "Updated Nada Younes",
         "at": "2026-08-13T14:29:28.378Z",
         "by": "admin"
-      },
-      {
-        "id": "audit-5fe0d504-38a7-4c89-b62b-cfedd6ce40a4",
-        "action": "upload",
-        "label": "Uploaded 1786631359904-headsss-for-the-website-04.webp",
-        "at": "2026-08-13T14:29:20.562Z",
-        "by": "admin"
-      },
-      {
-        "id": "audit-766edb65-7018-4ca6-9c3f-22b36c89dced",
-        "action": "update",
-        "label": "Updated Nada Younes",
-        "at": "2026-08-13T14:29:12.201Z",
-        "by": "admin"
-      },
-      {
-        "id": "audit-de1ffd21-b1e1-4bff-9a04-b7337e8ad4ae",
-        "action": "update",
-        "label": "Updated Mahmoud Yasser",
-        "at": "2026-08-13T14:29:02.119Z",
-        "by": "admin"
-      },
-      {
-        "id": "audit-f1ab9b0a-7a85-44a0-8c6e-da39fde4bc4f",
-        "action": "update",
-        "label": "Updated Mohamed Mansour",
-        "at": "2026-08-13T14:28:41.585Z",
-        "by": "admin"
-      },
-      {
-        "id": "audit-af47cf82-73fe-462c-b289-a764287a51a9",
-        "action": "update",
-        "label": "Updated Mohamed Mansour",
-        "at": "2026-08-13T14:28:23.327Z",
-        "by": "admin"
-      },
-      {
-        "id": "audit-aeea1aaa-debb-4a44-8dcd-64f8398b32f9",
-        "action": "upload",
-        "label": "Uploaded 1786631301742-headsss-for-the-website-02.webp",
-        "at": "2026-08-13T14:28:22.332Z",
-        "by": "admin"
-      },
-      {
-        "id": "audit-622d4c52-4267-492c-b087-6d1aff9b974d",
-        "action": "update",
-        "label": "Updated Kareem Adel",
-        "at": "2026-08-13T14:28:14.801Z",
-        "by": "admin"
-      },
-      {
-        "id": "audit-c9e2fd84-c8c5-44e3-b013-248c4acaf0dd",
-        "action": "upload",
-        "label": "Uploaded 1786631263690-headsss-for-the-website-01.webp",
-        "at": "2026-08-13T14:27:44.259Z",
-        "by": "admin"
-      },
-      {
-        "id": "audit-a97e181a-1a82-4f23-853c-03780848fcdc",
-        "action": "update",
-        "label": "Updated Huawei",
-        "at": "2026-08-13T14:26:58.086Z",
-        "by": "admin"
-      },
-      {
-        "id": "audit-bcdddf2a-2e5c-419e-a6e5-e1073f7a6522",
-        "action": "upload",
-        "label": "Uploaded 1786631216764-logos-for-website-02.webp",
-        "at": "2026-08-13T14:26:57.110Z",
-        "by": "admin"
-      },
-      {
-        "id": "audit-94f3b40d-598a-4858-b7f8-7acecca79cce",
-        "action": "upload",
-        "label": "Uploaded 1786631210664-logos-for-website-02.webp",
-        "at": "2026-08-13T14:26:51.034Z",
-        "by": "admin"
       }
     ]
   },
@@ -370,6 +370,33 @@
         "facebook": "https://www.facebook.com/DigitalHub19",
         "instagram": "https://www.instagram.com/digitalhub_eg/",
         "tiktok": "https://www.tiktok.com/@digitalhub.eg?_r=1&_t=ZS-98vx4nHcDJ6"
+      },
+      "numbers": {
+        "label": "By the Numbers",
+        "title": "Proven at enterprise scale.",
+        "lead": "Outcomes across Egypt, the Gulf, and global technology partnerships.",
+        "stats": [
+          {
+            "value": "7",
+            "suffix": "+",
+            "label": "Years of enterprise delivery in Egypt and the Gulf"
+          },
+          {
+            "value": "30",
+            "suffix": "+",
+            "label": "Enterprise clients across 6 sectors"
+          },
+          {
+            "value": "5",
+            "suffix": "",
+            "label": "Global technology partnerships — Microsoft, Huawei, Nexthink, eFinance, Vodafone"
+          },
+          {
+            "value": "4",
+            "suffix": "",
+            "label": "Countries of team expertise — Austria, UK, Canada, Egypt"
+          }
+        ]
       }
     },
     "blogs": {
@@ -1223,14 +1250,14 @@
     ],
     "jobs": [
       {
-        "id": "jobs-022aa45d-4ac8-4b77-a662-69159a047044",
+        "id": "jobs-568805d2-7b0c-45eb-bec2-bcf456fa77fc",
         "title": "Senior Full-Stack Developer",
-        "summary": "Build and ship enterprise web products with Digital Hub’s delivery team. You’ll work across .NET, modern frontends, and cloud integrations for government and private-sector clients.",
-        "aboutRole": "<p class=\"ui-markdown__paragraph ui-z80ra4 ui-uu7i3w ui-1nhcn8o ui-j7cesy ui-13faqbe ui-14l7nz5 ui-zboxd6\" style=\"--tw-space-y-reverse: 0; margin-block: 0px 16px; -electron-corner-smoothing: 60%; word-break: break-word; margin-bottom: 10px; margin-top: 10px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box; color: rgb(240, 240, 240); font-family: &quot;Segoe WPC&quot;, &quot;Segoe UI&quot;, sans-serif; font-size: 15px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: start; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(20, 20, 20); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\">We are hiring a Senior Full-Stack Developer to join Digital Hub’s product engineering team. You will design, build, and maintain production systems used by enterprise and public-sector clients across Egypt and the region.</p><p class=\"ui-markdown__paragraph ui-z80ra4 ui-uu7i3w ui-1nhcn8o ui-j7cesy ui-13faqbe ui-14l7nz5 ui-zboxd6\" style=\"--tw-space-y-reverse: 0; margin-block: 0px 16px; -electron-corner-smoothing: 60%; word-break: break-word; margin-bottom: 10px; margin-top: 10px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box; color: rgb(240, 240, 240); font-family: &quot;Segoe WPC&quot;, &quot;Segoe UI&quot;, sans-serif; font-size: 15px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: start; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(20, 20, 20); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\">This role suits someone who enjoys ownership end to end — from discovery and architecture through implementation, testing, and release.</p><p><!--StartFragment--><br class=\"Apple-interchange-newline\"><!--EndFragment--></p>",
-        "keyResponsibilities": "<p><!--StartFragment--><!--EndFragment--></p><ul class=\"ui-markdown__list ui-78zum5 ui-dt5ytf ui-1ae8yn7 ui-z80ra4 ui-1nhcn8o ui-j7cesy ui-1bae07f\" style=\"--tw-space-y-reverse: 0; margin-block: 0px 16px; -electron-corner-smoothing: 60%; gap: 6px; display: flex; flex-direction: column; margin-bottom: 10px; margin-top: 10px; padding-left: 2em; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box; color: rgb(240, 240, 240); font-family: &quot;Segoe WPC&quot;, &quot;Segoe UI&quot;, sans-serif; font-size: 15px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: start; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(20, 20, 20); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\"><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">Design and implement scalable web applications and APIs</li><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">Collaborate with product, design, and delivery leads on sprint outcomes</li><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">Write clean, tested code and review pull requests</li><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">Integrate third-party platforms, identity, and cloud services</li><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">Support production releases and continuous improvement</li></ul>",
-        "requiredSkills": "<p><!--StartFragment--><!--EndFragment--></p><ul class=\"ui-markdown__list ui-78zum5 ui-dt5ytf ui-1ae8yn7 ui-z80ra4 ui-1nhcn8o ui-j7cesy ui-1bae07f\" style=\"--tw-space-y-reverse: 0; margin-block: 0px 16px; -electron-corner-smoothing: 60%; gap: 6px; display: flex; flex-direction: column; margin-bottom: 10px; margin-top: 10px; padding-left: 2em; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box; color: rgb(240, 240, 240); font-family: &quot;Segoe WPC&quot;, &quot;Segoe UI&quot;, sans-serif; font-size: 15px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: start; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(20, 20, 20); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\"><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">5+ years professional software development experience</li><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">Strong .NET / C# and REST API experience</li><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">Solid frontend skills (JavaScript/TypeScript, HTML, CSS)</li><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">Experience with SQL databases and Git-based workflows</li><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">Ability to communicate clearly with technical and non-technical stakeholders</li></ul>",
-        "niceToHave": "<p><!--StartFragment--><!--EndFragment--></p><ul class=\"ui-markdown__list ui-78zum5 ui-dt5ytf ui-1ae8yn7 ui-z80ra4 ui-1nhcn8o ui-j7cesy ui-1bae07f\" style=\"--tw-space-y-reverse: 0; margin-block: 0px 16px; -electron-corner-smoothing: 60%; gap: 6px; display: flex; flex-direction: column; margin-bottom: 10px; margin-top: 10px; padding-left: 2em; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box; color: rgb(240, 240, 240); font-family: &quot;Segoe WPC&quot;, &quot;Segoe UI&quot;, sans-serif; font-size: 15px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: start; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(20, 20, 20); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\"><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">Azure cloud experience</li><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">React or Angular</li><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">CI/CD pipelines (Azure DevOps / GitHub Actions)</li><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">Enterprise integration or government project experience</li></ul>",
-        "roleOffers": "<p><!--StartFragment--><!--EndFragment--></p><ul class=\"ui-markdown__list ui-78zum5 ui-dt5ytf ui-1ae8yn7 ui-z80ra4 ui-1nhcn8o ui-j7cesy ui-1bae07f\" style=\"--tw-space-y-reverse: 0; margin-block: 0px 16px; -electron-corner-smoothing: 60%; gap: 6px; display: flex; flex-direction: column; margin-bottom: 10px; margin-top: 10px; padding-left: 2em; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box; color: rgb(240, 240, 240); font-family: &quot;Segoe WPC&quot;, &quot;Segoe UI&quot;, sans-serif; font-size: 15px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: start; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(20, 20, 20); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\"><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">Hybrid work model with a New Cairo base</li><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">Exposure to high-impact digital transformation projects</li><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">Mentorship and clear growth paths</li><li class=\"ui-markdown__list-item ui--default-marker ui-exx8yu ui-1xpa7k ui-18d9i69 ui-1uhho1l ui-13faqbe ui-ez2fb\" data-md-list-item=\"\" style=\"-electron-corner-smoothing: 60%; word-break: break-word; padding: 0px; scrollbar-color: color(srgb 0.941176 0.941176 0.941176 / 0.08) rgba(0, 0, 0, 0); scrollbar-width: thin; box-sizing: border-box;\">Competitive salary and performance-based progression</li></ul>",
+        "summary": "Build and ship enterprise web platforms with a small product team. Own features end-to-end across Node.js APIs and modern frontends for Digital Hub clients in Egypt.",
+        "aboutRole": "<p>You will join the Engineering team delivering custom software for enterprise and public-sector clients. Expect ownership of product features, clean API design, and close work with design and delivery leads.</p>",
+        "keyResponsibilities": "<p style=\"box-sizing: border-box; margin: 0px 0px 0.85em; color: rgb(232, 239, 246); font-family: &quot;DM Sans&quot;, sans-serif; font-size: 13px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: start; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(9, 22, 36); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\"></p><ul><li>Design and implement full-stack features in Node.js and modern JavaScript/TypeScript frontends.&nbsp;&nbsp;</li><li>Write maintainable APIs, data models, and integrations with third-party systems.&nbsp;&nbsp;</li><li>Review pull requests, improve code quality, and mentor mid-level engineers.&nbsp;&nbsp;</li><li>Partner with PM and design to clarify scope, edge cases, and delivery timelines.&nbsp;&nbsp;</li><li>Support production releases, monitoring, and incident follow-up.</li></ul><p></p><p><!--StartFragment--><!--EndFragment--></p>",
+        "requiredSkills": "<p style=\"box-sizing: border-box; margin: 0px 0px 0.85em;\"></p><ul><li>4+ years professional full-stack experience.&nbsp;&nbsp;</li><li>Strong Node.js and REST/API design skills.&nbsp;&nbsp;</li><li>Solid HTML/CSS/JS and one modern framework (React, Vue, or similar).&nbsp;&nbsp;</li><li>SQL experience (SQL Server or PostgreSQL) and Git-based workflows.&nbsp;&nbsp;</li><li>Comfortable communicating in English with clients and internal stakeholders.</li></ul><p></p><p><!--StartFragment--></p><p><br><!--EndFragment--></p>",
+        "niceToHave": "<p style=\"box-sizing: border-box; margin: 0px 0px 0.85em; color: rgb(232, 239, 246); font-family: &quot;DM Sans&quot;, sans-serif; font-size: 13px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: start; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(9, 22, 36); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\"></p><ul><li>TypeScript in production.&nbsp;&nbsp;</li><li>Azure or AWS exposure.&nbsp;&nbsp;</li><li>Experience with CMS/admin tools or hiring/HR workflows.&nbsp;&nbsp;</li><li>Arabic fluency.</li></ul><p></p><p><!--StartFragment--><!--EndFragment--></p>",
+        "roleOffers": "<p style=\"box-sizing: border-box; margin: 0px 0px 0.85em; color: rgb(232, 239, 246); font-family: &quot;DM Sans&quot;, sans-serif; font-size: 13px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: start; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(9, 22, 36); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\"></p><ul><li>Hybrid schedule in New Cairo.&nbsp;&nbsp;</li><li>Direct impact on live enterprise products.&nbsp;&nbsp;</li><li>Clear growth path toward tech lead.&nbsp;&nbsp;</li><li>Collaborative team across Engineering, HR, and Marketing.</li></ul><p></p><p><!--StartFragment--><!--EndFragment--></p>",
         "interviewStages": [
           "HR",
           "Tech",
@@ -1240,11 +1267,37 @@
         "href": "careers/senior-full-stack-developer.html",
         "department": "Engineering",
         "location": "Cairo, New Cairo",
-        "type": "Hybrid",
-        "status": "draft",
-        "featured": false,
+        "type": "Full time",
+        "status": "ended",
+        "featured": true,
         "order": 10,
-        "updatedAt": "2026-08-17T12:57:33.695Z"
+        "updatedAt": "2026-08-21T03:11:02.285Z",
+        "endedAt": "2026-08-21T03:03:24.546Z"
+      },
+      {
+        "id": "jobs-4e529eea-673f-4e40-9317-e91411883db7",
+        "title": "Senior Full-Stack Developer — Copy",
+        "summary": "Build and ship enterprise web platforms with a small product team. Own features end-to-end across Node.js APIs and modern frontends for Digital Hub clients in Egypt.",
+        "aboutRole": "<p>You will join the Engineering team delivering custom software for enterprise and public-sector clients. Expect ownership of product features, clean API design, and close work with design and delivery leads.</p>",
+        "keyResponsibilities": "<p style=\"box-sizing: border-box; margin: 0px 0px 0.85em; color: rgb(232, 239, 246); font-family: &quot;DM Sans&quot;, sans-serif; font-size: 13px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: start; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(9, 22, 36); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\"></p><ul><li>Design and implement full-stack features in Node.js and modern JavaScript/TypeScript frontends.&nbsp;&nbsp;</li><li>Write maintainable APIs, data models, and integrations with third-party systems.&nbsp;&nbsp;</li><li>Review pull requests, improve code quality, and mentor mid-level engineers.&nbsp;&nbsp;</li><li>Partner with PM and design to clarify scope, edge cases, and delivery timelines.&nbsp;&nbsp;</li><li>Support production releases, monitoring, and incident follow-up.</li></ul><p></p><p><!--StartFragment--><!--EndFragment--></p>",
+        "requiredSkills": "<p style=\"box-sizing: border-box; margin: 0px 0px 0.85em;\"></p><ul><li>4+ years professional full-stack experience.&nbsp;&nbsp;</li><li>Strong Node.js and REST/API design skills.&nbsp;&nbsp;</li><li>Solid HTML/CSS/JS and one modern framework (React, Vue, or similar).&nbsp;&nbsp;</li><li>SQL experience (SQL Server or PostgreSQL) and Git-based workflows.&nbsp;&nbsp;</li><li>Comfortable communicating in English with clients and internal stakeholders.</li></ul><p></p><p><!--StartFragment--></p><p><br><!--EndFragment--></p>",
+        "niceToHave": "<p style=\"box-sizing: border-box; margin: 0px 0px 0.85em; color: rgb(232, 239, 246); font-family: &quot;DM Sans&quot;, sans-serif; font-size: 13px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: start; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(9, 22, 36); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\"></p><ul><li>TypeScript in production.&nbsp;&nbsp;</li><li>Azure or AWS exposure.&nbsp;&nbsp;</li><li>Experience with CMS/admin tools or hiring/HR workflows.&nbsp;&nbsp;</li><li>Arabic fluency.</li></ul><p></p><p><!--StartFragment--><!--EndFragment--></p>",
+        "roleOffers": "<p style=\"box-sizing: border-box; margin: 0px 0px 0.85em; color: rgb(232, 239, 246); font-family: &quot;DM Sans&quot;, sans-serif; font-size: 13px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: start; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(9, 22, 36); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;\"></p><ul><li>Hybrid schedule in New Cairo.&nbsp;&nbsp;</li><li>Direct impact on live enterprise products.&nbsp;&nbsp;</li><li>Clear growth path toward tech lead.&nbsp;&nbsp;</li><li>Collaborative team across Engineering, HR, and Marketing.</li></ul><p></p><p><!--StartFragment--><!--EndFragment--></p>",
+        "interviewStages": [
+          "HR",
+          "Tech",
+          "CEO",
+          "CTO"
+        ],
+        "href": "careers/senior-full-stack-developer-copy.html",
+        "department": "Engineering",
+        "location": "Cairo, New Cairo",
+        "type": "Full time",
+        "status": "ended",
+        "featured": false,
+        "order": 20,
+        "updatedAt": "2026-08-21T03:11:02.285Z",
+        "endedAt": "2026-08-21T03:04:57.518Z"
       }
     ],
     "team": [

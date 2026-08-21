@@ -1,0 +1,32 @@
+{
+  "interviewer": {
+    "schedule": {
+      "subject": "Interview booked: {{candidate}} · {{stage}} · {{when}}",
+      "eyebrow": "Hiring · Schedule confirmed",
+      "intro": "Hi {{interviewer_display}},<br><br>Your interview with <strong>{{candidate}}</strong> is confirmed. Please find the details below — a calendar invite is attached.",
+      "text": "Digital Hub — Hiring\n{{eyebrow}}\n\nHi {{interviewer_display}},\n\nYour interview with {{candidate}} is confirmed. A calendar invite is attached.\n\nCandidate: {{candidate}}\nRole: {{role}}\nStage: {{stage}}\nWhen: {{when}}\nFormat: {{format}}\n{{meeting_link_block}}Email: {{candidate_email}}\nPhone: {{candidate_phone}}\n\n—\nDigital Hub · New Cairo, Egypt\n{{site_url}}"
+    },
+    "reminder": {
+      "subject": "Today: interview with {{candidate}} at {{time}}",
+      "eyebrow": "Hiring · Reminder",
+      "intro": "Hi {{interviewer_display}},<br><br>Friendly reminder — your interview with <strong>{{candidate}}</strong> is <strong>today</strong>.",
+      "text": "Digital Hub — Hiring\n{{eyebrow}}\n\nHi {{interviewer_display}},\n\nFriendly reminder — your interview with {{candidate}} is today.\n\nCandidate: {{candidate}}\nRole: {{role}}\nStage: {{stage}}\nWhen: {{when}}\nFormat: {{format}}\n{{meeting_link_block}}Email: {{candidate_email}}\nPhone: {{candidate_phone}}\n\n—\nDigital Hub · New Cairo, Egypt\n{{site_url}}"
+    },
+    "footerHtml": ""
+  },
+  "candidate": {
+    "schedule": {
+      "subject": "You're invited to interview at Digital Hub · {{stage}}",
+      "eyebrow": "Careers · Interview invitation",
+      "intro": "Dear {{candidate}},<br><br>Thank you for your interest in Digital Hub. We’re pleased to invite you to the next step for the <strong>{{role}}</strong> role. Please find your interview details below — a calendar invite is attached.",
+      "text": "Digital Hub — Careers\n{{eyebrow}}\n\nDear {{candidate}},\n\nThank you for your interest in Digital Hub. We’re pleased to invite you to the next step for the {{role}} role. A calendar invite is attached.\n\nRole: {{role}}\nStage: {{stage}}\nWhen: {{when}}\nFormat: {{format}}\n{{meeting_link_block}}Interviewer: {{interviewer_display}}\n\nIf you need to reschedule or have any questions, reply to this email and our HR team will help.\n\n—\nDigital Hub · Empowering Digital Evolution\n{{site_url}}"
+    },
+    "reminder": {
+      "subject": "Reminder: your Digital Hub interview today at {{time}}",
+      "eyebrow": "Careers · Interview today",
+      "intro": "Dear {{candidate}},<br><br>This is a gentle reminder that your interview with Digital Hub is <strong>today</strong>. We look forward to speaking with you.",
+      "text": "Digital Hub — Careers\n{{eyebrow}}\n\nDear {{candidate}},\n\nThis is a gentle reminder that your interview with Digital Hub is today. We look forward to speaking with you.\n\nRole: {{role}}\nStage: {{stage}}\nWhen: {{when}}\nFormat: {{format}}\n{{meeting_link_block}}Interviewer: {{interviewer_display}}\n\nIf you need to reschedule or have any questions, reply to this email and our HR team will help.\n\n—\nDigital Hub · Empowering Digital Evolution\n{{site_url}}"
+    },
+    "footerHtml": "If you need to reschedule or have any questions, simply reply to this email and our HR team will help."
+  }
+}

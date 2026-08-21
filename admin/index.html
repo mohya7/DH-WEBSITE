@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
-  <link rel="stylesheet" href="/admin/admin.css?v=20260817-interview-mail">
+  <link rel="stylesheet" href="/admin/admin.css?v=20260821-hr-account-interviewers">
 </head>
 <body>
   <div class="ambient" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -18,46 +18,57 @@
   <section class="login-shell" id="loginShell" aria-labelledby="loginTitle">
     <div class="login-brand">
       <img src="../assets/digital-hub-logo.png" alt="Digital Hub">
-      <span>CONTENT STUDIO</span>
     </div>
     <div class="login-card">
-      <div class="login-card__visual" aria-hidden="true">
-        <div class="login-orbit login-orbit--one"></div>
-        <div class="login-orbit login-orbit--two"></div>
-        <div class="login-core"><i class="ti ti-sparkles"></i></div>
+      <aside class="login-card__visual">
+        <div class="login-visual-stage" aria-hidden="true">
+          <div class="login-orbit login-orbit--one"></div>
+          <div class="login-orbit login-orbit--two"></div>
+          <div class="login-core"><i class="ti ti-sparkles"></i></div>
+        </div>
+        <div class="login-copy">
+          <span class="eyebrow">SECURE ADMIN WORKSPACE</span>
+          <h1 id="loginTitle">Welcome to your<br><em>Content Studio</em></h1>
+          <p>Manage every page and content card from one place, with drafts, ordering, and previews before publishing.</p>
+        </div>
+      </aside>
+      <div class="login-card__panel">
+        <form class="login-form" id="loginForm">
+          <div class="login-form__intro">
+            <strong>Sign in</strong>
+            <span>Use your Content Studio username and password.</span>
+          </div>
+          <label>
+            <span>Username</span>
+            <span class="field-control"><i class="ti ti-user"></i><input id="loginUsername" name="username" autocomplete="username" required placeholder="e.g. admin"></span>
+          </label>
+          <label>
+            <span>Password</span>
+            <span class="field-control"><i class="ti ti-lock"></i><input id="loginPassword" name="password" type="password" autocomplete="current-password" required placeholder="••••••••••••"><button type="button" class="password-toggle" id="passwordToggle" aria-label="Show password"><i class="ti ti-eye"></i></button></span>
+          </label>
+          <p class="form-error" id="loginError" role="alert"></p>
+          <button class="primary-btn primary-btn--wide" type="submit"><span>Sign in to Content Studio</span><i class="ti ti-arrow-right"></i></button>
+          <p class="login-hint"><i class="ti ti-shield-check"></i> Secure session. Automatically expires after 8 hours.</p>
+        </form>
+        <form class="login-form is-hidden" id="setupPasswordForm">
+          <div class="login-form__intro">
+            <strong>Set your password</strong>
+            <span>Choose a password for this account, then sign in.</span>
+          </div>
+          <p class="setup-lead">Create a password for your HR account. You’ll use it with your username to sign in.</p>
+          <label>
+            <span>New password</span>
+            <span class="field-control"><i class="ti ti-lock"></i><input id="setupPassword" name="password" type="password" minlength="10" autocomplete="new-password" required><button type="button" class="password-toggle" id="setupPasswordToggle" aria-label="Show password"><i class="ti ti-eye"></i></button></span>
+          </label>
+          <label>
+            <span>Confirm password</span>
+            <span class="field-control"><i class="ti ti-lock-check"></i><input id="setupPasswordConfirm" name="passwordConfirm" type="password" minlength="10" autocomplete="new-password" required></span>
+          </label>
+          <p class="form-error" id="setupError" role="alert"></p>
+          <button class="primary-btn primary-btn--wide" type="submit"><span>Save password &amp; continue</span><i class="ti ti-arrow-right"></i></button>
+          <p class="login-hint"><i class="ti ti-key"></i> At least 10 characters. This invite link works once.</p>
+        </form>
       </div>
-      <div class="login-copy">
-        <span class="eyebrow">SECURE ADMIN WORKSPACE</span>
-        <h1 id="loginTitle">Welcome to your<br><em>Content Studio</em></h1>
-        <p>Manage every page and content card from one place, with drafts, ordering, and previews before publishing.</p>
-      </div>
-      <form class="login-form" id="loginForm">
-        <label>
-          <span>Username</span>
-          <span class="field-control"><i class="ti ti-user"></i><input id="loginUsername" name="username" autocomplete="username" required></span>
-        </label>
-        <label>
-          <span>Password</span>
-          <span class="field-control"><i class="ti ti-lock"></i><input id="loginPassword" name="password" type="password" autocomplete="current-password" required><button type="button" class="password-toggle" id="passwordToggle" aria-label="Show password"><i class="ti ti-eye"></i></button></span>
-        </label>
-        <p class="form-error" id="loginError" role="alert"></p>
-        <button class="primary-btn primary-btn--wide" type="submit"><span>Sign in to Content Studio</span><i class="ti ti-arrow-right"></i></button>
-        <p class="login-hint"><i class="ti ti-shield-check"></i> Secure session. Automatically expires after 8 hours.</p>
-      </form>
-      <form class="login-form is-hidden" id="setupPasswordForm">
-        <p class="setup-lead">Create a password for your HR account. You’ll use it with your username to sign in.</p>
-        <label>
-          <span>New password</span>
-          <span class="field-control"><i class="ti ti-lock"></i><input id="setupPassword" name="password" type="password" minlength="10" autocomplete="new-password" required><button type="button" class="password-toggle" id="setupPasswordToggle" aria-label="Show password"><i class="ti ti-eye"></i></button></span>
-        </label>
-        <label>
-          <span>Confirm password</span>
-          <span class="field-control"><i class="ti ti-lock-check"></i><input id="setupPasswordConfirm" name="passwordConfirm" type="password" minlength="10" autocomplete="new-password" required></span>
-        </label>
-        <p class="form-error" id="setupError" role="alert"></p>
-        <button class="primary-btn primary-btn--wide" type="submit"><span>Save password &amp; continue</span><i class="ti ti-arrow-right"></i></button>
-        <p class="login-hint"><i class="ti ti-key"></i> At least 10 characters. This invite link works once.</p>
-      </form>
     </div>
   </section>
 
@@ -85,6 +96,7 @@
         <button class="side-link" type="button" data-view="hrAnalytics" data-hr-only><i class="ti ti-chart-histogram"></i><span>Analytics &amp; History</span></button>
         <button class="side-link" type="button" data-view="hrCalendar" data-hr-only><i class="ti ti-calendar-event"></i><span>Interview Calendar</span></button>
         <button class="side-link" type="button" data-view="interviewLog" data-hr-only><i class="ti ti-notebook"></i><span>Interview Log</span><b data-interview-log-count>0</b></button>
+        <button class="side-link" type="button" data-view="interviewers" data-hr-only><i class="ti ti-address-book"></i><span>Interviewers</span><b data-interviewer-count>0</b></button>
         <p class="side-label" data-onboarding>PEOPLE</p>
         <button class="side-link" type="button" data-view="onboarding" data-onboarding><i class="ti ti-user-plus"></i><span>Employee Onboarding</span><b data-onboarding-count>0</b></button>
         <p class="side-label" data-admin-only>WEBSITE &amp; SYSTEM</p>
@@ -104,7 +116,6 @@
         <div class="top-search"><i class="ti ti-search"></i><input id="globalSearch" type="search" placeholder="Search all content..." aria-label="Search"><kbd>⌘ K</kbd></div>
         <div class="top-actions">
           <a class="view-site" href="../index.html" target="_blank" rel="noopener"><i class="ti ti-external-link"></i><span>View website</span></a>
-          <button class="notification-btn" type="button" aria-label="Notifications"><i class="ti ti-bell"></i><span></span></button>
           <div class="user-menu" id="userMenu">
             <button class="user-chip" id="userMenuBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="userMenuDropdown">
               <div class="user-avatar" id="currentUserAvatar">DH</div>
@@ -395,9 +406,9 @@
           </div>
 
           <section class="panel analytics-panel analytics-panel--wide">
-            <header class="panel-head"><div><h2>Closed vacancy analytics</h2><p>Interview volume and time-to-hire by position once a vacancy has a hire or the job is unpublished</p></div></header>
+            <header class="panel-head"><div><h2>Closed vacancy analytics</h2><p>Interview volume and time-to-hire by position once a vacancy has a hire or the job is ended</p></div></header>
             <div class="analytics-table-wrap" id="analyticsVacancyList"></div>
-            <div class="empty-state is-hidden" id="analyticsVacancyEmpty"><span><i class="ti ti-briefcase-off"></i></span><h2>No closed vacancies yet</h2><p>When a role is hired or unpublished, its hiring metrics will show here.</p></div>
+            <div class="empty-state is-hidden" id="analyticsVacancyEmpty"><span><i class="ti ti-briefcase-off"></i></span><h2>No closed vacancies yet</h2><p>When a role is hired or ended, its hiring metrics will show here.</p></div>
           </section>
         </section>
 
@@ -620,6 +631,7 @@
                   <label class="form-field form-field--full"><span>TikTok URL</span><input name="social.tiktok" type="url" direction="ltr" placeholder="https://www.tiktok.com/@..."></label>
                 </div>
               </div>
+              <div class="home-numbers-fields is-hidden" id="homeNumbersFields"></div>
               <div class="about-history-fields is-hidden" id="aboutHistoryFields"></div>
               <footer class="form-footer"><p><i class="ti ti-info-circle"></i> Changes appear after the page is refreshed.</p><button class="primary-btn" type="submit"><i class="ti ti-device-floppy"></i> Save changes</button></footer>
             </form>
@@ -696,6 +708,34 @@
             <div class="users-list" id="usersList"></div>
           </section>
         </section>
+
+        <section class="view" id="interviewersView" data-hr-only>
+          <div class="section-title-row">
+            <div>
+              <button class="back-dashboard" type="button" data-view-link="dashboard"><i class="ti ti-arrow-left"></i> Overview</button>
+              <h1>Interviewers</h1>
+              <p>HR accounts appear automatically. Add external interviewers here for scheduling and interview mail.</p>
+            </div>
+            <button class="primary-btn" id="addInterviewerBtn" type="button"><i class="ti ti-user-plus"></i><span>Add interviewer</span></button>
+          </div>
+          <div class="user-summary-grid interviewer-summary-grid">
+            <article class="panel user-summary"><span class="tool-icon tool-icon--blue"><i class="ti ti-address-book"></i></span><div><small>Total interviewers</small><strong id="interviewersTotal">0</strong></div></article>
+            <article class="panel user-summary"><span class="tool-icon tool-icon--green"><i class="ti ti-user-check"></i></span><div><small>Active</small><strong id="interviewersActive">0</strong></div></article>
+            <article class="panel user-summary"><span class="tool-icon tool-icon--orange"><i class="ti ti-user-pause"></i></span><div><small>Disabled</small><strong id="interviewersDisabled">0</strong></div></article>
+          </div>
+          <section class="panel users-panel">
+            <header class="panel-head">
+              <div><h2>Interviewer directory</h2><p>These people appear in pipeline and calendar interviewer pickers.</p></div>
+            </header>
+            <div class="interviewers-list" id="interviewersList"></div>
+            <div class="empty-state is-hidden" id="interviewersEmpty">
+              <span><i class="ti ti-users-off"></i></span>
+              <h2>No interviewers yet</h2>
+              <p>Add a name and email to start assigning interview rounds.</p>
+              <button class="primary-btn" type="button" id="addInterviewerEmptyBtn"><i class="ti ti-user-plus"></i> Add interviewer</button>
+            </div>
+          </section>
+        </section>
       </main>
     </div>
   </div>
@@ -761,7 +801,7 @@
             <label class="form-field"><span>Full name</span><span class="field-shell"><i class="ti ti-user"></i><input name="name" maxlength="100" placeholder="e.g. Sarah Ahmed" required></span></label>
             <label class="form-field"><span>Username</span><span class="field-shell"><i class="ti ti-at"></i><input name="username" maxlength="40" minlength="2" pattern="[A-Za-z0-9._\-]{2,40}" title="2–40 characters: letters, numbers, dots, dashes, or underscores" autocomplete="off" placeholder="sarah.hr" required></span><small>Letters, numbers, dots, dashes, underscores only.</small></label>
             <label class="form-field"><span>Work email</span><span class="field-shell"><i class="ti ti-mail"></i><input name="email" type="email" maxlength="160" placeholder="sarah@digitalhub.com.eg" required></span></label>
-            <label class="form-field"><span>Job title</span><span class="field-shell"><i class="ti ti-briefcase"></i><input name="jobTitle" maxlength="120" placeholder="e.g. HR Specialist" required></span></label>
+            <label class="form-field"><span>Job title</span><span class="field-shell"><i class="ti ti-briefcase"></i><input name="jobTitle" maxlength="120" placeholder="e.g. HR Specialist" required></span><small>Shown next to their name in interview emails when they interview candidates.</small></label>
             <label class="form-field form-field--full" id="userPasswordField">
               <span>Password <em id="passwordRequirement">At least 10 characters</em></span>
               <span class="account-password field-shell">
@@ -780,6 +820,39 @@
         <footer class="account-modal__foot">
           <button class="secondary-btn" id="cancelUserModalBtn" type="button">Cancel</button>
           <button class="primary-btn" type="submit"><i class="ti ti-user-check"></i><span>Save account</span></button>
+        </footer>
+      </form>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" id="interviewerModalBackdrop">
+    <section class="account-modal" role="dialog" aria-modal="true" aria-labelledby="interviewerModalTitle">
+      <header class="account-modal__head">
+        <div class="account-modal__brand">
+          <span class="account-modal__icon" aria-hidden="true"><i class="ti ti-address-book"></i></span>
+          <div>
+            <span class="drawer-kicker" id="interviewerModalKicker">NEW INTERVIEWER</span>
+            <h2 id="interviewerModalTitle">Add interviewer</h2>
+            <p id="interviewerModalSubtitle">Name, title, and email are used when scheduling interviews and sending invites.</p>
+          </div>
+        </div>
+        <button class="icon-btn" id="closeInterviewerModalBtn" type="button" aria-label="Close"><i class="ti ti-x"></i></button>
+      </header>
+      <form id="interviewerForm">
+        <div class="account-form-body">
+          <div class="account-form-grid">
+            <label class="form-field"><span>Full name</span><span class="field-shell"><i class="ti ti-user"></i><input name="name" maxlength="120" placeholder="e.g. Mohamed Mansour" required></span></label>
+            <label class="form-field"><span>Title</span><span class="field-shell"><i class="ti ti-id-badge"></i><input name="jobTitle" maxlength="120" placeholder="e.g. Engineering Manager"></span></label>
+            <label class="form-field"><span>Email</span><span class="field-shell"><i class="ti ti-mail"></i><input name="email" type="email" maxlength="160" placeholder="mohamed@digitalhub.com.eg" required></span></label>
+            <label class="account-active">
+              <span class="account-active__copy"><i class="ti ti-user-check"></i><span><strong>Active</strong><small>Disabled interviewers stay in history but leave the picker.</small></span></span>
+              <span class="switch"><input name="active" type="checkbox" checked><span></span></span>
+            </label>
+          </div>
+        </div>
+        <footer class="account-modal__foot">
+          <button class="secondary-btn" id="cancelInterviewerModalBtn" type="button">Cancel</button>
+          <button class="primary-btn" type="submit"><i class="ti ti-device-floppy"></i><span>Save interviewer</span></button>
         </footer>
       </form>
     </section>
@@ -816,6 +889,6 @@
 
   <div class="toast-stack" id="toastStack" aria-live="polite"></div>
   <div class="mobile-overlay" id="mobileOverlay"></div>
-  <script src="/admin/admin.js?v=20260817-interview-mail"></script>
+  <script src="/admin/admin.js?v=20260821-hr-account-interviewers"></script>
 </body>
 </html>

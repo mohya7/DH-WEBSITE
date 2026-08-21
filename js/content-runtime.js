@@ -61,6 +61,33 @@
     if (node && value) node.textContent = value;
   }
 
+  function renderHomeNumbers(numbers) {
+    var section = document.querySelector('#numbers');
+    if (!section || !numbers || typeof numbers !== 'object') return;
+    var head = section.querySelector('.numbers-head');
+    if (head) {
+      var label = head.querySelector('.label');
+      var title = head.querySelector('.h2');
+      var lead = head.querySelector('.lead');
+      if (label && numbers.label) label.textContent = numbers.label;
+      if (title && numbers.title) title.textContent = numbers.title;
+      if (lead && numbers.lead) lead.textContent = numbers.lead;
+    }
+    var row = section.querySelector('.numbers-row');
+    var stats = Array.isArray(numbers.stats) ? numbers.stats.filter(function (entry) {
+      return entry && (entry.label || entry.value);
+    }) : [];
+    if (!row || !stats.length) return;
+    row.innerHTML = stats.map(function (stat) {
+      var value = String(stat.value == null ? '' : stat.value).replace(/[^\d]/g, '') || '0';
+      var suffix = String(stat.suffix || '').slice(0, 4);
+      return '<div class="stat" data-reveal>' +
+        '<div class="stat-num" data-count="' + esc(value) + '"' + (suffix ? ' data-suffix="' + esc(suffix) + '"' : '') + '>0</div>' +
+        '<p class="stat-label">' + esc(stat.label || '') + '</p>' +
+        '</div>';
+    }).join('');
+  }
+
   function setHighlightedTitle(selector, value) {
     var node = document.querySelector(selector);
     if (!node || !value) return;
@@ -102,6 +129,7 @@
       setText('.hero-sub', copy.lead);
       setText('.services-title', copy.sectionTitle);
       if (copy.seoTitle) document.title = copy.seoTitle;
+      renderHomeNumbers(copy.numbers);
       return;
     }
 

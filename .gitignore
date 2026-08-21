@@ -1,8 +1,12 @@
 node_modules/
 .env
+.env.*
+.cursor/
+tmp/
 assets/uploads/*
 !assets/uploads/.gitkeep
 content/*.tmp
+content/*.bak*
 content/admin-users.json
 content/job-applications.json
 content/contact-requests.json
@@ -14,5 +18,3 @@ server.err.log
 .DS_Store
 Thumbs.db
 *.log
-.env
-.env.*

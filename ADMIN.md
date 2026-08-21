@@ -11,15 +11,36 @@ npm start
 - Website: `http://127.0.0.1:8765/`
 - Admin panel: `http://127.0.0.1:8765/admin/`
 
-`ADMIN_PASSWORD` **must** be set in the environment before starting the server. The process exits on startup if it is missing. Optionally set `ADMIN_USER` (defaults to `admin` for the initial account only when `content/admin-users.json` is first created).
+`ADMIN_PASSWORD` **must** be set in the environment before starting the server. The process exits on startup if it is missing. Optionally set `ADMIN_USER` (defaults to `admin` for the initial account only when `dbo.admin_users` is empty on first start).
+
+Hiring, onboarding, and admin accounts require a SQL Server connection. Set all four of these before start (process exits if any are missing):
+
+| Variable | Purpose |
+|----------|---------|
+| `SQLSERVER_HOST` | SQL Server host (e.g. `localhost`) |
+| `SQLSERVER_DATABASE` | Database name (e.g. `DigitalHubHiring`) |
+| `SQLSERVER_USER` | SQL login (e.g. `dh_hiring_app`) |
+| `SQLSERVER_PASSWORD` | SQL login password — never commit it |
+
+The driver connects with `encrypt: true` and `trustServerCertificate: true` (required for typical local SQL Server 2025 setups).
+
+Locally, put them in a gitignored `.env` at the project root (loaded automatically via `dotenv`). On a Windows service host you can instead set the same variables in the service configuration so secrets are not a file on disk. Shell `$env:…` still works and overrides `.env`.
 
 ```powershell
+# Option A — .env (gitignored), then:
+npm start
+
+# Option B — shell for this session:
 $env:ADMIN_USER='content-admin'   # optional; used only when creating the first admin account
 $env:ADMIN_PASSWORD='...'         # required — long unique value; never commit it
+$env:SQLSERVER_HOST='localhost'
+$env:SQLSERVER_DATABASE='DigitalHubHiring'
+$env:SQLSERVER_USER='dh_hiring_app'
+$env:SQLSERVER_PASSWORD='...'     # required — never commit it
 npm start
 ```
 
-Set these values before the first start that creates the administrator. The initial administrator is then stored in `content/admin-users.json` with a Scrypt password hash.
+Set these values before the first start that creates the administrator. The initial administrator is then stored in SQL Server table `dbo.admin_users` (database `DigitalHubHiring`) with a Scrypt password hash.
 
 ## Roles and accounts
 
@@ -48,13 +69,17 @@ When a service, case study, blog post, partner, or job is created, its details l
 ## Files
 
 - `content/admin-content.json`: complete admin source containing published items and drafts.
-- `content/admin-users.json`: local account store containing Scrypt password hashes. This file is ignored by Git.
-- `content/job-applications.json`: private applicant records. This file is ignored by Git and blocked from public web access.
+- SQL Server database (`SQLSERVER_DATABASE`, typically `DigitalHubHiring`): admin user accounts (`dbo.admin_users`), applications, CV binaries (`dbo.application_resumes`), hiring pipelines/interviews, and employee onboarding requests. Connected at startup via `mssql` using the `SQLSERVER_*` environment variables.
+- `content/admin-users.json`: **legacy** local account file (gitignored). Kept on disk as a fallback copy; the server no longer reads or writes it.
 - `content/contact-requests.json`: private Get in Touch enquiry records. This file is ignored by Git and blocked from public web access.
-- `content/application-files/`: private CV files. This folder is ignored by Git and CVs can only be downloaded by a signed-in admin or HR user.
+- `content/application-files/`: **legacy** directory (gitignored, still blocked from static serving). CVs are no longer written here; bytes live in `dbo.application_resumes`.
 - `content/site-content.json`: generated public JSON data.
 - `content/site-content.js`: synchronous public data used before card animations initialize.
 - `assets/uploads/`: images uploaded through Content Studio.
+
+Studio content (`admin-content.json` / `site-content.*`) and contact requests remain JSON. Admin accounts, applications, CVs, pipelines, onboarding, and the interviewer directory (`dbo.interviewers`, including optional job **title**) live in SQL Server. Task **Reviewed by** / **Score** are stored only as `dbo.applications.task_reviewed_by`, `task_reviewed_by_user_id`, and `task_score` (not inside the pipeline JSON).
+
+**Backup:** back up the hiring SQL Server database (includes CV bytes in `dbo.application_resumes`). The legacy `content/application-files/` folder is unused for new applications.
 
 Do not edit the two public content files manually. They are regenerated after every successful save.
 

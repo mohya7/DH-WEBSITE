@@ -59,16 +59,19 @@ cases/
   ministry-planning.html
   nexthink-dex-bank.html
 content/
-  application-files/          (CV PDFs; gitignored)
+  application-files/          (LEGACY — gitignored; CVs now in SQL Server dbo.application_resumes)
   admin-content.json
   admin-content.json.bak-20260812-173900
-  admin-users.json            (gitignored; present on disk)
+  admin-users.json            (LEGACY — gitignored; accounts now in SQL Server dbo.admin_users)
   contact-requests.json       (gitignored; present on disk)
-  job-applications.json       (gitignored; present on disk)
-  onboarding-requests.json
+  job-applications.json       (LEGACY — superseded; hiring store is SQL Server DigitalHubHiring)
+  onboarding-requests.json    (LEGACY — superseded; hiring store is SQL Server DigitalHubHiring)
   site-content.js
   site-content.json
   validation-config.json
+lib/
+  hiring-db.js                (SQL Server hiring/onboarding via mssql + SQLSERVER_* env)
+  mail.js
 css/
   about-page.css
   careers-page.css
@@ -88,8 +91,6 @@ js/
   shared.js
   webgl-fluid-lib.js
   webgl-fluid.mjs
-lib/
-  mail.js
 news/
   index.html
 partners/
@@ -262,7 +263,7 @@ Enforcement for “public”: no auth on `serveStatic` for these paths. Blocked 
 | Method | Path | Auth | Reads | Writes |
 |--------|------|------|-------|--------|
 | GET | `/api/content` | Public | `admin-content.json` via `publicView(readData())` | none | `server.js:1624-1626` |
-| POST | `/api/careers/applications` | Public (+ rate limit + honeypot) | jobs for role validation; multipart resume | `job-applications.json`, `content/application-files/*` | `server.js:1628-1644` |
+| POST | `/api/careers/applications` | Public (+ rate limit + honeypot) | jobs for role validation; multipart resume | SQL Server `applications` + `application_resumes` (single transaction via `lib/hiring-db.js`) | `server.js` careers POST |
 | POST | `/api/contact/requests` | Public (+ rate limit + honeypot) | body fields | `contact-requests.json` | `server.js:1647-1655` |
 
 ### 2.A.5 Authentication and authorisation
@@ -314,7 +315,8 @@ No payment SDKs, no analytics tag managers (`gtag` / GA) found in targeted greps
 | `content/admin-content.json` | Authoritative CMS store (drafts + published) |
 | `content/site-content.*` | Generated public projection |
 | `content/validation-config.json` | Blog publish validation mode |
-| `content/admin-users.json` | Accounts (gitignored) |
+| `content/admin-users.json` | **LEGACY** account file (gitignored; not read at runtime) |
+| SQL Server `DigitalHubHiring`.`dbo.admin_users` | Admin / HR / Marketing accounts |
 | `assets/uploads/` | CMS/HR/Marketing uploaded assets |
 | `scripts/blog-pages.js`, `partner-logos.js`, `service-suite-images.js`, `service-methodology.js`, `about-history.js`, `site-social.js` | Sync HTML/assets from CMS data on save |
 | `ADMIN.md` | Operator documentation |
@@ -335,12 +337,12 @@ No payment SDKs, no analytics tag managers (`gtag` / GA) found in targeted greps
 - Approximate counts observed in live file: services 4, partners 5, caseStudies 4, blogs 3, jobs 1 (draft), team 6, news 3.
 - Write path: `writeData` temp file → copy → unlink (`server.js:793-798`) then `writeDerivedFiles`.
 
-#### Users: `content/admin-users.json`
+#### Users: SQL Server `dbo.admin_users` (`DigitalHubHiring`)
 
-- Top-level: `version`, `updatedAt`, `users`.
-- User keys: `id`, `username`, `name`, `email`, `jobTitle`, `photo`, `role`, `active`, `passwordHash`, `mustSetPassword`, `inviteTokenHash`, `inviteExpiresAt`, `lastLoginAt`, `createdAt`, `updatedAt`.
-- Gitignored (`.gitignore:6`).
-- Created on first boot if missing (`ensureStorage` `server.js:806-822`).
+- Accessed via async `readUsers` / `writeUsers` → `hiringDb.readAdminUsersStore` / `writeAdminUsersStore` (MERGE upsert by `id`; deletes use `hardDeleteAdminUser`).
+- Row fields (API shape): `id`, `username`, `name`, `email`, `jobTitle`, `photo`, `role`, `active`, `passwordHash`, `mustSetPassword`, `inviteTokenHash`, `inviteExpiresAt`, `lastLoginAt`, `createdAt`, `updatedAt`.
+- Empty-table bootstrap: `ensureAdminBootstrap` seeds the first admin from `ADMIN_USER` / `ADMIN_PASSWORD` after the SQL pool opens.
+- Legacy file `content/admin-users.json` remains on disk (gitignored) but is **not** imported or written by the server.
 
 #### Validation config: `content/validation-config.json`
 
@@ -379,7 +381,7 @@ API gates: `requireAdmin`, `canEditCollection`, `canEditPage` (`server.js:1050-1
 
 | Method | Path | Auth | Reads | Writes |
 |--------|------|------|-------|--------|
-| POST | `/api/admin/login` | Public credentials | `admin-users.json` | session Map; `lastLoginAt` | `server.js:1680-1712` |
+| POST | `/api/admin/login` | Public credentials | `dbo.admin_users` | session Map; `lastLoginAt` | `server.js` login route |
 | GET | `/api/admin/session` | Cookie optional | session + users | none | `1715-1719` |
 | POST | `/api/admin/logout` | Auth + CSRF | session | deletes session cookie | `1722-1726` |
 | POST | `/api/admin/auth/setup-password` | Invite token | users | passwordHash | `1658-1677` |
@@ -407,12 +409,13 @@ API gates: `requireAdmin`, `canEditCollection`, `canEditPage` (`server.js:1050-1
   - `admin`: all non-job collections, all pages, users, tools, contact inbox (`permissionsFor` `server.js:700-713`; `adminView` `716-727`).
   - `hr`: jobs collection only in CMS data view (`adminView` `739-746`); hiring elsewhere.
   - `marketing`: empty collections/pages in `adminView` (`729-737`); onboarding elsewhere.
-- **Default / hardcoded credentials (names only — values not repeated here beyond what code stores as defaults):**
-  - Env vars: `ADMIN_USER`, `ADMIN_PASSWORD` (`server.js:16-17`).
-  - Defaults if env unset: username default `'admin'`; password default string literal at `server.js:17`; startup log references development login when `ADMIN_PASSWORD` unset (`server.js:2933`).
-  - Documented again in `ADMIN.md:13` and `ADMIN.md:17-19`.
-  - Login form username prefilled `admin` in `admin/index.html` (per admin inventory).
-- **Cookie flags:** `HttpOnly; SameSite=Strict; Path=/; Max-Age=…` — **no `Secure` attribute** in Set-Cookie string (`server.js:1711`).
+- **Bootstrap credentials (env only — no password defaults in source):**
+  - Env vars: `ADMIN_USER`, `ADMIN_PASSWORD` (`server.js` near startup constants).
+  - If `ADMIN_PASSWORD` is unset, the process exits immediately with a fatal error (no fallback password).
+  - `ADMIN_USER` defaults to `'admin'` only for the initial empty-table bootstrap username when `dbo.admin_users` has no rows.
+  - Documented in `ADMIN.md` (required env vars).
+  - Login form username may be prefilled `admin` in `admin/index.html` (UI convenience only).
+- **Cookie flags:** `HttpOnly; SameSite=Strict; Path=/; Max-Age=…` — see Set-Cookie construction in `server.js` login handler.
 
 ### 2.B.6 Integrations
 
@@ -447,34 +450,40 @@ No separate HR root directory. HR surfaces live in:
 |------|------|
 | `admin/index.html` | HR views: applications, hrPortal, hrAnalytics, hrCalendar, interviewLog, onboarding, jobs content |
 | `admin/admin.js` | All HR UI logic |
-| `content/job-applications.json` | Applications + pipelines |
-| `content/application-files/` | CV binaries |
-| `content/onboarding-requests.json` | Post-hire packages (shared with Marketing) |
+| SQL Server `DigitalHubHiring` | **Current store:** applications, CV binaries (`dbo.application_resumes`), pipelines, onboarding, admin users (`lib/hiring-db.js` / `mssql` / `SQLSERVER_*`) |
+| `content/job-applications.json` | **SUPERSEDED** — former JSON applications store; no longer read/written |
+| `content/application-files/` | **LEGACY** — former on-disk CV store (gitignored; still static-denied; unused for new uploads) |
+| `content/onboarding-requests.json` | **SUPERSEDED** — former JSON onboarding store; no longer read/written |
 | `content/admin-content.json` → `collections.jobs` | Vacancies |
 | `lib/mail.js` | Interview schedule/reminder email |
+| `lib/hiring-db.js` | SQL Server pool/schema + application/onboarding store helpers |
 
 ### 2.C.3 Data layer
 
-#### `content/job-applications.json`
+> **Current (SQL Server).** Hiring, onboarding, and admin user accounts persist in SQL Server database `DigitalHubHiring` via `lib/hiring-db.js` (`mssql` package; `SQLSERVER_HOST`, `SQLSERVER_DATABASE`, `SQLSERVER_USER`, `SQLSERVER_PASSWORD`). Wrappers `readApplications` / `writeApplications` / `readOnboarding` / `writeOnboarding` / `readUsers` / `writeUsers` in `server.js` are async. Studio content and contact requests remain JSON. Notes below describe the API object shape (unchanged for the SPA).
+
+#### ~~`content/job-applications.json`~~ / ~~`data/hiring.sqlite`~~ → SQL Server `dbo.applications` (+ `pipeline` NVARCHAR JSON column)
 
 - Top-level: `version`, `updatedAt`, `applications`.
 - Observed count on disk: **4** applications.
 - Gitignored (`.gitignore:7`).
 - Representative application keys:  
   `id`, `reference`, `role`, `roleSlug`, `fullName`, `phone`, `email`, `currentSalary`, `yearsOfExperience`, `expectedSalary`, `noticePeriodWeeks`, `linkedin`, `resumeName`, `resumeFile`, `status`, `submittedAt`, `updatedAt`, `pipeline`
+- Dedicated task-review columns (not stored in pipeline JSON): `task_reviewed_by`, `task_reviewed_by_user_id`, `task_score`
+- Interviewer directory: merged list of HR `admin_users` (read-only; title from `job_title`) plus manual `dbo.interviewers` rows — used by pipeline pickers and interview mail
 - `pipeline` keys: `stage`, `phoneScreen`, `pathway`, `task`, `interviews`, `offer`, `history`
-- `task`: `title`, `notes`, `status`, `decision`
+- `task`: `title`, `notes`, `status`, `decision` (reviewed-by / score come from the dedicated columns on read)
 - `offer`: `status`, `declinedReason`
 - `interviews[]`: `id`, `label`, `format`, `interviewer`, `interviewerUserId`, `interviewerEmail`, `scheduledAt`, `reminderSentOn`, `score`, `notes`, `result`
 - `history[]`: `at`, `by`, `action`, `detail`
 - Defaults / enums: `DEFAULT_INTERVIEW_STAGES`, `PHONE_SCREEN_OUTCOMES`, `TASK_*`, `INTERVIEW_*`, `OFFER_STATUSES`, `PATHWAYS` (`server.js:134-142`).
 - Validation on pipeline write: `cleanPipelinePayload` / `normalizeInterviewEntry` (score 0–10 half-steps; staff interviewer required when scheduled — `server.js:223-246`).
-- Write pattern: temp+copy (`writeApplications` `server.js:126-131`).
-- Concurrency: **no If-Match / revision** on applications file (unlike CMS content). Last write wins. In-memory rate maps for public posts only.
+- Write pattern: upsert/MERGE via `hiringDb.writeApplicationsStore` (does not delete absent ids).
+- Concurrency: **no If-Match / revision** on applications (unlike CMS content). Last write wins. In-memory rate maps for public posts only.
 
 #### Onboarding store (shared with Marketing)
 
-See 2.D.3 / content section — `content/onboarding-requests.json`.
+> **Current (SQL Server).** Onboarding rows live in `DigitalHubHiring.dbo.onboarding_requests` (FK to `applications`, `ON DELETE CASCADE`) via `lib/hiring-db.js`. See 2.D.3. Historical JSON notes for `content/onboarding-requests.json` remain for archaeology only.
 
 ### 2.C.4 Routes and pages
 
@@ -496,11 +505,12 @@ Client blocks admin from hiring views (`admin/admin.js` ~699–705).
 
 | Method | Path | Auth | Reads | Writes |
 |--------|------|------|-------|--------|
-| GET | `/api/admin/applications` | HR | job-applications.json | none | `1901-1904` |
+| GET | `/api/admin/applications` | HR | SQL Server applications | none |
 | PUT | `/api/admin/applications/:id` | HR + CSRF | apps | status | `2114-2126` |
 | PUT | `/api/admin/applications/:id/pipeline` | HR + CSRF | apps | pipeline; may send mail; may create onboarding | `2129-2173` |
-| GET | `/api/admin/applications/:id/resume` | HR | application-files | streams file | `2091-2111` |
-| GET | `/api/admin/staff-interviewers` | HR | admin-users (hr/admin with email) | none | `1907-1909` |
+| GET | `/api/admin/applications/:id/resume` | HR | `dbo.application_resumes` | streams CV bytes |
+| GET | `/api/admin/staff-interviewers` | HR | merged HR accounts + `dbo.interviewers` (active) | none |
+| GET | `/api/admin/interviewers` | HR | merged HR accounts + `dbo.interviewers` | none |
 | POST | `/api/admin/vacancies/end` | HR (jobs ACL) + CSRF | jobs + apps | sets job `draft`; returns counts | `2054-2088` |
 | GET/POST/PUT | `/api/admin/onboarding…` | HR/Marketing | see 2.D | see 2.D |
 
@@ -541,25 +551,28 @@ No separate Marketing package. Surfaces:
 | Path | Use |
 |------|-----|
 | `admin/` views `#dashboard`, `#onboarding` | Marketing UI |
-| `content/onboarding-requests.json` | Deliverable workflow |
+| SQL Server `DigitalHubHiring` (`onboarding_requests`) | **Current** deliverable workflow store |
+| `content/onboarding-requests.json` | **SUPERSEDED** |
 | `assets/uploads/` | Uploaded posts/cards/IDs |
 
 ### 2.D.3 Data layer
 
-#### `content/onboarding-requests.json`
+#### ~~`content/onboarding-requests.json`~~ / ~~`data/hiring.sqlite`~~ → SQL Server `dbo.onboarding_requests`
+
+> **Current (SQL Server).** API shape (`requests[]` with camelCase fields and parsed `assets` object) is unchanged for the SPA; persistence is SQL Server via `lib/hiring-db.js` (`mssql` / `SQLSERVER_*`). Former JSON and SQLite paths are superseded. Historical field notes:
 
 - Top-level: `version`, `updatedAt`, `requests`.
-- Observed count: **3**.
-- **Not gitignored** (`.gitignore` has no `onboarding` entry; confirmed by grep of `.gitignore`).
+- Observed count: historical inventory noted **3** (JSON era).
+- Gitignored (`.gitignore` includes `content/onboarding-requests.json`).
 - Representative request keys:  
   `id`, `applicationId`, `reference`, `fullName`, `jobTitle`, `email`, `mobile`, `linkedin`, `idNumber`, `status`, `assets`, `notesHr`, `notesMarketing`, `createdBy`, `sentAt`, `returnedAt`, `completedAt`, `createdAt`, `updatedAt`
 - `assets` keys (`ONBOARDING_ASSET_KEYS` `server.js:28`): `onboardingPost`, `joiningPost`, `businessCard`, `employeeId`
 - Statuses: `draft`, `sent`, `returned`, `completed` (`server.js:27`).
 - Validation: email/mobile/linkedin/asset path cleaners (`server.js:853-898`, `2026-2044`).
-- Write: temp+copy (`writeOnboarding` `server.js:836-841`).
+- Write: upsert/MERGE via `hiringDb.writeOnboardingStore`.
 - Concurrency: no revision tokens; last write wins.
 
-**Public static exposure risk:** `serveStatic` blocklist at `server.js:2837` covers `admin-*`, `job-applications`, `contact-requests`, `application-files` — **does not include `onboarding-requests`**. Therefore `GET /content/onboarding-requests.json` would be served as a normal static JSON file if the server is running and the file exists.
+**Legacy JSON exposure note:** if `content/onboarding-requests.json` were recreated on disk, treat it as sensitive. Prefer the content deny path under `content/` (allow only `site-content.*`) rather than relying on a blocklist name alone.
 
 ### 2.D.4 Routes and pages
 
@@ -632,7 +645,7 @@ Every variable referenced in code (name only; defaults noted; never print secret
 | `PORT` | All | `server.js:13` | `8765` |
 | `HOST` | All | `server.js:14` | `'127.0.0.1'` |
 | `ADMIN_USER` | B (bootstrap admin) | `server.js:16` | `'admin'` |
-| `ADMIN_PASSWORD` | B (bootstrap admin) | `server.js:16-17`, log `2933` | literal default at `:17` |
+| `ADMIN_PASSWORD` | B (bootstrap admin) | `server.js` startup | **required** — process exits if unset; no default |
 | `SES_REGION` | Mail | `lib/mail.js:36` via `envFirst` | (region chain) |
 | `AWS_REGION` | Mail | `lib/mail.js:36` | |
 | `AWS_DEFAULT_REGION` | Mail | `lib/mail.js:36` | if all empty, `sesRegion()` returns `'eu-west-1'` |
@@ -693,14 +706,14 @@ Ranked by severity (highest first). Only issues with concrete file evidence.
 
 | Sev | Category | Issue | Evidence |
 |-----|----------|-------|----------|
-| **Critical** | Security | Default administrator password baked into source when `ADMIN_PASSWORD` unset; documented in repo | `server.js:17`, `server.js:2933`, `ADMIN.md:13` |
-| **Critical** | Security | `content/onboarding-requests.json` contains employee PII-ish fields and is **not** gitignored and **not** blocked by static content firewall | `.gitignore` (no onboarding entry); `server.js:2837` block regex omits onboarding; file present under `content/` |
+| **Critical** | Security | (Mitigated) `ADMIN_PASSWORD` is required at startup; process exits if unset — no default admin password in source | `server.js` startup fatal check; `ADMIN.md` |
+| **Critical** | Security | (Mitigated) Onboarding no longer persists in a public JSON file; store is SQL Server. Legacy `content/onboarding-requests.json` remains gitignored if recreated | `.gitignore`; `lib/hiring-db.js` |
 | **High** | Security | Session cookie lacks `Secure` flag (HTTPS sites can still send cookie over HTTP if mixed) | Set-Cookie at `server.js:1711` |
 | **High** | Security | Sessions stored only in process memory — lost on restart; no multi-instance sticky support | `sessions = new Map()` `server.js:83` |
 | **High** | Data integrity | `PUT /api/admin/content` uses undefined `data` when cleaning imported pages — import path broken / throws | `server.js:1887` (`data.pages` vs `current`) |
-| **High** | Data integrity / concurrency | Job applications, contact requests, onboarding, and users JSON updates have **no revision/If-Match**; concurrent HR saves can overwrite | Applications write path `2129-2144` vs content `checkRevision` `1475-1486` |
+| **High** | Data integrity / concurrency | Contact requests and users JSON updates have **no revision/If-Match**; hiring/onboarding use SQL Server upserts without optimistic concurrency | Applications/`hiring-db` vs content `checkRevision` |
 | **High** | Security / docs mismatch | `ADMIN.md` claims “Rate limiting for login attempts” but **no login attempt limiter** exists in `server.js` (only application/contact limiters) | `ADMIN.md:67`; `canSubmitApplication`/`canSubmitContact` only; login handler `1680-1712` has no attempt map |
-| **Medium** | Security | `robots.txt` does not Disallow `/content/onboarding-requests.json` or `/content/contact-requests.json` (contact is blocked at server; onboarding is not) | `robots.txt:1-10`; `server.js:2837` |
+| **Medium** | Security | `robots.txt` does not Disallow legacy `/content/onboarding-requests.json` or `/content/contact-requests.json` (contact blocked at server; onboarding store is SQL Server) | `robots.txt:1-10` |
 | **Medium** | Data integrity | Vacancy end does not close open pipelines despite helper existing | `closeOpenPipelinesForJob` only at `server.js:662`; unused; end vacancy `2054-2088` |
 | **Medium** | Security | Public rate limits keyed by `req.socket.remoteAddress` — may be ineffective behind reverse proxies without trusting `X-Forwarded-For` (no such trust code found) | `clientAddress` `server.js:1488-1489` |
 | **Medium** | Maintainability | Dual `sharp` versions (root `0.35.3` vs `scripts/` `0.35.2`) | `package.json`, `scripts/package.json` |
@@ -709,7 +722,7 @@ Ranked by severity (highest first). Only issues with concrete file evidence.
 | **Low** | Maintainability | Blog FAQ/comparison validation still warn-only | `content/validation-config.json`; `admin/admin.js:1099`, `1115` |
 | **Low** | Maintainability | Dead/unused UI: notifications bell; static “Operational” health | `admin/index.html` / `admin/admin.css` (admin inventory) |
 | **Low** | Performance | Reminder job scans all applications every minute when mail enabled | `startInterviewReminderJob` `server.js:360-368` |
-| **Low** | Maintainability | Temporary scripts `_audit-report-tmp.*` in `scripts/` | tree listing |
+| **Low** | Maintainability | (Cleared) Temporary scripts `_audit-report-tmp.*` removed in Section 6 cleanup | — |
 
 ---
 
@@ -721,11 +734,12 @@ Ranked by severity (highest first). Only issues with concrete file evidence.
 | `content/site-content.json` | yes | no | published projection |
 | `content/site-content.js` | yes | no | same payload |
 | `content/validation-config.json` | yes | no | 1 config key |
-| `content/admin-users.json` | yes | yes | 3 users |
-| `content/job-applications.json` | yes | yes | 4 applications |
+| `content/admin-users.json` | yes | yes | **LEGACY** — runtime store is `dbo.admin_users` |
+| `content/job-applications.json` | no (legacy) | yes | superseded — SQL Server `applications` |
 | `content/contact-requests.json` | yes | yes | 0 requests |
-| `content/onboarding-requests.json` | yes | **no** | 3 requests |
-| `content/application-files/*.pdf` | yes (4 PDFs) | yes (dir) | 4 files |
+| `content/onboarding-requests.json` | no (legacy) | yes | superseded — SQL Server `onboarding_requests` |
+| `content/application-files/` | yes (dir) | yes (dir) | **LEGACY** — runtime CVs are `dbo.application_resumes` |
+| SQL Server `DigitalHubHiring` | yes (external DB) | n/a | applications, `application_resumes`, pipelines, onboarding, `admin_users`, deletion_log |
 | `content/admin-content.json.bak-20260812-173900` | yes | no | backup |
 
 ---

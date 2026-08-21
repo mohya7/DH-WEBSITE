@@ -1,8 +1,8 @@
 {
   "meta": {
     "version": 1,
-    "revision": 115,
-    "updatedAt": "2026-08-17T12:57:33.695Z"
+    "revision": 126,
+    "updatedAt": "2026-08-21T03:33:50.914Z"
   },
   "pages": {
     "home": {
@@ -17,6 +17,33 @@
         "facebook": "https://www.facebook.com/DigitalHub19",
         "instagram": "https://www.instagram.com/digitalhub_eg/",
         "tiktok": "https://www.tiktok.com/@digitalhub.eg?_r=1&_t=ZS-98vx4nHcDJ6"
+      },
+      "numbers": {
+        "label": "By the Numbers",
+        "title": "Proven at enterprise scale.",
+        "lead": "Outcomes across Egypt, the Gulf, and global technology partnerships.",
+        "stats": [
+          {
+            "value": "7",
+            "suffix": "+",
+            "label": "Years of enterprise delivery in Egypt and the Gulf"
+          },
+          {
+            "value": "30",
+            "suffix": "+",
+            "label": "Enterprise clients across 6 sectors"
+          },
+          {
+            "value": "5",
+            "suffix": "",
+            "label": "Global technology partnerships — Microsoft, Huawei, Nexthink, eFinance, Vodafone"
+          },
+          {
+            "value": "4",
+            "suffix": "",
+            "label": "Countries of team expertise — Austria, UK, Canada, Egypt"
+          }
+        ]
       }
     },
     "blogs": {

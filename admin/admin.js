@@ -114,6 +114,8 @@
     users: [],
     applications: [],
     staffInterviewers: [],
+    managedInterviewers: [],
+    editingInterviewerId: null,
     onboardingRequests: [],
     onboardingStatus: 'all',
     onboardingSelectedId: '',
@@ -355,6 +357,7 @@
     var payload = await api('/api/admin/applications');
     state.applications = payload.applications || [];
     await loadStaffInterviewers();
+    if (state.currentView === 'interviewers') await loadManagedInterviewers();
     renderApplications();
     renderHrPortal();
     renderDashboard();
@@ -375,6 +378,16 @@
     } catch (_) {
       state.staffInterviewers = [];
     }
+  }
+
+  async function loadManagedInterviewers() {
+    if (!isHr()) {
+      state.managedInterviewers = [];
+      return;
+    }
+    var payload = await api('/api/admin/interviewers');
+    state.managedInterviewers = payload.interviewers || [];
+    renderInterviewers();
   }
 
   async function loadOnboarding() {
@@ -702,7 +715,7 @@
     if (collection) view = 'content';
     if (isHr() && (view === 'users' || view === 'tools' || view === 'contactRequests' || view === 'pages')) return false;
     if (isMarketing() && view !== 'dashboard' && view !== 'onboarding') return false;
-    if (isAdmin() && (view === 'applications' || view === 'hrPortal' || view === 'hrAnalytics' || view === 'hrCalendar' || view === 'interviewLog' || view === 'onboarding' || collection === 'jobs')) return false;
+    if (isAdmin() && (view === 'applications' || view === 'hrPortal' || view === 'hrAnalytics' || view === 'hrCalendar' || view === 'interviewLog' || view === 'interviewers' || view === 'onboarding' || collection === 'jobs')) return false;
     if (collection && allowedCollections().indexOf(collection) === -1) return false;
     if (view === 'content' && !collection) return false;
     var viewNode = document.getElementById(view + 'View');
@@ -774,7 +787,7 @@
     if (isMarketing() && view !== 'dashboard' && view !== 'onboarding') {
       return deny('Marketing accounts can only access Employee Onboarding.');
     }
-    if (isAdmin() && (view === 'applications' || view === 'hrPortal' || view === 'hrAnalytics' || view === 'hrCalendar' || view === 'interviewLog' || view === 'onboarding' || collection === 'jobs')) {
+    if (isAdmin() && (view === 'applications' || view === 'hrPortal' || view === 'hrAnalytics' || view === 'hrCalendar' || view === 'interviewLog' || view === 'interviewers' || view === 'onboarding' || collection === 'jobs')) {
       return deny('Hiring and onboarding tools are available to HR and Marketing accounts only.');
     }
     if (collection && allowedCollections().indexOf(collection) === -1) {
@@ -801,6 +814,7 @@
     if (view === 'hrAnalytics') renderHrAnalytics();
     if (view === 'hrCalendar') renderHrCalendar();
     if (view === 'interviewLog') renderInterviewLog();
+    if (view === 'interviewers') loadManagedInterviewers();
     if (view === 'onboarding') renderOnboarding();
     if (view === 'contactRequests') renderContactRequests();
     writeAdminRoute(view, view === 'content' ? state.currentCollection : null);
@@ -837,6 +851,9 @@
     if (!info) return;
     if (state.currentCollection === 'jobs') state.layout = 'list';
     var source = (state.data.collections[state.currentCollection] || []).slice().sort(function (a, b) { return Number(a.order || 0) - Number(b.order || 0); });
+    if (state.currentCollection === 'jobs') {
+      source = source.filter(function (item) { return item.status !== 'ended'; });
+    }
     var query = state.query.trim().toLowerCase();
     var filtered = source.filter(function (item) {
       var statusMatch = state.currentStatus === 'all' || item.status === state.currentStatus;
@@ -859,7 +876,7 @@
     });
 
     $('#contentGrid').innerHTML = filtered.map(function (item, index) {
-      var status = item.status === 'draft' ? [' is-draft', 'Draft'] : ['', 'Published'];
+      var status = item.status === 'draft' ? [' is-draft', 'Draft'] : item.status === 'ended' ? [' is-ended', 'Ended'] : ['', 'Published'];
       var endVacancyBtn = state.currentCollection === 'jobs' && item.status === 'published'
         ? '<button class="edit-btn job-end-btn" type="button" data-action="end-vacancy" title="End vacancy"><i class="ti ti-circle-x"></i><span>End</span></button>'
         : '';
@@ -1416,7 +1433,7 @@
     }
     state.pendingDelete = { kind: 'vacancy', jobId: job.id, title: job.title || 'Vacancy' };
     $('#confirmTitle').textContent = 'End this vacancy?';
-    $('#confirmText').textContent = '“' + (job.title || 'This vacancy') + '” will be unpublished and leave open vacancies. Candidates already in Active Hiring Process keep going until they are joined or rejected.';
+    $('#confirmText').textContent = '“' + (job.title || 'This vacancy') + '” will move to Analytics & History with status Ended and leave open vacancies. Candidates already in Active Hiring Process keep going until they are joined or rejected.';
     var confirmBtn = $('#confirmDeleteBtn');
     if (confirmBtn) confirmBtn.innerHTML = '<i class="ti ti-circle-x"></i> Yes, end vacancy';
     $('#modalBackdrop').classList.add('is-open');
@@ -1437,6 +1454,20 @@
     $('#modalBackdrop').classList.add('is-open');
   }
 
+  function askDeleteApplication(id) {
+    var item = (state.applications || []).find(function (entry) { return entry.id === id; });
+    if (!item) {
+      toast('Application not found.', true);
+      return;
+    }
+    state.pendingDelete = { kind: 'application', id: item.id, name: item.fullName || 'this candidate' };
+    $('#confirmTitle').textContent = 'Delete this application permanently?';
+    $('#confirmText').textContent = 'This permanently removes the application for “' + (item.fullName || 'this candidate') + '”, their hiring pipeline, any related onboarding record, and the CV file. This cannot be undone.';
+    var confirmBtn = $('#confirmDeleteBtn');
+    if (confirmBtn) confirmBtn.innerHTML = '<i class="ti ti-trash"></i> Yes, delete permanently';
+    $('#modalBackdrop').classList.add('is-open');
+  }
+
   function closeConfirm() {
     $('#modalBackdrop').classList.remove('is-open');
     state.pendingDelete = null;
@@ -1450,12 +1481,44 @@
     var button = $('#confirmDeleteBtn');
     try {
       setBusy(button, true);
+      if (pending.kind === 'application') {
+        await api('/api/admin/applications/' + encodeURIComponent(pending.id), { method: 'DELETE' });
+        state.applications = (state.applications || []).filter(function (entry) { return entry.id !== pending.id; });
+        if (state.hrSelectedId === pending.id) state.hrSelectedId = '';
+        if (state.interviewLogSelectedId === pending.id) state.interviewLogSelectedId = '';
+        if (state.onboardingSelectedId) {
+          var orphanOnboarding = (state.onboardingRequests || []).find(function (entry) {
+            return entry.id === state.onboardingSelectedId && entry.applicationId === pending.id;
+          });
+          if (orphanOnboarding) state.onboardingSelectedId = '';
+        }
+        state.onboardingRequests = (state.onboardingRequests || []).filter(function (entry) {
+          return entry.applicationId !== pending.id;
+        });
+        closeConfirm();
+        renderApplications();
+        renderHrPortal();
+        renderDashboard();
+        renderInterviewLog();
+        renderOnboarding();
+        toast('Application deleted permanently.');
+        return;
+      }
       if (pending.kind === 'user') {
         var userResult = await api('/api/admin/users/' + encodeURIComponent(pending.id), { method: 'DELETE' });
         state.users = userResult.users || [];
         closeConfirm();
         renderUsers();
         toast('The account was deleted and all active sessions were revoked.');
+        return;
+      }
+      if (pending.kind === 'interviewer') {
+        var interviewerResult = await api('/api/admin/interviewers/' + encodeURIComponent(pending.id), { method: 'DELETE' });
+        state.managedInterviewers = interviewerResult.interviewers || [];
+        await loadStaffInterviewers();
+        closeConfirm();
+        renderInterviewers();
+        toast('Interviewer removed from the directory.');
         return;
       }
       if (pending.kind === 'vacancy') {
@@ -1474,8 +1537,9 @@
         }
         closeConfirm();
         renderAll();
+        if (isHr()) switchView('hrAnalytics');
         toast(
-          'Vacancy ended.' +
+          'Vacancy ended and moved to Analytics & History.' +
           ((endResult.activeCount || 0)
             ? ' ' + endResult.activeCount + ' active candidate' + (endResult.activeCount === 1 ? '' : 's') + ' will continue until closed.'
             : '')
@@ -1552,6 +1616,35 @@
       '</div>';
   }
 
+  function numbersFieldsHtml(numbers) {
+    var data = numbers && typeof numbers === 'object' ? numbers : {};
+    var stats = Array.isArray(data.stats) && data.stats.length ? data.stats : [
+      { value: '5', suffix: '+', label: '' }
+    ];
+    stats = stats.slice(0, 6);
+    return '<div class="dynamic-field dynamic-field--full" data-repeatable="numbers">' +
+      '<div class="form-section-label"><i class="ti ti-chart-bar"></i> By the Numbers</div>' +
+      '<small>Controls the homepage stats section. Value animates on scroll; suffix is optional (e.g. +).</small>' +
+      '<div style="display:grid;gap:10px;margin:12px 0 14px">' +
+      '<input name="numbers.label" placeholder="Section label" value="' + escapeHtml(data.label || 'By the Numbers') + '">' +
+      '<input name="numbers.title" placeholder="Section headline" value="' + escapeHtml(data.title || 'Proven at enterprise scale.') + '">' +
+      '<textarea name="numbers.lead" rows="3" placeholder="Supporting paragraph">' + escapeHtml(data.lead || '') + '</textarea>' +
+      '</div>' +
+      '<div class="repeatable-list" data-numbers-list>' + stats.map(function (row, index) {
+        return '<div class="repeatable-row" data-numbers-row>' +
+          '<strong style="display:block;margin-bottom:10px;font-size:11px;color:#8eb4d0">' + escapeHtml(String(index + 1).padStart(2, '0') + ' · Stat') + '</strong>' +
+          '<div style="display:grid;grid-template-columns:120px 90px minmax(0,1fr);gap:8px">' +
+          '<input name="numbers.stats[' + index + '].value" inputmode="numeric" placeholder="Value" value="' + escapeHtml(row.value || '') + '" style="direction:ltr;text-align:left">' +
+          '<input name="numbers.stats[' + index + '].suffix" placeholder="Suffix" value="' + escapeHtml(row.suffix || '') + '" style="direction:ltr;text-align:left" maxlength="4">' +
+          '<input name="numbers.stats[' + index + '].label" placeholder="Label under the number" value="' + escapeHtml(row.label || '') + '">' +
+          '</div>' +
+          '<button type="button" class="card-action is-danger" data-remove-numbers-row style="margin-top:10px">Remove</button>' +
+          '</div>';
+      }).join('') + '</div>' +
+      '<button type="button" class="edit-btn" data-add-numbers style="margin-top:12px"><i class="ti ti-plus"></i> Add stat</button>' +
+      '</div>';
+  }
+
   function renderPageForm() {
     if (!state.data || !state.data.pages[state.currentPage]) return;
     var page = state.data.pages[state.currentPage];
@@ -1576,6 +1669,12 @@
           if (input) input.value = social[key] || '';
         });
       }
+    }
+    var numbersBox = $('#homeNumbersFields');
+    if (numbersBox) {
+      var showNumbers = state.currentPage === 'home';
+      numbersBox.classList.toggle('is-hidden', !showNumbers);
+      numbersBox.innerHTML = showNumbers ? numbersFieldsHtml(page.numbers) : '';
     }
     var historyBox = $('#aboutHistoryFields');
     if (historyBox) {
@@ -1620,6 +1719,18 @@
         facebook: (($('#pageForm [name="social.facebook"]') || {}).value || '').trim(),
         instagram: (($('#pageForm [name="social.instagram"]') || {}).value || '').trim(),
         tiktok: (($('#pageForm [name="social.tiktok"]') || {}).value || '').trim()
+      };
+      payload.numbers = {
+        label: (($('#pageForm [name="numbers.label"]') || {}).value || '').trim(),
+        title: (($('#pageForm [name="numbers.title"]') || {}).value || '').trim(),
+        lead: (($('#pageForm [name="numbers.lead"]') || {}).value || '').trim(),
+        stats: $$('[data-numbers-row]', $('#pageForm')).map(function (row) {
+          return {
+            value: (($('[name$=".value"]', row) || {}).value || '').trim(),
+            suffix: (($('[name$=".suffix"]', row) || {}).value || '').trim(),
+            label: (($('[name$=".label"]', row) || {}).value || '').trim()
+          };
+        }).filter(function (entry) { return entry.value || entry.label || entry.suffix; })
       };
     }
     try {
@@ -1827,6 +1938,9 @@
         : (closed
           ? '<span class="app-badge is-' + escapeHtml(outcomeKey) + '">' + escapeHtml(outcome) + '</span>'
           : '<span class="app-badge is-' + escapeHtml(status) + '">' + escapeHtml(status) + '</span>');
+      if (item.resumePending) {
+        badge += '<span class="app-badge is-cv-pending">CV pending</span>';
+      }
       var pipelineBtn = activeHire
         ? '<button class="primary-btn" type="button" data-open-pipeline="' + escapeHtml(item.id) + '"><i class="ti ti-user-search"></i> Open pipeline</button>'
         : (closed
@@ -1835,6 +1949,9 @@
       var linkedin = String(item.linkedin || '').trim();
       var hasLinkedin = /^https?:\/\//i.test(linkedin);
       var ref = item.reference || item.id.replace('application-', '').slice(0, 8).toUpperCase();
+      var resumeControl = item.resumePending
+        ? '<span class="icon-btn is-disabled" title="CV was not received" aria-disabled="true"><i class="ti ti-file-off"></i></span>'
+        : '<a class="icon-btn" href="/api/admin/applications/' + encodeURIComponent(item.id) + '/resume" title="Download CV"><i class="ti ti-download"></i></a>';
       return '<article class="application-card" data-application-id="' + escapeHtml(item.id) + '">' +
         '<div class="application-card__top">' +
         '<div class="application-card__identity">' +
@@ -1845,7 +1962,7 @@
         '</div></div>' +
         '<div class="application-card__actions">' +
         (hasLinkedin ? '<a class="icon-btn" href="' + escapeHtml(linkedin) + '" target="_blank" rel="noopener" title="LinkedIn"><i class="ti ti-brand-linkedin"></i></a>' : '') +
-        '<a class="icon-btn" href="/api/admin/applications/' + encodeURIComponent(item.id) + '/resume" title="Download CV"><i class="ti ti-download"></i></a>' +
+        resumeControl +
         pipelineBtn +
         '</div></div>' +
         '<div class="application-card__meta">' +
@@ -1864,8 +1981,9 @@
     select.disabled = true;
     try {
       var result = await api('/api/admin/applications/' + encodeURIComponent(card.dataset.applicationId), { method: 'PUT', body: JSON.stringify({ status: select.value }) });
-      state.applications = result.applications || state.applications;
+      upsertApplicationInState(result.application);
       renderApplications();
+      renderDashboard();
       toast('Application status updated.');
     } catch (error) {
       toast(error.message, true);
@@ -1878,7 +1996,7 @@
       stage: 'phone_screen',
       phoneScreen: 'pending',
       pathway: null,
-      task: { title: '', notes: '', status: 'sent', decision: 'pending' },
+      task: { title: '', notes: '', status: 'sent', decision: 'pending', reviewedBy: '', reviewedByUserId: '', score: null },
       interviews: [],
       offer: { status: 'none', declinedReason: '' },
       history: []
@@ -1889,6 +2007,26 @@
     return item && item.pipeline && typeof item.pipeline === 'object'
       ? item.pipeline
       : defaultPipelineClient();
+  }
+
+  function upsertApplicationInState(application) {
+    if (!application || !application.id) return null;
+    var list = state.applications || [];
+    var index = -1;
+    for (var i = 0; i < list.length; i += 1) {
+      if (list[i] && list[i].id === application.id) {
+        index = i;
+        break;
+      }
+    }
+    if (index === -1) {
+      state.applications = list.concat([application]);
+      return application;
+    }
+    var next = list.slice();
+    next[index] = application;
+    state.applications = next;
+    return application;
   }
 
   function pipelineStageLabel(stage) {
@@ -1998,14 +2136,14 @@
       body: JSON.stringify({
         phoneScreen: 'pending',
         pathway: null,
-        task: { title: '', notes: '', status: 'sent', decision: 'pending' },
+        task: { title: '', notes: '', status: 'sent', decision: 'pending', reviewedBy: '', reviewedByUserId: '', score: null },
         interviews: [],
         offer: { status: 'none', declinedReason: '' },
         action: 'start'
       })
     }).then(function (result) {
-      state.applications = result.applications || state.applications;
-      var updated = result.application || (state.applications || []).find(function (entry) { return entry.id === item.id; });
+      var updated = upsertApplicationInState(result.application) ||
+        (state.applications || []).find(function (entry) { return entry.id === item.id; });
       if (!updated) {
         toast('Could not start the hiring pipeline.', true);
         return;
@@ -2013,6 +2151,7 @@
       toast('Candidate added to Active Hiring Process.');
       enterPipeline(updated);
       renderApplications();
+      renderHrPortal();
       renderDashboard();
     }).catch(function (error) {
       toast(error.message || 'Could not start the hiring pipeline.', true);
@@ -2072,12 +2211,19 @@
   function isOpenInterview(entry) {
     if (!entry) return true;
     var hasScore = entry.score != null && entry.score !== '';
+    var format = interviewFormatOf(entry);
+    var hasMeetingLink = format === 'online' && !!(entry.meetingLink || '').trim();
     return !(entry.interviewer || '').trim() &&
       !(entry.interviewerUserId || '').trim() &&
       !(entry.scheduledAt || '').trim() &&
       !(entry.notes || '').trim() &&
+      !hasMeetingLink &&
       !hasScore &&
       (!entry.result || entry.result === 'pending');
+  }
+
+  function isValidMeetingLink(value) {
+    return /^https?:\/\/\S+$/i.test(String(value || '').trim());
   }
 
   function limitInterviewRounds(list) {
@@ -2113,18 +2259,26 @@
     wrap.outerHTML = addInterviewButtonHtml(ended);
   }
 
-  function interviewerOptionsHtml(selectedId) {
+  function staffPickerOptionsHtml(selectedId, emptyLabel, staleLabel) {
     var selected = String(selectedId || '');
-    var options = '<option value="">Select staff interviewer</option>' +
+    var options = '<option value="">' + escapeHtml(emptyLabel || 'Select staff') + '</option>' +
       (state.staffInterviewers || []).map(function (person) {
         return '<option value="' + escapeHtml(person.id) + '"' + (person.id === selected ? ' selected' : '') + '>' +
-          escapeHtml(person.name) + ' · ' + escapeHtml(person.email) +
+          escapeHtml(person.name || 'Staff') +
           '</option>';
       }).join('');
-    if (selected && !(state.staffInterviewers || []).some(function (person) { return person.id === selected; })) {
-      options += '<option value="' + escapeHtml(selected) + '" selected>Previous interviewer (update required)</option>';
+    if (staleLabel && selected && !(state.staffInterviewers || []).some(function (person) { return person.id === selected; })) {
+      options += '<option value="' + escapeHtml(selected) + '" selected>' + escapeHtml(staleLabel) + '</option>';
     }
     return options;
+  }
+
+  function interviewerOptionsHtml(selectedId) {
+    return staffPickerOptionsHtml(selectedId, 'Select staff interviewer', 'Previous interviewer (update required)');
+  }
+
+  function reviewerOptionsHtml(selectedId) {
+    return staffPickerOptionsHtml(selectedId, 'Select reviewer', null);
   }
 
   function interviewRowHtml(entry, index) {
@@ -2135,6 +2289,9 @@
     var typeOptions = INTERVIEW_TYPE_OPTIONS.map(function (option) {
       return '<option value="' + option + '"' + (option === typeValue ? ' selected' : '') + '>' + option + '</option>';
     }).join('') + '<option value="__custom__"' + (isCustom ? ' selected' : '') + '>Custom</option>';
+    var resultToggle = [['pending', 'Pending'], ['pass', 'Pass'], ['fail', 'Fail']].map(function (option) {
+      return '<button type="button" class="hr-result-chip is-' + option[0] + (option[0] === result ? ' is-active' : '') + '" data-set-result="' + option[0] + '">' + option[1] + '</button>';
+    }).join('');
     var resultOptions = [['pending', 'Pending'], ['pass', 'Pass'], ['fail', 'Fail']].map(function (option) {
       return '<option value="' + option[0] + '"' + (option[0] === result ? ' selected' : '') + '>' + option[1] + '</option>';
     }).join('');
@@ -2144,20 +2301,27 @@
     var formatOptions = INTERVIEW_FORMAT_OPTIONS.map(function (option) {
       return '<option value="' + option[0] + '"' + (option[0] === format ? ' selected' : '') + '>' + option[1] + '</option>';
     }).join('');
+    var meetingLink = format === 'online' ? String(entry.meetingLink || '').trim() : '';
     return '<article class="hr-interview-card" data-interview-row data-interview-id="' + escapeHtml(entry.id || '') + '" data-result="' + escapeHtml(result) + '">' +
-      '<div class="hr-interview-toolbar">' +
-      '<strong>Round ' + (index + 1) + '</strong>' +
+      '<header class="hr-interview-toolbar">' +
+      '<div class="hr-interview-round"><span>Interview</span><strong>Round ' + (index + 1) + '</strong></div>' +
+      '<div class="hr-result-toggle" role="group" aria-label="Interview result">' + resultToggle + '</div>' +
       '<select name="result" class="hr-result-select is-' + escapeHtml(result) + '" aria-label="Interview result">' + resultOptions + '</select>' +
       '<button class="icon-btn hr-interview-remove" type="button" data-remove-interview aria-label="Remove interview"><i class="ti ti-trash"></i></button>' +
-      '</div>' +
+      '</header>' +
+      '<div class="hr-interview-fields">' +
       '<div class="hr-interview-grid">' +
-      '<label><span>Stage</span><select name="interviewType">' + typeOptions + '</select></label>' +
-      '<label class="hr-custom-label' + (isCustom ? '' : ' is-hidden') + '" data-custom-label><span>Custom name</span><input name="interviewLabel" type="text" value="' + escapeHtml(isCustom ? label : '') + '" placeholder="e.g. Culture fit"></label>' +
-      '<label><span>Interview type</span><select name="interviewFormat">' + formatOptions + '</select></label>' +
-      '<label><span>Interviewer</span><select name="interviewerUserId">' + interviewerOptionsHtml(entry.interviewerUserId) + '</select></label>' +
-      '<label><span>When</span><input name="scheduledAt" type="datetime-local" value="' + escapeHtml(scheduled) + '"></label>' +
-      '<label class="hr-score-field"><span>Score <em>0–10</em></span><input name="score" type="number" min="0" max="10" step="0.5" inputmode="decimal" value="' + escapeHtml(scoreVal) + '" placeholder="e.g. 7.5"><small class="hr-score-hint">Required for Pass / Fail · half points allowed</small></label>' +
-      '<label class="hr-span-2"><span>Notes</span><textarea name="notes" rows="2" placeholder="Feedback">' + escapeHtml(entry.notes || '') + '</textarea></label>' +
+      '<label class="hr-field"><span>Stage</span><select name="interviewType">' + typeOptions + '</select></label>' +
+      '<label class="hr-field hr-custom-label' + (isCustom ? '' : ' is-hidden') + '" data-custom-label><span>Custom name</span><input name="interviewLabel" type="text" value="' + escapeHtml(isCustom ? label : '') + '" placeholder="e.g. Culture fit"></label>' +
+      '<label class="hr-field"><span>Interview type</span><select name="interviewFormat">' + formatOptions + '</select></label>' +
+      '<label class="hr-field"><span>Interviewer <em>required</em></span><select name="interviewerUserId">' + interviewerOptionsHtml(entry.interviewerUserId) + '</select></label>' +
+      '</div>' +
+      '<div class="hr-interview-grid hr-interview-grid--schedule">' +
+      '<label class="hr-field"><span>When <em>required</em></span><input name="scheduledAt" type="datetime-local" value="' + escapeHtml(scheduled) + '"></label>' +
+      '<label class="hr-field hr-score-field"><span>Score <em>0–10 · Pass/Fail</em></span><input name="score" type="number" min="0" max="10" step="0.5" inputmode="decimal" value="' + escapeHtml(scoreVal) + '" placeholder="e.g. 7.5"><small class="hr-score-hint">Needed before Pass / Fail</small></label>' +
+      '</div>' +
+      '<label class="hr-field hr-meeting-link' + (format === 'online' ? '' : ' is-hidden') + '" data-meeting-link><span>Meeting link <em>required</em></span><input name="meetingLink" type="url" maxlength="500" value="' + escapeHtml(meetingLink) + '" placeholder="https://meet.google.com/..." inputmode="url" autocomplete="off" ' + (format === 'online' ? 'required ' : '') + '><small class="hr-score-hint">Required for online rounds · shown in interview emails</small></label>' +
+      '<label class="hr-field hr-interview-notes"><span>Notes</span><textarea name="notes" rows="2" placeholder="Feedback">' + escapeHtml(entry.notes || '') + '</textarea></label>' +
       '</div></article>';
   }
 
@@ -2166,11 +2330,16 @@
     var pathway = null;
     var pathwayInput = $('input[name="pathway"]:checked', root);
     if (phoneScreen === 'accepted' && pathwayInput) pathway = pathwayInput.value;
+    var reviewedByUserId = (($('[name="taskReviewedByUserId"]', root) || {}).value || '').trim();
+    var reviewer = (state.staffInterviewers || []).find(function (person) { return person.id === reviewedByUserId; });
     var task = {
       title: (($('[name="taskTitle"]', root) || {}).value || '').trim(),
       notes: (($('[name="taskNotes"]', root) || {}).value || '').trim(),
       status: ($('[name="taskStatus"]', root) || {}).value || 'sent',
-      decision: ($('[name="taskDecision"]', root) || {}).value || 'pending'
+      decision: ($('[name="taskDecision"]', root) || {}).value || 'pending',
+      reviewedByUserId: reviewedByUserId,
+      reviewedBy: reviewer ? reviewer.name : '',
+      score: (($('[name="taskScore"]', root) || {}).value || '').trim()
     };
     var interviews = $$('[data-interview-row]', root).map(function (row) {
       var interviewerUserId = (($('[name="interviewerUserId"]', row) || {}).value || '').trim();
@@ -2179,8 +2348,10 @@
         id: row.dataset.interviewId || '',
         label: interviewLabelFromRow(row),
         format: (($('[name="interviewFormat"]', row) || {}).value || 'online').trim(),
+        meetingLink: (($('[name="meetingLink"]', row) || {}).value || '').trim(),
         interviewerUserId: interviewerUserId,
         interviewer: staff ? staff.name : '',
+        interviewerTitle: staff ? (staff.title || '') : '',
         interviewerEmail: staff ? staff.email : '',
         scheduledAt: (($('[name="scheduledAt"]', row) || {}).value || '').trim(),
         score: (($('[name="score"]', row) || {}).value || '').trim(),
@@ -2206,15 +2377,134 @@
     var list = interviews || [];
     for (var i = 0; i < list.length; i += 1) {
       var entry = list[i];
-      if (!entry.scheduledAt) continue;
-      if (entry.interviewerUserId) continue;
+      if (isOpenInterview(entry)) continue;
+      var round = 'Round ' + (i + 1);
+      var label = entry.label ? ' (' + entry.label + ')' : '';
       var row = form ? $$('[data-interview-row]', form)[i] : null;
-      var select = row ? $('[name="interviewerUserId"]', row) : null;
-      if (select) {
-        select.classList.add('is-invalid');
-        select.focus();
+      var interviewerSelect = row ? $('[name="interviewerUserId"]', row) : null;
+      var whenInput = row ? $('[name="scheduledAt"]', row) : null;
+      var formatSelect = row ? $('[name="interviewFormat"]', row) : null;
+      var meetingInput = row ? $('[name="meetingLink"]', row) : null;
+      if (interviewerSelect) interviewerSelect.classList.remove('is-invalid');
+      if (whenInput) whenInput.classList.remove('is-invalid');
+      if (formatSelect) formatSelect.classList.remove('is-invalid');
+      if (meetingInput) meetingInput.classList.remove('is-invalid');
+
+      if (!(entry.label || '').trim()) {
+        return round + ': choose an interview stage.';
       }
-      return 'Round ' + (i + 1) + ': pick a staff interviewer before scheduling.';
+      if (!(entry.format === 'online' || entry.format === 'onsite')) {
+        if (formatSelect) {
+          formatSelect.classList.add('is-invalid');
+          formatSelect.focus();
+        }
+        return round + label + ': choose Online or Onsite.';
+      }
+      if (!(entry.interviewerUserId || '').trim()) {
+        if (interviewerSelect) {
+          interviewerSelect.classList.add('is-invalid');
+          interviewerSelect.focus();
+        }
+        return round + label + ': pick an interviewer before saving this round.';
+      }
+      if (!(entry.scheduledAt || '').trim()) {
+        if (whenInput) {
+          whenInput.classList.add('is-invalid');
+          whenInput.focus();
+        }
+        return round + label + ': set the interview date and time.';
+      }
+      if (entry.format === 'online') {
+        var meetingLink = (entry.meetingLink || '').trim();
+        if (!meetingLink) {
+          if (meetingInput) {
+            meetingInput.classList.add('is-invalid');
+            meetingInput.focus();
+          }
+          return round + label + ': add a meeting link for online interviews.';
+        }
+        if (!isValidMeetingLink(meetingLink)) {
+          if (meetingInput) {
+            meetingInput.classList.add('is-invalid');
+            meetingInput.focus();
+          }
+          return round + label + ': meeting link must start with http:// or https://.';
+        }
+      }
+      if (entry.interviewerUserId && !entry.scheduledAt) {
+        return round + label + ': pick a staff interviewer before scheduling.';
+      }
+    }
+    return '';
+  }
+
+  function interviewCycleComplete(interviews) {
+    var list = interviews || [];
+    if (!list.length) return false;
+    return list.every(function (entry) {
+      return entry && (entry.result === 'pass' || entry.result === 'fail');
+    });
+  }
+
+  function validateInterviewOfferGate(payload) {
+    var offerStatus = payload && payload.offer ? payload.offer.status : 'none';
+    if (offerStatus === 'none') return '';
+    var interviews = payload.interviews || [];
+    if (!interviewCycleComplete(interviews)) {
+      return 'Finish every interview round (Pass or Fail) before choosing an offer outcome.';
+    }
+    if (offerStatus === 'sent' || offerStatus === 'joined') {
+      var hasPass = interviews.some(function (entry) { return entry && entry.result === 'pass'; });
+      if (!hasPass) return 'At least one interview round must Pass before sending or joining an offer.';
+    }
+    return '';
+  }
+
+  function validateTaskDecision(task, form) {
+    if (!task) return '';
+    var decision = task.decision || 'pending';
+    if (decision !== 'approved' && decision !== 'rejected') return '';
+    var scoreInput = form ? $('[name="taskScore"]', form) : null;
+    var statusSelect = form ? $('[name="taskStatus"]', form) : null;
+    var reviewerSelect = form ? $('[name="taskReviewedByUserId"]', form) : null;
+    if (scoreInput) scoreInput.classList.remove('is-invalid');
+    if (statusSelect) statusSelect.classList.remove('is-invalid');
+    if (reviewerSelect) reviewerSelect.classList.remove('is-invalid');
+    var reviewerId = String(task.reviewedByUserId || '').trim();
+    var reviewerName = String(task.reviewedBy || '').trim();
+    if (!reviewerId || !reviewerName) {
+      if (reviewerSelect) {
+        reviewerSelect.classList.add('is-invalid');
+        reviewerSelect.focus();
+      }
+      return 'Pick a reviewer before approving or rejecting the task.';
+    }
+    var parsed = parseInterviewScore(task.score);
+    if (decision === 'approved') {
+      if (task.status !== 'done') {
+        if (statusSelect) {
+          statusSelect.classList.add('is-invalid');
+          statusSelect.focus();
+        }
+        return 'Set task status to Done before approving.';
+      }
+      if (parsed.empty || parsed.invalid) {
+        if (scoreInput) {
+          scoreInput.classList.add('is-invalid');
+          scoreInput.focus();
+        }
+        if (parsed.step) return 'Task score must use half points (e.g. 7 or 7.5).';
+        if (parsed.invalid) return 'Task score must be a number between 0 and 10.';
+        return 'Add a task score (0–10) before approving.';
+      }
+    }
+    if (decision === 'rejected' && parsed.invalid) {
+      if (scoreInput) {
+        scoreInput.classList.add('is-invalid');
+        scoreInput.focus();
+      }
+      if (parsed.step) return 'Task score must use half points (e.g. 7 or 7.5).';
+      return 'Task score must be a number between 0 and 10.';
     }
     return '';
   }
@@ -2285,7 +2575,8 @@
     var taskDecision = (pipe.task && pipe.task.decision) || 'pending';
     var taskApproved = taskDecision === 'approved';
     var showInterviews = accepted && Boolean(pathway) && (pathway !== 'with_tasks' || taskApproved);
-    var showOffer = showInterviews;
+    var interviews = limitInterviewRounds((pipe.interviews || []).slice());
+    var showOffer = showInterviews && interviewCycleComplete(interviews);
     var steps = [
       ['phone_screen', 'Phone'],
       ['task', 'Task'],
@@ -2313,7 +2604,6 @@
       return '<option value="' + option[0] + '"' + (option[0] === phone ? ' selected' : '') + '>' + option[1] + '</option>';
     }).join('');
 
-    var interviews = limitInterviewRounds((pipe.interviews || []).slice());
     if (showInterviews && !interviews.length) {
       interviews = [{
         id: '',
@@ -2342,6 +2632,9 @@
     var stepTask = showTask ? 3 : 0;
     var stepInterview = showInterviews ? (showTask ? 4 : 3) : 0;
     var stepOffer = showOffer ? (showTask ? 5 : 4) : 0;
+    var resumeAction = item.resumePending
+      ? '<span class="secondary-btn is-disabled" title="The CV file was not received for this application." aria-disabled="true"><i class="ti ti-file-off"></i> CV not received</span>'
+      : '<a class="primary-btn" href="/api/admin/applications/' + encodeURIComponent(item.id) + '/resume"><i class="ti ti-download"></i> CV</a>';
 
     detail.innerHTML =
       '<button class="back-dashboard hr-detail-close" type="button" data-hr-back-list><i class="ti ti-x"></i> Close</button>' +
@@ -2350,12 +2643,15 @@
       '<span class="hr-detail-avatar">' + escapeHtml(applicationInitials(item.fullName)) + '</span>' +
       '<div><span class="application-role">' + escapeHtml(item.role) + '</span>' +
       '<h2>' + escapeHtml(item.fullName) + '</h2>' +
-      '<p><span class="hr-stage-pill">' + escapeHtml(pipelineStageLabel(stage)) + '</span> ' + escapeHtml(phoneScreenLabel(phone)) + '</p></div></div>' +
+      '<p><span class="hr-stage-pill">' + escapeHtml(pipelineStageLabel(stage)) + '</span> ' + escapeHtml(phoneScreenLabel(phone)) +
+      (item.resumePending ? ' <span class="app-badge is-cv-pending">CV pending</span>' : '') +
+      '</p></div></div>' +
       '<div class="hr-detail-actions"><a class="secondary-btn" href="' + escapeHtml(item.linkedin || '#') + '" target="_blank" rel="noopener"><i class="ti ti-brand-linkedin"></i> LinkedIn</a>' +
-      '<a class="primary-btn" href="/api/admin/applications/' + encodeURIComponent(item.id) + '/resume"><i class="ti ti-download"></i> CV</a>' +
+      resumeAction +
       (offerStatus === 'joined'
         ? '<button class="secondary-btn" type="button" data-start-onboarding="' + escapeHtml(item.id) + '"><i class="ti ti-user-plus"></i> Start onboarding</button>'
         : '') +
+      '<button class="danger-btn" type="button" data-delete-application="' + escapeHtml(item.id) + '"><i class="ti ti-trash"></i> Delete</button>' +
       '</div></header>' +
       '<nav class="hr-stepper" aria-label="Pipeline progress">' + stepper + '</nav>' +
       '<ul class="hr-meta">' +
@@ -2393,11 +2689,13 @@
           '<div class="hr-flow-title"><h3>Task</h3><p>Review the assignment, then approve or reject</p></div>' +
           '<div class="hr-fields-2">' +
           '<label class="hr-field"><span>Title</span><input name="taskTitle" type="text" value="' + escapeHtml((pipe.task && pipe.task.title) || '') + '" placeholder="Take-home assignment" required></label>' +
-          '<label class="hr-field"><span>Status</span><select name="taskStatus">' +
+          '<label class="hr-field"><span>Status <em>Done required to approve</em></span><select name="taskStatus">' +
           [['sent', 'Sent'], ['in_progress', 'In progress'], ['done', 'Done']].map(function (option) {
             return '<option value="' + option[0] + '"' + (option[0] === ((pipe.task && pipe.task.status) || 'sent') ? ' selected' : '') + '>' + option[1] + '</option>';
           }).join('') +
           '</select></label>' +
+          '<label class="hr-field"><span>Reviewed by <em>required to Approve</em></span><select name="taskReviewedByUserId">' + reviewerOptionsHtml(pipe.task && pipe.task.reviewedByUserId) + '</select></label>' +
+          '<label class="hr-field hr-score-field"><span>Score <em>0–10 · required to approve</em></span><input name="taskScore" type="number" min="0" max="10" step="0.5" inputmode="decimal" value="' + escapeHtml((pipe.task && pipe.task.score != null) ? pipe.task.score : '') + '" placeholder="e.g. 7.5"><small class="hr-score-hint">Required before Approve · half points allowed</small></label>' +
           '<label class="hr-field hr-span-2"><span>Notes</span><textarea name="taskNotes" rows="2" placeholder="Instructions or notes">' + escapeHtml((pipe.task && pipe.task.notes) || '') + '</textarea></label>' +
           '</div>' +
           '<input type="hidden" name="taskDecision" value="' + escapeHtml(taskDecision) + '">' +
@@ -2413,16 +2711,19 @@
         ? '<li class="hr-flow-step' + (stage === 'interview' ? ' is-current' : '') + '">' +
           '<div class="hr-flow-marker"><b>' + stepInterview + '</b></div>' +
           '<div class="hr-flow-body">' +
-          '<div class="hr-flow-title"><h3>Interviews</h3><p>Only one round at a time. Finish it, then use Add next interview.</p></div>' +
+          '<div class="hr-flow-title"><h3>Interviews</h3><p>Schedule each round with interviewer + time. Pass/Fail needs a score. Offer unlocks when every round has a result.</p></div>' +
           '<div class="hr-interview-list" data-interview-list>' + (interviewHtml || '') + '</div>' +
           addInterviewButtonHtml(canAddInterview) +
+          (showInterviews && !showOffer
+            ? '<p class="hr-decision-note">Mark every interview Pass or Fail to unlock Offer.</p>'
+            : '') +
           '</div></li>'
         : '') +
       (showOffer
         ? '<li class="hr-flow-step' + (stage === 'offer' ? ' is-current' : '') + '">' +
           '<div class="hr-flow-marker"><b>' + stepOffer + '</b></div>' +
           '<div class="hr-flow-body">' +
-          '<div class="hr-flow-title"><h3>Offer</h3></div>' +
+          '<div class="hr-flow-title"><h3>Offer</h3><p>Interview cycle complete. Choose the offer outcome.</p></div>' +
           '<div class="hr-fields-2">' +
           '<label class="hr-field"><span>Outcome</span><select name="offerStatus">' + offerOptions + '</select></label>' +
           '<label class="hr-field hr-span-2' + (offerStatus === 'declined' ? '' : ' is-hidden') + '" data-decline-wrap><span>Decline reason</span><textarea name="declinedReason" rows="2" placeholder="Required if declined">' + escapeHtml((pipe.offer && pipe.offer.declinedReason) || '') + '</textarea></label>' +
@@ -2555,21 +2856,47 @@
 
   var ANALYTICS_PAGE_SIZE = 25;
 
+  function resetInterviewLogFiltersState() {
+    state.interviewLogQuery = '';
+    state.interviewLogResult = 'all';
+    state.interviewLogRole = 'all';
+    state.interviewLogType = 'all';
+    state.interviewLogFormat = 'all';
+    state.interviewLogInterviewer = 'all';
+    state.interviewLogFrom = '';
+    state.interviewLogTo = '';
+    state.interviewLogScore = 'all';
+    state.interviewLogStatus = 'all';
+    state.interviewLogNotes = 'all';
+    state.interviewLogRounds = 'all';
+    state.interviewLogActivity = 'all';
+  }
+
+  function openInterviewHistory(applicationId) {
+    var id = String(applicationId || '').trim();
+    if (!id) return;
+    var item = (state.applications || []).find(function (entry) { return entry.id === id; });
+    if (!item) {
+      toast('Candidate not found.', true);
+      return;
+    }
+    var rounds = ((pipelineOf(item).interviews) || []).filter(interviewHasActivity);
+    if (!rounds.length) {
+      toast('No interview history for this candidate yet.', true);
+      return;
+    }
+    resetInterviewLogFiltersState();
+    state.interviewLogSelectedId = id;
+    switchView('interviewLog');
+  }
+
   function analyticsPeopleRowHtml(row, mode) {
     var item = row.item;
-    var when = mode === 'accepted'
-      ? (row.timeToHireDays == null ? '—' : row.timeToHireDays + 'd')
-      : (row.closedAt ? formatDate(row.closedAt.toISOString(), true) : '—');
-    var onboardingBtn = mode === 'accepted'
-      ? '<button class="text-btn" type="button" data-start-onboarding="' + escapeHtml(item.id) + '"><i class="ti ti-user-plus"></i> Onboard</button>'
-      : '';
     return '<tr>' +
       '<td><div class="hr-table-person"><span class="application-avatar">' + escapeHtml(applicationInitials(item.fullName)) + '</span><div><strong>' + escapeHtml(item.fullName) + '</strong><small>' + escapeHtml(item.email || '') + '</small></div></div></td>' +
       '<td>' + escapeHtml(item.role || '—') + '</td>' +
       '<td><span class="pipeline-chip' + (row.outcome === 'rejected' ? ' is-closed' : '') + '">' + escapeHtml(pipelineOutcomeLabel(item)) + '</span></td>' +
-      '<td>' + row.interviews + '</td>' +
-      '<td>' + escapeHtml(String(when)) + '</td>' +
-      '<td>' + onboardingBtn + '</td>' +
+      '<td class="hr-table-action"><button class="text-btn" type="button" data-open-interview-log="' + escapeHtml(item.id) + '"><i class="ti ti-notebook"></i> History</button></td>' +
       '</tr>';
   }
 
@@ -2588,8 +2915,8 @@
     var slice = rows.slice(0, visible);
     list.innerHTML =
       '<div class="analytics-scroll" data-analytics-scroll="' + escapeHtml(mode) + '">' +
-      '<table class="hr-table analytics-table"><thead><tr>' +
-      '<th>Candidate</th><th>Role</th><th>Outcome</th><th>Interviews</th><th>' + (mode === 'accepted' ? 'Time to hire' : 'Closed') + '</th><th></th>' +
+      '<table class="hr-table analytics-table analytics-table--people"><thead><tr>' +
+      '<th>Candidate</th><th>Role</th><th>Outcome</th><th>History</th>' +
       '</tr></thead><tbody data-analytics-body="' + escapeHtml(mode) + '">' +
       slice.map(function (row) { return analyticsPeopleRowHtml(row, mode); }).join('') +
       '</tbody></table></div>' +
@@ -2643,30 +2970,47 @@
     jobs.forEach(function (job) {
       if (job.status === 'published') return;
       var slug = pathBasename(job.href || '');
-      var key = slug || job.title || job.id;
-      if (!byRole[key]) {
-        byRole[key] = {
-          key: key,
-          title: job.title || key,
-          interviews: 0,
-          hired: 0,
-          rejected: 0,
-          hireDays: [],
-          unpublished: true
-        };
-      } else {
-        byRole[key].unpublished = true;
-        byRole[key].title = job.title || byRole[key].title;
+      var title = job.title || '';
+      var matchedKey = '';
+      Object.keys(byRole).some(function (key) {
+        if (key === slug || key === title || byRole[key].title === title) {
+          matchedKey = key;
+          return true;
+        }
+        return false;
+      });
+      if (job.status === 'ended') {
+        var key = matchedKey || slug || title || job.id;
+        if (!byRole[key]) {
+          byRole[key] = {
+            key: key,
+            title: title || key,
+            interviews: 0,
+            hired: 0,
+            rejected: 0,
+            hireDays: [],
+            ended: true
+          };
+        } else {
+          byRole[key].ended = true;
+          byRole[key].title = title || byRole[key].title;
+        }
+        return;
+      }
+      // Legacy end-vacancy used status "draft" — mark matching hiring rows as ended.
+      if (matchedKey) {
+        byRole[matchedKey].ended = true;
+        if (title) byRole[matchedKey].title = title;
       }
     });
 
     return Object.keys(byRole).map(function (key) { return byRole[key]; }).filter(function (entry) {
-      return entry.hired > 0 || entry.rejected > 0 || entry.unpublished;
+      return entry.hired > 0 || entry.rejected > 0 || entry.ended;
     }).map(function (entry) {
-      var avg = entry.hireDays.length
-        ? Math.round(entry.hireDays.reduce(function (sum, value) { return sum + value; }, 0) / entry.hireDays.length)
+      var timeToHire = entry.hireDays.length
+        ? entry.hireDays.map(function (days) { return days + 'd'; }).join(' · ')
         : null;
-      return Object.assign({}, entry, { avgTimeToHire: avg });
+      return Object.assign({}, entry, { timeToHire: timeToHire });
     }).sort(function (a, b) { return String(a.title).localeCompare(String(b.title)); });
   }
 
@@ -3138,6 +3482,9 @@
       '<div><span>Interviewer</span><strong>' + escapeHtml(entry.interviewer || '—') + '</strong></div>' +
       '<div><span>When</span><strong>' + escapeHtml(whenLabel) + '</strong></div>' +
       '<div><span>Score</span>' + interviewScoreBadge(entry.score) + '</div>' +
+      (interviewFormatOf(entry) === 'online' && entry.meetingLink
+        ? '<div class="ilog-round__link"><span>Meeting link</span><strong><a href="' + escapeHtml(entry.meetingLink) + '" target="_blank" rel="noopener">' + escapeHtml(entry.meetingLink) + '</a></strong></div>'
+        : '') +
       '</div>' +
       '<div class="ilog-round__notes">' +
       '<span>Notes</span>' +
@@ -3262,15 +3609,15 @@
     if (vacancyList) {
       vacancyList.classList.toggle('is-hidden', !hasVacancies);
       vacancyList.innerHTML = hasVacancies
-        ? '<table class="hr-table analytics-table"><thead><tr><th>Vacancy</th><th>Status</th><th>Hired</th><th>Rejected</th><th>Interviews</th><th>Avg. time to hire</th></tr></thead><tbody>' +
+        ? '<table class="hr-table analytics-table analytics-table--vacancies"><thead><tr><th>Vacancy</th><th>Status</th><th>Hired</th><th>Rejected</th><th>Interviews</th><th>Time to hire</th></tr></thead><tbody>' +
           vacancies.map(function (entry) {
             return '<tr>' +
               '<td><strong>' + escapeHtml(entry.title) + '</strong></td>' +
-              '<td>' + (entry.unpublished ? 'Unpublished' : (entry.hired ? 'Hired' : 'Closed')) + '</td>' +
+              '<td>' + (entry.ended ? 'Ended' : (entry.hired ? 'Hired' : 'Closed')) + '</td>' +
               '<td>' + entry.hired + '</td>' +
               '<td>' + entry.rejected + '</td>' +
               '<td>' + entry.interviews + '</td>' +
-              '<td>' + (entry.avgTimeToHire == null ? '—' : entry.avgTimeToHire + 'd') + '</td>' +
+              '<td>' + (entry.timeToHire ? escapeHtml(entry.timeToHire) : '—') + '</td>' +
               '</tr>';
           }).join('') +
           '</tbody></table>'
@@ -3358,6 +3705,24 @@
       toast('Add a task title for the tasks pathway.', true);
       return;
     }
+    var taskScoreInput = $('[name="taskScore"]', form);
+    if (taskScoreInput) taskScoreInput.classList.remove('is-invalid');
+    var taskScoreParsed = parseInterviewScore(payload.task && payload.task.score);
+    if (taskScoreParsed.invalid) {
+      if (taskScoreInput) {
+        taskScoreInput.classList.add('is-invalid');
+        taskScoreInput.focus();
+      }
+      toast(taskScoreParsed.step
+        ? 'Task score must use half points (e.g. 7 or 7.5).'
+        : 'Task score must be a number between 0 and 10.', true);
+      return;
+    }
+    var taskDecisionError = validateTaskDecision(payload.task, form);
+    if (taskDecisionError) {
+      toast(taskDecisionError, true);
+      return;
+    }
     var interviewScoreError = validateInterviewScores(payload.interviews, form);
     if (interviewScoreError) {
       toast(interviewScoreError, true);
@@ -3366,6 +3731,11 @@
     var interviewScheduleError = validateInterviewSchedule(payload.interviews, form);
     if (interviewScheduleError) {
       toast(interviewScheduleError, true);
+      return;
+    }
+    var interviewOfferError = validateInterviewOfferGate(payload);
+    if (interviewOfferError) {
+      toast(interviewOfferError, true);
       return;
     }
     if (payload.offer.status === 'declined' && !payload.offer.declinedReason) {
@@ -3378,9 +3748,10 @@
         method: 'PUT',
         body: JSON.stringify({ pipeline: payload })
       });
-      state.applications = result.applications || state.applications;
+      upsertApplicationInState(result.application);
       renderHrPortal();
       renderApplications();
+      renderDashboard();
       if (payload.offer && payload.offer.status === 'joined') {
         if (canUseOnboarding()) {
           await loadOnboarding();
@@ -3397,9 +3768,16 @@
       } else {
         var mailInfo = result.mail || {};
         var notices = mailInfo.scheduleNotices || [];
-        var sentNotice = notices.find(function (entry) { return entry.sent; });
-        if (sentNotice) {
-          toast('Interview email sent to ' + (sentNotice.interviewer || 'interviewer') + '.');
+        var sentLabels = [];
+        notices.forEach(function (notice) {
+          (notice.sides || []).forEach(function (side) {
+            if (!side || !side.sent) return;
+            if (side.side === 'candidate') sentLabels.push('candidate');
+            else sentLabels.push(notice.interviewer || 'interviewer');
+          });
+        });
+        if (sentLabels.length) {
+          toast('Interview email sent to ' + sentLabels.join(' and ') + '.');
         } else if (mailInfo.failed) {
           toast('Pipeline saved, but the interview email failed to send.', true);
         } else if (mailInfo.skipped && notices.length) {
@@ -3769,6 +4147,140 @@
     reader.readAsDataURL(file);
   }
 
+  function renderInterviewers() {
+    if (!isHr()) return;
+    var list = (state.managedInterviewers || []).slice().sort(function (a, b) {
+      var aAccount = a.readOnly || a.source === 'account' ? 0 : 1;
+      var bAccount = b.readOnly || b.source === 'account' ? 0 : 1;
+      if (aAccount !== bAccount) return aAccount - bAccount;
+      return String(a.name || '').localeCompare(String(b.name || ''));
+    });
+    var activeCount = list.filter(function (entry) { return entry.active; }).length;
+    setText('#interviewersTotal', list.length);
+    setText('#interviewersActive', activeCount);
+    setText('#interviewersDisabled', list.length - activeCount);
+    $$('[data-interviewer-count]').forEach(function (node) { node.textContent = list.length; });
+    var empty = $('#interviewersEmpty');
+    var listNode = $('#interviewersList');
+    if (!listNode) return;
+    if (empty) empty.classList.toggle('is-hidden', list.length > 0);
+    listNode.classList.toggle('is-hidden', list.length === 0);
+    listNode.innerHTML = list.map(function (entry) {
+      var readOnly = Boolean(entry.readOnly || entry.source === 'account');
+      var meta = entry.title
+        ? escapeHtml(entry.title) + ' · ' + escapeHtml(entry.email || '—')
+        : escapeHtml(entry.email || '—');
+      var note = readOnly
+        ? '<p class="interviewer-account-note">From HR account — edit name, email, or title in user settings.</p>'
+        : '';
+      var actions = readOnly
+        ? '<div class="user-actions"><span class="interviewer-readonly-badge">Account</span></div>'
+        : '<div class="user-actions">' +
+          '<button class="card-action" type="button" data-interviewer-action="edit" title="Edit interviewer"><i class="ti ti-pencil"></i></button>' +
+          '<button class="card-action is-danger" type="button" data-interviewer-action="delete" title="Delete interviewer"><i class="ti ti-trash"></i></button>' +
+          '</div>';
+      return '<article class="interviewer-row' + (readOnly ? ' is-account' : '') + '" data-interviewer-id="' + escapeHtml(entry.id) + '" data-readonly="' + (readOnly ? '1' : '0') + '">' +
+        '<div class="user-identity">' +
+        '<span class="account-avatar is-hr">' + escapeHtml(accountInitials({ name: entry.name })) + '</span>' +
+        '<div><strong>' + escapeHtml(entry.name || 'Interviewer') + '</strong><small>' + meta + '</small>' + note + '</div>' +
+        '</div>' +
+        '<div class="user-status-cell"><span class="account-status' + (entry.active ? '' : ' is-disabled') + '">' + (entry.active ? 'Active' : 'Disabled') + '</span></div>' +
+        actions +
+        '</article>';
+    }).join('');
+  }
+
+  function openInterviewerModal(entry) {
+    if (entry && (entry.readOnly || entry.source === 'account')) {
+      toast('This interviewer comes from an HR account. Update their details in user settings.', true);
+      return;
+    }
+    state.editingInterviewerId = entry && entry.id ? entry.id : null;
+    var form = $('#interviewerForm');
+    if (!form) return;
+    form.reset();
+    var nameInput = form.elements.namedItem('name');
+    var titleInput = form.elements.namedItem('jobTitle');
+    var emailInput = form.elements.namedItem('email');
+    var activeInput = form.elements.namedItem('active');
+    if (nameInput) nameInput.value = entry && entry.name ? entry.name : '';
+    if (titleInput) titleInput.value = entry && entry.title ? entry.title : '';
+    if (emailInput) emailInput.value = entry && entry.email ? entry.email : '';
+    if (activeInput) activeInput.checked = !entry || entry.active !== false;
+    $('#interviewerModalKicker').textContent = state.editingInterviewerId ? 'EDIT INTERVIEWER' : 'NEW INTERVIEWER';
+    $('#interviewerModalTitle').textContent = state.editingInterviewerId ? 'Edit interviewer' : 'Add interviewer';
+    $('#interviewerModalSubtitle').textContent = state.editingInterviewerId
+      ? 'Update the name, title, or email used for interview scheduling.'
+      : 'Name, title, and email are used when scheduling interviews and sending invites.';
+    $('#interviewerModalBackdrop').classList.add('is-open');
+    setTimeout(function () { if (nameInput) nameInput.focus(); }, 40);
+  }
+
+  function closeInterviewerModal() {
+    state.editingInterviewerId = null;
+    var backdrop = $('#interviewerModalBackdrop');
+    if (backdrop) backdrop.classList.remove('is-open');
+  }
+
+  async function saveInterviewer(event) {
+    event.preventDefault();
+    var form = $('#interviewerForm');
+    if (!form) return;
+    var button = $('button[type="submit"]', form);
+    var nameInput = form.elements.namedItem('name');
+    var titleInput = form.elements.namedItem('jobTitle');
+    var emailInput = form.elements.namedItem('email');
+    var activeInput = form.elements.namedItem('active');
+    var payload = {
+      name: nameInput ? nameInput.value.trim() : '',
+      title: titleInput ? titleInput.value.trim() : '',
+      email: emailInput ? emailInput.value.trim() : '',
+      active: activeInput ? activeInput.checked : true
+    };
+    if (!payload.name || !payload.email) {
+      toast('Name and email are required.', true);
+      return;
+    }
+    try {
+      if (button) button.disabled = true;
+      var result;
+      if (state.editingInterviewerId) {
+        result = await api('/api/admin/interviewers/' + encodeURIComponent(state.editingInterviewerId), {
+          method: 'PUT',
+          body: JSON.stringify(payload)
+        });
+      } else {
+        result = await api('/api/admin/interviewers', {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
+      }
+      state.managedInterviewers = result.interviewers || state.managedInterviewers;
+      await loadStaffInterviewers();
+      renderInterviewers();
+      var wasEdit = Boolean(state.editingInterviewerId);
+      closeInterviewerModal();
+      toast(wasEdit ? 'Interviewer updated.' : 'Interviewer added.');
+    } catch (error) {
+      toast(error.message || 'Could not save interviewer.', true);
+    } finally {
+      if (button) button.disabled = false;
+    }
+  }
+
+  function askInterviewerDelete(id) {
+    var entry = (state.managedInterviewers || []).find(function (item) { return item.id === id; });
+    if (!entry) return;
+    if (entry.readOnly || entry.source === 'account') {
+      toast('This interviewer comes from an HR account and cannot be removed here.', true);
+      return;
+    }
+    state.pendingDelete = { kind: 'interviewer', id: id, name: entry.name || 'this interviewer' };
+    $('#confirmTitle').textContent = 'Delete this interviewer?';
+    $('#confirmText').textContent = 'Remove ' + (entry.name || 'this interviewer') + ' from the directory. Existing pipeline history keeps their name.';
+    $('#modalBackdrop').classList.add('is-open');
+  }
+
   function renderUsers() {
     if (!isAdmin()) return;
     var managedUsers = state.users.filter(function (user) { return user.role === 'hr' || user.role === 'marketing'; });
@@ -3813,7 +4325,7 @@
         '<span class="role-pill' + (managed ? (marketing ? ' is-marketing' : ' is-hr') : '') + '"><i class="ti ' + roleIcon + '"></i>' + escapeHtml(user.role) + '</span>' +
         '<div class="user-access"><strong>' + accessTitle + '</strong><small>' + accessCopy + '</small></div>' +
         '<div class="user-last-login"><small>Last login</small><strong>' + escapeHtml(user.lastLoginAt ? relativeTime(user.lastLoginAt) : 'Never') + '</strong></div>' +
-        '<div>' + status + '</div>' + actions + '</article>';
+        '<div class="user-status-cell">' + status + '</div>' + actions + '</article>';
     }).join('');
   }
 
@@ -4297,6 +4809,13 @@
       if ($('#analyticsOutcomeFilter')) $('#analyticsOutcomeFilter').value = 'all';
       renderHrAnalytics();
     });
+    $('#hrAnalyticsView').addEventListener('click', function (event) {
+      var historyBtn = event.target.closest('[data-open-interview-log]');
+      if (historyBtn) {
+        event.preventDefault();
+        openInterviewHistory(historyBtn.dataset.openInterviewLog);
+      }
+    });
     $('#hrAnalyticsView').addEventListener('scroll', function (event) {
       var scroller = event.target.closest('[data-analytics-scroll]');
       if (!scroller || !scroller.dataset.analyticsScroll) return;
@@ -4343,6 +4862,12 @@
         renderHrPortal();
         return;
       }
+      var deleteAppBtn = event.target.closest('[data-delete-application]');
+      if (deleteAppBtn) {
+        event.preventDefault();
+        askDeleteApplication(deleteAppBtn.dataset.deleteApplication);
+        return;
+      }
       var taskDecisionBtn = event.target.closest('[data-task-decision]');
       if (taskDecisionBtn) {
         event.preventDefault();
@@ -4350,12 +4875,25 @@
         if (!decisionForm || !state.hrSelectedId) return;
         var decisionItem = (state.applications || []).find(function (entry) { return entry.id === state.hrSelectedId; });
         if (!decisionItem) return;
-        var decisionInput = $('[name="taskDecision"]', decisionForm);
-        if (decisionInput) decisionInput.value = taskDecisionBtn.dataset.taskDecision || 'pending';
-        if (taskDecisionBtn.dataset.taskDecision === 'approved') {
-          var statusSelect = $('[name="taskStatus"]', decisionForm);
-          if (statusSelect) statusSelect.value = 'done';
+        var proposedDecision = taskDecisionBtn.dataset.taskDecision || 'pending';
+        var previewReviewerId = (($('[name="taskReviewedByUserId"]', decisionForm) || {}).value || '').trim();
+        var previewReviewer = (state.staffInterviewers || []).find(function (person) { return person.id === previewReviewerId; });
+        var previewTask = {
+          title: (($('[name="taskTitle"]', decisionForm) || {}).value || '').trim(),
+          notes: (($('[name="taskNotes"]', decisionForm) || {}).value || '').trim(),
+          status: ($('[name="taskStatus"]', decisionForm) || {}).value || 'sent',
+          decision: proposedDecision,
+          reviewedByUserId: previewReviewerId,
+          reviewedBy: previewReviewer ? previewReviewer.name : '',
+          score: (($('[name="taskScore"]', decisionForm) || {}).value || '').trim()
+        };
+        var taskGateError = validateTaskDecision(previewTask, decisionForm);
+        if (taskGateError) {
+          toast(taskGateError, true);
+          return;
         }
+        var decisionInput = $('[name="taskDecision"]', decisionForm);
+        if (decisionInput) decisionInput.value = proposedDecision;
         var decisionCurrent = pipelineOf(decisionItem);
         var decisionNext = collectPipelineFromForm(decisionForm);
         if (!(decisionNext.interviews && decisionNext.interviews.length) && decisionCurrent.interviews && decisionCurrent.interviews.length && decisionNext.task.decision !== 'rejected') {
@@ -4367,6 +4905,19 @@
             stage: decisionNext.task.decision === 'rejected' ? 'closed' : (decisionNext.task.decision === 'approved' ? 'interview' : 'task')
           })
         }));
+        return;
+      }
+      var setResultBtn = event.target.closest('[data-set-result]');
+      if (setResultBtn) {
+        event.preventDefault();
+        var resultCard = setResultBtn.closest('[data-interview-row]');
+        if (!resultCard) return;
+        var nextResult = setResultBtn.dataset.setResult || 'pending';
+        var resultSelect = $('[name="result"]', resultCard);
+        if (resultSelect) {
+          resultSelect.value = nextResult;
+          resultSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        }
         return;
       }
       var addInterview = event.target.closest('[data-add-interview]');
@@ -4431,11 +4982,27 @@
         if (customWrap) customWrap.classList.toggle('is-hidden', event.target.value !== '__custom__');
         return;
       }
+      if (event.target.matches('[name="interviewFormat"]')) {
+        var formatRow = event.target.closest('[data-interview-row]');
+        var meetingWrap = formatRow && $('[data-meeting-link]', formatRow);
+        var meetingInput = meetingWrap && $('[name="meetingLink"]', meetingWrap);
+        var isOnline = event.target.value === 'online';
+        if (meetingWrap) meetingWrap.classList.toggle('is-hidden', !isOnline);
+        if (meetingInput) {
+          meetingInput.required = isOnline;
+          meetingInput.classList.remove('is-invalid');
+          if (!isOnline) meetingInput.value = '';
+        }
+        return;
+      }
       if (event.target.matches('[name="result"]')) {
         var resultRow = event.target.closest('[data-interview-row]');
         if (resultRow) {
           resultRow.dataset.result = event.target.value;
           event.target.className = 'hr-result-select is-' + event.target.value;
+          $$('[data-set-result]', resultRow).forEach(function (chip) {
+            chip.classList.toggle('is-active', chip.dataset.setResult === event.target.value);
+          });
           var scoreInput = $('[name="score"]', resultRow);
           if ((event.target.value === 'pass' || event.target.value === 'fail') && scoreInput && !String(scoreInput.value || '').trim()) {
             scoreInput.classList.add('is-invalid');
@@ -4626,10 +5193,34 @@
         list.appendChild(row);
         return;
       }
+      if (event.target.closest('[data-add-numbers]')) {
+        var numbersList = $('[data-numbers-list]', $('#pageForm'));
+        if (!numbersList) return;
+        var numbersIndex = $$('[data-numbers-row]', numbersList).length;
+        if (numbersIndex >= 6) return toast('Maximum 6 stats.', true);
+        var numbersRow = document.createElement('div');
+        numbersRow.className = 'repeatable-row';
+        numbersRow.dataset.numbersRow = '';
+        numbersRow.innerHTML = '<strong style="display:block;margin-bottom:10px;font-size:11px;color:#8eb4d0">' + String(numbersIndex + 1).padStart(2, '0') + ' · Stat</strong>' +
+          '<div style="display:grid;grid-template-columns:120px 90px minmax(0,1fr);gap:8px">' +
+          '<input name="numbers.stats[' + numbersIndex + '].value" inputmode="numeric" placeholder="Value" value="" style="direction:ltr;text-align:left">' +
+          '<input name="numbers.stats[' + numbersIndex + '].suffix" placeholder="Suffix" value="" style="direction:ltr;text-align:left" maxlength="4">' +
+          '<input name="numbers.stats[' + numbersIndex + '].label" placeholder="Label under the number" value="">' +
+          '</div>' +
+          '<button type="button" class="card-action is-danger" data-remove-numbers-row style="margin-top:10px">Remove</button>';
+        numbersList.appendChild(numbersRow);
+        return;
+      }
       var removeRow = event.target.closest('[data-remove-history-row]');
       if (removeRow) {
         var historyRow = removeRow.closest('[data-history-row]');
         if (historyRow && $$('[data-history-row]', $('#pageForm')).length > 1) historyRow.remove();
+        return;
+      }
+      var removeNumbersRow = event.target.closest('[data-remove-numbers-row]');
+      if (removeNumbersRow) {
+        var numbersItem = removeNumbersRow.closest('[data-numbers-row]');
+        if (numbersItem && $$('[data-numbers-row]', $('#pageForm')).length > 1) numbersItem.remove();
       }
     });
     $('#previewPageBtn').addEventListener('click', function () { window.open(pageInfo[state.currentPage].url, '_blank', 'noopener'); });
@@ -4640,6 +5231,34 @@
     var addMarketingBtn = $('#addMarketingUserBtn');
     if (addMarketingBtn) {
       addMarketingBtn.addEventListener('click', function () { openUserModal(null, 'marketing'); });
+    }
+    var addInterviewerBtn = $('#addInterviewerBtn');
+    if (addInterviewerBtn) addInterviewerBtn.addEventListener('click', function () { openInterviewerModal(null); });
+    var addInterviewerEmptyBtn = $('#addInterviewerEmptyBtn');
+    if (addInterviewerEmptyBtn) addInterviewerEmptyBtn.addEventListener('click', function () { openInterviewerModal(null); });
+    var interviewersList = $('#interviewersList');
+    if (interviewersList) {
+      interviewersList.addEventListener('click', function (event) {
+        var button = event.target.closest('[data-interviewer-action]');
+        if (!button) return;
+        var row = button.closest('[data-interviewer-id]');
+        if (!row) return;
+        var entry = (state.managedInterviewers || []).find(function (item) { return item.id === row.dataset.interviewerId; });
+        if (button.dataset.interviewerAction === 'edit') openInterviewerModal(entry || { id: row.dataset.interviewerId });
+        if (button.dataset.interviewerAction === 'delete') askInterviewerDelete(row.dataset.interviewerId);
+      });
+    }
+    var interviewerForm = $('#interviewerForm');
+    if (interviewerForm) interviewerForm.addEventListener('submit', saveInterviewer);
+    var closeInterviewerModalBtn = $('#closeInterviewerModalBtn');
+    if (closeInterviewerModalBtn) closeInterviewerModalBtn.addEventListener('click', closeInterviewerModal);
+    var cancelInterviewerModalBtn = $('#cancelInterviewerModalBtn');
+    if (cancelInterviewerModalBtn) cancelInterviewerModalBtn.addEventListener('click', closeInterviewerModal);
+    var interviewerModalBackdrop = $('#interviewerModalBackdrop');
+    if (interviewerModalBackdrop) {
+      interviewerModalBackdrop.addEventListener('click', function (event) {
+        if (event.target === this) closeInterviewerModal();
+      });
     }
     $('#usersList').addEventListener('click', function (event) {
       var button = event.target.closest('[data-user-action]'); if (!button) return;

@@ -1,5 +1,7 @@
 'use strict';
 
+require('dotenv').config();
+
 process.env.TZ = process.env.TZ || process.env.MAIL_TZ || 'Africa/Cairo';
 
 const http = require('http');
@@ -20,14 +22,10 @@ if (!ADMIN_PASSWORD) {
   process.exit(1);
 }
 const DATA_FILE = path.join(ROOT, 'content', 'admin-content.json');
-const USERS_FILE = path.join(ROOT, 'content', 'admin-users.json');
 const PUBLIC_JSON_FILE = path.join(ROOT, 'content', 'site-content.json');
 const PUBLIC_JS_FILE = path.join(ROOT, 'content', 'site-content.js');
 const UPLOAD_DIR = path.join(ROOT, 'assets', 'uploads');
-const APPLICATIONS_FILE = path.join(ROOT, 'content', 'job-applications.json');
-const APPLICATION_FILES_DIR = path.join(ROOT, 'content', 'application-files');
 const CONTACT_REQUESTS_FILE = path.join(ROOT, 'content', 'contact-requests.json');
-const ONBOARDING_FILE = path.join(ROOT, 'content', 'onboarding-requests.json');
 const CONTENT_DIR = path.resolve(path.join(ROOT, 'content'));
 /** Compare paths in a filesystem-aware way (case-insensitive on Windows). */
 function pathKey(absPath) {
@@ -79,6 +77,7 @@ const serviceMethodology = require('./scripts/service-methodology');
 const aboutHistory = require('./scripts/about-history');
 const siteSocial = require('./scripts/site-social');
 const mail = require('./lib/mail');
+const hiringDb = require('./lib/hiring-db');
 
 const fields = {
   services: ['title', 'summary', 'href', 'icon', 'visual', 'suiteScenes', 'methodology', 'status', 'featured', 'order'],
@@ -133,36 +132,27 @@ function readData() {
   return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
 }
 
-function readUsers() {
-  return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
+async function readUsers() {
+  return hiringDb.readAdminUsersStore();
 }
 
-function writeUsers(data) {
-  const temp = `${USERS_FILE}.tmp`;
-  data.updatedAt = new Date().toISOString();
-  fs.writeFileSync(temp, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
-  fs.copyFileSync(temp, USERS_FILE);
-  fs.unlinkSync(temp);
+async function writeUsers(data) {
+  return hiringDb.writeAdminUsersStore(data);
 }
 
-function mutateUsers(mutator) {
-  const users = readUsers();
+async function mutateUsers(mutator) {
+  const users = await readUsers();
   const result = mutator(users);
-  writeUsers(users);
+  await writeUsers(users);
   return result === undefined ? users : result;
 }
 
-function readApplications() {
-  if (!fs.existsSync(APPLICATIONS_FILE)) return { version: 1, updatedAt: null, applications: [] };
-  return JSON.parse(fs.readFileSync(APPLICATIONS_FILE, 'utf8'));
+async function readApplications() {
+  return hiringDb.readApplicationsStore();
 }
 
-function writeApplications(data) {
-  const temp = `${APPLICATIONS_FILE}.tmp`;
-  data.updatedAt = new Date().toISOString();
-  fs.writeFileSync(temp, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
-  fs.copyFileSync(temp, APPLICATIONS_FILE);
-  fs.unlinkSync(temp);
+async function writeApplications(data, options) {
+  return hiringDb.writeApplicationsStore(data, options);
 }
 
 const DEFAULT_INTERVIEW_STAGES = ['HR', 'Tech', 'CEO', 'CTO', 'Marketing', 'Sales', 'AI & Data'];
@@ -189,11 +179,23 @@ function defaultPipeline() {
     stage: 'phone_screen',
     phoneScreen: 'pending',
     pathway: null,
-    task: { title: '', notes: '', status: 'sent', decision: 'pending' },
+    task: { title: '', notes: '', status: 'sent', decision: 'pending', reviewedBy: '', reviewedByUserId: '', score: null },
     interviews: [],
     offer: { status: 'none', declinedReason: '' },
     history: [],
   };
+}
+
+function normalizeHalfPointScore(value, label) {
+  if (value === '' || value == null) return null;
+  const num = Number(value);
+  if (!Number.isFinite(num) || num < 0 || num > 10) {
+    throw Object.assign(new Error(`${label} must be between 0 and 10.`), { status: 422 });
+  }
+  if (Math.round(num * 2) !== num * 2) {
+    throw Object.assign(new Error(`${label} must use half-point steps (e.g. 7 or 7.5).`), { status: 422 });
+  }
+  return Math.round(num * 10) / 10;
 }
 
 function jobStagesForApplication(application) {
@@ -212,75 +214,167 @@ function jobStagesForApplication(application) {
   }
 }
 
-function findStaffInterviewer(userId) {
+async function findStaffInterviewer(userId) {
   const id = text(userId, 80);
   if (!id) return null;
   try {
-    const users = readUsers();
-    const account = (users.users || []).find((user) => user.id === id && user.active !== false);
-    if (!account) return null;
-    if (account.role !== 'hr' && account.role !== 'admin') return null;
-    const email = text(account.email, 160).toLowerCase();
+    const person = await hiringDb.resolveStaffInterviewerById(id);
+    if (!person || !person.active) return null;
+    const email = text(person.email, 160).toLowerCase();
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return null;
     return {
-      id: account.id,
-      name: text(account.name || account.username, 120) || account.username,
+      id: person.id,
+      name: text(person.name, 120) || email,
+      title: text(person.title, 120),
       email,
+      source: person.source || 'manual',
+      readOnly: Boolean(person.readOnly),
     };
   } catch (_) {
     return null;
   }
 }
 
-function listStaffInterviewers() {
+/** Contact lookup for already-scheduled rounds — ignores active so deactivated interviewers still get mail. */
+async function resolveInterviewerContactById(userId) {
+  const id = text(userId, 80);
+  if (!id) return null;
   try {
-    const users = readUsers();
-    return (users.users || [])
-      .filter((user) => user.active !== false && (user.role === 'hr' || user.role === 'admin'))
-      .map((user) => {
-        const email = text(user.email, 160).toLowerCase();
-        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return null;
-        return {
-          id: user.id,
-          name: text(user.name || user.username, 120) || user.username,
-          email,
-          role: user.role,
-        };
-      })
-      .filter(Boolean)
+    const person = await hiringDb.resolveStaffInterviewerById(id);
+    if (!person) return null;
+    const email = text(person.email, 160).toLowerCase();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return null;
+    return {
+      id: person.id,
+      name: text(person.name, 120) || email,
+      title: text(person.title, 120),
+      email,
+      active: Boolean(person.active),
+      source: person.source || 'manual',
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
+ * Enrich a round for mail.
+ * Resolution order for interviewer email:
+ *   1) stored email on the round (preferred — snapshot from when it was scheduled)
+ *   2) active staff via findStaffInterviewer
+ *   3) any-status contact via resolveInterviewerContactById (inactive fallback)
+ */
+async function enrichInterviewRoundForMail(round) {
+  const next = Object.assign({}, round || {});
+  const storedEmail = String(next.interviewerEmail || '').trim();
+  const userId = text(next.interviewerUserId, 80);
+  if (!userId) {
+    next.interviewerEmail = storedEmail;
+    return next;
+  }
+
+  const activeStaff = await findStaffInterviewer(userId);
+  if (activeStaff) {
+    next.interviewer = activeStaff.name || next.interviewer;
+    next.interviewerTitle = activeStaff.title || next.interviewerTitle || '';
+  }
+
+  if (storedEmail) {
+    next.interviewerEmail = storedEmail;
+    return next;
+  }
+
+  const contact = activeStaff || await resolveInterviewerContactById(userId);
+  if (contact) {
+    next.interviewerEmail = contact.email;
+    if (!String(next.interviewer || '').trim()) next.interviewer = contact.name;
+    if (!String(next.interviewerTitle || '').trim()) next.interviewerTitle = contact.title || '';
+  } else {
+    next.interviewerEmail = '';
+  }
+  return next;
+}
+
+function logInterviewerEmailUnresolved(applicationId, interviewId) {
+  console.warn(
+    `[mail] Interviewer email unresolved; skipping interviewer send (applicationId=${applicationId || ''}, interviewId=${interviewId || ''})`,
+  );
+}
+
+async function listStaffInterviewers() {
+  try {
+    return (await hiringDb.listMergedInterviewersStore({ activeOnly: true }))
+      .map((person) => ({
+        id: person.id,
+        name: text(person.name, 120) || person.email,
+        title: text(person.title, 120),
+        email: text(person.email, 160).toLowerCase(),
+        source: person.source || 'manual',
+        readOnly: Boolean(person.readOnly),
+      }))
+      .filter((person) => person.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(person.email))
       .sort((a, b) => String(a.name).localeCompare(String(b.name)));
   } catch (_) {
     return [];
   }
 }
 
-function normalizeInterviewEntry(entry, index, fallbackLabel = '') {
+async function normalizeInterviewEntry(entry, index, fallbackLabel = '') {
   const label = text(entry && entry.label, 40) || text(fallbackLabel, 40) || `Stage ${index + 1}`;
   const result = INTERVIEW_RESULTS.has(entry && entry.result) ? entry.result : 'pending';
-  let score = null;
-  if (entry && entry.score !== '' && entry.score != null) {
-    const num = Number(entry.score);
-    if (!Number.isFinite(num) || num < 0 || num > 10) {
-      throw Object.assign(new Error('Interview scores must be between 0 and 10.'), { status: 422 });
+  const score = normalizeHalfPointScore(entry && entry.score, 'Interview scores');
+  const scheduledAt = text(entry && entry.scheduledAt, 40);
+  const interviewerUserId = text(entry && entry.interviewerUserId, 80);
+  const notes = text(entry && entry.notes, 2000);
+  const format = INTERVIEW_FORMATS.has(entry && entry.format) ? entry.format : 'online';
+  const meetingLinkRaw = text(entry && entry.meetingLink, 500);
+  const meetingLink = format === 'online' ? meetingLinkRaw : '';
+  const blank = !interviewerUserId
+    && !scheduledAt
+    && !notes
+    && !meetingLink
+    && score == null
+    && result === 'pending';
+
+  if (!blank) {
+    if (!label) {
+      throw Object.assign(new Error(`Choose an interview stage for round ${index + 1}.`), { status: 422 });
     }
-    if (Math.round(num * 2) !== num * 2) {
-      throw Object.assign(new Error('Interview scores must use half-point steps (e.g. 7 or 7.5).'), { status: 422 });
+    if (!INTERVIEW_FORMATS.has(format)) {
+      throw Object.assign(new Error(`${label || `Round ${index + 1}`}: choose Online or Onsite.`), { status: 422 });
     }
-    score = Math.round(num * 10) / 10;
+    const staffRequired = await findStaffInterviewer(interviewerUserId);
+    if (!staffRequired) {
+      throw Object.assign(new Error(`Pick an interviewer before saving ${label || `round ${index + 1}`}.`), { status: 422 });
+    }
+    if (!scheduledAt) {
+      throw Object.assign(new Error(`Set the interview date and time for ${label || `round ${index + 1}`}.`), { status: 422 });
+    }
+    if (format === 'online' && !meetingLink) {
+      throw Object.assign(new Error(`Add a meeting link for online ${label || `round ${index + 1}`}.`), { status: 422 });
+    }
+    if (format === 'online' && !/^https?:\/\/\S+$/i.test(meetingLink)) {
+      throw Object.assign(new Error(`Add a valid meeting link (http/https) for ${label || `round ${index + 1}`}.`), { status: 422 });
+    }
   }
+
   if ((result === 'pass' || result === 'fail') && score == null) {
     throw Object.assign(new Error(`Add a score (0–10) before marking ${label || `round ${index + 1}`} as Pass or Fail.`), { status: 422 });
   }
+  if ((result === 'pass' || result === 'fail') && blank) {
+    throw Object.assign(new Error(`Schedule ${label || `round ${index + 1}`} with an interviewer and time before Pass or Fail.`), { status: 422 });
+  }
 
-  const scheduledAt = text(entry && entry.scheduledAt, 40);
-  const interviewerUserId = text(entry && entry.interviewerUserId, 80);
-  const staff = interviewerUserId ? findStaffInterviewer(interviewerUserId) : null;
+  const staff = interviewerUserId ? await findStaffInterviewer(interviewerUserId) : null;
   if (scheduledAt && !staff) {
     throw Object.assign(new Error(`Pick a staff interviewer with an email before scheduling ${label || `round ${index + 1}`}.`), { status: 422 });
   }
   const interviewer = staff
     ? staff.name
     : text(entry && entry.interviewer, 120);
+  const interviewerTitle = staff
+    ? text(staff.title, 120)
+    : text(entry && entry.interviewerTitle, 120);
   const interviewerEmail = staff
     ? staff.email
     : text(entry && entry.interviewerEmail, 160).toLowerCase();
@@ -289,14 +383,16 @@ function normalizeInterviewEntry(entry, index, fallbackLabel = '') {
   return {
     id: text(entry && entry.id, 80) || `interview-${contentSlug(label, index + 1)}`,
     label,
-    format: INTERVIEW_FORMATS.has(entry && entry.format) ? entry.format : 'online',
+    format,
+    meetingLink,
     interviewer,
+    interviewerTitle,
     interviewerUserId: staff ? staff.id : '',
     interviewerEmail: staff ? staff.email : interviewerEmail,
     scheduledAt,
     reminderSentOn: /^\d{4}-\d{2}-\d{2}$/.test(reminderSentOn) ? reminderSentOn : '',
     score,
-    notes: text(entry && entry.notes, 2000),
+    notes,
     result,
   };
 }
@@ -322,9 +418,23 @@ async function notifyInterviewSchedules(application, changes, req) {
   const baseUrl = mail.publicBaseUrl(req && req.headers && req.headers.host);
   const results = [];
   for (const change of changes) {
-    const round = change.round;
-    if (!round.interviewerEmail) {
-      results.push({ id: round.id, sent: false, skipped: true, reason: 'no_interviewer_email' });
+    let round = await enrichInterviewRoundForMail(change.round);
+    const hasInterviewer = Boolean(String(round.interviewerEmail || '').trim());
+    const hasCandidate = Boolean(String(application.email || '').trim());
+    if (!hasInterviewer) {
+      logInterviewerEmailUnresolved(application && application.id, round && round.id);
+    }
+    if (!hasInterviewer && !hasCandidate) {
+      results.push({
+        id: round.id,
+        sent: false,
+        skipped: true,
+        reason: 'no_recipients',
+        sides: [
+          { side: 'interviewer', sent: false, skipped: true, reason: 'no_interviewer_email' },
+          { side: 'candidate', sent: false, skipped: true, reason: 'no_candidate_email' },
+        ],
+      });
       continue;
     }
     const outcome = await mail.sendInterviewScheduleEmail({ application, round, baseUrl });
@@ -347,8 +457,8 @@ async function runInterviewDayReminders() {
   if (reminderLastSlot === slot) return;
   reminderJobRunning = true;
   try {
-    const data = readApplications();
-    let changed = false;
+    const data = await readApplications();
+    const pendingReminders = [];
     const baseUrl = mail.publicBaseUrl();
     for (const application of data.applications || []) {
       const pipe = application.pipeline && typeof application.pipeline === 'object' ? application.pipeline : null;
@@ -361,28 +471,32 @@ async function runInterviewDayReminders() {
         if (Number.isNaN(when.getTime())) continue;
         if (mail.zonedYmd(when) !== today) continue;
         if (when.getTime() < now.getTime()) continue;
-        let email = round.interviewerEmail;
-        if (!email && round.interviewerUserId) {
-          const staff = findStaffInterviewer(round.interviewerUserId);
-          if (staff) {
-            email = staff.email;
-            round.interviewerEmail = staff.email;
-            round.interviewer = staff.name;
-          }
+        const enriched = await enrichInterviewRoundForMail(round);
+        const interviewerEmail = String(enriched.interviewerEmail || '').trim();
+        const candidateEmail = String(application.email || '').trim();
+        if (!interviewerEmail) {
+          logInterviewerEmailUnresolved(application && application.id, round && round.id);
         }
-        if (!email) continue;
+        if (!interviewerEmail && !candidateEmail) continue;
         const outcome = await mail.sendInterviewReminderEmail({
           application,
-          round: Object.assign({}, round, { interviewerEmail: email }),
+          round: Object.assign({}, round, {
+            interviewerEmail: interviewerEmail || '',
+            interviewer: enriched.interviewer || '',
+            interviewerTitle: enriched.interviewerTitle || '',
+          }),
           baseUrl,
         });
-        if (outcome.sent || outcome.skipped) {
-          round.reminderSentOn = today;
-          changed = true;
+        if ((outcome.sent || outcome.skipped) && round.id) {
+          pendingReminders.push({
+            applicationId: application.id,
+            interviewId: round.id,
+            reminderSentOn: today,
+          });
         }
       }
     }
-    if (changed) writeApplications(data);
+    if (pendingReminders.length) await hiringDb.applyReminderSentOn(pendingReminders);
     reminderLastSlot = slot;
   } catch (error) {
     console.error('[mail] Day reminder job failed:', error.message || error);
@@ -402,9 +516,14 @@ function startInterviewReminderJob() {
   }, 5000);
 }
 
-function seedInterviews(stages, existing = []) {
+async function seedInterviews(stages, existing = []) {
   const byLabel = new Map((existing || []).map((entry) => [String(entry.label || ''), entry]));
-  return stages.map((label, index) => normalizeInterviewEntry(byLabel.get(label) || { label }, index, label));
+  const out = [];
+  for (let index = 0; index < stages.length; index += 1) {
+    const label = stages[index];
+    out.push(await normalizeInterviewEntry(byLabel.get(label) || { label }, index, label));
+  }
+  return out;
 }
 
 function derivePipelineStage(pipeline) {
@@ -446,7 +565,18 @@ function mirrorInboxStatus(pipeline) {
   return 'reviewing';
 }
 
-function cleanPipelinePayload(input, existingApplication, session) {
+/** Stamp firstContactedAt once when status leaves 'new'. Never overwrites an existing stamp. */
+function applyApplicationStatus(application, nextStatus) {
+  const previous = String((application && application.status) || 'new');
+  const next = String(nextStatus || 'new');
+  if (previous === 'new' && next !== 'new' && !(application && application.firstContactedAt)) {
+    application.firstContactedAt = new Date().toISOString();
+  }
+  application.status = next;
+  return application;
+}
+
+async function cleanPipelinePayload(input, existingApplication, session) {
   const existing = existingApplication.pipeline && typeof existingApplication.pipeline === 'object'
     ? existingApplication.pipeline
     : defaultPipeline();
@@ -460,15 +590,38 @@ function cleanPipelinePayload(input, existingApplication, session) {
 
   const taskIncoming = incoming.task && typeof incoming.task === 'object' ? incoming.task : {};
   const taskExisting = existing.task && typeof existing.task === 'object' ? existing.task : {};
+  const reviewedByUserId = text(
+    taskIncoming.reviewedByUserId != null ? taskIncoming.reviewedByUserId : taskExisting.reviewedByUserId,
+    80,
+  );
+  const reviewer = reviewedByUserId ? await findStaffInterviewer(reviewedByUserId) : null;
+  const taskScoreRaw = Object.prototype.hasOwnProperty.call(taskIncoming, 'score')
+    ? taskIncoming.score
+    : taskExisting.score;
   const task = {
     title: text(taskIncoming.title != null ? taskIncoming.title : taskExisting.title, 200),
     notes: text(taskIncoming.notes != null ? taskIncoming.notes : taskExisting.notes, 4000),
     status: TASK_STATUSES.has(taskIncoming.status) ? taskIncoming.status : (TASK_STATUSES.has(taskExisting.status) ? taskExisting.status : 'sent'),
     decision: TASK_DECISIONS.has(taskIncoming.decision) ? taskIncoming.decision : (TASK_DECISIONS.has(taskExisting.decision) ? taskExisting.decision : 'pending'),
+    reviewedByUserId: reviewer ? reviewer.id : '',
+    reviewedBy: reviewer
+      ? reviewer.name
+      : text(taskIncoming.reviewedBy != null ? taskIncoming.reviewedBy : taskExisting.reviewedBy, 120),
+    score: normalizeHalfPointScore(taskScoreRaw, 'Task score'),
   };
 
-  if (task.decision === 'approved' && task.status !== 'done') {
-    task.status = 'done';
+  if (task.decision === 'approved' || task.decision === 'rejected') {
+    if (!task.reviewedByUserId || !task.reviewedBy) {
+      throw Object.assign(new Error('Pick a reviewer before approving or rejecting the task.'), { status: 422 });
+    }
+  }
+  if (task.decision === 'approved') {
+    if (task.status !== 'done') {
+      throw Object.assign(new Error('Set task status to Done before approving.'), { status: 422 });
+    }
+    if (task.score == null) {
+      throw Object.assign(new Error('Add a task score (0–10) before approving.'), { status: 422 });
+    }
   }
 
   if (pathway === 'with_tasks' && phoneScreen === 'accepted' && !task.title) {
@@ -485,12 +638,14 @@ function cleanPipelinePayload(input, existingApplication, session) {
       interviews = [];
     } else if (!interviews.length && (justAccepted || justChosePathway || justApprovedTask)) {
       if (pathway === 'no_tasks' || task.decision === 'approved') {
-        interviews = seedInterviews(stages.slice(0, 1), interviews);
+        interviews = await seedInterviews(stages.slice(0, 1), interviews);
       }
     } else if (interviews.length) {
       // Keep filled rounds + at most one open/pending blank round from older multi-seed data.
       const existingById = new Map((existing.interviews || []).map((entry) => [String(entry.id || ''), entry]));
-      const normalized = interviews.slice(0, 12).map((entry, index) => {
+      const normalized = [];
+      for (let index = 0; index < Math.min(interviews.length, 12); index += 1) {
+        const entry = interviews[index];
         const prev = existingById.get(String((entry && entry.id) || ''));
         const merged = Object.assign({}, entry || {});
         if (prev && String(prev.scheduledAt || '') === String(merged.scheduledAt || '')) {
@@ -498,8 +653,8 @@ function cleanPipelinePayload(input, existingApplication, session) {
         } else {
           merged.reminderSentOn = '';
         }
-        return normalizeInterviewEntry(merged, index, stages[index] || '');
-      });
+        normalized.push(await normalizeInterviewEntry(merged, index, stages[index] || ''));
+      }
       const kept = [];
       let openKept = false;
       normalized.forEach((entry) => {
@@ -534,9 +689,20 @@ function cleanPipelinePayload(input, existingApplication, session) {
   if (offerStatus === 'declined' && !declinedReason) {
     throw Object.assign(new Error('Provide a reason when the candidate declines.'), { status: 422 });
   }
-  if (offerStatus !== 'none' && offerStatus !== 'declined') {
+  if (offerStatus !== 'none') {
+    const list = interviews || [];
+    const cycleComplete = list.length > 0 && list.every((entry) => entry && (entry.result === 'pass' || entry.result === 'fail'));
+    if (!cycleComplete) {
+      throw Object.assign(new Error('Finish every interview round (Pass or Fail) before choosing an offer outcome.'), { status: 422 });
+    }
     if (pathway === 'with_tasks' && task.decision !== 'approved') {
       throw Object.assign(new Error('Approve the task before moving to the offer stage.'), { status: 422 });
+    }
+    if (offerStatus === 'sent' || offerStatus === 'joined') {
+      const hasPass = list.some((entry) => entry && entry.result === 'pass');
+      if (!hasPass) {
+        throw Object.assign(new Error('At least one interview round must Pass before sending or joining an offer.'), { status: 422 });
+      }
     }
   }
 
@@ -549,6 +715,9 @@ function cleanPipelinePayload(input, existingApplication, session) {
       notes: task.notes,
       status: task.status || 'sent',
       decision: task.decision || 'pending',
+      reviewedByUserId: task.reviewedByUserId || '',
+      reviewedBy: task.reviewedBy || '',
+      score: task.score,
     },
     interviews: phoneScreen === 'accepted' ? interviews : interviews,
     offer: {
@@ -693,44 +862,6 @@ function shouldClearPipelineOnVacancyEnd(application) {
   return active || joined;
 }
 
-function closeOpenPipelinesForJob(job, session, reason) {
-  const appsData = readApplications();
-  let closedCount = 0;
-  const stamp = new Date().toISOString();
-  const detail = text(reason, 300) || 'Vacancy ended — hiring closed without continuing active process';
-  (appsData.applications || []).forEach((application) => {
-    if (!applicationMatchesJob(application, job)) return;
-    if (!application.pipeline || typeof application.pipeline !== 'object') return;
-    if (application.pipeline.offer && application.pipeline.offer.status === 'joined') return;
-    if (isPipelineClosedRecord(application.pipeline)) return;
-
-    const pipe = application.pipeline;
-    if (pipe.phoneScreen === 'pending' || pipe.phoneScreen === 'shortlisted' || !pipe.phoneScreen) {
-      pipe.phoneScreen = 'rejected';
-    } else if (pipe.offer && pipe.offer.status === 'sent') {
-      pipe.offer.status = 'declined';
-      pipe.offer.declinedReason = pipe.offer.declinedReason || detail;
-    } else if (pipe.pathway === 'with_tasks' && pipe.task && pipe.task.decision === 'pending') {
-      pipe.task.decision = 'rejected';
-    }
-    pipe.stage = 'closed';
-    pipe.history = Array.isArray(pipe.history) ? pipe.history : [];
-    pipe.history.unshift({
-      at: stamp,
-      by: (session && session.username) || 'hr',
-      action: 'vacancy-ended',
-      detail,
-    });
-    pipe.history = pipe.history.slice(0, 40);
-    application.pipeline = pipe;
-    application.status = 'rejected';
-    application.updatedAt = stamp;
-    closedCount += 1;
-  });
-  writeApplications(appsData);
-  return { closedCount, applications: appsData.applications || [] };
-}
-
 function permissionsFor(role) {
   const admin = role === 'admin';
   const hr = role === 'hr';
@@ -832,47 +963,76 @@ function writeData(data) {
   writeDerivedFiles(data);
 }
 
+/** Old end-vacancy flow set status to draft; promote those to ended using audit history. */
+function migrateLegacyEndedVacancies(data) {
+  const jobs = (data.collections && data.collections.jobs) || [];
+  if (!jobs.length) return false;
+  const endedTitles = new Set();
+  for (const event of (data.meta && data.meta.audit) || []) {
+    const label = String((event && event.label) || '');
+    const match = label.match(/^Ended vacancy [“"](.+)[”"]$/);
+    if (match && match[1]) endedTitles.add(match[1]);
+  }
+  if (!endedTitles.size) return false;
+  let changed = false;
+  const now = new Date().toISOString();
+  for (const job of jobs) {
+    if (job.status !== 'draft') continue;
+    if (!endedTitles.has(job.title)) continue;
+    job.status = 'ended';
+    job.endedAt = job.endedAt || job.updatedAt || now;
+    job.updatedAt = now;
+    changed = true;
+  }
+  return changed;
+}
+
 function ensureStorage() {
   fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-  fs.mkdirSync(APPLICATION_FILES_DIR, { recursive: true });
   if (!fs.existsSync(DATA_FILE)) throw new Error(`Missing content store: ${DATA_FILE}`);
-  if (!fs.existsSync(USERS_FILE)) {
-    const now = new Date().toISOString();
-    writeUsers({
-      version: 1,
-      updatedAt: now,
-      users: [{
-        id: `user-${crypto.randomUUID()}`,
-        username: ADMIN_USER.toLowerCase(),
-        name: 'Administrator',
-        role: 'admin',
-        active: true,
-        passwordHash: passwordHash(ADMIN_PASSWORD),
-        createdAt: now,
-        updatedAt: now,
-        lastLoginAt: null,
-      }],
-    });
-  }
-  if (!fs.existsSync(APPLICATIONS_FILE)) writeApplications({ version: 1, updatedAt: null, applications: [] });
   if (!fs.existsSync(CONTACT_REQUESTS_FILE)) writeContactRequests({ version: 1, updatedAt: null, requests: [] });
-  if (!fs.existsSync(ONBOARDING_FILE)) writeOnboarding({ version: 1, updatedAt: null, requests: [] });
-  writeDerivedFiles(readData());
+  const data = readData();
+  if (migrateLegacyEndedVacancies(data)) writeData(data);
+  else writeDerivedFiles(data);
 }
 
-function readOnboarding() {
+/**
+ * Create the first admin when admin_users is empty (greenfield only).
+ */
+async function ensureAdminBootstrap() {
+  const store = await readUsers();
+  if ((store.users || []).length > 0) return;
+
+  const now = new Date().toISOString();
+  await writeUsers({
+    version: 1,
+    updatedAt: now,
+    users: [{
+      id: `user-${crypto.randomUUID()}`,
+      username: ADMIN_USER.toLowerCase(),
+      name: 'Administrator',
+      role: 'admin',
+      active: true,
+      passwordHash: passwordHash(ADMIN_PASSWORD),
+      mustSetPassword: false,
+      inviteTokenHash: null,
+      inviteExpiresAt: null,
+      createdAt: now,
+      updatedAt: now,
+      lastLoginAt: null,
+    }],
+  });
+  console.log('[auth] Bootstrapped initial administrator account into admin_users');
+}
+
+async function readOnboarding() {
   ensureStorage();
-  if (!fs.existsSync(ONBOARDING_FILE)) return { version: 1, updatedAt: null, requests: [] };
-  return JSON.parse(fs.readFileSync(ONBOARDING_FILE, 'utf8'));
+  return hiringDb.readOnboardingStore();
 }
 
-function writeOnboarding(data) {
-  data.updatedAt = new Date().toISOString();
-  const temp = `${ONBOARDING_FILE}.tmp`;
-  fs.writeFileSync(temp, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
-  fs.copyFileSync(temp, ONBOARDING_FILE);
-  fs.unlinkSync(temp);
+async function writeOnboarding(data) {
+  return hiringDb.writeOnboardingStore(data);
 }
 
 function emptyOnboardingAssets() {
@@ -978,25 +1138,25 @@ function enrichOnboardingFromApplication(request, application) {
   return changed;
 }
 
-function ensureOnboardingDraftForApplication(application, username, overrides = {}) {
-  if (!application || !application.id) return { request: null, created: false, store: readOnboarding() };
+async function ensureOnboardingDraftForApplication(application, username, overrides = {}) {
+  if (!application || !application.id) return { request: null, created: false, store: await readOnboarding() };
   const offerStatus = String((((application.pipeline || {}).offer || {}).status) || '').toLowerCase();
   if (offerStatus !== 'joined') {
-    return { request: null, created: false, store: readOnboarding() };
+    return { request: null, created: false, store: await readOnboarding() };
   }
-  const store = readOnboarding();
+  const store = await readOnboarding();
   const existing = findOpenOnboarding(store.requests, application.id);
   if (existing) return { request: existing, created: false, store, existing: true };
   const request = createOnboardingDraftFromApplication(application, username, overrides);
   store.requests.unshift(request);
-  writeOnboarding(store);
+  await writeOnboarding(store);
   return { request, created: true, store };
 }
 
-function syncJoinedApplicationsIntoOnboarding(username) {
-  const appsData = readApplications();
+async function syncJoinedApplicationsIntoOnboarding(username) {
+  const appsData = await readApplications();
   const appsById = new Map((appsData.applications || []).map((item) => [item.id, item]));
-  const store = readOnboarding();
+  const store = await readOnboarding();
   let created = 0;
   let enriched = 0;
   (appsData.applications || []).forEach((application) => {
@@ -1011,12 +1171,12 @@ function syncJoinedApplicationsIntoOnboarding(username) {
     const application = appsById.get(request.applicationId);
     if (enrichOnboardingFromApplication(request, application)) enriched += 1;
   });
-  if (created || enriched) writeOnboarding(store);
-  return { created, store: (created || enriched) ? readOnboarding() : store };
+  if (created || enriched) await writeOnboarding(store);
+  return { created, store: (created || enriched) ? await readOnboarding() : store };
 }
 
-function requireOnboarding(req, res, mutation = false) {
-  const session = mutation ? requireMutationAuth(req, res) : requireAuth(req, res);
+async function requireOnboarding(req, res, mutation = false) {
+  const session = mutation ? await requireMutationAuth(req, res) : await requireAuth(req, res);
   if (!session) return null;
   if (session.role !== 'hr' && session.role !== 'marketing') {
     json(res, 403, { error: 'FORBIDDEN', message: 'Employee onboarding is available to HR and Marketing accounts only.' });
@@ -1039,7 +1199,7 @@ function parseCookies(req) {
     }, {});
 }
 
-function getSession(req) {
+async function getSession(req) {
   const token = parseCookies(req).dh_admin_session;
   if (!token) return null;
   const session = sessions.get(token);
@@ -1047,7 +1207,7 @@ function getSession(req) {
     if (token) sessions.delete(token);
     return null;
   }
-  const account = readUsers().users.find((user) => user.id === session.userId);
+  const account = (await readUsers()).users.find((user) => user.id === session.userId);
   if (!account || !account.active) {
     sessions.delete(token);
     return null;
@@ -1062,8 +1222,8 @@ function safeEqual(left, right) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-function requireAuth(req, res) {
-  const session = getSession(req);
+async function requireAuth(req, res) {
+  const session = await getSession(req);
   if (!session) {
     json(res, 401, { error: 'AUTH_REQUIRED', message: 'Please sign in again.' });
     return null;
@@ -1071,8 +1231,8 @@ function requireAuth(req, res) {
   return session;
 }
 
-function requireMutationAuth(req, res) {
-  const session = requireAuth(req, res);
+async function requireMutationAuth(req, res) {
+  const session = await requireAuth(req, res);
   if (!session) return null;
   if (!safeEqual(req.headers['x-csrf-token'] || '', session.csrf)) {
     json(res, 403, { error: 'INVALID_CSRF', message: 'Your session could not be verified.' });
@@ -1081,8 +1241,8 @@ function requireMutationAuth(req, res) {
   return session;
 }
 
-function requireAdmin(req, res, mutation = false) {
-  const session = mutation ? requireMutationAuth(req, res) : requireAuth(req, res);
+async function requireAdmin(req, res, mutation = false) {
+  const session = mutation ? await requireMutationAuth(req, res) : await requireAuth(req, res);
   if (!session) return null;
   if (session.role !== 'admin') {
     json(res, 403, { error: 'FORBIDDEN', message: 'Administrator access is required.' });
@@ -1100,8 +1260,8 @@ function canEditPage(session, page) {
   return session.role === 'admin' && PAGES.has(page);
 }
 
-function requireHr(req, res, mutation) {
-  const session = mutation ? requireMutationAuth(req, res) : requireAuth(req, res);
+async function requireHr(req, res, mutation) {
+  const session = mutation ? await requireMutationAuth(req, res) : await requireAuth(req, res);
   if (!session) return null;
   if (session.role !== 'hr') {
     json(res, 403, { error: 'FORBIDDEN', message: 'Hiring tools are available to HR accounts only.' });
@@ -1324,7 +1484,10 @@ function cleanItem(collection, input, existing = {}) {
           };
         }).filter((entry) => entry.title || entry.description || entry.image),
       };
-    } else if (key === 'status') output[key] = value === 'draft' ? 'draft' : 'published';
+    } else if (key === 'status') {
+      if (collection === 'jobs' && value === 'ended') output[key] = 'ended';
+      else output[key] = value === 'draft' ? 'draft' : 'published';
+    }
     else if (key === 'type' && collection === 'jobs') {
       const raw = text(value == null ? existing.type : value, 40);
       const normalized = raw.toLowerCase().replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -1488,6 +1651,27 @@ function cleanPage(input, existing = {}) {
       tiktok: cleanSocialUrl(socialSource.tiktok),
     };
   }
+  const numbersSource = input && input.numbers && typeof input.numbers === 'object'
+    ? input.numbers
+    : (existing && existing.numbers && typeof existing.numbers === 'object' ? existing.numbers : null);
+  if (numbersSource) {
+    const statsRaw = Array.isArray(numbersSource.stats) ? numbersSource.stats : [];
+    output.numbers = {
+      label: text(numbersSource.label, 120) || 'By the Numbers',
+      title: text(numbersSource.title, 200) || 'Proven at enterprise scale.',
+      lead: text(numbersSource.lead, 2000),
+      stats: statsRaw.slice(0, 6).map((entry) => {
+        const valueRaw = text(entry && entry.value, 12).replace(/[^\d]/g, '');
+        const value = valueRaw || '0';
+        const suffix = text(entry && entry.suffix, 8).replace(/[^\p{L}\p{N}+%]/gu, '').slice(0, 4);
+        return {
+          value,
+          suffix,
+          label: text(entry && entry.label, 300),
+        };
+      }).filter((entry) => entry.label || entry.value !== '0' || entry.suffix),
+    };
+  }
   return output;
 }
 
@@ -1636,9 +1820,16 @@ function cleanApplication(input, file) {
   const ext = path.extname(file.name || '').toLowerCase();
   if (!['.pdf', '.doc', '.docx'].includes(ext)) throw Object.assign(new Error('CV must be a PDF or Word document.'), { status: 422 });
 
+  const contentTypeByExt = {
+    '.pdf': 'application/pdf',
+    '.doc': 'application/msword',
+    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  };
+
   const now = new Date().toISOString();
   const applicationUuid = crypto.randomUUID();
   const id = `application-${applicationUuid}`;
+  const resumeName = path.basename(file.name);
   return {
     application: {
       id,
@@ -1653,13 +1844,17 @@ function cleanApplication(input, file) {
       expectedSalary,
       noticePeriodWeeks: Number(noticePeriodWeeks),
       linkedin: linkedinUrl.toString(),
-      resumeName: path.basename(file.name),
-      resumeFile: `${id}${ext}`,
+      resumeName,
+      resumeFile: '',
       status: 'new',
       submittedAt: now,
       updatedAt: now,
     },
-    resume: file.buffer,
+    resume: {
+      buffer: file.buffer,
+      fileName: resumeName,
+      contentType: contentTypeByExt[ext] || 'application/octet-stream',
+    },
   };
 }
 
@@ -1680,16 +1875,7 @@ async function handleApi(req, res, url) {
     const multipart = parseMultipart(req, body);
     if (text(multipart.fields.website, 200)) return json(res, 201, { ok: true, reference: 'received' });
     const result = cleanApplication(multipart.fields, multipart.files.resume);
-    const target = path.join(APPLICATION_FILES_DIR, result.application.resumeFile);
-    fs.writeFileSync(target, result.resume, { flag: 'wx' });
-    try {
-      const data = readApplications();
-      data.applications.unshift(result.application);
-      writeApplications(data);
-    } catch (error) {
-      if (fs.existsSync(target)) fs.unlinkSync(target);
-      throw error;
-    }
+    await hiringDb.insertApplicationWithResume(result.application, result.resume);
     return json(res, 201, { ok: true, reference: result.application.reference });
   }
 
@@ -1711,7 +1897,7 @@ async function handleApi(req, res, url) {
     if (body.passwordConfirm != null && String(body.passwordConfirm) !== password) {
       return json(res, 422, { error: 'PASSWORD_MISMATCH', message: 'Password confirmation does not match.' });
     }
-    const users = readUsers();
+    const users = await readUsers();
     const account = findUserByInviteToken(users.users, rawToken);
     if (!account || !account.active) {
       return json(res, 400, { error: 'INVALID_INVITE', message: 'This invite link is invalid or has already been used.' });
@@ -1722,7 +1908,7 @@ async function handleApi(req, res, url) {
     account.passwordHash = passwordHash(password);
     clearInvite(account);
     account.updatedAt = new Date().toISOString();
-    writeUsers(users);
+    await writeUsers(users);
     return json(res, 200, { ok: true, username: account.username, message: 'Password saved. You can sign in now.' });
   }
 
@@ -1732,7 +1918,16 @@ async function handleApi(req, res, url) {
     if (!canAttemptLogin(req, username)) {
       return json(res, 429, { error: 'RATE_LIMITED', message: 'Too many sign-in attempts. Please try again later.' });
     }
-    const users = readUsers();
+    let users;
+    try {
+      users = await readUsers();
+    } catch (error) {
+      console.error('[auth] Login store unavailable:', error.message || error);
+      return json(res, 503, {
+        error: 'AUTH_STORE_UNAVAILABLE',
+        message: 'Sign-in is temporarily unavailable because the account database could not be reached. Try again shortly.',
+      });
+    }
     const account = users.users.find((user) => user.username === username);
     if (!account || !account.active || !account.passwordHash || account.mustSetPassword) {
       return json(res, 401, { error: 'INVALID_CREDENTIALS', message: 'Username or password is incorrect.' });
@@ -1741,11 +1936,20 @@ async function handleApi(req, res, url) {
       return json(res, 401, { error: 'INVALID_CREDENTIALS', message: 'Username or password is incorrect.' });
     }
     // Re-read before write so concurrent HR account creates are not wiped by login.
-    const latest = mutateUsers((store) => {
-      const current = store.users.find((user) => user.id === account.id);
-      if (current) current.lastLoginAt = new Date().toISOString();
-      return current || account;
-    });
+    let latest;
+    try {
+      latest = await mutateUsers((store) => {
+        const current = store.users.find((user) => user.id === account.id);
+        if (current) current.lastLoginAt = new Date().toISOString();
+        return current || account;
+      });
+    } catch (error) {
+      console.error('[auth] Login store write failed:', error.message || error);
+      return json(res, 503, {
+        error: 'AUTH_STORE_UNAVAILABLE',
+        message: 'Sign-in is temporarily unavailable because the account database could not be reached. Try again shortly.',
+      });
+    }
     const signedIn = latest && latest.id ? latest : account;
     const token = crypto.randomBytes(32).toString('hex');
     const csrf = crypto.randomBytes(24).toString('hex');
@@ -1759,14 +1963,14 @@ async function handleApi(req, res, url) {
   }
 
   if (pathname === '/api/admin/session' && req.method === 'GET') {
-    const session = getSession(req);
+    const session = await getSession(req);
     return json(res, 200, session
       ? { authenticated: true, user: safeUser(session), permissions: permissionsFor(session.role), csrf: session.csrf }
       : { authenticated: false });
   }
 
   if (pathname === '/api/admin/logout' && req.method === 'POST') {
-    const session = requireMutationAuth(req, res);
+    const session = await requireMutationAuth(req, res);
     if (!session) return;
     sessions.delete(session.token);
     return json(res, 200, { ok: true }, { 'Set-Cookie': sessionCookieHeader('', 0, req) });
@@ -1775,13 +1979,13 @@ async function handleApi(req, res, url) {
   if (!pathname.startsWith('/api/admin/')) return json(res, 404, { error: 'NOT_FOUND' });
 
   if (pathname === '/api/admin/users' && req.method === 'GET') {
-    if (!requireAdmin(req, res)) return;
-    const users = readUsers();
+    if (!(await requireAdmin(req, res))) return;
+    const users = await readUsers();
     return json(res, 200, { updatedAt: users.updatedAt, users: users.users.map(safeUser) });
   }
 
   if (pathname === '/api/admin/auth/change-password' && req.method === 'POST') {
-    const session = requireMutationAuth(req, res);
+    const session = await requireMutationAuth(req, res);
     if (!session) return;
     const body = await readBody(req);
     const currentPassword = String(body.currentPassword || '');
@@ -1792,7 +1996,7 @@ async function handleApi(req, res, url) {
     if (currentPassword === password) {
       return json(res, 422, { error: 'PASSWORD_UNCHANGED', message: 'Choose a new password that is different from the current one.' });
     }
-    const users = readUsers();
+    const users = await readUsers();
     const account = users.users.find((user) => user.id === session.userId);
     if (!account || !account.active || !account.passwordHash || !verifyPassword(currentPassword, account.passwordHash)) {
       return json(res, 403, { error: 'INVALID_PASSWORD', message: 'Current password is incorrect.' });
@@ -1800,15 +2004,15 @@ async function handleApi(req, res, url) {
     account.passwordHash = passwordHash(password);
     clearInvite(account);
     account.updatedAt = new Date().toISOString();
-    writeUsers(users);
+    await writeUsers(users);
     return json(res, 200, { ok: true, message: 'Password updated.' });
   }
 
   if (pathname === '/api/admin/users' && req.method === 'POST') {
-    const session = requireAdmin(req, res, true);
+    const session = await requireAdmin(req, res, true);
     if (!session) return;
     const body = await readBody(req);
-    const users = readUsers();
+    const users = await readUsers();
     const username = cleanUsername(body.username);
     const email = cleanWorkEmail(body.email);
     const jobTitle = cleanJobTitle(body.jobTitle);
@@ -1847,7 +2051,7 @@ async function handleApi(req, res, url) {
       lastLoginAt: null,
     };
     users.users.push(account);
-    writeUsers(users);
+    await writeUsers(users);
     return json(res, 201, {
       user: safeUser(account),
       users: users.users.map(safeUser),
@@ -1855,10 +2059,10 @@ async function handleApi(req, res, url) {
   }
 
   if (pathname.startsWith('/api/admin/users/') && ['PUT', 'DELETE'].includes(req.method)) {
-    const session = requireAdmin(req, res, true);
+    const session = await requireAdmin(req, res, true);
     if (!session) return;
     const id = pathname.split('/').pop();
-    const users = readUsers();
+    const users = await readUsers();
     const index = users.users.findIndex((user) => user.id === id);
     if (index < 0) return json(res, 404, { error: 'USER_NOT_FOUND', message: 'Account not found.' });
     const account = users.users[index];
@@ -1871,8 +2075,9 @@ async function handleApi(req, res, url) {
       for (const [token, activeSession] of sessions.entries()) {
         if (activeSession.userId === account.id) sessions.delete(token);
       }
-      writeUsers(users);
-      return json(res, 200, { users: users.users.map(safeUser) });
+      await hiringDb.hardDeleteAdminUser(account.id);
+      const remaining = await readUsers();
+      return json(res, 200, { users: remaining.users.map(safeUser) });
     }
 
     const body = await readBody(req);
@@ -1909,21 +2114,21 @@ async function handleApi(req, res, url) {
         if (activeSession.userId === account.id) sessions.delete(token);
       }
     }
-    writeUsers(users);
+    await writeUsers(users);
     return json(res, 200, {
       user: safeUser(account),
-      users: users.users.map(safeUser),
+      users: (await readUsers()).users.map(safeUser),
     });
   }
 
   if (pathname === '/api/admin/content' && req.method === 'GET') {
-    const session = requireAuth(req, res);
+    const session = await requireAuth(req, res);
     if (!session) return;
     return json(res, 200, adminView(readData(), session));
   }
 
   if (pathname === '/api/admin/content' && req.method === 'PUT') {
-    const session = requireAdmin(req, res, true);
+    const session = await requireAdmin(req, res, true);
     if (!session) return;
     const current = readData();
     if (!checkRevision(req, res, current)) return;
@@ -1945,22 +2150,95 @@ async function handleApi(req, res, url) {
   }
 
   if (pathname === '/api/admin/applications' && req.method === 'GET') {
-    if (!requireHr(req, res, false)) return;
-    const data = readApplications();
+    if (!(await requireHr(req, res, false))) return;
+    const data = await readApplications();
     return json(res, 200, { updatedAt: data.updatedAt, applications: data.applications || [] });
   }
 
   if (pathname === '/api/admin/staff-interviewers' && req.method === 'GET') {
-    if (!requireHr(req, res, false)) return;
-    return json(res, 200, { interviewers: listStaffInterviewers() });
+    if (!(await requireHr(req, res, false))) return;
+    return json(res, 200, { interviewers: await listStaffInterviewers() });
+  }
+
+  if (pathname === '/api/admin/interviewers' && req.method === 'GET') {
+    if (!(await requireHr(req, res, false))) return;
+    const interviewers = await hiringDb.listMergedInterviewersStore();
+    return json(res, 200, { interviewers });
+  }
+
+  if (pathname === '/api/admin/interviewers' && req.method === 'POST') {
+    if (!(await requireHr(req, res, true))) return;
+    try {
+      const body = await readBody(req);
+      const interviewer = await hiringDb.upsertInterviewerStore({
+        name: body.name,
+        title: body.title,
+        email: body.email,
+        active: body.active !== false,
+      });
+      return json(res, 201, {
+        interviewer,
+        interviewers: await hiringDb.listMergedInterviewersStore(),
+      });
+    } catch (error) {
+      return json(res, error.status || 500, {
+        error: error.code || (error.status === 409 ? 'EMAIL_EXISTS' : 'INTERVIEWER_INVALID'),
+        message: error.message || 'Could not create interviewer.',
+      });
+    }
+  }
+
+  const interviewerMatch = pathname.match(/^\/api\/admin\/interviewers\/([^/]+)$/);
+  if (interviewerMatch && req.method === 'PUT') {
+    if (!(await requireHr(req, res, true))) return;
+    try {
+      const body = await readBody(req);
+      const targetId = decodeURIComponent(interviewerMatch[1]);
+      await hiringDb.assertManualInterviewerMutable(targetId);
+      const existing = await hiringDb.getInterviewerById(targetId);
+      if (!existing) {
+        return json(res, 404, { error: 'NOT_FOUND', message: 'Interviewer not found.' });
+      }
+      const interviewer = await hiringDb.upsertInterviewerStore({
+        name: body.name != null ? body.name : existing.name,
+        title: body.title != null ? body.title : existing.title,
+        email: body.email != null ? body.email : existing.email,
+        active: body.active != null ? body.active !== false : existing.active,
+      }, existing.id);
+      return json(res, 200, {
+        interviewer,
+        interviewers: await hiringDb.listMergedInterviewersStore(),
+      });
+    } catch (error) {
+      return json(res, error.status || 500, {
+        error: error.code || (error.status === 409 ? 'EMAIL_EXISTS' : 'INTERVIEWER_INVALID'),
+        message: error.message || 'Could not update interviewer.',
+      });
+    }
+  }
+
+  if (interviewerMatch && req.method === 'DELETE') {
+    if (!(await requireHr(req, res, true))) return;
+    try {
+      const deleted = await hiringDb.deleteInterviewerStore(decodeURIComponent(interviewerMatch[1]));
+      if (!deleted) {
+        return json(res, 404, { error: 'NOT_FOUND', message: 'Interviewer not found.' });
+      }
+      return json(res, 200, { ok: true, interviewers: await hiringDb.listMergedInterviewersStore() });
+    } catch (error) {
+      return json(res, error.status || 500, {
+        error: error.code || 'INTERVIEWER_INVALID',
+        message: error.message || 'Could not delete interviewer.',
+      });
+    }
   }
 
   if (pathname === '/api/admin/onboarding' && req.method === 'GET') {
-    const session = requireOnboarding(req, res, false);
+    const session = await requireOnboarding(req, res, false);
     if (!session) return;
-    let data = readOnboarding();
+    let data = await readOnboarding();
     if (session.role === 'hr') {
-      const sync = syncJoinedApplicationsIntoOnboarding(session.username);
+      const sync = await syncJoinedApplicationsIntoOnboarding(session.username);
       data = sync.store;
     }
     let requests = data.requests || [];
@@ -1971,7 +2249,7 @@ async function handleApi(req, res, url) {
   }
 
   if (pathname === '/api/admin/onboarding' && req.method === 'POST') {
-    const session = requireOnboarding(req, res, true);
+    const session = await requireOnboarding(req, res, true);
     if (!session) return;
     if (session.role !== 'hr') {
       return json(res, 403, { error: 'FORBIDDEN', message: 'Only HR can start employee onboarding.' });
@@ -1981,7 +2259,7 @@ async function handleApi(req, res, url) {
     if (!applicationId) {
       return json(res, 422, { error: 'APPLICATION_REQUIRED', message: 'Select a joined candidate to start onboarding.' });
     }
-    const appsData = readApplications();
+    const appsData = await readApplications();
     const application = (appsData.applications || []).find((item) => item.id === applicationId);
     if (!application) {
       return json(res, 404, { error: 'APPLICATION_NOT_FOUND', message: 'Application not found.' });
@@ -1990,7 +2268,7 @@ async function handleApi(req, res, url) {
     if (offerStatus !== 'joined') {
       return json(res, 422, { error: 'NOT_JOINED', message: 'Onboarding can only start for candidates marked as Joined.' });
     }
-    const result = ensureOnboardingDraftForApplication(application, session.username, body);
+    const result = await ensureOnboardingDraftForApplication(application, session.username, body);
     return json(res, result.created ? 201 : 200, {
       request: result.request,
       requests: result.store.requests,
@@ -1999,10 +2277,10 @@ async function handleApi(req, res, url) {
   }
 
   if (pathname.startsWith('/api/admin/onboarding/') && req.method === 'PUT') {
-    const session = requireOnboarding(req, res, true);
+    const session = await requireOnboarding(req, res, true);
     if (!session) return;
     const id = pathname.split('/').pop();
-    const store = readOnboarding();
+    const store = await readOnboarding();
     const index = (store.requests || []).findIndex((item) => item.id === id);
     if (index < 0) return json(res, 404, { error: 'NOT_FOUND', message: 'Onboarding request not found.' });
     const request = store.requests[index];
@@ -2032,7 +2310,7 @@ async function handleApi(req, res, url) {
         request.status = 'sent';
         request.sentAt = now;
         request.updatedAt = now;
-        writeOnboarding(store);
+        await writeOnboarding(store);
         return json(res, 200, { request, requests: store.requests });
       }
       if (action === 'complete') {
@@ -2042,7 +2320,7 @@ async function handleApi(req, res, url) {
         request.status = 'completed';
         request.completedAt = now;
         request.updatedAt = now;
-        writeOnboarding(store);
+        await writeOnboarding(store);
         return json(res, 200, { request, requests: store.requests });
       }
       if (request.status !== 'draft') {
@@ -2060,7 +2338,7 @@ async function handleApi(req, res, url) {
         return json(res, error.status || 422, { error: 'INVALID_PACKAGE', message: error.message });
       }
       request.updatedAt = now;
-      writeOnboarding(store);
+      await writeOnboarding(store);
       return json(res, 200, { request, requests: store.requests });
     }
 
@@ -2093,12 +2371,12 @@ async function handleApi(req, res, url) {
       request.returnedAt = now;
     }
     request.updatedAt = now;
-    writeOnboarding(store);
+    await writeOnboarding(store);
     return json(res, 200, { request, requests: store.requests });
   }
 
   if (pathname === '/api/admin/vacancies/end' && req.method === 'POST') {
-    const session = requireMutationAuth(req, res);
+    const session = await requireMutationAuth(req, res);
     if (!session) return;
     if (!canEditCollection(session, 'jobs')) {
       return json(res, 403, { error: 'FORBIDDEN', message: 'You do not have permission to end vacancies.' });
@@ -2114,12 +2392,13 @@ async function handleApi(req, res, url) {
       return json(res, 422, { error: 'ALREADY_ENDED', message: 'This vacancy is already ended or unpublished.' });
     }
 
-    job.status = 'draft';
-    job.updatedAt = new Date().toISOString();
+    job.status = 'ended';
+    job.endedAt = new Date().toISOString();
+    job.updatedAt = job.endedAt;
     addAudit(data, 'update', `Ended vacancy “${job.title || jobId}”`, session.username);
     writeData(data);
 
-    const appsData = readApplications();
+    const appsData = await readApplications();
     const activeCount = (appsData.applications || []).filter((application) => {
       if (!applicationMatchesJob(application, job)) return false;
       if (!application.pipeline || typeof application.pipeline !== 'object') return false;
@@ -2136,65 +2415,88 @@ async function handleApi(req, res, url) {
 
   const applicationMatch = pathname.match(/^\/api\/admin\/applications\/([^/]+)(?:\/(resume|pipeline))?$/);
   if (applicationMatch && req.method === 'GET' && applicationMatch[2] === 'resume') {
-    if (!requireHr(req, res, false)) return;
+    if (!(await requireHr(req, res, false))) return;
     const id = decodeURIComponent(applicationMatch[1]);
-    const application = readApplications().applications.find((entry) => entry.id === id);
+    const application = (await readApplications()).applications.find((entry) => entry.id === id);
     if (!application) return json(res, 404, { error: 'APPLICATION_NOT_FOUND', message: 'Application not found.' });
-    const target = path.resolve(APPLICATION_FILES_DIR, application.resumeFile);
-    if (!target.startsWith(`${APPLICATION_FILES_DIR}${path.sep}`) || !fs.existsSync(target)) {
+    const resume = await hiringDb.getApplicationResume(id);
+    if (!resume) {
       return json(res, 404, { error: 'RESUME_NOT_FOUND', message: 'CV file not found.' });
     }
-    const ext = path.extname(target).toLowerCase();
-    const resumeMime = { '.pdf': 'application/pdf', '.doc': 'application/msword', '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' };
-    const downloadName = applicationDownloadName(application.resumeName);
+    const downloadName = applicationDownloadName(resume.fileName || application.resumeName);
     res.writeHead(200, {
-      'Content-Type': resumeMime[ext] || 'application/octet-stream',
-      'Content-Length': fs.statSync(target).size,
+      'Content-Type': resume.contentType || 'application/octet-stream',
+      'Content-Length': resume.byteSize,
       'Content-Disposition': `attachment; filename="${downloadName}"; filename*=UTF-8''${encodeURIComponent(downloadName)}`,
       'Cache-Control': 'private, no-store',
       'X-Content-Type-Options': 'nosniff',
     });
-    return fs.createReadStream(target).pipe(res);
+    return res.end(resume.content);
   }
 
   if (applicationMatch && req.method === 'PUT' && !applicationMatch[2]) {
-    if (!requireHr(req, res, true)) return;
+    if (!(await requireHr(req, res, true))) return;
     const allowedStatuses = new Set(['new', 'reviewing', 'contacted', 'rejected']);
     const body = await readBody(req);
     const status = text(body.status, 30);
     if (!allowedStatuses.has(status)) return json(res, 422, { error: 'INVALID_STATUS', message: 'Select a valid application status.' });
-    const data = readApplications();
+    const data = await readApplications();
     const application = data.applications.find((entry) => entry.id === decodeURIComponent(applicationMatch[1]));
     if (!application) return json(res, 404, { error: 'APPLICATION_NOT_FOUND', message: 'Application not found.' });
-    application.status = status;
+    applyApplicationStatus(application, status);
     application.updatedAt = new Date().toISOString();
-    writeApplications(data);
-    return json(res, 200, { application, applications: data.applications });
+    await writeApplications(data);
+    return json(res, 200, { application });
+  }
+
+  if (applicationMatch && req.method === 'DELETE' && !applicationMatch[2]) {
+    if (!(await requireHr(req, res, true))) return;
+    const session = await getSession(req);
+    const id = decodeURIComponent(applicationMatch[1]);
+    await hiringDb.hardDeleteApplication(id, session && session.username);
+    return json(res, 200, { ok: true });
   }
 
   if (applicationMatch && req.method === 'PUT' && applicationMatch[2] === 'pipeline') {
-    if (!requireHr(req, res, true)) return;
+    if (!(await requireHr(req, res, true))) return;
     const body = await readBody(req);
-    const data = readApplications();
+    const data = await readApplications();
     const application = data.applications.find((entry) => entry.id === decodeURIComponent(applicationMatch[1]));
     if (!application) return json(res, 404, { error: 'APPLICATION_NOT_FOUND', message: 'Application not found.' });
-    const session = getSession(req);
+    const session = await getSession(req);
     try {
-      const previousInterviews = application.pipeline && Array.isArray(application.pipeline.interviews)
-        ? application.pipeline.interviews.slice()
+      const previousPipeline = application.pipeline && typeof application.pipeline === 'object'
+        ? application.pipeline
+        : null;
+      const previousStage = previousPipeline && previousPipeline.stage
+        ? String(previousPipeline.stage)
+        : '';
+      const previousInterviews = previousPipeline && Array.isArray(previousPipeline.interviews)
+        ? previousPipeline.interviews.slice()
         : [];
-      application.pipeline = cleanPipelinePayload(body.pipeline || body, application, session || {});
-      application.status = mirrorInboxStatus(application.pipeline);
+      application.pipeline = await cleanPipelinePayload(body.pipeline || body, application, session || {});
+      applyApplicationStatus(application, mirrorInboxStatus(application.pipeline));
       application.updatedAt = new Date().toISOString();
+      const nextStage = String((application.pipeline && application.pipeline.stage) || '');
+      const stageEvents = [];
+      if (previousStage !== nextStage && nextStage) {
+        stageEvents.push({
+          applicationId: application.id,
+          fromStage: previousStage || null,
+          toStage: nextStage,
+          occurredAt: application.updatedAt,
+          actor: (session && session.username) || 'hr',
+        });
+      }
       const scheduleChanges = detectInterviewScheduleChanges(previousInterviews, application.pipeline.interviews || []);
-      writeApplications(data);
+      await writeApplications(data, { stageEvents });
       let mailResults = [];
       if (scheduleChanges.length) {
         mailResults = await notifyInterviewSchedules(application, scheduleChanges, req);
       }
       let onboarding = null;
       if (application.pipeline && application.pipeline.offer && application.pipeline.offer.status === 'joined') {
-        const ensured = ensureOnboardingDraftForApplication(application, session && session.username);
+        const ensured = await ensureOnboardingDraftForApplication(application, session && session.username);
         if (ensured.request) {
           onboarding = {
             request: ensured.request,
@@ -2205,7 +2507,6 @@ async function handleApi(req, res, url) {
       }
       return json(res, 200, {
         application,
-        applications: data.applications,
         onboarding,
         mail: {
           scheduleNotices: mailResults,
@@ -2220,14 +2521,14 @@ async function handleApi(req, res, url) {
   }
 
   if (pathname === '/api/admin/contact-requests' && req.method === 'GET') {
-    if (!requireAdmin(req, res)) return;
+    if (!(await requireAdmin(req, res))) return;
     const data = readContactRequests();
     return json(res, 200, { updatedAt: data.updatedAt, requests: data.requests || [] });
   }
 
   const contactMatch = pathname.match(/^\/api\/admin\/contact-requests\/([^/]+)$/);
   if (contactMatch && req.method === 'PUT') {
-    if (!requireAdmin(req, res, true)) return;
+    if (!(await requireAdmin(req, res, true))) return;
     const allowedStatuses = new Set(['new', 'reviewing', 'contacted', 'closed']);
     const body = await readBody(req);
     const status = text(body.status, 30);
@@ -2242,7 +2543,7 @@ async function handleApi(req, res, url) {
   }
 
   if (pathname.startsWith('/api/admin/pages/') && req.method === 'PUT') {
-    const session = requireMutationAuth(req, res);
+    const session = await requireMutationAuth(req, res);
     if (!session) return;
     const page = pathname.split('/').pop();
     if (!PAGES.has(page)) return json(res, 404, { error: 'UNKNOWN_PAGE' });
@@ -2256,7 +2557,7 @@ async function handleApi(req, res, url) {
   }
 
   if (pathname === '/api/admin/upload' && req.method === 'POST') {
-    const session = requireMutationAuth(req, res);
+    const session = await requireMutationAuth(req, res);
     if (!session) return;
     if (!canUploadAssets(session)) {
       return json(res, 403, { error: 'FORBIDDEN', message: 'You do not have permission to upload files.' });
@@ -2303,7 +2604,7 @@ async function handleApi(req, res, url) {
     const collection = parts[3];
     const id = parts[4];
     if (!COLLECTIONS.has(collection)) return json(res, 404, { error: 'UNKNOWN_COLLECTION' });
-    const session = requireMutationAuth(req, res);
+    const session = await requireMutationAuth(req, res);
     if (!session) return;
     if (!canEditCollection(session, collection)) return json(res, 403, { error: 'FORBIDDEN', message: 'You can only manage Careers content.' });
     const data = readData();
@@ -2339,7 +2640,7 @@ async function handleApi(req, res, url) {
       addAudit(data, 'delete', `Deleted ${removed.title || removed.name}`, session.username);
       writeData(data);
       if (collection === 'jobs') {
-        const appsData = readApplications();
+        const appsData = await readApplications();
         const activeCount = (appsData.applications || []).filter((application) => {
           if (!applicationMatchesJob(application, removed)) return false;
           if (!application.pipeline || typeof application.pipeline !== 'object') return false;
@@ -2899,6 +3200,90 @@ function serveStatic(req, res, url) {
       'X-Content-Type-Options': 'nosniff',
     });
   }
+  if (pathname === '/admin/email-preview.html' || pathname === '/admin/email-preview') {
+    mail.loadEmailTemplates(true);
+    const sampleApp = {
+      fullName: 'Sara Hassan',
+      role: 'Senior Backend Engineer',
+      email: 'sara.hassan@example.com',
+      phone: '+20 100 000 0000',
+    };
+    const sampleRound = {
+      label: 'Technical',
+      format: 'online',
+      meetingLink: 'https://meet.google.com/abc-defg-hij',
+      interviewer: 'Omar Farid',
+      interviewerTitle: 'Engineering Manager',
+      interviewerEmail: 'interviewer@digitalhub.com.eg',
+      scheduledAt: '2026-08-21T11:00:00',
+    };
+    const when = new Date(sampleRound.scheduledAt);
+    const variants = [
+      { audience: 'interviewer', kind: 'schedule', to: 'interviewer@digitalhub.com.eg · CC: HR' },
+      { audience: 'candidate', kind: 'schedule', to: 'sara.hassan@example.com' },
+      { audience: 'interviewer', kind: 'reminder', to: 'interviewer@digitalhub.com.eg · CC: HR' },
+      { audience: 'candidate', kind: 'reminder', to: 'sara.hassan@example.com' },
+    ].map((entry) => {
+      const body = mail.interviewEmailBodies({
+        kind: entry.kind,
+        audience: entry.audience,
+        application: sampleApp,
+        round: sampleRound,
+        when,
+        baseUrl: mail.publicBaseUrl(req.headers.host),
+      });
+      return Object.assign({}, entry, body);
+    });
+    const cards = variants.map((entry) => `
+      <article class="card">
+        <div class="card-meta">
+          <span class="kind">${entry.kind === 'reminder' ? 'Day reminder' : 'Schedule'}</span>
+          <div class="audience">To ${entry.audience}</div>
+          <div class="subject">${String(entry.subject).replace(/</g, '&lt;')}</div>
+          <div class="to">To: ${entry.to}${entry.kind === 'schedule' ? ' · + calendar.ics' : ''}</div>
+        </div>
+        <div class="inbox"><div class="mail">${entry.html}</div></div>
+      </article>`).join('');
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Interview email layout preview</title>
+  <style>
+    body{margin:0;font-family:Segoe UI,Arial,sans-serif;background:linear-gradient(180deg,#dfe7ef,#e8edf2);color:#122033;padding:28px 20px 48px}
+    .page-head{max-width:1120px;margin:0 auto 24px}
+    .page-head h1{margin:0 0 6px;font-size:1.45rem}
+    .page-head p{margin:0;color:#5b6b7c;max-width:70ch;font-size:.95rem}
+    code{font-size:.85em;background:#fff;padding:1px 5px;border-radius:4px;border:1px solid #d5dde6}
+    .grid{max-width:1120px;margin:0 auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+    @media (max-width:900px){.grid{grid-template-columns:1fr}}
+    .card{background:#f7f9fb;border:1px solid #d5dde6;border-radius:14px;overflow:hidden;box-shadow:0 10px 28px rgba(18,32,51,.06)}
+    .card-meta{padding:14px 16px 12px;border-bottom:1px solid #d5dde6;background:#fff}
+    .audience{display:inline-block;font-size:.72rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#1A9AD6;margin-bottom:6px}
+    .kind{float:right;font-size:.72rem;font-weight:650;color:#5b6b7c;background:#eef3f8;padding:3px 8px;border-radius:999px}
+    .subject{clear:both;font-size:.92rem;font-weight:600;line-height:1.35}
+    .to{margin-top:6px;font-size:.8rem;color:#5b6b7c}
+    .inbox{background:#eceff3;padding:18px 14px 22px}
+    .mail{max-width:560px;margin:0 auto}
+    .note{max-width:1120px;margin:18px auto 0;font-size:.85rem;color:#5b6b7c}
+  </style>
+</head>
+<body>
+  <div class="page-head">
+    <h1>Interview email layout preview</h1>
+    <p>Live render from templates. Sample interviewer: <code>Omar Farid · Engineering Manager</code>. Edit <code>lib/email-templates/</code> then refresh this page.</p>
+  </div>
+  <div class="grid">${cards}</div>
+  <p class="note">No mail is sent from this page. SES must be configured before real sends.</p>
+</body>
+</html>`;
+    return sendBuffer(req, res, 200, html, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'X-Robots-Tag': 'noindex, nofollow, noarchive',
+    });
+  }
   if (pathname === '/') pathname = '/index.html';
   let target = path.resolve(ROOT, `.${pathname}`);
   if (!target.startsWith(`${ROOT}${path.sep}`) && target !== ROOT) {
@@ -2989,12 +3374,22 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, HOST, () => {
-  console.log(`Digital Hub CMS running at http://${HOST}:${PORT}`);
-  if (mail.mailEnabled() && mail.smtpConfigured()) {
-    console.log(`[mail] Amazon SES enabled · day reminders at 10:00 ${mail.MAIL_TZ}`);
-  } else {
-    console.log('[mail] Disabled (set SES_SMTP_USER, SES_SMTP_PASS, SES_FROM, and AWS_REGION or SES_SMTP_HOST)');
-  }
-  startInterviewReminderJob();
+async function startServer() {
+  await hiringDb.openHiringDb();
+  await hiringDb.ensureHiringSchema(hiringDb.getHiringDb());
+  await ensureAdminBootstrap();
+  server.listen(PORT, HOST, () => {
+    console.log(`Digital Hub CMS running at http://${HOST}:${PORT}`);
+    if (mail.mailEnabled() && mail.smtpConfigured()) {
+      console.log(`[mail] Amazon SES enabled · day reminders at 10:00 ${mail.MAIL_TZ}`);
+    } else {
+      console.log('[mail] Disabled (set SES_SMTP_USER, SES_SMTP_PASS, SES_FROM, and AWS_REGION or SES_SMTP_HOST)');
+    }
+    startInterviewReminderJob();
+  });
+}
+
+startServer().catch((error) => {
+  console.error('[fatal] Server failed to start:', error.message || error);
+  process.exit(1);
 });
