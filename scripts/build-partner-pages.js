@@ -242,7 +242,7 @@ ${jsonLd ? `<script type="application/ld+json">\n${jsonLd}\n</script>\n` : ''}<m
 <link rel="stylesheet" href="${up}css/service-page.css" />
 <link rel="stylesheet" href="${up}css/hub-pages.css" />
 <link rel="stylesheet" href="${up}css/tv.css" />
-<link rel="stylesheet" href="${up}css/responsive.css" />
+<link rel="stylesheet" href="${up}css/responsive.css?v=27" />
 </head>
 <body class="${bodyClass}">
 

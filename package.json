@@ -8,6 +8,7 @@
     "dev": "node server.js",
     "seo:build": "node scripts/seo-build.js",
     "seo:audit": "node scripts/seo-audit.js",
+    "audit:mobile": "node scripts/mobile-layout-audit.js",
     "check": "node --check server.js && node --check admin/admin.js && node --check js/content-runtime.js && node --check scripts/seo-build.js && node --check scripts/seo-audit.js",
     "test": "npm run check && npm run seo:audit"
   },
@@ -23,5 +24,8 @@
     "mssql": "^12.7.0",
     "nodemailer": "^9.0.5",
     "sharp": "^0.35.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1"
   }
 }

@@ -412,7 +412,7 @@ ${JSON.stringify(schema, null, 2).replace(/</g, '\\u003c')}
 <link rel="stylesheet" href="../css/service-page.css?v=svc21" />
 <link rel="stylesheet" href="../css/hub-pages.css?v=14" />
 <link rel="stylesheet" href="../css/tv.css?v=9" />
-<link rel="stylesheet" href="../css/responsive.css?v=25" />
+<link rel="stylesheet" href="../css/responsive.css?v=27" />
 </head>
 <body class="page-hub page-blog-view">
 <div class="site-bg" aria-hidden="true">

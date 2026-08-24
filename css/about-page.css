@@ -978,10 +978,10 @@
   }
   .about-history__head{margin-bottom:clamp(14px,3vw,20px)}
   .jtl-visual{
-    position:sticky;
-    top:calc(var(--jtl-pin-top, 96px));
-    z-index:2;
-    background:var(--bg,#0A1628);
+    position:static;
+    top:auto;
+    z-index:auto;
+    background:transparent;
   }
   .jtl-slides{height:var(--jtl-block-h)}
   .jtl-track{

@@ -1244,3 +1244,13 @@ html.nav-shown #nav{opacity:1;visibility:visible;pointer-events:auto}
 @media(max-width:720px){
   .news-hub-grid{grid-template-columns:1fr;--news-card-h:min(400px,56vh)}
 }
+
+/* Mobile blog TOC — tap-friendly anchor rows (desktop unchanged) */
+@media (max-width:991px){
+  .blog-view-toc a{
+    display:inline-block;
+    min-height:44px;
+    padding-block:10px;
+    line-height:1.35;
+  }
+}

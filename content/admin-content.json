@@ -1,10 +1,24 @@
 {
   "meta": {
     "version": 1,
-    "revision": 126,
-    "updatedAt": "2026-08-21T03:33:50.914Z",
-    "updatedBy": "admin",
+    "revision": 128,
+    "updatedAt": "2026-08-23T11:08:16.056Z",
+    "updatedBy": "ali.mohi",
     "audit": [
+      {
+        "id": "audit-8f3b243f-72a9-41ef-83a7-32c2ceda651b",
+        "action": "update",
+        "label": "Updated asdasd",
+        "at": "2026-08-23T11:08:16.056Z",
+        "by": "ali.mohi"
+      },
+      {
+        "id": "audit-8841b5a2-d077-4706-a57f-c35a089f07f1",
+        "action": "create",
+        "label": "Created asdasd",
+        "at": "2026-08-23T11:07:06.886Z",
+        "by": "ali.mohi"
+      },
       {
         "id": "audit-4a680229-edba-467a-8383-ca8630745a2c",
         "action": "page-update",
@@ -339,20 +353,6 @@
         "action": "update",
         "label": "Updated Mahmoud Yasser",
         "at": "2026-08-13T14:30:01.212Z",
-        "by": "admin"
-      },
-      {
-        "id": "audit-dce3de2d-d3a1-4b65-9309-b1a022f425c8",
-        "action": "upload",
-        "label": "Uploaded 1786631398708-headsss-for-the-website-03.webp",
-        "at": "2026-08-13T14:29:59.264Z",
-        "by": "admin"
-      },
-      {
-        "id": "audit-9ced7660-82f6-4dba-a72d-42aa3718f665",
-        "action": "update",
-        "label": "Updated Nada Younes",
-        "at": "2026-08-13T14:29:28.378Z",
         "by": "admin"
       }
     ]
@@ -1298,6 +1298,33 @@
         "order": 20,
         "updatedAt": "2026-08-21T03:11:02.285Z",
         "endedAt": "2026-08-21T03:04:57.518Z"
+      },
+      {
+        "id": "jobs-30680e22-1636-445d-b8a2-afcf18672efb",
+        "title": "asdasd",
+        "summary": "adasdasdadssada",
+        "aboutRole": "<p>sadadadadasd</p>",
+        "keyResponsibilities": "<p>dsadasda</p>",
+        "requiredSkills": "<p>asdasdad</p>",
+        "niceToHave": "<p>sadasd</p>",
+        "roleOffers": "<p>asdcadad</p>",
+        "interviewStages": [
+          "HR",
+          "Tech",
+          "CEO",
+          "CTO",
+          "Marketing",
+          "Sales",
+          "AI & Data"
+        ],
+        "href": "careers/asdasd.html",
+        "department": "dasdasdadasd",
+        "location": "sadadadsad",
+        "type": "Hybrid",
+        "status": "published",
+        "featured": false,
+        "order": 30,
+        "updatedAt": "2026-08-23T11:08:16.055Z"
       }
     ],
     "team": [

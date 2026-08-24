@@ -135,6 +135,55 @@ a.partner-overview__cta[href*="get-in-touch"]:focus-visible{
     width:calc(100% - var(--nav-inset));
     max-width:none;
   }
+  .nav-inner .brand{
+    min-width:44px;
+    min-height:44px;
+    justify-content:flex-start;
+  }
+
+  /* Secondary section CTAs (e.g. "View all ...") */
+  .tlink{
+    min-height:44px;
+    min-width:44px;
+    padding:11px 6px;
+    line-height:1.35;
+    box-sizing:border-box;
+  }
+
+  /* Homepage news carousel dots — 44px hit area, 8px visible dot, no overlap */
+  .news-carousel__dots{
+    gap:0;
+    min-height:44px;
+  }
+  .news-carousel__dot{
+    position:relative;
+    width:44px;
+    height:44px;
+    margin:0;
+    padding:0;
+    background:transparent;
+    flex-shrink:0;
+  }
+  .news-carousel__dot::before{
+    content:'';
+    position:absolute;
+    top:50%;
+    left:50%;
+    width:8px;
+    height:8px;
+    border-radius:50%;
+    background:rgba(255,255,255,0.22);
+    transform:translate(-50%, -50%);
+    transition:transform .2s var(--ease-std), background .2s var(--ease-std);
+  }
+  .news-carousel__dot.is-active{
+    background:transparent;
+    transform:none;
+  }
+  .news-carousel__dot.is-active::before{
+    background:#fff;
+    transform:translate(-50%, -50%) scale(1.15);
+  }
 
   /* All heroes fill the first phone screen, content vertically centered */
   .hero,
@@ -179,7 +228,7 @@ a.partner-overview__cta[href*="get-in-touch"]:focus-visible{
      the demo panel scrolls into view below it. */
   .hero--svc-split{
     justify-content:flex-start;
-    padding-top:calc(76px + var(--safe-top));
+    padding-top:calc(116px + var(--safe-top));
     padding-bottom:28px;
   }
   .svc-hero-grid{
@@ -189,13 +238,15 @@ a.partner-overview__cta[href*="get-in-touch"]:focus-visible{
     align-items:start;
   }
   .svc-hero-copy{
-    min-height:calc(100vh - 108px - var(--safe-top));
+    min-height:auto;
     display:flex;
     flex-direction:column;
-    justify-content:center;
+    justify-content:flex-start;
+    padding:0 12px;
+    box-sizing:border-box;
   }
   @supports (height:100svh){
-    .svc-hero-copy{min-height:calc(100svh - 108px - var(--safe-top))}
+    .svc-hero-copy{min-height:auto}
   }
   .hero--svc-split .svc-display,
   .hero--svc-split h1.svc-display{margin:6px 0 14px}
@@ -354,7 +405,41 @@ a.partner-overview__cta[href*="get-in-touch"]:focus-visible{
   .h1-line .word{white-space:normal}
   .h1-line > span,.h1{font-size:var(--display-size);letter-spacing:-0.03em}
   .hero-sub{max-width:100%;font-size:clamp(15px, 3.8vw, 17px)}
-  .footer-bottom{font-size:clamp(10px, 2.6vw, 11px);flex-wrap:wrap;line-height:1.45}
+  .footer-bottom{flex-wrap:wrap;line-height:1.45}
+  /* Footer columns + contact: mobile tap targets (desktop rules unchanged) */
+  .footer-col h4,.footer-contact h4{font-size:12px !important}
+  .footer-col a,.footer-contact > a{
+    min-height:44px;
+    padding:10px 0;
+    line-height:1.35;
+  }
+  .footer-social a{
+    width:44px;
+    min-width:44px;
+    height:44px;
+    min-height:44px;
+  }
+
+  /* Group 7 — contact quick links */
+  .contact-list a{
+    min-height:44px;
+    padding-block:10px;
+    line-height:1.35;
+    box-sizing:border-box;
+  }
+
+  /* Group 8 — homepage service-card “Learn more” */
+  .services-track .svc-card__link{
+    min-height:44px;
+    padding-block:10px;
+    line-height:1.35;
+    align-self:flex-start;
+    box-sizing:border-box;
+  }
+  .services-track .svc-card__body{gap:12px}
+
+  /* Group 9 — footer legal line (was clamp 10–11px) */
+  .footer-bottom{font-size:12px;line-height:1.45}
   .news{--news-card-w:min(560px, calc(100% - 32px));--news-card-h:min(460px, 62vh)}
 
   /* Homepage hero */
@@ -506,6 +591,8 @@ a.partner-overview__cta[href*="get-in-touch"]:focus-visible{
   }
   .nav,.hero--service .hero-inner{width:calc(100% - var(--nav-inset))}
   .hero{padding-top:calc(76px + var(--safe-top));min-height:auto}
+  /* Service hero spacing: keep additional breathing room below nav (mobile only) */
+  .hero--svc-split{padding-top:calc(116px + var(--safe-top))}
   .hero-inner{padding:20px 0 28px}
   .hub-hero,.about-hero,.blog-view-hero,.cs-hero,.svc-hero{
     padding-top:calc(76px + var(--safe-top));
@@ -573,7 +660,6 @@ a.partner-overview__cta[href*="get-in-touch"]:focus-visible{
     --h1-size:22px;
   }
   .nav{width:calc(100% - var(--nav-inset))}
-  .nav-burger{width:40px;height:40px;min-width:40px;min-height:40px}
 }
 
 /* Landscape phones */

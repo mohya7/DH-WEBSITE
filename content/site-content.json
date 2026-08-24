@@ -1,8 +1,8 @@
 {
   "meta": {
     "version": 1,
-    "revision": 126,
-    "updatedAt": "2026-08-21T03:33:50.914Z"
+    "revision": 128,
+    "updatedAt": "2026-08-23T11:08:16.056Z"
   },
   "pages": {
     "home": {
@@ -945,7 +945,35 @@
         "updatedAt": "2026-08-13T15:40:35.959Z"
       }
     ],
-    "jobs": [],
+    "jobs": [
+      {
+        "id": "jobs-30680e22-1636-445d-b8a2-afcf18672efb",
+        "title": "asdasd",
+        "summary": "adasdasdadssada",
+        "aboutRole": "<p>sadadadadasd</p>",
+        "keyResponsibilities": "<p>dsadasda</p>",
+        "requiredSkills": "<p>asdasdad</p>",
+        "niceToHave": "<p>sadasd</p>",
+        "roleOffers": "<p>asdcadad</p>",
+        "interviewStages": [
+          "HR",
+          "Tech",
+          "CEO",
+          "CTO",
+          "Marketing",
+          "Sales",
+          "AI & Data"
+        ],
+        "href": "careers/asdasd.html",
+        "department": "dasdasdadasd",
+        "location": "sadadadsad",
+        "type": "Hybrid",
+        "status": "published",
+        "featured": false,
+        "order": 30,
+        "updatedAt": "2026-08-23T11:08:16.055Z"
+      }
+    ],
     "team": [
       {
         "id": "team-kareem-adel",

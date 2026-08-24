@@ -450,3 +450,26 @@
 .careers-apply-form input[type="number"]{-moz-appearance:textfield;appearance:textfield}
 .careers-apply-form input[type="number"]::-webkit-inner-spin-button,
 .careers-apply-form input[type="number"]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+
+/* Mobile apply form — readable labels and iOS-safe input size (desktop unchanged) */
+@media (max-width:991px){
+  .careers-crumb a{
+    min-height:44px;
+    padding-block:10px;
+    line-height:1.35;
+  }
+  .careers-apply-form .field-label{
+    font-size:14px;
+    letter-spacing:0.06em;
+  }
+  .careers-apply-form .careers-apply-form__hint{
+    font-size:12px;
+    line-height:1.45;
+  }
+  .careers-apply-form .input,
+  .careers-apply-form .textarea,
+  .careers-apply-form .select,
+  .careers-apply-form__file{
+    font-size:16px;
+  }
+}
