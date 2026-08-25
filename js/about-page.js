@@ -407,12 +407,16 @@
       return Math.round(window.innerHeight * Math.max(1.05, (items.length - 1) * 0.55));
     }
 
-    function jtlPinTop(){
+    function jtlNavBottom(){
       var nav = document.getElementById('nav');
-      var gap = window.innerHeight <= 900 ? 48 : 40;
-      if (!nav) return 120 + gap;
+      if (!nav) return 120;
       var rect = nav.getBoundingClientRect();
-      return Math.ceil(rect.top + rect.height + gap);
+      return Math.ceil(rect.top + rect.height);
+    }
+
+    function jtlPinTop(){
+      var gap = window.innerHeight <= 900 ? 48 : 40;
+      return jtlNavBottom() + gap;
     }
 
     function jtlPinBottom(){
@@ -423,14 +427,20 @@
       var top = jtlPinTop();
       var bottom = jtlPinBottom();
       document.documentElement.style.setProperty('--jtl-pin-top', top + 'px');
+      document.documentElement.style.setProperty('--jtl-nav-bottom', jtlNavBottom() + 'px');
       document.documentElement.style.setProperty('--jtl-pin-bottom', bottom + 'px');
       return top;
     }
     jtlSyncPinTop();
+    var jtlResizeTimer;
     window.addEventListener('resize', function(){
       layoutLine();
       jtlSyncPinTop();
       if (typeof ScrollTrigger !== 'undefined') ScrollTrigger.refresh();
+      clearTimeout(jtlResizeTimer);
+      jtlResizeTimer = setTimeout(function(){
+        if (wrap._jtlMobileScroll) enableMobileTimeline();
+      }, 150);
     });
 
     items.forEach(function(item, i){
@@ -465,7 +475,9 @@
     layoutLine();
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(layoutLine);
 
-    if (typeof ScrollTrigger === 'undefined') return;
+    /* The mobile timeline is CSS sticky + a scroll listener, so it must still work
+       when GSAP/ScrollTrigger is unavailable. Only the desktop pin needs it. */
+    var hasScrollTrigger = typeof ScrollTrigger !== 'undefined';
 
     var desktopMq = window.matchMedia('(min-width: 901px)');
 
@@ -501,31 +513,63 @@
       });
     }
 
+    /* The photo block is sticky on mobile. The active item is the one sitting closest to
+       the line just under the pinned photo — computed directly rather than via
+       IntersectionObserver, which cannot express "closest" and lets the last
+       intersecting entry win. */
+    function jtlActiveLine(){
+      var visual = wrap.querySelector('.jtl-visual');
+      if (visual && getComputedStyle(visual).position === 'sticky'){
+        return visual.getBoundingClientRect().bottom + 24;
+      }
+      return (window.innerHeight || 800) * 0.45;
+    }
+
     function enableMobileTimeline(){
       killPin();
       reveal();
-      var io = new IntersectionObserver(function(entries){
-        entries.forEach(function(entry){
-          if (!entry.isIntersecting) return;
-          var idx = parseInt(entry.target.getAttribute('data-jtl'), 10);
-          if (!isNaN(idx)) setActive(idx, { force: true, animateFill: true });
+      teardownMobileTimeline();
+      var ticking = false;
+      function pickActive(){
+        ticking = false;
+        var line = jtlActiveLine();
+        var best = -1, bestDist = Infinity;
+        items.forEach(function(item, i){
+          var r = item.getBoundingClientRect();
+          var dist = Math.abs((r.top + r.bottom) / 2 - line);
+          if (dist < bestDist){ bestDist = dist; best = i; }
         });
-      }, { root: null, threshold: 0.55, rootMargin: '-10% 0px -35% 0px' });
-      items.forEach(function(item){ io.observe(item); });
-      wrap._jtlMobileIO = io;
+        if (best > -1 && best !== activeIndex) setActive(best, { force: true, animateFill: true });
+      }
+      function onScroll(){
+        if (ticking) return;
+        ticking = true;
+        requestAnimationFrame(pickActive);
+      }
+      window.addEventListener('scroll', onScroll, { passive: true });
+      wrap._jtlMobileScroll = onScroll;
+      pickActive();
     }
 
-    function syncTimelineMode(){
+    function teardownMobileTimeline(){
       if (wrap._jtlMobileIO){
         wrap._jtlMobileIO.disconnect();
         wrap._jtlMobileIO = null;
       }
-      if (desktopMq.matches && !reduceMotion){
+      if (wrap._jtlMobileScroll){
+        window.removeEventListener('scroll', wrap._jtlMobileScroll);
+        wrap._jtlMobileScroll = null;
+      }
+    }
+
+    function syncTimelineMode(){
+      teardownMobileTimeline();
+      if (desktopMq.matches && !reduceMotion && hasScrollTrigger){
         enableDesktopPin();
       } else {
         enableMobileTimeline();
       }
-      ScrollTrigger.refresh();
+      if (hasScrollTrigger) ScrollTrigger.refresh();
     }
 
     syncTimelineMode();

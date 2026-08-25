@@ -193,7 +193,6 @@ a.partner-overview__cta[href*="get-in-touch"]:focus-visible{
   .about-hero,
   .blog-view-hero,
   .partner-view-hero,
-  .cs-hero,
   .svc-hero,
   .cs-hub-hero{
     min-height:100vh !important;
@@ -212,7 +211,6 @@ a.partner-overview__cta[href*="get-in-touch"]:focus-visible{
     .about-hero,
     .blog-view-hero,
     .partner-view-hero,
-    .cs-hero,
     .svc-hero,
     .cs-hub-hero{
       min-height:100svh !important;
@@ -280,6 +278,25 @@ a.partner-overview__cta[href*="get-in-touch"]:focus-visible{
     padding-top:calc(88px + var(--safe-top));
     padding-bottom:0;
   }
+
+  /* Case-study hero (<=991px): sized to its content rather than forced to fill the
+     screen. --cs-media-max is read by .cs-hero__media in shared.css; the source
+     images are 1400x933 (3/2), so the native ratio is kept and only height is capped. */
+  .cs-hero{
+    padding-top:calc(88px + var(--safe-top));
+    padding-bottom:clamp(18px,4.5vw,30px);
+    max-width:100%;
+    box-sizing:border-box;
+    overflow-x:clip;
+    --cs-media-max:min(38vh,320px);
+  }
+  .cs-hero .section-inner{
+    grid-template-columns:1fr;
+    gap:clamp(18px,4.5vw,28px);
+    align-items:start;
+  }
+  .cs-hero__client{margin-bottom:16px}
+
   .page-partner-view{
     --partner-nav-top:14px;
     --partner-nav-h:58px;
@@ -400,7 +417,7 @@ a.partner-overview__cta[href*="get-in-touch"]:focus-visible{
     box-sizing:border-box;
   }
   .section.services{
-    --svc-card-w:min(calc(100% - var(--pad-x) - 24px), 360px);
+    --svc-card-w:min(calc(100vw - var(--pad-x) - 24px), 360px);
   }
   .h1-line .word{white-space:normal}
   .h1-line > span,.h1{font-size:var(--display-size);letter-spacing:-0.03em}
@@ -487,6 +504,7 @@ a.partner-overview__cta[href*="get-in-touch"]:focus-visible{
 
 /* Large phone */
 @media (max-width:640px){
+  .cs-hero{--cs-media-max:min(34vh,280px)}
   :root{
     --nav-inset:20px;
     --pad-x:20px;
@@ -538,7 +556,7 @@ a.partner-overview__cta[href*="get-in-touch"]:focus-visible{
     grid-template-columns:1fr;
   }
   .section.services{
-    --svc-card-w:calc(100% - var(--pad-x) - 16px);
+    --svc-card-w:calc(100vw - var(--pad-x) - 16px);
     --svc-nav-offset:120px;
     --svc-head-space:92px;
   }
@@ -583,6 +601,7 @@ a.partner-overview__cta[href*="get-in-touch"]:focus-visible{
 
 /* Common phone widths: iPhone 14/15 Pro Max → SE */
 @media (max-width:430px){
+  .cs-hero{--cs-media-max:min(32vh,240px)}
   :root{
     --nav-inset:16px;
     --pad-x:16px;
@@ -611,9 +630,7 @@ a.partner-overview__cta[href*="get-in-touch"]:focus-visible{
   .nav-cta{padding:10px 16px;font-size:13px}
   .footer-logo{height:clamp(72px,22vw,96px)}
   .footer-top{gap:24px}
-  .cs-hero{padding-top:96px}
-  .cs-stats{padding:16px;gap:12px;grid-template-columns:1fr}
-  .cs-stat__value{font-size:clamp(24px,6vw,32px)}
+  .cs-hero{padding-top:calc(80px + var(--safe-top))}
   .cs-cta{padding:28px 20px;flex-direction:column;align-items:stretch}
   .cs-cta .btn-primary{align-self:flex-start}
   .svc-hero{padding-top:96px}
@@ -636,6 +653,7 @@ a.partner-overview__cta[href*="get-in-touch"]:focus-visible{
 }
 
 @media (max-width:360px){
+  .cs-hero{--cs-media-max:min(30vh,210px)}
   :root{
     --pad-x:14px;
     --nav-inset:12px;
@@ -664,6 +682,8 @@ a.partner-overview__cta[href*="get-in-touch"]:focus-visible{
 
 /* Landscape phones */
 @media (max-height:520px) and (orientation:landscape){
+  .cs-hero{padding-top:calc(72px + var(--safe-top));--cs-media-max:44vh}
+  .cs-hero .section-inner{grid-template-columns:1fr 1fr;align-items:center}
   .hub-hero,.about-hero,.blog-view-hero{padding-top:72px}
   .careers-detail-hero{min-height:140px;margin-top:64px}
   .hero,.hero--svc-split{padding-top:64px;min-height:auto !important}

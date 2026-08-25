@@ -67,43 +67,117 @@
 .about-banner.hero-glass{
   width:100%;
   text-align:left;
+  grid-template-columns:minmax(0,1.12fr) minmax(0,0.88fr);
+  align-items:center;
 }
-.about-banner__head .label{
-  display:block;
-  margin-bottom:6px;
+
+/* Eyebrow */
+.about-banner .about-eyebrow{
+  display:inline-flex;align-items:center;gap:10px;
+  margin:0 0 14px;
+  font-size:12px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;
   color:var(--orange);
+  opacity:0;transform:translateY(12px);
+  animation:fadeUp .6s var(--ease) .08s forwards;
 }
-.about-banner__head h1{
-  margin:0;
-  max-width:none;
-  font-size:var(--h1-size);
+.about-banner .about-eyebrow::before{
+  content:'';flex:none;width:8px;height:8px;border-radius:50%;
+  background:var(--orange);box-shadow:0 0 12px rgba(244,151,11,0.8);
+}
+
+/* Headline — gradient survives the CMS textContent overwrite in content-runtime.js */
+.about-banner__head h1,
+.about-banner__head h1.about-display{
+  margin:0 0 18px;
+  max-width:16ch;
+  font-size:clamp(30px,4.4vw,52px);
   font-weight:700;
-  letter-spacing:-0.02em;
-  line-height:1.12;
-  color:var(--text-1);
-  opacity:1;
-  transform:none;
-  animation:none;
+  letter-spacing:-0.03em;
+  line-height:1.06;
+  color:#fff;
+  background:linear-gradient(115deg,#FFFFFF 0%,#FFFFFF 42%,#C9DCEF 100%);
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;
+  opacity:0;transform:translateY(16px);
+  animation:fadeUp .7s var(--ease) .16s forwards;
 }
-.about-banner__body{
-  justify-content:center;
-}
-.about-banner__body .lead{
-  margin:0;
-  max-width:none;
-  font-size:16px;
+
+/* Lede */
+.about-banner .about-lede{
+  margin:0 0 26px;
+  max-width:60ch;
+  font-size:clamp(15px,1.15vw,17px);
   font-weight:400;
-  line-height:1.55;
-  color:rgba(230,238,248,0.78);
-  opacity:1;
-  transform:none;
-  animation:none;
+  line-height:1.65;
+  color:rgba(230,238,248,0.8);
+  opacity:0;transform:translateY(16px);
+  animation:fadeUp .65s var(--ease) .28s forwards;
 }
+
+/* Hero actions */
+.about-hero__cta{
+  display:flex;flex-wrap:wrap;gap:12px;align-items:center;
+  /* .btn-svc-* read these; they are otherwise scoped to .hero--svc-split */
+  --svc-accent:#36B0E5;
+  --svc-accent-deep:#1A9AD6;
+  opacity:0;transform:translateY(14px);
+  animation:fadeUp .6s var(--ease) .4s forwards;
+}
+/* Site default mid stop (#36B0E5) gives white-on-blue 2.47:1; this keeps the
+   14px label at >=4.5:1 across the whole gradient. */
+.about-hero__cta .btn-svc-primary{
+  background:linear-gradient(135deg,#1D73D0 0%,#1C6FC9 55%,#0f4f9a 100%);
+}
+
+/* Proof rail */
+.about-banner__body{justify-content:center}
+.about-proof{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+  width:100%;margin:0;padding:0;list-style:none;
+  opacity:0;
+  animation:fadeIn .7s var(--ease) .52s forwards;
+}
+.about-proof li{
+  padding:16px 14px;
+  border-radius:16px;
+  background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.12);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,0.1),0 8px 24px rgba(0,0,0,0.14);
+}
+.about-proof strong{
+  display:block;
+  font-size:clamp(22px,2.2vw,28px);
+  font-weight:700;line-height:1.05;
+  color:var(--text-1);
+  font-variant-numeric:tabular-nums;
+}
+.about-proof li:first-child strong{
+  color:var(--orange);
+  text-shadow:0 0 20px rgba(244,151,11,0.3);
+}
+.about-proof span{
+  display:block;margin-top:6px;
+  font-size:11px;font-weight:600;letter-spacing:0.09em;text-transform:uppercase;
+  color:var(--text-2);
+}
+
 @media(max-width:900px){
+  .about-banner.hero-glass{grid-template-columns:1fr}
   .about-banner__head{
     padding-bottom:24px;
     border-bottom:1px solid rgba(255,255,255,0.1);
   }
+}
+
+@media (prefers-reduced-motion:reduce){
+  .about-eyebrow,
+  .about-banner__head h1,
+  .about-banner .about-lede,
+  .about-hero__cta,
+  .about-proof{opacity:1;transform:none;animation:none}
+}
 }
 
 /* Services / constellation */
@@ -949,7 +1023,6 @@
 
 @media(max-width:900px){
   .about-hero{padding-top:88px}
-  .about-banner__body .lead{font-size:15px;line-height:1.6}
   .about-head p{font-size:16px;line-height:1.7;max-width:100%}
   .about-pillar{padding:clamp(22px,5vw,28px)}
   .about-pillar__body p{font-size:15px;line-height:1.7}
@@ -968,20 +1041,37 @@
     --jtl-split-gap:clamp(16px,4vw,24px);
     --jtl-rail:36px;
   }
+  /* Mobile: block flow so the photo can stick while the track scrolls past it.
+     A sticky grid item is confined to its own grid area, so grid must be dropped here. */
   .jtl{
-    grid-template-columns:1fr;
-    row-gap:clamp(16px,4vw,24px);
+    display:block;
     --jtl-year-col:min(88px,22vw);
     --jtl-year-size:clamp(17px,4.4vw,21px);
     --jtl-text-size:clamp(13px,3.5vw,15px);
     --jtl-text-gap:clamp(10px,2.5vw,14px);
   }
-  .about-history__head{margin-bottom:clamp(14px,3vw,20px)}
+  /* Sits above the sticky photo's backdrop while the photo is still in flow. */
+  .about-history__head{
+    margin-bottom:clamp(14px,3vw,20px);
+    position:relative;
+    z-index:4;
+  }
   .jtl-visual{
-    position:static;
-    top:auto;
-    z-index:auto;
-    background:transparent;
+    position:sticky;
+    top:calc(var(--jtl-nav-bottom,72px) + 10px);
+    z-index:3;
+    padding-bottom:clamp(16px,4vw,24px);
+    background:var(--bg);
+  }
+  /* Masks the strip between the nav and the pinned photo, so track rows do not
+     flash through that gap as they scroll underneath. */
+  .jtl-visual::before{
+    content:'';
+    position:absolute;
+    left:0;right:0;bottom:100%;
+    height:calc(var(--jtl-nav-bottom,72px) + 10px);
+    background:var(--bg);
+    pointer-events:none;
   }
   .jtl-slides{height:var(--jtl-block-h)}
   .jtl-track{
@@ -1096,7 +1186,6 @@
 @media(min-width:1920px){
   .page-about .section{padding-top:clamp(48px,4vw,72px);padding-bottom:clamp(48px,4vw,72px)}
   .about-head p{font-size:19px;max-width:56ch}
-  .about-banner__body .lead{font-size:17px}
   .about-history .section-inner{
     --jtl-block-h:clamp(420px,28vw,520px);
     --jtl-split-gap:clamp(40px,3vw,64px);
@@ -1124,4 +1213,10 @@
     --team-card-w:clamp(300px,14vw,380px);
     --team-photo-h:clamp(400px,20vw,520px);
   }
+}
+
+/* Short viewports (landscape phones): a sticky photo would eat the whole screen,
+   so fall back to normal flow. */
+@media (max-width:900px) and (max-height:600px){
+  .jtl-visual{position:static;top:auto}
 }
