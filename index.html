@@ -2043,7 +2043,7 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
    S6 CASE STUDIES ? Finsight-style cards
    ============================================================ */
 .cases{background:transparent}
-.cases-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+.cases-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px}
 .case{
   position:relative;
   border-radius:20px;
@@ -2646,7 +2646,7 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
   .stat{padding:0 16px;border-right:0}
   .stat:nth-child(odd){padding-left:0}
   .stat-num{font-size:44px}
-  .cases-grid{grid-template-columns:repeat(2,1fr);gap:20px}
+  .cases-grid{gap:20px}
   .news{--news-card-w:min(560px, 84vw);--news-card-h:min(460px, 62vh)}
   .footer-top{grid-template-columns:1fr 1fr;gap:28px}
   .footer-logo-wrap{grid-column:1/-1}
@@ -2724,7 +2724,7 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
   .plogo{padding:10px}
   .plogo-img{width:min(100%, 150px);height:28px}
   .section.services{--svc-card-w:calc(100vw - var(--pad-x) - 16px)}
-  .partners-grid,.cases-grid{grid-template-columns:1fr}
+  .partners-grid{grid-template-columns:1fr}
   .submit-btn{min-height:48px;padding:16px}
   .input,.select,.textarea{min-height:48px;padding:14px 16px;font-size:16px}
 }
@@ -2742,7 +2742,7 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
   .partner{padding:28px 22px}
   .viz{width:min(280px, calc(100% - 8px));height:min(280px, calc(100% - 8px))}
   .partner-card{border-radius:20px}
-  .partners-grid,.cases-grid{grid-template-columns:1fr}
+  .partners-grid{grid-template-columns:1fr}
   .blogs{--blogs-card-h:min(180px,42vw)}
   .blogs-carousel__btn{width:44px;height:44px}
   .blogs-carousel__btn--prev{left:-4px}
@@ -2823,7 +2823,7 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
 }
 </style>
 <link rel="stylesheet" href="css/tv.css?v=9" />
-<link rel="stylesheet" href="css/responsive.css?v=29" />
+<link rel="stylesheet" href="css/responsive.css?v=30" />
 </head>
 <body>
 <script>

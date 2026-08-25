@@ -239,10 +239,10 @@ ${jsonLd ? `<script type="application/ld+json">\n${jsonLd}\n</script>\n` : ''}<m
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css" />
-<link rel="stylesheet" href="${up}css/service-page.css?v=svc23" />
+<link rel="stylesheet" href="${up}css/service-page.css?v=svc24" />
 <link rel="stylesheet" href="${up}css/hub-pages.css?v=29" />
 <link rel="stylesheet" href="${up}css/tv.css?v=9" />
-<link rel="stylesheet" href="${up}css/responsive.css?v=29" />
+<link rel="stylesheet" href="${up}css/responsive.css?v=30" />
 </head>
 <body class="${bodyClass}">
 
