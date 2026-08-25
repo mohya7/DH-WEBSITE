@@ -866,6 +866,7 @@ function permissionsFor(role) {
   const admin = role === 'admin';
   const hr = role === 'hr';
   const marketing = role === 'marketing';
+  const interviewer = role === 'interviewer';
   return {
     collections: admin
       ? Array.from(COLLECTIONS).filter((name) => name !== 'jobs')
@@ -875,10 +876,18 @@ function permissionsFor(role) {
     canUseTools: admin,
     canUseHiring: hr,
     canUseOnboarding: hr || marketing,
+    /* Interviewers get their own portal only: no collections, no pages, no user
+       management, no hiring portal, no onboarding. Every flag above is already
+       false for this role; this one exists so the SPA can branch on it. */
+    canUseInterviewerPortal: interviewer,
   };
 }
 
 function adminView(data, session) {
+  const scopedMeta = () => ({
+    ...data.meta,
+    audit: (data.meta.audit || []).filter((event) => event.by === session.username).slice(0, 20),
+  });
   if (session.role === 'admin') {
     const collections = {};
     for (const name of COLLECTIONS) {
@@ -891,23 +900,20 @@ function adminView(data, session) {
       collections,
     };
   }
-  if (session.role === 'marketing') {
+  if (session.role === 'hr') {
     return {
-      meta: {
-        ...data.meta,
-        audit: (data.meta.audit || []).filter((event) => event.by === session.username).slice(0, 20),
-      },
+      meta: scopedMeta(),
       pages: {},
-      collections: {},
+      collections: { jobs: data.collections.jobs || [] },
     };
   }
+  /* Deny by default. Marketing, interviewer, and any unrecognised role get no
+     collections and no pages. The HR shape used to be the fallthrough, which
+     handed the whole jobs collection — drafts included — to any other role. */
   return {
-    meta: {
-      ...data.meta,
-      audit: (data.meta.audit || []).filter((event) => event.by === session.username).slice(0, 20),
-    },
+    meta: scopedMeta(),
     pages: {},
-    collections: { jobs: data.collections.jobs || [] },
+    collections: {},
   };
 }
 
@@ -1270,10 +1276,24 @@ async function requireHr(req, res, mutation) {
   return session;
 }
 
+/* Fails closed: only the exact string 'interviewer' passes, so a missing, null,
+   or unexpected role is rejected. */
+async function requireInterviewer(req, res, mutation = false) {
+  const session = mutation ? await requireMutationAuth(req, res) : await requireAuth(req, res);
+  if (!session) return null;
+  if (session.role !== 'interviewer') {
+    json(res, 403, { error: 'FORBIDDEN', message: 'Interviewer tools are available to interviewer accounts only.' });
+    return null;
+  }
+  return session;
+}
+
+/* 'admin' stays unassignable here on purpose: managed accounts cannot escalate
+   to administrator through account creation. */
 function normalizeAccountRole(value, fallback = 'hr') {
   const role = String(value || fallback).trim().toLowerCase();
-  if (role === 'hr' || role === 'marketing') return role;
-  throw Object.assign(new Error('Role must be HR or Marketing.'), { status: 422 });
+  if (role === 'hr' || role === 'marketing' || role === 'interviewer') return role;
+  throw Object.assign(new Error('Role must be HR, Marketing, or Interviewer.'), { status: 422 });
 }
 
 function readBody(req) {
