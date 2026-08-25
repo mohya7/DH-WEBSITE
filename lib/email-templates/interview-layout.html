@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="light dark">
   <meta name="supported-color-schemes" content="light dark">
-  <title>Digital Hub interview</title>
+  <title>{{title}}</title>
   <!--
     Light design is fully inline (Outlook-safe). This block only improves clients
     that honour prefers-color-scheme. Do not rely on it for structure or layout.
@@ -65,7 +65,8 @@
 <!--
   Shared interview email layout (interviewer + candidate).
   Slots: {{summary_block}} {{detail_rows}}
-  Placeholders: {{logo_url}} {{site_url}} {{eyebrow}} {{intro}} {{footer_block}}
+  Placeholders: {{title}} {{logo_url}} {{site_url}} {{eyebrow}} {{intro}} {{footer_block}}
+  {{title}} is the document title; every caller passes its own subject.
   Also available: {{candidate}} {{role}} {{stage}} {{when}} {{time}} {{format}}
   {{interviewer}} {{candidate_email}} {{candidate_phone}}
 -->
