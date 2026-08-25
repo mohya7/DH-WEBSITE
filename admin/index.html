@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
-  <link rel="stylesheet" href="/admin/admin.css?v=20260821-hr-account-interviewers">
+  <link rel="stylesheet" href="/admin/admin.css?v=20260825-hr-account-interviewers">
 </head>
 <body>
   <div class="ambient" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -842,6 +842,7 @@
         <div class="account-form-body">
           <div class="account-form-grid">
             <label class="form-field"><span>Full name</span><span class="field-shell"><i class="ti ti-user"></i><input name="name" maxlength="120" placeholder="e.g. Mohamed Mansour" required></span></label>
+            <label class="form-field"><span>Username</span><span class="field-shell"><i class="ti ti-at"></i><input name="username" maxlength="40" placeholder="e.g. mohamed.mansour" required></span></label>
             <label class="form-field"><span>Title</span><span class="field-shell"><i class="ti ti-id-badge"></i><input name="jobTitle" maxlength="120" placeholder="e.g. Engineering Manager"></span></label>
             <label class="form-field"><span>Email</span><span class="field-shell"><i class="ti ti-mail"></i><input name="email" type="email" maxlength="160" placeholder="mohamed@digitalhub.com.eg" required></span></label>
             <label class="account-active">
@@ -849,6 +850,11 @@
               <span class="switch"><input name="active" type="checkbox" checked><span></span></span>
             </label>
           </div>
+        </div>
+        <div class="invite-result is-hidden" id="interviewerInviteResult">
+          <p><strong>Account created.</strong> <span id="interviewerInviteStatus"></span></p>
+          <label class="form-field"><span>Invite link — share it with them</span><span class="field-shell"><i class="ti ti-link"></i><input id="interviewerInviteUrl" readonly></span></label>
+          <button class="secondary-btn" id="copyInterviewerInviteBtn" type="button"><i class="ti ti-copy"></i><span>Copy link</span></button>
         </div>
         <footer class="account-modal__foot">
           <button class="secondary-btn" id="cancelInterviewerModalBtn" type="button">Cancel</button>
@@ -889,6 +895,6 @@
 
   <div class="toast-stack" id="toastStack" aria-live="polite"></div>
   <div class="mobile-overlay" id="mobileOverlay"></div>
-  <script src="/admin/admin.js?v=20260821-hr-account-interviewers"></script>
+  <script src="/admin/admin.js?v=20260825-hr-account-interviewers"></script>
 </body>
 </html>

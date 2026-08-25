@@ -1141,3 +1141,13 @@ img{display:block;max-width:100%}
   .ilog-filter-grid,.ilog-stats,.ilog-contact,.ilog-round__grid{grid-template-columns:1fr}
 }
 
+
+/* Invite link returned once after creating an interviewer account. */
+.invite-result{
+  margin:0 24px 4px;padding:14px 16px;border-radius:12px;
+  background:rgba(29,115,208,0.08);border:1px solid rgba(29,115,208,0.28);
+}
+.invite-result.is-hidden{display:none}
+.invite-result p{margin:0 0 10px;font-size:12.5px;line-height:1.5}
+.invite-result input{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+.invite-result .secondary-btn{margin-top:10px}

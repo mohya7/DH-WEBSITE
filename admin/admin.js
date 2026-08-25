@@ -270,7 +270,7 @@
     }
     var response = await fetch(url, Object.assign({}, options, { method: method, headers: headers, credentials: 'same-origin' }));
     var payload = await response.json().catch(function () { return {}; });
-    if (response.status === 401 && url !== '/api/admin/login' && url !== '/api/admin/auth/setup-password') {
+    if (response.status === 401 && url !== '/api/admin/login' && url !== '/api/admin/auth/setup-password' && url !== '/api/admin/auth/invite-info') {
       showLogin();
       throw new Error('Your session has expired. Please sign in again.');
     }
@@ -314,13 +314,22 @@
       state.setupToken = setupToken;
       loginForm.classList.add('is-hidden');
       setupForm.classList.remove('is-hidden');
-      $('.login-copy .eyebrow').textContent = 'HR ACCOUNT SETUP';
+      $('.login-copy .eyebrow').textContent = 'ACCOUNT SETUP';
       $('#loginTitle').innerHTML = 'Set your<br><em>password</em>';
-      $('.login-copy p').textContent = 'Choose a password for your HR account, then sign in with your username.';
+      $('.login-copy p').textContent = 'Choose a password for your account, then sign in with your username.';
       $('#setupError').textContent = '';
       $('#setupPassword').value = '';
       $('#setupPasswordConfirm').value = '';
       setTimeout(function () { $('#setupPassword').focus(); }, 60);
+      /* Label the screen with the real role once the server confirms the token. */
+      api('/api/admin/auth/invite-info', { method: 'POST', body: JSON.stringify({ token: setupToken }) })
+        .then(function (info) {
+          if (!info || !info.roleLabel || state.setupToken !== setupToken) return;
+          $('.login-copy .eyebrow').textContent = String(info.roleLabel).toUpperCase() + ' ACCOUNT SETUP';
+          $('.login-copy p').textContent = 'Choose a password for your ' + info.roleLabel
+            + ' account, then sign in with your username.';
+        })
+        .catch(function () { /* keep the neutral copy if the token is stale */ });
       return;
     }
     state.setupToken = '';
@@ -4171,12 +4180,12 @@
         ? escapeHtml(entry.title) + ' · ' + escapeHtml(entry.email || '—')
         : escapeHtml(entry.email || '—');
       var note = readOnly
-        ? '<p class="interviewer-account-note">From HR account — edit name, email, or title in user settings.</p>'
-        : '';
+        ? '<p class="interviewer-account-note">Has an account — edit name, email, or title in User Management.</p>'
+        : '<p class="interviewer-account-note">Legacy entry with no login. Convert it to an account so they can sign in.</p>';
       var actions = readOnly
         ? '<div class="user-actions"><span class="interviewer-readonly-badge">Account</span></div>'
         : '<div class="user-actions">' +
-          '<button class="card-action" type="button" data-interviewer-action="edit" title="Edit interviewer"><i class="ti ti-pencil"></i></button>' +
+          '<button class="card-action" type="button" data-interviewer-action="convert" title="Convert to an account"><i class="ti ti-user-plus"></i></button>' +
           '<button class="card-action is-danger" type="button" data-interviewer-action="delete" title="Delete interviewer"><i class="ti ti-trash"></i></button>' +
           '</div>';
       return '<article class="interviewer-row' + (readOnly ? ' is-account' : '') + '" data-interviewer-id="' + escapeHtml(entry.id) + '" data-readonly="' + (readOnly ? '1' : '0') + '">' +
@@ -4192,13 +4201,19 @@
 
   function openInterviewerModal(entry) {
     if (entry && (entry.readOnly || entry.source === 'account')) {
-      toast('This interviewer comes from an HR account. Update their details in user settings.', true);
+      toast('This interviewer has an account. Update their details in User Management.', true);
       return;
     }
     state.editingInterviewerId = entry && entry.id ? entry.id : null;
     var form = $('#interviewerForm');
     if (!form) return;
     form.reset();
+    /* Clear any invite link left over from a previous create. */
+    var invitePanel = $('#interviewerInviteResult');
+    if (invitePanel) {
+      invitePanel.classList.add('is-hidden');
+      $('#interviewerInviteUrl').value = '';
+    }
     var nameInput = form.elements.namedItem('name');
     var titleInput = form.elements.namedItem('jobTitle');
     var emailInput = form.elements.namedItem('email');
@@ -4207,11 +4222,11 @@
     if (titleInput) titleInput.value = entry && entry.title ? entry.title : '';
     if (emailInput) emailInput.value = entry && entry.email ? entry.email : '';
     if (activeInput) activeInput.checked = !entry || entry.active !== false;
-    $('#interviewerModalKicker').textContent = state.editingInterviewerId ? 'EDIT INTERVIEWER' : 'NEW INTERVIEWER';
-    $('#interviewerModalTitle').textContent = state.editingInterviewerId ? 'Edit interviewer' : 'Add interviewer';
-    $('#interviewerModalSubtitle').textContent = state.editingInterviewerId
-      ? 'Update the name, title, or email used for interview scheduling.'
-      : 'Name, title, and email are used when scheduling interviews and sending invites.';
+    /* Create-only now: every interviewer gets an account, and existing accounts
+       are edited in User Management. */
+    $('#interviewerModalKicker').textContent = 'NEW INTERVIEWER';
+    $('#interviewerModalTitle').textContent = 'Add interviewer';
+    $('#interviewerModalSubtitle').textContent = 'Creates an account and sends an invite so they can sign in and record their own feedback.';
     $('#interviewerModalBackdrop').classList.add('is-open');
     setTimeout(function () { if (nameInput) nameInput.focus(); }, 40);
   }
@@ -4227,52 +4242,94 @@
     var form = $('#interviewerForm');
     if (!form) return;
     var button = $('button[type="submit"]', form);
-    var nameInput = form.elements.namedItem('name');
-    var titleInput = form.elements.namedItem('jobTitle');
-    var emailInput = form.elements.namedItem('email');
-    var activeInput = form.elements.namedItem('active');
-    var payload = {
-      name: nameInput ? nameInput.value.trim() : '',
-      title: titleInput ? titleInput.value.trim() : '',
-      email: emailInput ? emailInput.value.trim() : '',
-      active: activeInput ? activeInput.checked : true
+    var value = function (n) {
+      var el = form.elements.namedItem(n);
+      return el ? String(el.value || '').trim() : '';
     };
-    if (!payload.name || !payload.email) {
-      toast('Name and email are required.', true);
+    var payload = {
+      name: value('name'),
+      username: value('username'),
+      jobTitle: value('jobTitle'),
+      email: value('email'),
+      active: true,
+    };
+    if (!payload.name || !payload.email || !payload.username) {
+      toast('Name, username, and email are required.', true);
       return;
     }
     try {
       if (button) button.disabled = true;
-      var result;
-      if (state.editingInterviewerId) {
-        result = await api('/api/admin/interviewers/' + encodeURIComponent(state.editingInterviewerId), {
-          method: 'PUT',
-          body: JSON.stringify(payload)
-        });
-      } else {
-        result = await api('/api/admin/interviewers', {
-          method: 'POST',
-          body: JSON.stringify(payload)
-        });
-      }
+      /* Interviewers are accounts now: create only. Existing entries are
+         managed in User Management, or converted if they are legacy rows. */
+      var result = await api('/api/admin/interviewers', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
       state.managedInterviewers = result.interviewers || state.managedInterviewers;
       await loadStaffInterviewers();
       renderInterviewers();
-      var wasEdit = Boolean(state.editingInterviewerId);
-      closeInterviewerModal();
-      toast(wasEdit ? 'Interviewer updated.' : 'Interviewer added.');
+      showInterviewerInvite(result.invite);
+      toast(result.invite && result.invite.emailed ? 'Interviewer account created and invite emailed.' : 'Interviewer account created. Share the invite link shown.');
     } catch (error) {
-      toast(error.message || 'Could not save interviewer.', true);
+      toast(error.message || 'Could not create the interviewer account.', true);
     } finally {
       if (button) button.disabled = false;
     }
+  }
+
+  /* Legacy dbo.interviewers rows have no login. Converting creates an account
+     with an invite and removes the row; the username is the one thing the row
+     cannot supply, so ask for it. */
+  async function convertInterviewerToAccount(entry) {
+    if (!entry || !entry.id) return;
+    var suggested = String(entry.name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, '').slice(0, 40);
+    var username = window.prompt('Username for ' + (entry.name || 'this interviewer') + "'s new account:", suggested);
+    if (username === null) return;
+    username = String(username).trim();
+    if (!username) return toast('A username is required to create the account.', true);
+    try {
+      var result = await api('/api/admin/interviewers/' + encodeURIComponent(entry.id) + '/convert', {
+        method: 'POST',
+        body: JSON.stringify({ username: username }),
+      });
+      state.managedInterviewers = result.interviewers || state.managedInterviewers;
+      await loadStaffInterviewers();
+      renderInterviewers();
+      if (result.invite && result.invite.url) {
+        openInterviewerModal(null);
+        showInterviewerInvite(result.invite);
+      }
+      toast(result.invite && result.invite.emailed
+        ? 'Account created and invite emailed.'
+        : 'Account created. Share the invite link shown.');
+    } catch (error) {
+      toast(error.message || 'Could not convert this interviewer.', true);
+    }
+  }
+
+  /* The invite URL carries a live token and is returned once. Show it, never
+     store or log it. */
+  function showInterviewerInvite(invite) {
+    var panel = $('#interviewerInviteResult');
+    if (!panel) return;
+    if (!invite || !invite.url) {
+      panel.classList.add('is-hidden');
+      closeInterviewerModal();
+      return;
+    }
+    var absolute = location.origin + invite.url;
+    $('#interviewerInviteUrl').value = absolute;
+    $('#interviewerInviteStatus').textContent = invite.emailed
+      ? 'An invite email has been sent. This link is a backup.'
+      : 'Email is not configured, so send this link to them yourself.';
+    panel.classList.remove('is-hidden');
   }
 
   function askInterviewerDelete(id) {
     var entry = (state.managedInterviewers || []).find(function (item) { return item.id === id; });
     if (!entry) return;
     if (entry.readOnly || entry.source === 'account') {
-      toast('This interviewer comes from an HR account and cannot be removed here.', true);
+      toast('This interviewer has an account. Remove them in User Management.', true);
       return;
     }
     state.pendingDelete = { kind: 'interviewer', id: id, name: entry.name || 'this interviewer' };
@@ -5244,12 +5301,27 @@
         var row = button.closest('[data-interviewer-id]');
         if (!row) return;
         var entry = (state.managedInterviewers || []).find(function (item) { return item.id === row.dataset.interviewerId; });
-        if (button.dataset.interviewerAction === 'edit') openInterviewerModal(entry || { id: row.dataset.interviewerId });
+        if (button.dataset.interviewerAction === 'convert') convertInterviewerToAccount(entry || { id: row.dataset.interviewerId });
         if (button.dataset.interviewerAction === 'delete') askInterviewerDelete(row.dataset.interviewerId);
       });
     }
     var interviewerForm = $('#interviewerForm');
     if (interviewerForm) interviewerForm.addEventListener('submit', saveInterviewer);
+    var copyInviteBtn = $('#copyInterviewerInviteBtn');
+    if (copyInviteBtn) {
+      copyInviteBtn.addEventListener('click', function () {
+        var field = $('#interviewerInviteUrl');
+        if (!field || !field.value) return;
+        field.select();
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(field.value)
+            .then(function () { toast('Invite link copied.'); })
+            .catch(function () { toast('Select the link and copy it manually.', true); });
+        } else {
+          toast('Select the link and copy it manually.', true);
+        }
+      });
+    }
     var closeInterviewerModalBtn = $('#closeInterviewerModalBtn');
     if (closeInterviewerModalBtn) closeInterviewerModalBtn.addEventListener('click', closeInterviewerModal);
     var cancelInterviewerModalBtn = $('#cancelInterviewerModalBtn');

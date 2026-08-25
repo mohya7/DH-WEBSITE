@@ -799,6 +799,92 @@ function inviteUrlFor(rawToken) {
   return `/admin/?setup=${encodeURIComponent(rawToken)}`;
 }
 
+/**
+ * Shared account creation for both User Management and the Interviewers tab, so
+ * there is a single invite implementation. Throws `{ status, code, message }`
+ * for the caller to convert into a JSON error.
+ *
+ * Supplying `password` makes the account usable immediately; omitting it issues
+ * an invite. Returns the account plus, when an invite was issued, the raw token
+ * for one-time display to the creating administrator.
+ */
+async function createManagedAccount(body, { role: forcedRole } = {}) {
+  const users = await readUsers();
+  const username = cleanUsername(body.username);
+  const email = cleanWorkEmail(body.email);
+  const jobTitle = cleanJobTitle(body.jobTitle);
+  const photo = cleanPhotoPath(body.photo);
+  const name = text(body.name, 100) || username;
+  const password = validatePassword(body.password, false);
+  if (!name) throw Object.assign(new Error('Enter the full name for this account.'), { status: 422, code: 'NAME_REQUIRED' });
+  if (!username) throw Object.assign(new Error('Enter a username for this account.'), { status: 422, code: 'USERNAME_REQUIRED' });
+  if (users.users.some((user) => user.username === username)) {
+    throw Object.assign(new Error('This username is already in use.'), { status: 409, code: 'USERNAME_EXISTS' });
+  }
+  if (users.users.some((user) => String(user.email || '').toLowerCase() === email)) {
+    throw Object.assign(new Error('This work email is already in use.'), { status: 409, code: 'EMAIL_EXISTS' });
+  }
+  const role = normalizeAccountRole(forcedRole != null ? forcedRole : body.role);
+  const now = new Date().toISOString();
+  const account = {
+    id: `user-${crypto.randomUUID()}`,
+    username,
+    name,
+    email,
+    jobTitle,
+    photo,
+    role,
+    active: body.active !== false,
+    passwordHash: null,
+    mustSetPassword: false,
+    inviteTokenHash: null,
+    inviteExpiresAt: null,
+    createdAt: now,
+    updatedAt: now,
+    lastLoginAt: null,
+  };
+  let invite = null;
+  if (password) account.passwordHash = passwordHash(password);
+  else {
+    invite = createInvite();
+    applyInvite(account, invite);
+  }
+  users.users.push(account);
+  await writeUsers(users);
+  return { account, users, invite };
+}
+
+/** One-time invite payload for the creating administrator; never re-issued. */
+async function inviteResponsePart(account, invite, req) {
+  if (!invite) return {};
+  const emailed = await sendAccountInvite(account, invite.raw, req);
+  return { invite: { url: inviteUrlFor(invite.raw), expiresAt: invite.inviteExpiresAt, emailed } };
+}
+
+/**
+ * Emails the invite link. Returns whether it was actually sent so the caller can
+ * tell the administrator to pass the link on manually when mail is off.
+ * The raw token is never logged — on failure only the reason is recorded.
+ */
+async function sendAccountInvite(account, rawToken, req) {
+  try {
+    const baseUrl = mail.publicBaseUrl(req && req.headers && req.headers.host);
+    const outcome = await mail.sendAccountInviteEmail({
+      account,
+      inviteUrl: `${baseUrl}${inviteUrlFor(rawToken)}`,
+      expiresAt: account.inviteExpiresAt,
+    });
+    if (!outcome || !outcome.sent) {
+      console.warn(`[invite] Not emailed for ${account.username} (${outcome && outcome.reason ? outcome.reason : 'unknown'}); share the link from the response.`);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error('[invite] Send failed:', error.message || error);
+    return false;
+  }
+}
+
 function cleanWorkEmail(value) {
   const email = text(value, 160).toLowerCase();
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -1304,10 +1390,12 @@ async function requireInterviewer(req, res, mutation = false) {
   return session;
 }
 
-/* 'admin' stays unassignable here on purpose: managed accounts cannot escalate
-   to administrator through account creation. */
-function normalizeAccountRole(value, fallback = 'hr') {
-  const role = String(value || fallback).trim().toLowerCase();
+/* Role is required, never defaulted: an omitted role used to fall back to 'hr',
+   which silently granted a new account full access to candidate data.
+   'admin' stays unassignable here on purpose, so managed accounts cannot
+   escalate to administrator through account creation. */
+function normalizeAccountRole(value) {
+  const role = String(value == null ? '' : value).trim().toLowerCase();
   if (role === 'hr' || role === 'marketing' || role === 'interviewer') return role;
   throw Object.assign(new Error('Role must be HR, Marketing, or Interviewer.'), { status: 422 });
 }
@@ -1926,6 +2014,19 @@ async function handleApi(req, res, url) {
     return json(res, 201, { ok: true, reference: request.reference });
   }
 
+  /* Lets the setup screen label itself with the right role before the password
+     is chosen. The token travels in the body, never a query string, so it does
+     not reach access logs or Referer headers. Reveals only the role. */
+  if (pathname === '/api/admin/auth/invite-info' && req.method === 'POST') {
+    const body = await readBody(req);
+    const users = await readUsers();
+    const account = findUserByInviteToken(users.users, text(body.token, 200));
+    if (!account || !account.active || !account.inviteExpiresAt || Date.parse(account.inviteExpiresAt) < Date.now()) {
+      return json(res, 400, { error: 'INVALID_INVITE', message: 'This invite link is invalid or has expired.' });
+    }
+    return json(res, 200, { role: account.role, roleLabel: mail.roleLabel(account.role) });
+  }
+
   if (pathname === '/api/admin/auth/setup-password' && req.method === 'POST') {
     const body = await readBody(req);
     const rawToken = text(body.token, 200);
@@ -2048,50 +2149,16 @@ async function handleApi(req, res, url) {
     const session = await requireAdmin(req, res, true);
     if (!session) return;
     const body = await readBody(req);
-    const users = await readUsers();
-    const username = cleanUsername(body.username);
-    const email = cleanWorkEmail(body.email);
-    const jobTitle = cleanJobTitle(body.jobTitle);
-    const photo = cleanPhotoPath(body.photo);
-    const name = text(body.name, 100) || username;
-    const password = validatePassword(body.password, true);
-    if (!name) return json(res, 422, { error: 'NAME_REQUIRED', message: 'Enter the full name for this account.' });
-    if (users.users.some((user) => user.username === username)) {
-      return json(res, 409, { error: 'USERNAME_EXISTS', message: 'This username is already in use.' });
-    }
-    if (users.users.some((user) => String(user.email || '').toLowerCase() === email)) {
-      return json(res, 409, { error: 'EMAIL_EXISTS', message: 'This work email is already in use.' });
-    }
-    let role;
     try {
-      role = normalizeAccountRole(body.role, 'hr');
+      const { account, users, invite } = await createManagedAccount(body);
+      return json(res, 201, {
+        user: safeUser(account),
+        users: users.users.map(safeUser),
+        ...(await inviteResponsePart(account, invite, req)),
+      });
     } catch (error) {
-      return json(res, error.status || 422, { error: 'INVALID_ROLE', message: error.message });
+      return json(res, error.status || 422, { error: error.code || 'ACCOUNT_INVALID', message: error.message || 'Could not create the account.' });
     }
-    const now = new Date().toISOString();
-    const account = {
-      id: `user-${crypto.randomUUID()}`,
-      username,
-      name,
-      email,
-      jobTitle,
-      photo,
-      role,
-      active: body.active !== false,
-      passwordHash: passwordHash(password),
-      mustSetPassword: false,
-      inviteTokenHash: null,
-      inviteExpiresAt: null,
-      createdAt: now,
-      updatedAt: now,
-      lastLoginAt: null,
-    };
-    users.users.push(account);
-    await writeUsers(users);
-    return json(res, 201, {
-      user: safeUser(account),
-      users: users.users.map(safeUser),
-    });
   }
 
   if (pathname.startsWith('/api/admin/users/') && ['PUT', 'DELETE'].includes(req.method)) {
@@ -2202,55 +2269,83 @@ async function handleApi(req, res, url) {
     return json(res, 200, { interviewers });
   }
 
+  /* Every interviewer now needs a login, so this creates an account (role
+     interviewer) and issues an invite. Bare dbo.interviewers rows are no longer
+     created; the table remains a read-only fallback for legacy data. */
   if (pathname === '/api/admin/interviewers' && req.method === 'POST') {
     if (!(await requireHr(req, res, true))) return;
+    const body = await readBody(req);
     try {
-      const body = await readBody(req);
-      const interviewer = await hiringDb.upsertInterviewerStore({
-        name: body.name,
-        title: body.title,
-        email: body.email,
-        active: body.active !== false,
-      });
+      const { account, invite } = await createManagedAccount(body, { role: 'interviewer' });
       return json(res, 201, {
-        interviewer,
+        interviewer: {
+          id: account.id,
+          name: account.name,
+          title: account.jobTitle || '',
+          email: account.email,
+          active: account.active,
+          source: 'account',
+          readOnly: true,
+        },
         interviewers: await hiringDb.listMergedInterviewersStore(),
+        ...(await inviteResponsePart(account, invite, req)),
       });
     } catch (error) {
-      return json(res, error.status || 500, {
-        error: error.code || (error.status === 409 ? 'EMAIL_EXISTS' : 'INTERVIEWER_INVALID'),
-        message: error.message || 'Could not create interviewer.',
-      });
+      return json(res, error.status || 422, { error: error.code || 'INTERVIEWER_INVALID', message: error.message || 'Could not create the interviewer account.' });
     }
   }
 
   const interviewerMatch = pathname.match(/^\/api\/admin\/interviewers\/([^/]+)$/);
-  if (interviewerMatch && req.method === 'PUT') {
+
+  /* Converts a legacy dbo.interviewers row into a real account with an invite,
+     then removes the row. This is the only supported way to give an existing
+     manual entry a login. */
+  const convertMatch = pathname.match(/^\/api\/admin\/interviewers\/([^/]+)\/convert$/);
+  if (convertMatch && req.method === 'POST') {
     if (!(await requireHr(req, res, true))) return;
+    const legacyId = decodeURIComponent(convertMatch[1]);
     try {
-      const body = await readBody(req);
-      const targetId = decodeURIComponent(interviewerMatch[1]);
-      await hiringDb.assertManualInterviewerMutable(targetId);
-      const existing = await hiringDb.getInterviewerById(targetId);
-      if (!existing) {
-        return json(res, 404, { error: 'NOT_FOUND', message: 'Interviewer not found.' });
+      const legacy = await hiringDb.getInterviewerById(legacyId);
+      if (!legacy) {
+        return json(res, 404, { error: 'NOT_FOUND', message: 'No legacy interviewer row with that id.' });
       }
-      const interviewer = await hiringDb.upsertInterviewerStore({
-        name: body.name != null ? body.name : existing.name,
-        title: body.title != null ? body.title : existing.title,
-        email: body.email != null ? body.email : existing.email,
-        active: body.active != null ? body.active !== false : existing.active,
-      }, existing.id);
-      return json(res, 200, {
-        interviewer,
+      const body = await readBody(req);
+      const { account, invite } = await createManagedAccount({
+        name: body.name != null ? body.name : legacy.name,
+        username: body.username,
+        email: body.email != null ? body.email : legacy.email,
+        jobTitle: body.jobTitle != null ? body.jobTitle : legacy.title,
+        active: true,
+      }, { role: 'interviewer' });
+      /* Only drop the row once the account exists, so a failure leaves the
+         legacy entry intact and the conversion can be retried. */
+      await hiringDb.deleteInterviewerStore(legacyId);
+      return json(res, 201, {
+        converted: { from: legacyId, to: account.id },
         interviewers: await hiringDb.listMergedInterviewersStore(),
+        ...(await inviteResponsePart(account, invite, req)),
       });
     } catch (error) {
-      return json(res, error.status || 500, {
-        error: error.code || (error.status === 409 ? 'EMAIL_EXISTS' : 'INTERVIEWER_INVALID'),
-        message: error.message || 'Could not update interviewer.',
+      return json(res, error.status || 422, { error: error.code || 'CONVERT_FAILED', message: error.message || 'Could not convert this interviewer.' });
+    }
+  }
+
+  /* The manual write path is retired: entries are created as accounts and
+     edited in User Management. Legacy rows are converted, not edited. */
+  if (interviewerMatch && req.method === 'PUT') {
+    if (!(await requireHr(req, res, true))) return;
+    const targetId = decodeURIComponent(interviewerMatch[1]);
+    const account = await hiringDb.resolveStaffInterviewerById(targetId);
+    if (account && account.source === 'account') {
+      return json(res, 403, {
+        error: 'ACCOUNT_READONLY',
+        message: 'This interviewer has an account. Change their details in User Management.',
       });
     }
+    return json(res, 409, {
+      error: 'MANUAL_ENTRY_RETIRED',
+      message: 'Manual interviewer entries are no longer editable. Use Convert to account to give this person a login.',
+    });
   }
 
   if (interviewerMatch && req.method === 'DELETE') {
