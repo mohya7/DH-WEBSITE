@@ -511,6 +511,12 @@ function blogWarnings(item) {
   return warnings;
 }
 
+/**
+ * Writes a page only when its generated markup actually differs from what is on
+ * disk, matching the `if (html !== original)` guard the other sync scripts use.
+ * Without this, every call rewrote all published posts, so an unrelated restart
+ * could replace committed markup with output from a stale in-memory template.
+ */
 function writeBlogPages(data) {
   const blogs = data.collections.blogs || [];
   const published = blogs.filter((item) => item.status === 'published' && item.href);
@@ -519,8 +525,16 @@ function writeBlogPages(data) {
     const relative = String(item.href).replace(/^\/+/, '');
     if (!relative.startsWith('blogs/') || !relative.endsWith('.html')) continue;
     const outPath = path.join(ROOT, ...relative.split('/'));
+    const next = buildBlogHtml(item, blogs).replace(/\r?\n/g, '\n');
+    let current = null;
+    try {
+      current = fs.readFileSync(outPath, 'utf8').replace(/\r?\n/g, '\n');
+    } catch (_) {
+      current = null;
+    }
+    if (current === next) continue;
     fs.mkdirSync(path.dirname(outPath), { recursive: true });
-    fs.writeFileSync(outPath, buildBlogHtml(item, blogs).replace(/\r?\n/g, '\n'), 'utf8');
+    fs.writeFileSync(outPath, next, 'utf8');
     written += 1;
   }
   return written;
