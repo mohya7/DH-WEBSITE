@@ -2925,11 +2925,11 @@ function renderJobDetail(item) {
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css" />
-<link rel="stylesheet" href="/css/service-page.css" />
-<link rel="stylesheet" href="/css/hub-pages.css" />
-<link rel="stylesheet" href="/css/careers-page.css" />
-<link rel="stylesheet" href="/css/tv.css" />
-<link rel="stylesheet" href="/css/responsive.css?v=27" />
+<link rel="stylesheet" href="/css/service-page.css?v=svc23" />
+<link rel="stylesheet" href="/css/hub-pages.css?v=29" />
+<link rel="stylesheet" href="/css/careers-page.css?v=29" />
+<link rel="stylesheet" href="/css/tv.css?v=9" />
+<link rel="stylesheet" href="/css/responsive.css?v=29" />
 </head>
 <body class="page-hub page-careers">
 <div class="site-bg" aria-hidden="true">
@@ -3063,9 +3063,9 @@ function renderJobDetail(item) {
     </div>
   </div>
 </footer>
-<script src="/js/shared.js"></script>
-<script src="/js/nav-stay-on-page.js"></script>
-<script src="/js/hub-pages.js"></script>
+<script src="/js/shared.js?v=29"></script>
+<script src="/js/nav-stay-on-page.js?v=29"></script>
+<script src="/js/hub-pages.js?v=29"></script>
 </body>
 </html>`;
 }
@@ -3111,9 +3111,9 @@ function renderGeneratedDetail(collection, item) {
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css" />
-<link rel="stylesheet" href="/css/service-page.css" />
-<link rel="stylesheet" href="/css/hub-pages.css" />
-<link rel="stylesheet" href="/css/responsive.css?v=27" />
+<link rel="stylesheet" href="/css/service-page.css?v=svc23" />
+<link rel="stylesheet" href="/css/hub-pages.css?v=29" />
+<link rel="stylesheet" href="/css/responsive.css?v=29" />
 <style>
 .generated-detail-main{padding:clamp(130px,16vw,190px) 0 90px;min-height:75vh}.generated-detail-card{max-width:920px;padding:clamp(28px,5vw,58px);border:1px solid rgba(255,255,255,.1);border-radius:24px;background:rgba(13,28,48,.78);box-shadow:0 24px 70px rgba(0,0,0,.28)}.generated-detail-card h1{max-width:19ch;margin:16px 0;font-size:clamp(34px,5vw,62px);line-height:1.08}.generated-detail-card>p,.generated-detail-body{max-width:760px;color:var(--text-2);font-size:clamp(15px,1.7vw,19px);line-height:1.8}.generated-detail-body p{margin:0 0 1em}.generated-detail-body h1{margin:0 0 .55em;font-size:clamp(28px,3.5vw,40px);line-height:1.15;color:#fff}.generated-detail-body h2{margin:1.2em 0 .5em;font-size:clamp(22px,2.6vw,30px);line-height:1.2;color:#fff}.generated-detail-body h3{margin:1.1em 0 .45em;font-size:clamp(18px,2vw,24px);line-height:1.25;color:#fff}.generated-detail-body ul,.generated-detail-body ol{margin:0 0 1em;padding-left:1.35em}.generated-detail-body li{margin:0.35em 0}.generated-detail-body strong,.generated-detail-body b{color:#fff;font-weight:700}.generated-detail-meta{display:flex;flex-wrap:wrap;gap:8px;margin:24px 0}.generated-detail-meta span{padding:8px 12px;border:1px solid rgba(54,176,229,.22);border-radius:999px;background:rgba(54,176,229,.08);color:var(--text-2);font-size:12px}.generated-detail-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px}.generated-detail-back{display:inline-flex;align-items:center;gap:7px;color:var(--blue-light);text-decoration:none;font-weight:600}.generated-detail-back:hover{text-decoration:underline}
 </style>
@@ -3123,7 +3123,7 @@ function renderGeneratedDetail(collection, item) {
 <nav class="nav" id="nav" aria-label="Primary"><div class="nav-inner glass-surface"><a href="/" class="brand" aria-label="Digital Hub home"><img class="brand-logo" src="/assets/digital-hub-logo.png" alt="Digital Hub" decoding="async"></a><ul class="nav-links"><li><a class="nav-link" href="/#services">Services</a></li><li><a class="nav-link" href="/partners/">Partners</a></li><li><a class="nav-link" href="/cases/">Case Studies</a></li><li><a class="nav-link" href="/blogs/">Blogs</a></li><li><a class="nav-link" href="/careers/">Careers</a></li></ul><a class="nav-cta" href="/get-in-touch.html">Get in Touch <i class="ti ti-arrow-right"></i></a></div></nav>
 <main class="generated-detail-main"><section class="section-inner"><article class="generated-detail-card"><a class="generated-detail-back" href="${sectionPaths[collection]}"><i class="ti ti-arrow-left"></i> ${sections[collection]}</a><span class="label" style="display:block;margin-top:28px">${labels[collection]}</span><h1>${htmlEscape(name)}</h1>${meta.length ? `<div class="generated-detail-meta">${meta.map((value) => `<span>${htmlEscape(value)}</span>`).join('')}</div>` : ''}${jobBody}<div class="generated-detail-actions"><a class="btn-primary" href="${htmlEscape(ctaHref)}">${ctaText} <i class="ti ti-arrow-right"></i></a></div></article></section></main>
 <footer class="footer"><div class="section-inner"><div class="footer-bottom"><span>&copy; ${new Date().getFullYear()} Digital Hub S.A.E. All rights reserved.</span><a href="/">Digital Hub</a></div></div></footer>
-<script src="/js/shared.js"></script><script src="/js/nav-stay-on-page.js"></script>
+<script src="/js/shared.js?v=29"></script><script src="/js/nav-stay-on-page.js?v=29"></script>
 </body></html>`;
 }
 

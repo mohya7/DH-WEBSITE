@@ -449,7 +449,9 @@ main{max-width:100%;overflow-x:clip}
 .btn-svc:hover .arr{transform:translateX(3px)}
 .btn-svc-primary{
   color:#fff;
-  background:linear-gradient(135deg,#1e79dd,var(--svc-accent) 55%,#0f4f9a);
+  /* Stops chosen for WCAG AA against the white 14px label: 4.76 / 5.04 / 8.06:1.
+     The former mid stop (--svc-accent #36B0E5) gave only 2.47:1. */
+  background:linear-gradient(135deg,#1D73D0 0%,#1C6FC9 55%,#0f4f9a 100%);
   box-shadow:0 10px 30px -10px rgba(26,154,214,0.65),inset 0 1px 0 rgba(255,255,255,0.22);
 }
 .btn-svc-primary:hover{
@@ -2370,6 +2372,20 @@ main{max-width:100%;overflow-x:clip}
 .case-body{
   position:relative;z-index:1;display:flex;flex-direction:column;gap:14px;flex:1;
   padding:24px 24px 28px;
+}
+.case-metric{
+  align-self:flex-start;
+  display:inline-flex;align-items:center;gap:7px;
+  padding:6px 13px;border-radius:999px;
+  font-size:13px;font-weight:700;letter-spacing:0.01em;line-height:1.2;
+  font-variant-numeric:tabular-nums;
+  color:var(--orange);
+  background:rgba(244,151,11,0.12);
+  border:1px solid rgba(244,151,11,0.30);
+}
+.case-metric::before{
+  content:"";flex:none;width:6px;height:6px;border-radius:50%;
+  background:var(--orange);box-shadow:0 0 10px rgba(244,151,11,0.85);
 }
 .case-title{
   font-size:clamp(18px,1.35vw,22px);font-weight:600;line-height:1.35;letter-spacing:-0.02em;

@@ -175,11 +175,25 @@
     }).join('') + '<div class="services-track-end" aria-hidden="true"></div>';
   }
 
+  /* An aria-label overrides inner content for the accessible name, so the metric
+     pill is not announced. Append it only when the title does not already say it,
+     to avoid "500+ endpoints under ... monitoring. 500+ endpoints". */
+  function caseCardLabel(item, metric) {
+    var title = String(item.title == null ? '' : item.title);
+    var label = 'Read case study: ' + title;
+    var flat = function (v) { return String(v).toLowerCase().replace(/\s+/g, ' ').trim(); };
+    if (metric && flat(title).indexOf(flat(metric)) === -1) label += '. ' + metric;
+    return label;
+  }
+
   function caseCard(item) {
+    var metric = String(item.metric == null ? '' : item.metric).trim();
     return '<article class="case" data-category="' + esc((item.categories || []).join(' ')) + '" data-stagger-item data-reveal>' +
-      '<div class="case-glass" aria-hidden="true"></div><a class="case-link" href="' + esc(rel(itemHref(item, 'caseStudies'))) + '" aria-label="Read case study: ' + esc(item.title) + '">' +
+      '<div class="case-glass" aria-hidden="true"></div><a class="case-link" href="' + esc(rel(itemHref(item, 'caseStudies'))) + '" aria-label="' + esc(caseCardLabel(item, metric)) + '">' +
       '<div class="case-media"><img src="' + esc(rel(item.image)) + '" alt="' + esc(item.alt || item.title) + '" width="800" height="500" loading="lazy" decoding="async"></div>' +
-      '<div class="case-body"><h3 class="case-title">' + esc(item.title) + '</h3><p class="case-excerpt">' + esc(item.summary) + '</p><span class="case-btn">Read More</span></div></a></article>';
+      '<div class="case-body">' +
+      (metric ? '<span class="case-metric">' + esc(metric) + '</span>' : '') +
+      '<h3 class="case-title">' + esc(item.title) + '</h3><p class="case-excerpt">' + esc(item.summary) + '</p><span class="case-btn">Read More</span></div></a></article>';
   }
 
   function renderCases(data) {

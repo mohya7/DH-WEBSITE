@@ -123,11 +123,6 @@
   opacity:0;transform:translateY(14px);
   animation:fadeUp .6s var(--ease) .4s forwards;
 }
-/* Site default mid stop (#36B0E5) gives white-on-blue 2.47:1; this keeps the
-   14px label at >=4.5:1 across the whole gradient. */
-.about-hero__cta .btn-svc-primary{
-  background:linear-gradient(135deg,#1D73D0 0%,#1C6FC9 55%,#0f4f9a 100%);
-}
 
 /* Proof rail */
 .about-banner__body{justify-content:center}

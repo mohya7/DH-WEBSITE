@@ -2133,6 +2133,20 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
   display:flex;flex-direction:column;gap:14px;flex:1;
   padding:24px 24px 28px;
 }
+.case-metric{
+  align-self:flex-start;
+  display:inline-flex;align-items:center;gap:7px;
+  padding:6px 13px;border-radius:999px;
+  font-size:13px;font-weight:700;letter-spacing:0.01em;line-height:1.2;
+  font-variant-numeric:tabular-nums;
+  color:var(--orange);
+  background:rgba(244,151,11,0.12);
+  border:1px solid rgba(244,151,11,0.30);
+}
+.case-metric::before{
+  content:"";flex:none;width:6px;height:6px;border-radius:50%;
+  background:var(--orange);box-shadow:0 0 10px rgba(244,151,11,0.85);
+}
 .case-title{
   font-size:clamp(18px, 1.35vw, 22px);
   font-weight:600;line-height:1.35;letter-spacing:-0.02em;
@@ -3584,19 +3598,6 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
         </a>
       </article>
 
-      <article class="case" data-reveal>
-        <div class="case-glass" aria-hidden="true"></div>
-        <a class="case-link" href="cases/index.html" aria-label="Case study coming soon">
-          <div class="case-media">
-            <img src="assets/cases/banking.webp" alt="Enterprise digital transformation" loading="lazy" decoding="async" width="800" height="500">
-          </div>
-          <div class="case-body">
-            <h3 class="case-title">National e-services portal for a government ministry</h3>
-            <p class="case-excerpt">End-to-end design and delivery of a citizen-facing digital services platform &mdash; unified identity, workflow automation, and analytics for leadership dashboards.</p>
-            <span class="case-btn">Read More</span>
-          </div>
-        </a>
-      </article>
 
     </div>
   </div>
@@ -3836,7 +3837,7 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
 </footer>
 
 <script src="content/site-content.js"></script>
-<script src="js/content-runtime.js?v=20260821-numbers-cms"></script>
+<script src="js/content-runtime.js?v=31"></script>
 <!-- hero-fluid.js loaded after #heroFluidCanvas for earliest sand/fluid paint -->
 <script>
 (function(){
@@ -4838,7 +4839,7 @@ body.loaded .plogo.plogo--huawei{animation-delay:1900ms}
   update();
 })();
 </script>
-<script src="js/nav-stay-on-page.js"></script>
+<script src="js/nav-stay-on-page.js?v=29"></script>
 
 </body>
 </html>
