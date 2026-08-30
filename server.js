@@ -2159,8 +2159,26 @@ async function handleApi(req, res, url) {
     account.passwordHash = passwordHash(password);
     clearInvite(account);
     account.updatedAt = new Date().toISOString();
+    /* A password change signs the account out everywhere else — matching what
+       delete, deactivate and an admin-set password already do. The caller's own
+       session is kept: they authenticated with the current password moments ago,
+       and bouncing someone to the login screen for changing their own password
+       is the behaviour people expect from every other product. */
+    let revoked = 0;
+    for (const [token, activeSession] of sessions.entries()) {
+      if (activeSession.userId === account.id && token !== session.token) {
+        sessions.delete(token);
+        revoked += 1;
+      }
+    }
     await writeUsers(users);
-    return json(res, 200, { ok: true, message: 'Password updated.' });
+    return json(res, 200, {
+      ok: true,
+      revokedOtherSessions: revoked,
+      message: revoked
+        ? `Password updated. Signed out of ${revoked} other ${revoked === 1 ? 'session' : 'sessions'}.`
+        : 'Password updated.',
+    });
   }
 
   if (pathname === '/api/admin/users' && req.method === 'POST') {
