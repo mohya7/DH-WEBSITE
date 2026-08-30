@@ -943,6 +943,79 @@ function safeUser(user) {
   };
 }
 
+/* ---------------------------------------------------------------------------
+ * Interviewer data access
+ *
+ * Interviewers see only the rounds assigned to them, and never a candidate's
+ * expected salary, current salary, or notice period. Every response below is
+ * built from an explicit allow-list rather than by deleting keys from the full
+ * record, so a column added to dbo.applications later is excluded by default
+ * instead of leaking until someone remembers to hide it.
+ * ------------------------------------------------------------------------- */
+
+/** Never sent to an interviewer, on any endpoint. Asserted in tests. */
+const INTERVIEWER_FORBIDDEN_FIELDS = ['expectedSalary', 'currentSalary', 'noticePeriodWeeks'];
+
+/** The rounds on this application that belong to the given interviewer. */
+function roundsAssignedTo(application, userId) {
+  const id = String(userId || '');
+  if (!id) return [];
+  const pipeline = application && application.pipeline;
+  const interviews = (pipeline && Array.isArray(pipeline.interviews)) ? pipeline.interviews : [];
+  return interviews.filter((round) => String(round && round.interviewerUserId || '') === id);
+}
+
+function interviewerHasAccess(application, userId) {
+  return roundsAssignedTo(application, userId).length > 0;
+}
+
+/** One round, with the interviewer's own feedback state. */
+function interviewerRoundView(application, round) {
+  const score = round.score == null ? null : round.score;
+  const result = round.result || 'pending';
+  const notes = round.notes || '';
+  return {
+    applicationId: application.id,
+    reference: application.reference || '',
+    candidateName: application.fullName || '',
+    role: application.role || '',
+    roundId: round.id || '',
+    label: round.label || '',
+    scheduledAt: round.scheduledAt || '',
+    format: round.format || 'online',
+    meetingLink: round.meetingLink || '',
+    feedback: {
+      result,
+      score,
+      notes,
+      /* "Recorded" means this interviewer has entered something, not that the
+         round happened. Used by the queue to separate awaiting from done. */
+      recorded: result !== 'pending' || score != null || notes.trim() !== '',
+    },
+  };
+}
+
+/** Full candidate detail for evaluation — allow-list, own rounds only. */
+function interviewerCandidateView(application, userId) {
+  return {
+    id: application.id,
+    reference: application.reference || '',
+    fullName: application.fullName || '',
+    role: application.role || '',
+    roleSlug: application.roleSlug || '',
+    email: application.email || '',
+    phone: application.phone || '',
+    linkedin: application.linkedin || '',
+    yearsOfExperience: application.yearsOfExperience || '',
+    resumeName: application.resumeName || '',
+    status: application.status || 'new',
+    submittedAt: application.submittedAt || '',
+    /* Only this interviewer's rounds. Other interviewers' feedback, the task,
+       the offer and the pipeline history are all withheld. */
+    rounds: roundsAssignedTo(application, userId).map((round) => interviewerRoundView(application, round)),
+  };
+}
+
 function isPipelineClosedRecord(pipeline) {
   if (!pipeline || typeof pipeline !== 'object') return true;
   if (pipeline.stage === 'closed') return true;
@@ -2294,6 +2367,39 @@ async function handleApi(req, res, url) {
     return json(res, 200, { updatedAt: data.updatedAt, applications: data.applications || [] });
   }
 
+  /* Every round assigned to the signed-in interviewer, across all applications.
+     requireInterviewer fails closed, so HR, admin, marketing and any unknown
+     role get 403 here. */
+  if (pathname === '/api/admin/interviewer/rounds' && req.method === 'GET') {
+    const session = await requireInterviewer(req, res, false);
+    if (!session) return;
+    const data = await readApplications();
+    const rounds = [];
+    for (const application of data.applications || []) {
+      for (const round of roundsAssignedTo(application, session.userId)) {
+        rounds.push(interviewerRoundView(application, round));
+      }
+    }
+    rounds.sort((a, b) => String(a.scheduledAt || '').localeCompare(String(b.scheduledAt || '')));
+    return json(res, 200, { updatedAt: data.updatedAt, rounds });
+  }
+
+  /* One candidate, for an interviewer assigned to at least one of their rounds.
+     Anyone else — including an interviewer with no round on this application —
+     gets 403, not 404, because the record does exist. */
+  const interviewerCandidateMatch = pathname.match(/^\/api\/admin\/interviewer\/candidates\/([^/]+)$/);
+  if (interviewerCandidateMatch && req.method === 'GET') {
+    const session = await requireInterviewer(req, res, false);
+    if (!session) return;
+    const id = decodeURIComponent(interviewerCandidateMatch[1]);
+    const application = (await readApplications()).applications.find((entry) => entry.id === id);
+    if (!application) return json(res, 404, { error: 'APPLICATION_NOT_FOUND', message: 'Application not found.' });
+    if (!interviewerHasAccess(application, session.userId)) {
+      return json(res, 403, { error: 'FORBIDDEN', message: 'You are not assigned to any round for this candidate.' });
+    }
+    return json(res, 200, { candidate: interviewerCandidateView(application, session.userId) });
+  }
+
   if (pathname === '/api/admin/staff-interviewers' && req.method === 'GET') {
     if (!(await requireHr(req, res, false))) return;
     return json(res, 200, { interviewers: await listStaffInterviewers() });
@@ -2582,10 +2688,20 @@ async function handleApi(req, res, url) {
 
   const applicationMatch = pathname.match(/^\/api\/admin\/applications\/([^/]+)(?:\/(resume|pipeline))?$/);
   if (applicationMatch && req.method === 'GET' && applicationMatch[2] === 'resume') {
-    if (!(await requireHr(req, res, false))) return;
+    /* HR reaches any CV. An interviewer reaches a CV only for a candidate they
+       have a round on — checked against the pipeline below, after the record is
+       loaded, never from anything the client sent. */
+    const session = await requireAuth(req, res);
+    if (!session) return;
+    if (session.role !== 'hr' && session.role !== 'interviewer') {
+      return json(res, 403, { error: 'FORBIDDEN', message: 'Candidate CVs are available to HR and assigned interviewers only.' });
+    }
     const id = decodeURIComponent(applicationMatch[1]);
     const application = (await readApplications()).applications.find((entry) => entry.id === id);
     if (!application) return json(res, 404, { error: 'APPLICATION_NOT_FOUND', message: 'Application not found.' });
+    if (session.role === 'interviewer' && !interviewerHasAccess(application, session.userId)) {
+      return json(res, 403, { error: 'FORBIDDEN', message: 'You are not assigned to any round for this candidate.' });
+    }
     const resume = await hiringDb.getApplicationResume(id);
     if (!resume) {
       return json(res, 404, { error: 'RESUME_NOT_FOUND', message: 'CV file not found.' });
