@@ -1305,8 +1305,12 @@ async function requireHr(req, res, mutation) {
   return session;
 }
 
-function normalizeAccountRole(value, fallback = 'hr') {
-  const role = String(value || fallback).trim().toLowerCase();
+/* Role is required, never defaulted: an omitted role used to fall back to 'hr',
+   which silently granted a new account full access to candidate data.
+   'admin' stays unassignable so managed accounts cannot escalate through
+   account creation. */
+function normalizeAccountRole(value) {
+  const role = String(value == null ? '' : value).trim().toLowerCase();
   if (role === 'hr' || role === 'marketing') return role;
   throw Object.assign(new Error('Role must be HR or Marketing.'), { status: 422 });
 }
@@ -2081,7 +2085,7 @@ async function handleApi(req, res, url) {
     }
     let role;
     try {
-      role = normalizeAccountRole(body.role, 'hr');
+      role = normalizeAccountRole(body.role);
     } catch (error) {
       return json(res, error.status || 422, { error: 'INVALID_ROLE', message: error.message });
     }
