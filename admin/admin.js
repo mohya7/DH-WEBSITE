@@ -842,7 +842,13 @@
     var cv = item.applicationId
       ? '<a class="queue-where" href="/api/admin/applications/' + encodeURIComponent(item.applicationId) + '/resume"><i class="ti ti-download"></i> CV</a>'
       : '';
-    var form = item.bucket === 'upcoming' ? '' : queueInterviewForm(item);
+    var parked = item.feedback && (item.feedback.result === 'no_show' || item.feedback.result === 'cancelled');
+    var parkedNote = item.feedback && item.feedback.result === 'no_show'
+      ? '<p class="queue-meta">HR marked this as a no-show.</p>'
+      : (item.feedback && item.feedback.result === 'cancelled' ? '<p class="queue-meta">HR cancelled this round.</p>' : '');
+    var form = item.bucket === 'upcoming' || parked
+      ? parkedNote
+      : queueInterviewForm(item);
     return '<article class="queue-card queue-card--' + escapeHtml(item.bucket) + '">' +
       '<div class="queue-card__head">' +
         '<strong>' + escapeHtml(item.candidateName) + '</strong>' +
@@ -2455,7 +2461,12 @@
 
   function interviewIsEnded(entry) {
     var result = entry && entry.result;
-    return result === 'pass' || result === 'fail';
+    return result === 'pass' || result === 'fail' || result === 'no_show';
+  }
+
+  function interviewCanReschedule(entry) {
+    var result = entry && entry.result;
+    return result === 'cancelled' || result === 'no_show';
   }
 
   function nextInterviewLabel(existing, item) {
@@ -2509,7 +2520,7 @@
     if (canAdd) {
       return '<div class="hr-add-interview" data-add-interview-wrap><button class="secondary-btn" type="button" data-add-interview><i class="ti ti-plus"></i> Add next interview</button></div>';
     }
-    return '<div class="hr-add-interview is-locked" data-add-interview-wrap><span>Set result to Pass or Fail to unlock the next interview.</span></div>';
+    return '<div class="hr-add-interview is-locked" data-add-interview-wrap><span>Set a result (Pass, Fail, or No-show) to unlock the next interview.</span></div>';
   }
 
   function refreshAddInterviewControl() {
@@ -2551,10 +2562,10 @@
     var typeOptions = INTERVIEW_TYPE_OPTIONS.map(function (option) {
       return '<option value="' + option + '"' + (option === typeValue ? ' selected' : '') + '>' + option + '</option>';
     }).join('') + '<option value="__custom__"' + (isCustom ? ' selected' : '') + '>Custom</option>';
-    var resultToggle = [['pending', 'Pending'], ['pass', 'Pass'], ['fail', 'Fail']].map(function (option) {
+    var resultToggle = [['pending', 'Pending'], ['pass', 'Pass'], ['fail', 'Fail'], ['no_show', 'No-show'], ['cancelled', 'Cancelled']].map(function (option) {
       return '<button type="button" class="hr-result-chip is-' + option[0] + (option[0] === result ? ' is-active' : '') + '" data-set-result="' + option[0] + '">' + option[1] + '</button>';
     }).join('');
-    var resultOptions = [['pending', 'Pending'], ['pass', 'Pass'], ['fail', 'Fail']].map(function (option) {
+    var resultOptions = [['pending', 'Pending'], ['pass', 'Pass'], ['fail', 'Fail'], ['no_show', 'No-show'], ['cancelled', 'Cancelled']].map(function (option) {
       return '<option value="' + option[0] + '"' + (option[0] === result ? ' selected' : '') + '>' + option[1] + '</option>';
     }).join('');
     var scheduled = entry.scheduledAt ? String(entry.scheduledAt).slice(0, 16) : '';
@@ -2569,6 +2580,9 @@
       '<div class="hr-interview-round"><span>Interview</span><strong>Round ' + (index + 1) + '</strong></div>' +
       '<div class="hr-result-toggle" role="group" aria-label="Interview result">' + resultToggle + '</div>' +
       '<select name="result" class="hr-result-select is-' + escapeHtml(result) + '" aria-label="Interview result">' + resultOptions + '</select>' +
+      (interviewCanReschedule(entry)
+        ? '<button class="secondary-btn" type="button" data-reschedule-round><i class="ti ti-calendar-event"></i> Reschedule</button>'
+        : '') +
       '<button class="icon-btn hr-interview-remove" type="button" data-remove-interview aria-label="Remove interview"><i class="ti ti-trash"></i></button>' +
       '</header>' +
       '<div class="hr-interview-fields">' +
@@ -2579,11 +2593,14 @@
       '<label class="hr-field"><span>Interviewer <em>required</em></span><select name="interviewerUserId">' + interviewerOptionsHtml(entry.interviewerUserId) + '</select></label>' +
       '</div>' +
       '<div class="hr-interview-grid hr-interview-grid--schedule">' +
-      '<label class="hr-field"><span>When <em>required</em></span><input name="scheduledAt" type="datetime-local" value="' + escapeHtml(scheduled) + '"></label>' +
+      '<label class="hr-field"><span>When <em>required</em></span><input name="scheduledAt" type="datetime-local" value="' + escapeHtml(scheduled) + '"' + (interviewCanReschedule(entry) ? ' readonly' : '') + '></label>' +
       '<label class="hr-field hr-score-field"><span>Score <em>0–10 · Pass/Fail</em></span><input name="score" type="number" min="0" max="10" step="0.5" inputmode="decimal" value="' + escapeHtml(scoreVal) + '" placeholder="e.g. 7.5"><small class="hr-score-hint">Needed before Pass / Fail</small></label>' +
       '</div>' +
       '<label class="hr-field hr-meeting-link' + (format === 'online' ? '' : ' is-hidden') + '" data-meeting-link><span>Meeting link <em>required</em></span><input name="meetingLink" type="url" maxlength="500" value="' + escapeHtml(meetingLink) + '" placeholder="https://meet.google.com/..." inputmode="url" autocomplete="off" ' + (format === 'online' ? 'required ' : '') + '><small class="hr-score-hint">Required for online rounds · shown in interview emails</small></label>' +
       '<label class="hr-field hr-interview-notes"><span>Notes</span><textarea name="notes" rows="2" placeholder="Feedback">' + escapeHtml(entry.notes || '') + '</textarea></label>' +
+      ((interviewIsEnded(entry) || interviewCanReschedule(entry)) && (entry.recordedBy || '').trim()
+        ? '<p class="hr-recorded-by">Recorded by ' + escapeHtml(entry.recordedBy) + '</p>'
+        : '') +
       '</div></article>';
   }
 
@@ -2628,6 +2645,11 @@
       };
     });
     var offerStatus = ($('[name="offerStatus"]', root) || {}).value || 'none';
+    var rescheduleRows = $$('[data-interview-row][data-reschedule-from]', root);
+    var rescheduleDetail = rescheduleRows.map(function (row) {
+      var from = row.getAttribute('data-reschedule-from') || '';
+      return interviewLabelFromRow(row) + ' rescheduled from ' + from;
+    }).filter(Boolean).join('; ').slice(0, 300);
     return {
       phoneScreen: phoneScreen,
       pathway: pathway,
@@ -2637,7 +2659,8 @@
         status: offerStatus,
         declinedReason: (($('[name="declinedReason"]', root) || {}).value || '').trim()
       },
-      action: 'update'
+      action: rescheduleDetail ? 'interview_reschedule' : 'update',
+      historyDetail: rescheduleDetail || ''
     };
   }
 
@@ -2710,7 +2733,7 @@
     var list = interviews || [];
     if (!list.length) return false;
     return list.every(function (entry) {
-      return entry && (entry.result === 'pass' || entry.result === 'fail');
+      return entry && interviewIsEnded(entry);
     });
   }
 
@@ -2719,7 +2742,7 @@
     if (offerStatus === 'none') return '';
     var interviews = payload.interviews || [];
     if (!interviewCycleComplete(interviews)) {
-      return 'Finish every interview round (Pass or Fail) before choosing an offer outcome.';
+      return 'Finish every interview round before choosing an offer outcome.';
     }
     if (offerStatus === 'sent' || offerStatus === 'joined') {
       var hasPass = interviews.some(function (entry) { return entry && entry.result === 'pass'; });
@@ -2984,7 +3007,7 @@
           '<div class="hr-interview-list" data-interview-list>' + (interviewHtml || '') + '</div>' +
           addInterviewButtonHtml(canAddInterview) +
           (showInterviews && !showOffer
-            ? '<p class="hr-decision-note">Mark every interview Pass or Fail to unlock Offer.</p>'
+            ? '<p class="hr-decision-note">Mark every interview with a result to unlock Offer.</p>'
             : '') +
           '</div></li>'
         : '') +
@@ -3037,7 +3060,7 @@
 
   function interviewHasActivity(entry) {
     if (!entry) return false;
-    if (entry.result === 'pass' || entry.result === 'fail') return true;
+    if (interviewIsEnded(entry) || (entry.result === 'cancelled')) return true;
     if ((entry.interviewer || '').trim()) return true;
     if ((entry.scheduledAt || '').trim()) return true;
     if ((entry.notes || '').trim()) return true;
@@ -3341,7 +3364,7 @@
   }
 
   function interviewResultLabel(result) {
-    return ({ pending: 'Pending', pass: 'Pass', fail: 'Fail' })[result] || result || 'Pending';
+    return ({ pending: 'Pending', pass: 'Pass', fail: 'Fail', no_show: 'No-show', cancelled: 'Cancelled' })[result] || result || 'Pending';
   }
 
   function renderHrCalendar() {
@@ -3606,6 +3629,8 @@
     return profiles.filter(function (profile) {
       if (resultFilter === 'pass' && !profile.passCount) return false;
       if (resultFilter === 'fail' && !profile.failCount) return false;
+      if (resultFilter === 'no_show' && !profile.rounds.some(function (entry) { return entry.result === 'no_show'; })) return false;
+      if (resultFilter === 'cancelled' && !profile.rounds.some(function (entry) { return entry.result === 'cancelled'; })) return false;
       if (resultFilter === 'pending' && !profile.pendingCount) return false;
       if (resultFilter === 'conducted' && !profile.conductedCount) return false;
       if (roleFilter !== 'all' && String(profile.item.role || '') !== roleFilter) return false;
@@ -3749,6 +3774,7 @@
       '<div class="ilog-round__grid">' +
       '<div><span>Format</span><strong>' + escapeHtml(interviewFormatLabel(interviewFormatOf(entry))) + '</strong></div>' +
       '<div><span>Interviewer</span><strong>' + escapeHtml(entry.interviewer || '—') + '</strong></div>' +
+      '<div><span>Recorded by</span><strong>' + escapeHtml((entry.recordedBy || '').trim() || (interviewIsEnded(entry) || entry.result === 'cancelled' ? (entry.interviewer || '—') : '—')) + '</strong></div>' +
       '<div><span>When</span><strong>' + escapeHtml(whenLabel) + '</strong></div>' +
       '<div><span>Score</span>' + interviewScoreBadge(entry.score) + '</div>' +
       (interviewFormatOf(entry) === 'online' && entry.meetingLink
@@ -5224,6 +5250,27 @@
         }));
         return;
       }
+      var rescheduleBtn = event.target.closest('[data-reschedule-round]');
+      if (rescheduleBtn) {
+        event.preventDefault();
+        var rescheduleRow = rescheduleBtn.closest('[data-interview-row]');
+        if (!rescheduleRow) return;
+        var dateInput = $('[name="scheduledAt"]', rescheduleRow);
+        var from = dateInput ? String(dateInput.value || '').trim() : '';
+        if (from) rescheduleRow.setAttribute('data-reschedule-from', from);
+        var resultSelect = $('[name="result"]', rescheduleRow);
+        if (resultSelect) {
+          resultSelect.value = 'pending';
+          resultSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if (dateInput) {
+          dateInput.readOnly = false;
+          dateInput.value = '';
+          dateInput.focus();
+        }
+        toast('Pick a new date and time, then save.');
+        return;
+      }
       var setResultBtn = event.target.closest('[data-set-result]');
       if (setResultBtn) {
         event.preventDefault();
@@ -5246,12 +5293,12 @@
         if (rows.length) {
           var last = rows[rows.length - 1];
           var lastResult = ($('[name="result"]', last) || {}).value || 'pending';
-          if (lastResult !== 'pass' && lastResult !== 'fail') {
-            toast('Finish the current interview (Pass or Fail) before adding another.', true);
+          if (!interviewIsEnded({ result: lastResult })) {
+            toast('Finish the current interview before adding another.', true);
             return;
           }
           var lastScore = parseInterviewScore(($('[name="score"]', last) || {}).value);
-          if (lastScore.empty || lastScore.invalid) {
+          if (lastResult !== 'no_show' && (lastScore.empty || lastScore.invalid)) {
             var lastScoreInput = $('[name="score"]', last);
             if (lastScoreInput) {
               lastScoreInput.classList.add('is-invalid');
@@ -5320,6 +5367,10 @@
           $$('[data-set-result]', resultRow).forEach(function (chip) {
             chip.classList.toggle('is-active', chip.dataset.setResult === event.target.value);
           });
+          var dateInput = $('[name="scheduledAt"]', resultRow);
+          if (dateInput) dateInput.readOnly = interviewCanReschedule({ result: event.target.value });
+          var rescheduleBtn = $('[data-reschedule-round]', resultRow);
+          if (rescheduleBtn) rescheduleBtn.classList.toggle('is-hidden', !interviewCanReschedule({ result: event.target.value }));
           var scoreInput = $('[name="score"]', resultRow);
           if ((event.target.value === 'pass' || event.target.value === 'fail') && scoreInput && !String(scoreInput.value || '').trim()) {
             scoreInput.classList.add('is-invalid');

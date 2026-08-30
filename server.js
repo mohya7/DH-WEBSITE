@@ -178,7 +178,25 @@ const INTERVIEW_STAGE_SET = new Set(DEFAULT_INTERVIEW_STAGES);
 const PHONE_SCREEN_OUTCOMES = new Set(['pending', 'accepted', 'rejected', 'shortlisted', 'requirements_not_met']);
 const TASK_STATUSES = new Set(['sent', 'in_progress', 'done']);
 const TASK_DECISIONS = new Set(['pending', 'approved', 'rejected']);
-const INTERVIEW_RESULTS = new Set(['pending', 'pass', 'fail']);
+const INTERVIEW_RESULTS = new Set(['pending', 'pass', 'fail', 'no_show', 'cancelled']);
+
+function normalizeInterviewResult(value) {
+  const result = String(value || '').trim();
+  if (result === 'not_attended') return 'cancelled';
+  return INTERVIEW_RESULTS.has(result) ? result : 'pending';
+}
+
+function interviewResultDecided(result) {
+  return result === 'pass' || result === 'fail' || result === 'no_show' || result === 'cancelled';
+}
+
+function interviewResultResolved(result) {
+  return result === 'pass' || result === 'fail' || result === 'no_show';
+}
+
+function interviewResultCloses(result) {
+  return result === 'fail' || result === 'no_show';
+}
 const INTERVIEW_FORMATS = new Set(['onsite', 'online']);
 /**
  * A round whose scheduled time has passed but has no result is "awaiting
@@ -348,7 +366,7 @@ async function listStaffInterviewers() {
 
 async function normalizeInterviewEntry(entry, index, fallbackLabel = '') {
   const label = text(entry && entry.label, 40) || text(fallbackLabel, 40) || `Stage ${index + 1}`;
-  const result = INTERVIEW_RESULTS.has(entry && entry.result) ? entry.result : 'pending';
+  const result = normalizeInterviewResult(entry && entry.result);
   const score = normalizeHalfPointScore(entry && entry.score, 'Interview scores');
   const scheduledAt = text(entry && entry.scheduledAt, 40);
   const interviewerUserId = text(entry && entry.interviewerUserId, 80);
@@ -388,8 +406,8 @@ async function normalizeInterviewEntry(entry, index, fallbackLabel = '') {
   if ((result === 'pass' || result === 'fail') && score == null) {
     throw Object.assign(new Error(`Add a score (0–10) before marking ${label || `round ${index + 1}`} as Pass or Fail.`), { status: 422 });
   }
-  if ((result === 'pass' || result === 'fail') && blank) {
-    throw Object.assign(new Error(`Schedule ${label || `round ${index + 1}`} with an interviewer and time before Pass or Fail.`), { status: 422 });
+  if (interviewResultResolved(result) && blank) {
+    throw Object.assign(new Error(`Schedule ${label || `round ${index + 1}`} with an interviewer and time before recording a result.`), { status: 422 });
   }
 
   const staff = interviewerUserId ? await findStaffInterviewer(interviewerUserId) : null;
@@ -406,6 +424,8 @@ async function normalizeInterviewEntry(entry, index, fallbackLabel = '') {
     ? staff.email
     : text(entry && entry.interviewerEmail, 160).toLowerCase();
   const reminderSentOn = text(entry && entry.reminderSentOn, 12);
+  const recordedByUserId = text(entry && entry.recordedByUserId, 80);
+  const recorder = recordedByUserId ? await findStaffInterviewer(recordedByUserId) : null;
 
   return {
     id: text(entry && entry.id, 80) || `interview-${contentSlug(label, index + 1)}`,
@@ -421,7 +441,49 @@ async function normalizeInterviewEntry(entry, index, fallbackLabel = '') {
     score,
     notes,
     result,
+    /* Who actually entered the decision. Independent of interviewerUserId,
+       which is who the round was assigned to. HR can record on anyone's
+       round; the name is snapshotted so the log still reads if the account
+       is later deactivated. */
+    recordedByUserId: recorder ? recorder.id : recordedByUserId,
+    recordedBy: recorder ? recorder.name : text(entry && entry.recordedBy, 120),
   };
+}
+
+function interviewFeedbackKey(entry) {
+  return [
+    (entry && entry.result) || 'pending',
+    entry && entry.score == null ? '' : String(entry.score),
+    (entry && entry.notes) || '',
+  ].join('\n');
+}
+
+async function feedbackAuthorFromSession(session) {
+  if (!session || !session.userId) return { id: '', name: '' };
+  const person = await findStaffInterviewer(session.userId);
+  if (person) return { id: person.id, name: person.name };
+  return { id: session.userId, name: session.name || session.username || '' };
+}
+
+async function applyFeedbackAttribution(interviews, existingInterviews, session) {
+  const prevById = new Map((existingInterviews || []).map((entry) => [String(entry && entry.id || ''), entry]));
+  const author = await feedbackAuthorFromSession(session);
+  return (interviews || []).map((entry) => {
+    if (!entry || typeof entry !== 'object') return entry;
+    if (!interviewResultDecided(entry.result)) {
+      return { ...entry, recordedBy: '', recordedByUserId: '' };
+    }
+    const prev = prevById.get(String(entry.id || ''));
+    const changed = !prev || interviewFeedbackKey(prev) !== interviewFeedbackKey(entry);
+    if (changed && author.id) {
+      return { ...entry, recordedByUserId: author.id, recordedBy: author.name };
+    }
+    return {
+      ...entry,
+      recordedByUserId: (prev && prev.recordedByUserId) || entry.recordedByUserId || '',
+      recordedBy: (prev && prev.recordedBy) || entry.recordedBy || '',
+    };
+  });
 }
 
 function detectInterviewScheduleChanges(previousInterviews, nextInterviews) {
@@ -568,9 +630,9 @@ function derivePipelineStage(pipeline) {
   if (pipeline.offer.status === 'sent') return 'offer';
   const interviews = pipeline.interviews || [];
   if (!interviews.length) return 'interview';
-  const allResolved = interviews.every((entry) => entry.result === 'pass' || entry.result === 'fail');
+  const allResolved = interviews.every((entry) => interviewResultResolved(entry && entry.result));
   if (allResolved && interviews.every((entry) => entry.result === 'pass')) return 'offer';
-  if (allResolved && interviews.some((entry) => entry.result === 'fail')) return 'closed';
+  if (allResolved && interviews.some((entry) => interviewResultCloses(entry.result))) return 'closed';
   return 'interview';
 }
 
@@ -718,6 +780,8 @@ async function cleanPipelinePayload(input, existingApplication, session) {
     interviews = [];
   }
 
+  interviews = await applyFeedbackAttribution(interviews, existing.interviews, session);
+
   const offerIncoming = incoming.offer && typeof incoming.offer === 'object' ? incoming.offer : {};
   const offerExisting = existing.offer && typeof existing.offer === 'object' ? existing.offer : {};
   let offerStatus = OFFER_STATUSES.has(offerIncoming.status) ? offerIncoming.status : (OFFER_STATUSES.has(offerExisting.status) ? offerExisting.status : 'none');
@@ -734,9 +798,9 @@ async function cleanPipelinePayload(input, existingApplication, session) {
   }
   if (offerStatus !== 'none') {
     const list = interviews || [];
-    const cycleComplete = list.length > 0 && list.every((entry) => entry && (entry.result === 'pass' || entry.result === 'fail'));
+    const cycleComplete = list.length > 0 && list.every((entry) => entry && interviewResultResolved(entry.result));
     if (!cycleComplete) {
-      throw Object.assign(new Error('Finish every interview round (Pass or Fail) before choosing an offer outcome.'), { status: 422 });
+      throw Object.assign(new Error('Finish every interview round before choosing an offer outcome.'), { status: 422 });
     }
     if (pathway === 'with_tasks' && task.decision !== 'approved') {
       throw Object.assign(new Error('Approve the task before moving to the offer stage.'), { status: 422 });
@@ -1132,7 +1196,7 @@ async function applyInterviewerTaskReview(application, session, incoming) {
  * derivePipelineStage is left for HR. Every save, including an edit, gets a
  * history row.
  */
-function applyInterviewerRoundFeedback(application, session, roundId, incoming) {
+async function applyInterviewerRoundFeedback(application, session, roundId, incoming) {
   const existing = application.pipeline && typeof application.pipeline === 'object'
     ? application.pipeline
     : defaultPipeline();
@@ -1162,6 +1226,7 @@ function applyInterviewerRoundFeedback(application, session, roundId, incoming) 
     throw Object.assign(new Error('Add a score (0–10) before marking Pass or Fail.'), { status: 422 });
   }
   const notes = text(incoming && incoming.notes != null ? incoming.notes : current.notes, 2000);
+  const author = await feedbackAuthorFromSession(session);
   const previous = {
     result: current.result || 'pending',
     score: current.score == null ? null : current.score,
@@ -1172,6 +1237,8 @@ function applyInterviewerRoundFeedback(application, session, roundId, incoming) 
     result,
     score,
     notes,
+    recordedByUserId: author.id || current.recordedByUserId || '',
+    recordedBy: author.name || current.recordedBy || '',
   };
   const pipeline = {
     stage: existing.stage || 'interview',
@@ -1208,10 +1275,8 @@ function applyInterviewerRoundFeedback(application, session, roundId, incoming) 
  * Sorts an interviewer's rounds into the queue buckets.
  *
  * "Completed" is inferred, not recorded: a round is treated as having happened
- * when its scheduled time is in the past and no result has been entered. There
- * is no attendance flag on a round, so a round that was rescheduled without its
- * time being updated will read as completed — HR marking it not attended
- * (§7.3) is the correction path.
+ * when its scheduled time is in the past and no result has been entered. HR
+ * marking the round not attended is the correction path for a no-show.
  *
  * A round whose feedback is still missing INTERVIEW_FEEDBACK_STALE_DAYS after
  * the fact moves to `stale`, so the queue distinguishes "do this now" from
@@ -2736,7 +2801,7 @@ async function handleApi(req, res, url) {
     const application = (data.applications || []).find((entry) => entry.id === applicationId);
     if (!application) return json(res, 404, { error: 'APPLICATION_NOT_FOUND', message: 'Application not found.' });
     try {
-      application.pipeline = applyInterviewerRoundFeedback(application, session, roundId, await readBody(req));
+      application.pipeline = await applyInterviewerRoundFeedback(application, session, roundId, await readBody(req));
       application.updatedAt = new Date().toISOString();
       await writeApplications(data);
       const round = (application.pipeline.interviews || []).find((entry) => String(entry && entry.id || '') === String(roundId));
