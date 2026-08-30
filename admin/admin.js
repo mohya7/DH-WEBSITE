@@ -752,7 +752,7 @@
     interviewer: ['interviewerQueue'],
   };
 
-  /* ---- Interviewer work queue. §5 wires task review; interview feedback is §6. */
+  /* ---- Interviewer work queue. Task review and interview feedback are live. */
 
   async function loadInterviewerQueue() {
     try {
@@ -800,25 +800,57 @@
       '</article>';
   }
 
+  function queueSelected(value, current) {
+    return value === current ? ' selected' : '';
+  }
+
+  function queueInterviewForm(item) {
+    var feedback = item.feedback || {};
+    var result = feedback.result || '';
+    var score = feedback.score == null ? '' : String(feedback.score);
+    var notes = feedback.notes || '';
+    var recorded = item.bucket === 'recorded';
+    return '<form class="queue-task-form" data-round-feedback="' + escapeHtml(item.applicationId) + '" data-round-id="' + escapeHtml(item.roundId) + '">' +
+      '<label class="queue-field"><span>Result</span>' +
+        '<select name="result" required>' +
+          '<option value="">Choose…</option>' +
+          '<option value="pass"' + queueSelected('pass', result) + '>Pass</option>' +
+          '<option value="fail"' + queueSelected('fail', result) + '>Fail</option>' +
+        '</select></label>' +
+      '<label class="queue-field"><span>Score <em>0–10 · required</em></span>' +
+        '<input name="score" type="number" min="0" max="10" step="0.5" inputmode="decimal" placeholder="e.g. 7.5" value="' + escapeHtml(score) + '"></label>' +
+      '<label class="queue-field queue-field--wide"><span>Notes</span>' +
+        '<textarea name="notes" rows="2" maxlength="2000" placeholder="What should HR know?">' + escapeHtml(notes) + '</textarea></label>' +
+      '<button class="primary-btn" type="submit"><i class="ti ti-check"></i><span>' +
+        (recorded ? 'Update feedback' : 'Record feedback') +
+      '</span></button>' +
+      '</form>';
+  }
+
   function queueCard(item) {
     if (item.bucket === 'tasks') return queueTaskCard(item);
     var overdue = item.bucket === 'stale' && item.daysOverdue != null
       ? '<span class="queue-flag">' + item.daysOverdue + ' days ago</span>'
       : '';
     /* Onsite rounds carry no meeting link by design, so show the format instead
-       of an empty row. */
+       of an empty row. Upcoming stays read-only — the interview has not happened. */
     var where = item.format === 'onsite'
       ? '<span class="queue-where"><i class="ti ti-map-pin"></i> Onsite</span>'
       : (item.meetingLink
         ? '<a class="queue-where" href="' + escapeHtml(item.meetingLink) + '" target="_blank" rel="noopener"><i class="ti ti-video"></i> Join online</a>'
         : '<span class="queue-where"><i class="ti ti-video-off"></i> Link not set</span>');
+    var cv = item.applicationId
+      ? '<a class="queue-where" href="/api/admin/applications/' + encodeURIComponent(item.applicationId) + '/resume"><i class="ti ti-download"></i> CV</a>'
+      : '';
+    var form = item.bucket === 'upcoming' ? '' : queueInterviewForm(item);
     return '<article class="queue-card queue-card--' + escapeHtml(item.bucket) + '">' +
       '<div class="queue-card__head">' +
         '<strong>' + escapeHtml(item.candidateName) + '</strong>' +
         '<span class="queue-round">' + escapeHtml(item.label) + '</span>' + overdue +
       '</div>' +
       '<p class="queue-role">' + escapeHtml(item.role) + '</p>' +
-      '<p class="queue-meta">' + escapeHtml(queueWhen(item.scheduledAt)) + ' · ' + where + '</p>' +
+      '<p class="queue-meta">' + escapeHtml(queueWhen(item.scheduledAt)) + ' · ' + where + (cv ? ' · ' + cv : '') + '</p>' +
+      form +
       '</article>';
   }
 
@@ -839,11 +871,13 @@
       { key: 'awaitingFeedback', title: 'Waiting on your feedback', hint: 'These interviews have taken place.' },
       { key: 'upcoming', title: 'Coming up', hint: 'Scheduled interviews.' },
       { key: 'stale', title: 'Overdue', hint: 'No feedback recorded after ' + (q.staleAfterDays || 14) + ' days.' },
+      { key: 'recorded', title: 'Recorded', hint: 'You can still edit these. Each change is kept in the pipeline history.' },
     ];
     var total = (q.counts && q.counts.total) || 0;
+    var recordedCount = (q.recorded || []).length;
     $$('[data-queue-count]').forEach(function (n) { n.textContent = total; });
 
-    if (!total) {
+    if (!total && !recordedCount) {
       groupsNode.innerHTML = '';
       emptyNode.classList.remove('is-hidden');
       return;
@@ -861,9 +895,13 @@
 
     var sub = $('#queueSubtitle');
     if (sub) {
-      sub.textContent = total === 1
-        ? '1 item waiting on you.'
-        : total + ' items waiting on you.';
+      if (!total && recordedCount) {
+        sub.textContent = 'Nothing waiting. Recorded feedback can still be edited.';
+      } else {
+        sub.textContent = total === 1
+          ? '1 item waiting on you.'
+          : total + ' items waiting on you.';
+      }
     }
   }
 
@@ -888,6 +926,35 @@
       await loadInterviewerQueue();
     } catch (error) {
       toast(error.message || 'Could not record the task review.', true);
+    } finally {
+      setBusy(button, false);
+    }
+  }
+
+  async function submitRoundFeedback(event) {
+    event.preventDefault();
+    var form = event.target.closest('form[data-round-feedback]');
+    if (!form) return;
+    var applicationId = form.getAttribute('data-round-feedback');
+    var roundId = form.getAttribute('data-round-id');
+    var result = ((form.elements.result || {}).value || '').trim();
+    var scoreRaw = ((form.elements.score || {}).value || '').trim();
+    var notes = ((form.elements.notes || {}).value || '').trim();
+    var button = $('button[type="submit"]', form);
+    try {
+      setBusy(button, true);
+      await api('/api/admin/interviewer/candidates/' + encodeURIComponent(applicationId) + '/rounds/' + encodeURIComponent(roundId), {
+        method: 'PUT',
+        body: JSON.stringify({
+          result: result,
+          score: scoreRaw === '' ? null : scoreRaw,
+          notes: notes,
+        }),
+      });
+      toast(form.closest('.queue-card--recorded') ? 'Feedback updated.' : 'Feedback recorded.');
+      await loadInterviewerQueue();
+    } catch (error) {
+      toast(error.message || 'Could not record the interview feedback.', true);
     } finally {
       setBusy(button, false);
     }
@@ -5481,6 +5548,9 @@
       queueGroups.addEventListener('submit', function (event) {
         if (event.target.matches && event.target.matches('form[data-task-review]')) {
           submitTaskReview(event);
+        }
+        if (event.target.matches && event.target.matches('form[data-round-feedback]')) {
+          submitRoundFeedback(event);
         }
       });
     }

@@ -1022,9 +1022,9 @@ function interviewerRoundView(application, round) {
       result,
       score,
       notes,
-      /* "Recorded" means this interviewer has entered something, not that the
-         round happened. Used by the queue to separate awaiting from done. */
-      recorded: result !== 'pending' || score != null || notes.trim() !== '',
+      /* A decision was made. Notes or a score alone are a draft and must not
+         pull the round out of awaiting/stale. */
+      recorded: result !== 'pending',
     },
   };
 }
@@ -1126,6 +1126,85 @@ async function applyInterviewerTaskReview(application, session, incoming) {
 }
 
 /**
+ * Interviewer records or amends feedback on one of their own rounds. Writes the
+ * existing result / score / notes fields only. Does not accept a full pipeline
+ * payload, does not touch other rounds, and does not move the candidate —
+ * derivePipelineStage is left for HR. Every save, including an edit, gets a
+ * history row.
+ */
+function applyInterviewerRoundFeedback(application, session, roundId, incoming) {
+  const existing = application.pipeline && typeof application.pipeline === 'object'
+    ? application.pipeline
+    : defaultPipeline();
+  const interviews = Array.isArray(existing.interviews) ? existing.interviews.slice() : [];
+  const index = interviews.findIndex((entry) => String(entry && entry.id || '') === String(roundId || ''));
+  if (index === -1) {
+    const error = new Error('Interview round not found.');
+    error.status = 404;
+    error.code = 'ROUND_NOT_FOUND';
+    throw error;
+  }
+  const current = interviews[index] && typeof interviews[index] === 'object' ? interviews[index] : {};
+  if (String(current.interviewerUserId || '') !== String(session.userId || '')) {
+    const error = new Error('This round is not assigned to you.');
+    error.status = 403;
+    error.code = 'FORBIDDEN';
+    throw error;
+  }
+  const result = INTERVIEW_RESULTS.has(incoming && incoming.result) ? incoming.result : '';
+  if (result !== 'pass' && result !== 'fail') {
+    throw Object.assign(new Error('Choose Pass or Fail.'), { status: 422 });
+  }
+  const score = incoming && Object.prototype.hasOwnProperty.call(incoming, 'score')
+    ? normalizeHalfPointScore(incoming.score, 'Interview scores')
+    : (current.score == null ? null : current.score);
+  if (score == null) {
+    throw Object.assign(new Error('Add a score (0–10) before marking Pass or Fail.'), { status: 422 });
+  }
+  const notes = text(incoming && incoming.notes != null ? incoming.notes : current.notes, 2000);
+  const previous = {
+    result: current.result || 'pending',
+    score: current.score == null ? null : current.score,
+    notes: current.notes || '',
+  };
+  interviews[index] = {
+    ...current,
+    result,
+    score,
+    notes,
+  };
+  const pipeline = {
+    stage: existing.stage || 'interview',
+    phoneScreen: existing.phoneScreen || 'pending',
+    pathway: existing.pathway || null,
+    task: existing.task && typeof existing.task === 'object' ? existing.task : defaultPipeline().task,
+    interviews,
+    offer: existing.offer && typeof existing.offer === 'object'
+      ? existing.offer
+      : { status: 'none', declinedReason: '' },
+    history: Array.isArray(existing.history) ? existing.history.slice(0, 40) : [],
+  };
+  const label = current.label || 'Interview';
+  const changed = previous.result !== result || previous.score !== score || previous.notes !== notes;
+  const edited = previous.result === 'pass' || previous.result === 'fail';
+  const scorePart = ` · score ${score}`;
+  const fromPart = edited && previous.result !== result ? `${previous.result} → ` : '';
+  pipeline.history.unshift({
+    at: new Date().toISOString(),
+    by: session.username || 'interviewer',
+    action: 'interview_feedback',
+    detail: `${label} ${fromPart}${result}${scorePart}${edited ? ' (edited)' : ''}`.trim(),
+  });
+  pipeline.history = pipeline.history.slice(0, 40);
+  if (!changed && edited) {
+    /* Still record the save — the brief requires a history row on every change.
+       An identical resubmit is not a change, so skip the extra row. */
+    pipeline.history.shift();
+  }
+  return pipeline;
+}
+
+/**
  * Sorts an interviewer's rounds into the queue buckets.
  *
  * "Completed" is inferred, not recorded: a round is treated as having happened
@@ -1136,15 +1215,21 @@ async function applyInterviewerTaskReview(application, session, incoming) {
  *
  * A round whose feedback is still missing INTERVIEW_FEEDBACK_STALE_DAYS after
  * the fact moves to `stale`, so the queue distinguishes "do this now" from
- * "this has been sitting". Rounds with a result recorded leave the queue.
+ * "this has been sitting". Rounds leave awaiting/stale only when result is no
+ * longer pending — the same rule as tasks leaving once a decision is set.
+ * Notes or a score without a result stay in the waiting bucket as a draft.
  */
 function interviewerQueueBuckets(rounds, now = new Date()) {
   const staleBefore = new Date(now.getTime() - INTERVIEW_FEEDBACK_STALE_DAYS * 24 * 60 * 60 * 1000);
   const upcoming = [];
   const awaitingFeedback = [];
   const stale = [];
+  const recorded = [];
   for (const round of rounds) {
-    if (round.feedback.recorded) continue; // actioned — leaves the queue
+    if (round.feedback.recorded) {
+      recorded.push({ ...round, bucket: 'recorded' });
+      continue;
+    }
     const when = round.scheduledAt ? new Date(round.scheduledAt) : null;
     const valid = when && !Number.isNaN(when.getTime());
     if (!valid || when > now) {
@@ -1163,7 +1248,8 @@ function interviewerQueueBuckets(rounds, now = new Date()) {
   upcoming.sort(byTime);
   awaitingFeedback.sort(byTime).reverse();
   stale.sort(byTime);
-  return { upcoming, awaitingFeedback, stale };
+  recorded.sort(byTime).reverse();
+  return { upcoming, awaitingFeedback, stale, recorded };
 }
 
 /** Full candidate detail for evaluation — allow-list, own rounds only. */
@@ -2581,6 +2667,7 @@ async function handleApi(req, res, url) {
         upcoming: buckets.upcoming.length,
         awaitingFeedback: buckets.awaitingFeedback.length,
         stale: buckets.stale.length,
+        recorded: buckets.recorded.length,
         total: tasks.length + buckets.upcoming.length + buckets.awaitingFeedback.length + buckets.stale.length,
       },
       tasks,
@@ -2631,6 +2718,41 @@ async function handleApi(req, res, url) {
       return json(res, error.status || 500, {
         error: error.code || 'TASK_REVIEW_INVALID',
         message: error.message || 'Could not record the task review.',
+      });
+    }
+  }
+
+  /* Interview feedback from the interviewer queue. Same stored fields as HR's
+     interview card (result, score, notes). Identity is who the round is
+     assigned to. Does not accept a full pipeline payload and does not move
+     the candidate forward. */
+  const interviewerRoundMatch = pathname.match(/^\/api\/admin\/interviewer\/candidates\/([^/]+)\/rounds\/([^/]+)$/);
+  if (interviewerRoundMatch && req.method === 'PUT') {
+    const session = await requireInterviewer(req, res, true);
+    if (!session) return;
+    const applicationId = decodeURIComponent(interviewerRoundMatch[1]);
+    const roundId = decodeURIComponent(interviewerRoundMatch[2]);
+    const data = await readApplications();
+    const application = (data.applications || []).find((entry) => entry.id === applicationId);
+    if (!application) return json(res, 404, { error: 'APPLICATION_NOT_FOUND', message: 'Application not found.' });
+    try {
+      application.pipeline = applyInterviewerRoundFeedback(application, session, roundId, await readBody(req));
+      application.updatedAt = new Date().toISOString();
+      await writeApplications(data);
+      const round = (application.pipeline.interviews || []).find((entry) => String(entry && entry.id || '') === String(roundId));
+      return json(res, 200, {
+        applicationId: application.id,
+        roundId,
+        feedback: {
+          result: round.result,
+          score: round.score,
+          notes: round.notes || '',
+        },
+      });
+    } catch (error) {
+      return json(res, error.status || 500, {
+        error: error.code || 'ROUND_FEEDBACK_INVALID',
+        message: error.message || 'Could not record the interview feedback.',
       });
     }
   }

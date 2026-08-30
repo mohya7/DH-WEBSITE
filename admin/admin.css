@@ -1152,7 +1152,7 @@ img{display:block;max-width:100%}
 .invite-result input{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
 .invite-result .secondary-btn{margin-top:10px}
 
-/* Interviewer work queue. Task review form is live; interview cards stay read-only until §6. */
+/* Interviewer work queue. Task review and interview feedback forms are live. */
 .queue-groups{display:flex;flex-direction:column;gap:26px;padding:4px 0 24px}
 .queue-group header{margin:0 0 12px}
 .queue-group header h2{margin:0;font-size:13px;letter-spacing:.02em;display:flex;align-items:center;gap:8px}
@@ -1183,5 +1183,10 @@ a.queue-where:hover{text-decoration:underline}
 .queue-field{display:flex;flex-direction:column;gap:5px;min-width:160px}
 .queue-field span{font-size:11px;font-weight:600;color:#9aa3ad}
 .queue-field em{font-style:normal;font-weight:500;color:#7f96ab}
-.queue-field select,.queue-field input{height:36px;padding:0 10px;border-radius:8px;border:1px solid #2a3140;background:#0f131a;color:#e8eaed;font:inherit}
+.queue-field select,.queue-field input,.queue-field textarea{padding:0 10px;border-radius:8px;border:1px solid #2a3140;background:#0f131a;color:#e8eaed;font:inherit}
+.queue-field select,.queue-field input{height:36px}
+.queue-field textarea{min-height:64px;padding:8px 10px;resize:vertical;width:100%}
+.queue-field--wide{flex:1 1 100%}
 .queue-task-form .primary-btn{height:36px}
+.queue-group--recorded header h2 b{background:rgba(157,124,245,.16);color:#9d7cf5}
+.queue-card--recorded{border-left-color:#9d7cf5}
