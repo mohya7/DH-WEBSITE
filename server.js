@@ -38,6 +38,24 @@ const CONTENT_PUBLIC_ALLOW = new Set([
   pathKey(PUBLIC_JS_FILE),
 ]);
 const CONTENT_DIR_KEY = pathKey(CONTENT_DIR);
+
+/**
+ * Default-deny for the whole document root. Only these top-level directories may
+ * be reached over HTTP; everything else on disk — .env, .git, server.js, lib/,
+ * node_modules/, scripts/, docs/, tmp/, .cursor/ — is unreachable regardless of
+ * what lands there. content/ is listed here but is further restricted to
+ * CONTENT_PUBLIC_ALLOW below.
+ */
+const PUBLIC_DIRS = new Set([
+  'admin', 'assets', 'blogs', 'careers', 'cases', 'content',
+  'css', 'js', 'news', 'partners', 'services',
+]);
+
+/** Files at the document root that may be served. Nothing else at root is. */
+const PUBLIC_ROOT_FILES = new Set([
+  'index.html', 'about-us.html', 'get-in-touch.html', 'robots.txt', 'llms.txt',
+  'favicon.ico', 'sitemap.xml',
+]);
 const ONBOARDING_STATUSES = new Set(['draft', 'sent', 'returned', 'completed']);
 const ONBOARDING_ASSET_KEYS = ['onboardingPost', 'joiningPost', 'businessCard', 'employeeId'];
 const MAX_JSON_BYTES = 9 * 1024 * 1024;
@@ -3295,6 +3313,34 @@ function isDeniedContentTarget(absPath) {
   return !CONTENT_PUBLIC_ALLOW.has(resolved);
 }
 
+/**
+ * Default-deny for everything else: a target is servable only if its first path
+ * segment is an allowed directory, or it is an allowed file sitting at the root.
+ * Anything outside that — dotfiles, source, tooling, gitignored scratch dirs —
+ * is denied whether or not it exists.
+ */
+function isDeniedStaticTarget(absPath) {
+  const resolved = path.resolve(absPath);
+  if (resolved === ROOT) return true;
+  const rel = path.relative(ROOT, resolved);
+  if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return true;
+  const segments = rel.split(path.sep).filter(Boolean);
+  if (!segments.length) return true;
+  const first = segments[0];
+  if (segments.length === 1 && !fsIsDirectory(resolved)) {
+    return !PUBLIC_ROOT_FILES.has(first.toLowerCase());
+  }
+  return !PUBLIC_DIRS.has(first.toLowerCase());
+}
+
+function fsIsDirectory(absPath) {
+  try {
+    return fs.statSync(absPath).isDirectory();
+  } catch (_) {
+    return false;
+  }
+}
+
 function staticNotFound(req, res) {
   return sendBuffer(req, res, 404, '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="robots" content="noindex, nofollow"><title>Page not found | Digital Hub</title></head><body><h1>404</h1><p>Page not found.</p></body></html>', {
     'Content-Type': 'text/html; charset=utf-8',
@@ -3420,7 +3466,7 @@ function serveStatic(req, res, url) {
   if (!target.startsWith(`${ROOT}${path.sep}`) && target !== ROOT) {
     return sendBuffer(req, res, 403, 'Forbidden', { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
   }
-  if (isDeniedContentTarget(target)) {
+  if (isDeniedContentTarget(target) || isDeniedStaticTarget(target)) {
     return staticNotFound(req, res);
   }
   if (fs.existsSync(target) && fs.statSync(target).isDirectory()) {
@@ -3432,7 +3478,7 @@ function serveStatic(req, res, url) {
       return res.end();
     }
     target = path.join(target, 'index.html');
-    if (isDeniedContentTarget(target)) {
+    if (isDeniedContentTarget(target) || isDeniedStaticTarget(target)) {
       return staticNotFound(req, res);
     }
   }
