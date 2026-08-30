@@ -897,6 +897,10 @@ function permissionsFor(role) {
 }
 
 function adminView(data, session) {
+  const scopedMeta = () => ({
+    ...data.meta,
+    audit: (data.meta.audit || []).filter((event) => event.by === session.username).slice(0, 20),
+  });
   if (session.role === 'admin') {
     const collections = {};
     for (const name of COLLECTIONS) {
@@ -909,23 +913,20 @@ function adminView(data, session) {
       collections,
     };
   }
-  if (session.role === 'marketing') {
+  if (session.role === 'hr') {
     return {
-      meta: {
-        ...data.meta,
-        audit: (data.meta.audit || []).filter((event) => event.by === session.username).slice(0, 20),
-      },
+      meta: scopedMeta(),
       pages: {},
-      collections: {},
+      collections: { jobs: data.collections.jobs || [] },
     };
   }
+  /* Deny by default. Marketing and any unrecognised role get no collections and
+     no pages. The HR shape used to be the fallthrough, which handed the whole
+     jobs collection — drafts included — to any other role. */
   return {
-    meta: {
-      ...data.meta,
-      audit: (data.meta.audit || []).filter((event) => event.by === session.username).slice(0, 20),
-    },
+    meta: scopedMeta(),
     pages: {},
-    collections: { jobs: data.collections.jobs || [] },
+    collections: {},
   };
 }
 
