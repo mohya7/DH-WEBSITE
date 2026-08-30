@@ -180,6 +180,15 @@ const TASK_STATUSES = new Set(['sent', 'in_progress', 'done']);
 const TASK_DECISIONS = new Set(['pending', 'approved', 'rejected']);
 const INTERVIEW_RESULTS = new Set(['pending', 'pass', 'fail']);
 const INTERVIEW_FORMATS = new Set(['onsite', 'online']);
+/**
+ * A round whose scheduled time has passed but has no result is "awaiting
+ * feedback" until this many days have gone by; after that the interviewer queue
+ * shows it as stale so it stops reading like a fresh action.
+ *
+ * This is the only definition — change the number here and both the API and the
+ * queue UI follow, since the value is echoed to the client as staleAfterDays.
+ */
+const INTERVIEW_FEEDBACK_STALE_DAYS = 14;
 const OFFER_STATUSES = new Set(['none', 'sent', 'joined', 'declined']);
 const PATHWAYS = new Set(['with_tasks', 'no_tasks']);
 
@@ -993,6 +1002,47 @@ function interviewerRoundView(application, round) {
       recorded: result !== 'pending' || score != null || notes.trim() !== '',
     },
   };
+}
+
+/**
+ * Sorts an interviewer's rounds into the queue buckets.
+ *
+ * "Completed" is inferred, not recorded: a round is treated as having happened
+ * when its scheduled time is in the past and no result has been entered. There
+ * is no attendance flag on a round, so a round that was rescheduled without its
+ * time being updated will read as completed — HR marking it not attended
+ * (§7.3) is the correction path.
+ *
+ * A round whose feedback is still missing INTERVIEW_FEEDBACK_STALE_DAYS after
+ * the fact moves to `stale`, so the queue distinguishes "do this now" from
+ * "this has been sitting". Rounds with a result recorded leave the queue.
+ */
+function interviewerQueueBuckets(rounds, now = new Date()) {
+  const staleBefore = new Date(now.getTime() - INTERVIEW_FEEDBACK_STALE_DAYS * 24 * 60 * 60 * 1000);
+  const upcoming = [];
+  const awaitingFeedback = [];
+  const stale = [];
+  for (const round of rounds) {
+    if (round.feedback.recorded) continue; // actioned — leaves the queue
+    const when = round.scheduledAt ? new Date(round.scheduledAt) : null;
+    const valid = when && !Number.isNaN(when.getTime());
+    if (!valid || when > now) {
+      upcoming.push({ ...round, bucket: 'upcoming' });
+    } else if (when >= staleBefore) {
+      awaitingFeedback.push({ ...round, bucket: 'awaitingFeedback' });
+    } else {
+      stale.push({
+        ...round,
+        bucket: 'stale',
+        daysOverdue: Math.floor((now.getTime() - when.getTime()) / (24 * 60 * 60 * 1000)),
+      });
+    }
+  }
+  const byTime = (a, b) => String(a.scheduledAt || '').localeCompare(String(b.scheduledAt || ''));
+  upcoming.sort(byTime);
+  awaitingFeedback.sort(byTime).reverse();
+  stale.sort(byTime);
+  return { upcoming, awaitingFeedback, stale };
 }
 
 /** Full candidate detail for evaluation — allow-list, own rounds only. */
@@ -2382,6 +2432,38 @@ async function handleApi(req, res, url) {
     }
     rounds.sort((a, b) => String(a.scheduledAt || '').localeCompare(String(b.scheduledAt || '')));
     return json(res, 200, { updatedAt: data.updatedAt, rounds });
+  }
+
+  /* The work queue: everything awaiting this interviewer, in three buckets.
+     Rounds with feedback recorded are omitted — actioned items leave the queue.
+
+     There is deliberately no `tasks` bucket. dbo.applications stores a task's
+     reviewedByUserId, which is written at the moment of the decision and records
+     who reviewed rather than who should. No assignment field exists, so a task
+     cannot be attributed to an interviewer ahead of time. Inventing one is out
+     of scope here. */
+  if (pathname === '/api/admin/interviewer/queue' && req.method === 'GET') {
+    const session = await requireInterviewer(req, res, false);
+    if (!session) return;
+    const data = await readApplications();
+    const rounds = [];
+    for (const application of data.applications || []) {
+      for (const round of roundsAssignedTo(application, session.userId)) {
+        rounds.push(interviewerRoundView(application, round));
+      }
+    }
+    const buckets = interviewerQueueBuckets(rounds);
+    return json(res, 200, {
+      generatedAt: new Date().toISOString(),
+      staleAfterDays: INTERVIEW_FEEDBACK_STALE_DAYS,
+      counts: {
+        upcoming: buckets.upcoming.length,
+        awaitingFeedback: buckets.awaitingFeedback.length,
+        stale: buckets.stale.length,
+        total: buckets.upcoming.length + buckets.awaitingFeedback.length + buckets.stale.length,
+      },
+      ...buckets,
+    });
   }
 
   /* One candidate, for an interviewer assigned to at least one of their rounds.

@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
-  <link rel="stylesheet" href="/admin/admin.css?v=20260825-hr-account-interviewers">
+  <link rel="stylesheet" href="/admin/admin.css?v=20260830-hr-account-interviewers">
 </head>
 <body>
   <div class="ambient" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -97,6 +97,7 @@
         <button class="side-link" type="button" data-view="hrCalendar" data-hr-only><i class="ti ti-calendar-event"></i><span>Interview Calendar</span></button>
         <button class="side-link" type="button" data-view="interviewLog" data-hr-only><i class="ti ti-notebook"></i><span>Interview Log</span><b data-interview-log-count>0</b></button>
         <button class="side-link" type="button" data-view="interviewers" data-hr-only><i class="ti ti-address-book"></i><span>Interviewers</span><b data-interviewer-count>0</b></button>
+        <button class="side-link" type="button" data-view="interviewerQueue" data-interviewer-only><i class="ti ti-calendar-check"></i><span>Your interviews</span><b data-queue-count>0</b></button>
         <p class="side-label" data-onboarding>PEOPLE</p>
         <button class="side-link" type="button" data-view="onboarding" data-onboarding><i class="ti ti-user-plus"></i><span>Employee Onboarding</span><b data-onboarding-count>0</b></button>
         <p class="side-label" data-admin-only>WEBSITE &amp; SYSTEM</p>
@@ -736,6 +737,24 @@
             </div>
           </section>
         </section>
+
+        <!-- Interviewer work queue. Read-only in Phase 1 §4: items show what is
+             waiting, but recording feedback arrives in §6, so no action controls
+             are rendered here rather than inert ones. -->
+        <section class="view" id="interviewerQueueView" data-interviewer-only>
+          <div class="section-title-row">
+            <div>
+              <h1>Your interviews</h1>
+              <p class="muted" id="queueSubtitle">Rounds assigned to you.</p>
+            </div>
+          </div>
+          <div class="queue-groups" id="queueGroups"></div>
+          <div class="empty-state is-hidden" id="queueEmpty">
+            <span><i class="ti ti-calendar-check"></i></span>
+            <h2>Nothing waiting on you</h2>
+            <p>When HR assigns you an interview round it will appear here, with the candidate and the joining link.</p>
+          </div>
+        </section>
       </main>
     </div>
   </div>
@@ -895,6 +914,6 @@
 
   <div class="toast-stack" id="toastStack" aria-live="polite"></div>
   <div class="mobile-overlay" id="mobileOverlay"></div>
-  <script src="/admin/admin.js?v=20260825-hr-account-interviewers"></script>
+  <script src="/admin/admin.js?v=20260830b-hr-account-interviewers"></script>
 </body>
 </html>

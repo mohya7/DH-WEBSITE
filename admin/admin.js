@@ -163,6 +163,7 @@
     editingId: null,
     editingUserId: null,
     editingUserRole: 'hr',
+    queue: null,
     setupToken: '',
     currentPage: 'home',
     contactStatus: 'all',
@@ -185,6 +186,7 @@
   function isAdmin() { return Boolean(state.currentUser && state.currentUser.role === 'admin'); }
   function isHr() { return Boolean(state.currentUser && state.currentUser.role === 'hr'); }
   function isMarketing() { return Boolean(state.currentUser && state.currentUser.role === 'marketing'); }
+  function isInterviewer() { return Boolean(state.currentUser && state.currentUser.role === 'interviewer'); }
   function canUseOnboarding() {
     return Boolean(state.permissions && state.permissions.canUseOnboarding) || isHr() || isMarketing();
   }
@@ -212,19 +214,37 @@
     $$('[data-onboarding]').forEach(function (node) { node.classList.toggle('role-hidden', !canUseOnboarding()); });
     $$('[data-onboarding-hr]').forEach(function (node) { node.classList.toggle('role-hidden', !isHr()); });
     $$('[data-onboarding-marketing]').forEach(function (node) { node.classList.toggle('role-hidden', !isMarketing()); });
+    $$('[data-interviewer-only]').forEach(function (node) { node.classList.toggle('role-hidden', !isInterviewer()); });
+    /* Hide any sidebar link the role cannot actually open. Without this a link
+       can render and then bounce back on click, which reads as a broken button
+       rather than an absent feature. Driven by the same allow-list as routing,
+       so the two cannot drift apart. */
+    $$('.side-link').forEach(function (node) {
+      var view = node.dataset.collection ? 'content' : node.dataset.view;
+      if (!view) return;
+      var route = node.dataset.collection
+        ? { view: 'content', collection: node.dataset.collection }
+        : { view: view, collection: null };
+      node.classList.toggle('role-hidden', !routeIsAllowed(route));
+    });
     $('#currentUserName').textContent = state.currentUser.name || state.currentUser.username;
     $('#currentUserRole').textContent = isAdmin()
       ? 'Administrator'
       : (isMarketing()
         ? (state.currentUser.jobTitle || 'Marketing · Onboarding')
-        : (state.currentUser.jobTitle ? state.currentUser.jobTitle : 'HR · Careers editor'));
+        : (isInterviewer()
+          ? (state.currentUser.jobTitle || 'Interviewer')
+          : (state.currentUser.jobTitle ? state.currentUser.jobTitle : 'HR · Careers editor')));
     var brand = $('#sidebarBrandLabel');
     if (brand) {
-      brand.textContent = isHr() ? 'HR PORTAL' : (isMarketing() ? 'MARKETING' : 'CONTENT STUDIO');
+      brand.textContent = isHr() ? 'HR PORTAL'
+        : (isMarketing() ? 'MARKETING'
+          : (isInterviewer() ? 'INTERVIEWER' : 'CONTENT STUDIO'));
     }
     document.title = isHr()
       ? 'Digital Hub — HR Portal'
-      : (isMarketing() ? 'Digital Hub — Marketing' : 'Digital Hub — Content Studio');
+      : (isMarketing() ? 'Digital Hub — Marketing'
+        : (isInterviewer() ? 'Digital Hub — Interviewer' : 'Digital Hub — Content Studio'));
     var avatar = $('#currentUserAvatar');
     avatar.classList.toggle('has-photo', Boolean(state.currentUser.photo));
     if (state.currentUser.photo) {
@@ -432,8 +452,9 @@
       state.csrf = session.csrf;
       applySession(session);
       showApp();
-      await loadContent();
+      if (!isInterviewer()) await loadContent();
       if (isHr()) await loadApplications();
+      if (isInterviewer()) await loadInterviewerQueue();
       if (canUseOnboarding()) await loadOnboarding();
       if (isAdmin()) {
         await loadContactRequests();
@@ -718,23 +739,133 @@
     return { view: parts[0], collection: null };
   }
 
+  /* Views each role may open. This is an allow-list on purpose: the previous
+     deny-list ended in `return true`, so a role it did not name — interviewer,
+     or anything added later — could reach every screen whose DOM node existed.
+     An unknown role now gets nothing. Server guards are still the authority;
+     this only decides what the SPA will render. */
+  var ROUTE_ALLOW = {
+    admin: ['dashboard', 'content', 'pages', 'users', 'tools', 'contactRequests'],
+    hr: ['dashboard', 'content', 'applications', 'hrPortal', 'hrAnalytics',
+      'hrCalendar', 'interviewLog', 'interviewers', 'onboarding'],
+    marketing: ['dashboard', 'onboarding'],
+    interviewer: ['interviewerQueue'],
+  };
+
+  /* ---- Interviewer work queue (read-only in §4) ------------------------- */
+
+  async function loadInterviewerQueue() {
+    try {
+      state.queue = await api('/api/admin/interviewer/queue');
+    } catch (error) {
+      state.queue = { error: error.message || 'Could not load your queue.' };
+    }
+    renderInterviewerQueue();
+  }
+
+  function queueWhen(value) {
+    if (!value) return 'Time to be confirmed';
+    var d = new Date(value);
+    if (isNaN(d.getTime())) return escapeHtml(value);
+    return d.toLocaleString(undefined, {
+      weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
+  }
+
+  function queueCard(item) {
+    var overdue = item.bucket === 'stale' && item.daysOverdue != null
+      ? '<span class="queue-flag">' + item.daysOverdue + ' days ago</span>'
+      : '';
+    /* Onsite rounds carry no meeting link by design, so show the format instead
+       of an empty row. */
+    var where = item.format === 'onsite'
+      ? '<span class="queue-where"><i class="ti ti-map-pin"></i> Onsite</span>'
+      : (item.meetingLink
+        ? '<a class="queue-where" href="' + escapeHtml(item.meetingLink) + '" target="_blank" rel="noopener"><i class="ti ti-video"></i> Join online</a>'
+        : '<span class="queue-where"><i class="ti ti-video-off"></i> Link not set</span>');
+    return '<article class="queue-card queue-card--' + escapeHtml(item.bucket) + '">' +
+      '<div class="queue-card__head">' +
+        '<strong>' + escapeHtml(item.candidateName) + '</strong>' +
+        '<span class="queue-round">' + escapeHtml(item.label) + '</span>' + overdue +
+      '</div>' +
+      '<p class="queue-role">' + escapeHtml(item.role) + '</p>' +
+      '<p class="queue-meta">' + escapeHtml(queueWhen(item.scheduledAt)) + ' · ' + where + '</p>' +
+      '</article>';
+  }
+
+  function renderInterviewerQueue() {
+    var groupsNode = $('#queueGroups');
+    var emptyNode = $('#queueEmpty');
+    if (!groupsNode || !emptyNode) return;
+    var q = state.queue || {};
+
+    if (q.error) {
+      groupsNode.innerHTML = '<div class="queue-error">' + escapeHtml(q.error) + '</div>';
+      emptyNode.classList.add('is-hidden');
+      return;
+    }
+
+    var groups = [
+      { key: 'awaitingFeedback', title: 'Waiting on your feedback', hint: 'These interviews have taken place.' },
+      { key: 'upcoming', title: 'Coming up', hint: 'Scheduled interviews.' },
+      { key: 'stale', title: 'Overdue', hint: 'No feedback recorded after ' + (q.staleAfterDays || 14) + ' days.' },
+    ];
+    var total = (q.counts && q.counts.total) || 0;
+    $$('[data-queue-count]').forEach(function (n) { n.textContent = total; });
+
+    if (!total) {
+      groupsNode.innerHTML = '';
+      emptyNode.classList.remove('is-hidden');
+      return;
+    }
+    emptyNode.classList.add('is-hidden');
+    groupsNode.innerHTML = groups.map(function (g) {
+      var items = q[g.key] || [];
+      if (!items.length) return '';
+      return '<section class="queue-group queue-group--' + g.key + '">' +
+        '<header><h2>' + escapeHtml(g.title) + ' <b>' + items.length + '</b></h2>' +
+        '<p>' + escapeHtml(g.hint) + '</p></header>' +
+        items.map(queueCard).join('') +
+        '</section>';
+    }).join('');
+
+    var sub = $('#queueSubtitle');
+    if (sub) {
+      sub.textContent = total === 1
+        ? '1 round assigned to you.'
+        : total + ' rounds assigned to you.';
+    }
+  }
+
   function routeIsAllowed(route) {
     var view = (route && route.view) || 'dashboard';
     var collection = route && route.collection;
     if (collection) view = 'content';
-    if (isHr() && (view === 'users' || view === 'tools' || view === 'contactRequests' || view === 'pages')) return false;
-    if (isMarketing() && view !== 'dashboard' && view !== 'onboarding') return false;
-    if (isAdmin() && (view === 'applications' || view === 'hrPortal' || view === 'hrAnalytics' || view === 'hrCalendar' || view === 'interviewLog' || view === 'interviewers' || view === 'onboarding' || collection === 'jobs')) return false;
-    if (collection && allowedCollections().indexOf(collection) === -1) return false;
-    if (view === 'content' && !collection) return false;
+    var role = state.currentUser && state.currentUser.role;
+    var permitted = ROUTE_ALLOW[role] || [];
+    if (permitted.indexOf(view) === -1) return false;
+    if (view === 'content') {
+      if (!collection) return false;
+      if (allowedCollections().indexOf(collection) === -1) return false;
+    }
     var viewNode = document.getElementById(view + 'View');
     if (view !== 'content' && !viewNode) return false;
     return true;
   }
 
+  /* Falls back to the role's own landing view, not always the dashboard — an
+     interviewer has no dashboard, so defaulting there would render an empty
+     shell they are not allowed to see. */
+  function defaultRouteFor(role) {
+    var permitted = ROUTE_ALLOW[role] || [];
+    if (permitted.indexOf('dashboard') > -1) return { view: 'dashboard', collection: null };
+    return permitted.length ? { view: permitted[0], collection: null } : { view: 'dashboard', collection: null };
+  }
+
   function resolveAccessibleRoute(route) {
     if (routeIsAllowed(route)) return route;
-    return { view: 'dashboard', collection: null };
+    return defaultRouteFor(state.currentUser && state.currentUser.role);
   }
 
   function applyRouteShell(route) {
