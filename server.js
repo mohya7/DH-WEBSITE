@@ -992,8 +992,15 @@ function roundsAssignedTo(application, userId) {
   return interviews.filter((round) => String(round && round.interviewerUserId || '') === id);
 }
 
+function taskAssignedTo(application, userId) {
+  const id = String(userId || '');
+  if (!id) return false;
+  const task = application && application.pipeline && application.pipeline.task;
+  return Boolean(task && typeof task === 'object' && String(task.assignedToUserId || '') === id);
+}
+
 function interviewerHasAccess(application, userId) {
-  return roundsAssignedTo(application, userId).length > 0;
+  return roundsAssignedTo(application, userId).length > 0 || taskAssignedTo(application, userId);
 }
 
 /** One round, with the interviewer's own feedback state. */
@@ -1049,6 +1056,73 @@ function interviewerTaskView(application, userId) {
     decision: task.decision || 'pending',
     bucket: 'tasks',
   };
+}
+
+/**
+ * Interviewer records a task decision from their queue. Identity is taken from
+ * the session, never the request body. Assignment is who may use this path;
+ * it does not pre-fill the reviewer and does not stop HR using the pipeline
+ * form. Does not seed interviews or move the candidate forward — HR does that.
+ */
+async function applyInterviewerTaskReview(application, session, incoming) {
+  const existing = application.pipeline && typeof application.pipeline === 'object'
+    ? application.pipeline
+    : defaultPipeline();
+  const taskExisting = existing.task && typeof existing.task === 'object' ? existing.task : {};
+  if (!taskAssignedTo(application, session.userId)) {
+    const error = new Error('This task is not assigned to you.');
+    error.status = 403;
+    error.code = 'FORBIDDEN';
+    throw error;
+  }
+  if (taskExisting.status !== 'done') {
+    throw Object.assign(new Error('The task is still with the candidate.'), { status: 422 });
+  }
+  const decision = TASK_DECISIONS.has(incoming && incoming.decision) ? incoming.decision : '';
+  if (decision !== 'approved' && decision !== 'rejected') {
+    throw Object.assign(new Error('Choose Approve or Reject.'), { status: 422 });
+  }
+  const reviewer = await findStaffInterviewer(session.userId);
+  if (!reviewer) {
+    throw Object.assign(new Error('Your interviewer account could not be resolved.'), { status: 422 });
+  }
+  const score = incoming && Object.prototype.hasOwnProperty.call(incoming, 'score')
+    ? normalizeHalfPointScore(incoming.score, 'Task score')
+    : (taskExisting.score == null ? null : taskExisting.score);
+  if (decision === 'approved' && score == null) {
+    throw Object.assign(new Error('Add a task score (0–10) before approving.'), { status: 422 });
+  }
+  const pipeline = {
+    stage: existing.stage || 'task',
+    phoneScreen: existing.phoneScreen || 'pending',
+    pathway: existing.pathway || null,
+    task: {
+      title: taskExisting.title || '',
+      notes: taskExisting.notes || '',
+      status: taskExisting.status || 'done',
+      decision,
+      assignedToUserId: taskExisting.assignedToUserId || '',
+      assignedTo: taskExisting.assignedTo || '',
+      reviewedByUserId: reviewer.id,
+      reviewedBy: reviewer.name,
+      score,
+    },
+    interviews: Array.isArray(existing.interviews) ? existing.interviews : [],
+    offer: existing.offer && typeof existing.offer === 'object'
+      ? existing.offer
+      : { status: 'none', declinedReason: '' },
+    history: Array.isArray(existing.history) ? existing.history.slice(0, 40) : [],
+  };
+  pipeline.stage = derivePipelineStage(pipeline);
+  const scorePart = score == null ? '' : ` · score ${score}`;
+  pipeline.history.unshift({
+    at: new Date().toISOString(),
+    by: session.username || reviewer.name || 'interviewer',
+    action: 'task_review',
+    detail: `Task ${decision}${scorePart} by ${reviewer.name}`,
+  });
+  pipeline.history = pipeline.history.slice(0, 40);
+  return pipeline;
 }
 
 /**
@@ -2514,9 +2588,55 @@ async function handleApi(req, res, url) {
     });
   }
 
-  /* One candidate, for an interviewer assigned to at least one of their rounds.
-     Anyone else — including an interviewer with no round on this application —
-     gets 403, not 404, because the record does exist. */
+  /* Task review from the interviewer queue. Same stored fields as HR's pipeline
+     form (decision, reviewedBy, reviewedByUserId, score). Identity comes from
+     the session. Does not accept a full pipeline payload. */
+  const interviewerTaskMatch = pathname.match(/^\/api\/admin\/interviewer\/candidates\/([^/]+)\/task$/);
+  if (interviewerTaskMatch && req.method === 'PUT') {
+    const session = await requireInterviewer(req, res, true);
+    if (!session) return;
+    const id = decodeURIComponent(interviewerTaskMatch[1]);
+    const data = await readApplications();
+    const application = (data.applications || []).find((entry) => entry.id === id);
+    if (!application) return json(res, 404, { error: 'APPLICATION_NOT_FOUND', message: 'Application not found.' });
+    try {
+      const previousStage = application.pipeline && application.pipeline.stage
+        ? String(application.pipeline.stage)
+        : '';
+      application.pipeline = await applyInterviewerTaskReview(application, session, await readBody(req));
+      applyApplicationStatus(application, mirrorInboxStatus(application.pipeline));
+      application.updatedAt = new Date().toISOString();
+      const nextStage = String((application.pipeline && application.pipeline.stage) || '');
+      const stageEvents = [];
+      if (previousStage !== nextStage && nextStage) {
+        stageEvents.push({
+          applicationId: application.id,
+          fromStage: previousStage || null,
+          toStage: nextStage,
+          occurredAt: application.updatedAt,
+          actor: session.username || 'interviewer',
+        });
+      }
+      await writeApplications(data, { stageEvents });
+      return json(res, 200, {
+        applicationId: application.id,
+        task: {
+          decision: application.pipeline.task.decision,
+          reviewedBy: application.pipeline.task.reviewedBy,
+          reviewedByUserId: application.pipeline.task.reviewedByUserId,
+          score: application.pipeline.task.score,
+        },
+      });
+    } catch (error) {
+      return json(res, error.status || 500, {
+        error: error.code || 'TASK_REVIEW_INVALID',
+        message: error.message || 'Could not record the task review.',
+      });
+    }
+  }
+
+  /* One candidate, for an interviewer assigned to at least one of their rounds
+     or the task. Anyone else gets 403, not 404, because the record does exist. */
   const interviewerCandidateMatch = pathname.match(/^\/api\/admin\/interviewer\/candidates\/([^/]+)$/);
   if (interviewerCandidateMatch && req.method === 'GET') {
     const session = await requireInterviewer(req, res, false);
@@ -2525,7 +2645,7 @@ async function handleApi(req, res, url) {
     const application = (await readApplications()).applications.find((entry) => entry.id === id);
     if (!application) return json(res, 404, { error: 'APPLICATION_NOT_FOUND', message: 'Application not found.' });
     if (!interviewerHasAccess(application, session.userId)) {
-      return json(res, 403, { error: 'FORBIDDEN', message: 'You are not assigned to any round for this candidate.' });
+      return json(res, 403, { error: 'FORBIDDEN', message: 'You are not assigned to this candidate.' });
     }
     return json(res, 200, { candidate: interviewerCandidateView(application, session.userId) });
   }
@@ -2819,8 +2939,8 @@ async function handleApi(req, res, url) {
   const applicationMatch = pathname.match(/^\/api\/admin\/applications\/([^/]+)(?:\/(resume|pipeline))?$/);
   if (applicationMatch && req.method === 'GET' && applicationMatch[2] === 'resume') {
     /* HR reaches any CV. An interviewer reaches a CV only for a candidate they
-       have a round on — checked against the pipeline below, after the record is
-       loaded, never from anything the client sent. */
+       have a round or the task on — checked against the pipeline below, after
+       the record is loaded, never from anything the client sent. */
     const session = await requireAuth(req, res);
     if (!session) return;
     if (session.role !== 'hr' && session.role !== 'interviewer') {
@@ -2830,7 +2950,7 @@ async function handleApi(req, res, url) {
     const application = (await readApplications()).applications.find((entry) => entry.id === id);
     if (!application) return json(res, 404, { error: 'APPLICATION_NOT_FOUND', message: 'Application not found.' });
     if (session.role === 'interviewer' && !interviewerHasAccess(application, session.userId)) {
-      return json(res, 403, { error: 'FORBIDDEN', message: 'You are not assigned to any round for this candidate.' });
+      return json(res, 403, { error: 'FORBIDDEN', message: 'You are not assigned to this candidate.' });
     }
     const resume = await hiringDb.getApplicationResume(id);
     if (!resume) {

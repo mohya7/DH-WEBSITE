@@ -752,7 +752,7 @@
     interviewer: ['interviewerQueue'],
   };
 
-  /* ---- Interviewer work queue (read-only in §4) ------------------------- */
+  /* ---- Interviewer work queue. §5 wires task review; interview feedback is §6. */
 
   async function loadInterviewerQueue() {
     try {
@@ -774,6 +774,9 @@
   }
 
   function queueTaskCard(item) {
+    var cv = item.applicationId
+      ? '<a class="queue-where" href="/api/admin/applications/' + encodeURIComponent(item.applicationId) + '/resume"><i class="ti ti-download"></i> CV</a>'
+      : '';
     return '<article class="queue-card queue-card--tasks">' +
       '<div class="queue-card__head">' +
         '<strong>' + escapeHtml(item.candidateName) + '</strong>' +
@@ -782,6 +785,18 @@
       '<p class="queue-role">' + escapeHtml(item.role) + '</p>' +
       (item.title ? '<p class="queue-task-title">' + escapeHtml(item.title) + '</p>' : '') +
       (item.notes ? '<p class="queue-meta">' + escapeHtml(item.notes) + '</p>' : '') +
+      (cv ? '<p class="queue-meta">' + cv + '</p>' : '') +
+      '<form class="queue-task-form" data-task-review="' + escapeHtml(item.applicationId) + '">' +
+        '<label class="queue-field"><span>Decision</span>' +
+          '<select name="decision" required>' +
+            '<option value="">Choose…</option>' +
+            '<option value="approved">Approve</option>' +
+            '<option value="rejected">Reject</option>' +
+          '</select></label>' +
+        '<label class="queue-field"><span>Score <em>0–10 · required to approve</em></span>' +
+          '<input name="score" type="number" min="0" max="10" step="0.5" inputmode="decimal" placeholder="e.g. 7.5"></label>' +
+        '<button class="primary-btn" type="submit"><i class="ti ti-check"></i><span>Record review</span></button>' +
+      '</form>' +
       '</article>';
   }
 
@@ -847,8 +862,34 @@
     var sub = $('#queueSubtitle');
     if (sub) {
       sub.textContent = total === 1
-        ? '1 round assigned to you.'
-        : total + ' rounds assigned to you.';
+        ? '1 item waiting on you.'
+        : total + ' items waiting on you.';
+    }
+  }
+
+  async function submitTaskReview(event) {
+    event.preventDefault();
+    var form = event.target.closest('form[data-task-review]');
+    if (!form) return;
+    var applicationId = form.getAttribute('data-task-review');
+    var decision = ((form.elements.decision || {}).value || '').trim();
+    var scoreRaw = ((form.elements.score || {}).value || '').trim();
+    var button = $('button[type="submit"]', form);
+    try {
+      setBusy(button, true);
+      await api('/api/admin/interviewer/candidates/' + encodeURIComponent(applicationId) + '/task', {
+        method: 'PUT',
+        body: JSON.stringify({
+          decision: decision,
+          score: scoreRaw === '' ? null : scoreRaw,
+        }),
+      });
+      toast('Task review recorded.');
+      await loadInterviewerQueue();
+    } catch (error) {
+      toast(error.message || 'Could not record the task review.', true);
+    } finally {
+      setBusy(button, false);
     }
   }
 
@@ -5435,6 +5476,14 @@
     $('#previewPageBtn').addEventListener('click', function () { window.open(pageInfo[state.currentPage].url, '_blank', 'noopener'); });
     $('#exportBtn').addEventListener('click', exportContent);
     $('#importInput').addEventListener('change', function () { importContent(this.files[0]); });
+    var queueGroups = $('#queueGroups');
+    if (queueGroups) {
+      queueGroups.addEventListener('submit', function (event) {
+        if (event.target.matches && event.target.matches('form[data-task-review]')) {
+          submitTaskReview(event);
+        }
+      });
+    }
 
     $('#addUserBtn').addEventListener('click', function () { openUserModal(null, 'hr'); });
     var addMarketingBtn = $('#addMarketingUserBtn');

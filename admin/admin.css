@@ -1152,7 +1152,7 @@ img{display:block;max-width:100%}
 .invite-result input{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
 .invite-result .secondary-btn{margin-top:10px}
 
-/* Interviewer work queue (Phase 1 §4). Read-only: no action controls yet. */
+/* Interviewer work queue. Task review form is live; interview cards stay read-only until §6. */
 .queue-groups{display:flex;flex-direction:column;gap:26px;padding:4px 0 24px}
 .queue-group header{margin:0 0 12px}
 .queue-group header h2{margin:0;font-size:13px;letter-spacing:.02em;display:flex;align-items:center;gap:8px}
@@ -1179,3 +1179,9 @@ a.queue-where:hover{text-decoration:underline}
 .queue-group--tasks header h2 b{background:rgba(34,184,132,.16);color:#22B884}
 .queue-card--tasks{border-left-color:#22B884}
 .queue-task-title{margin:6px 0 0;font-size:13px;font-weight:600;color:#e8eaed}
+.queue-task-form{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-top:12px;padding-top:12px;border-top:1px solid #242935}
+.queue-field{display:flex;flex-direction:column;gap:5px;min-width:160px}
+.queue-field span{font-size:11px;font-weight:600;color:#9aa3ad}
+.queue-field em{font-style:normal;font-weight:500;color:#7f96ab}
+.queue-field select,.queue-field input{height:36px;padding:0 10px;border-radius:8px;border:1px solid #2a3140;background:#0f131a;color:#e8eaed;font:inherit}
+.queue-task-form .primary-btn{height:36px}

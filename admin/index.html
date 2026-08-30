@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
-  <link rel="stylesheet" href="/admin/admin.css?v=20260830c-hr-account-interviewers">
+  <link rel="stylesheet" href="/admin/admin.css?v=20260831a-interviewer-task-review">
 </head>
 <body>
   <div class="ambient" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -738,14 +738,13 @@
           </section>
         </section>
 
-        <!-- Interviewer work queue. Read-only in Phase 1 §4: items show what is
-             waiting, but recording feedback arrives in §6, so no action controls
-             are rendered here rather than inert ones. -->
+        <!-- Interviewer work queue. §5: task cards include a working review form.
+             Interview-round cards stay read-only until §6. -->
         <section class="view" id="interviewerQueueView" data-interviewer-only>
           <div class="section-title-row">
             <div>
               <h1>Your interviews</h1>
-              <p class="muted" id="queueSubtitle">Rounds assigned to you.</p>
+              <p class="muted" id="queueSubtitle">Work assigned to you.</p>
             </div>
           </div>
           <div class="queue-groups" id="queueGroups"></div>
@@ -914,6 +913,6 @@
 
   <div class="toast-stack" id="toastStack" aria-live="polite"></div>
   <div class="mobile-overlay" id="mobileOverlay"></div>
-  <script src="/admin/admin.js?v=20260830c-hr-account-interviewers"></script>
+  <script src="/admin/admin.js?v=20260831a-interviewer-task-review"></script>
 </body>
 </html>
