@@ -773,7 +773,20 @@
     });
   }
 
+  function queueTaskCard(item) {
+    return '<article class="queue-card queue-card--tasks">' +
+      '<div class="queue-card__head">' +
+        '<strong>' + escapeHtml(item.candidateName) + '</strong>' +
+        '<span class="queue-round">Task</span>' +
+      '</div>' +
+      '<p class="queue-role">' + escapeHtml(item.role) + '</p>' +
+      (item.title ? '<p class="queue-task-title">' + escapeHtml(item.title) + '</p>' : '') +
+      (item.notes ? '<p class="queue-meta">' + escapeHtml(item.notes) + '</p>' : '') +
+      '</article>';
+  }
+
   function queueCard(item) {
+    if (item.bucket === 'tasks') return queueTaskCard(item);
     var overdue = item.bucket === 'stale' && item.daysOverdue != null
       ? '<span class="queue-flag">' + item.daysOverdue + ' days ago</span>'
       : '';
@@ -807,6 +820,7 @@
     }
 
     var groups = [
+      { key: 'tasks', title: 'Tasks to review', hint: 'Submitted by the candidate and assigned to you.' },
       { key: 'awaitingFeedback', title: 'Waiting on your feedback', hint: 'These interviews have taken place.' },
       { key: 'upcoming', title: 'Coming up', hint: 'Scheduled interviews.' },
       { key: 'stale', title: 'Overdue', hint: 'No feedback recorded after ' + (q.staleAfterDays || 14) + ' days.' },
@@ -2472,11 +2486,17 @@
     if (phoneScreen === 'accepted' && pathwayInput) pathway = pathwayInput.value;
     var reviewedByUserId = (($('[name="taskReviewedByUserId"]', root) || {}).value || '').trim();
     var reviewer = (state.staffInterviewers || []).find(function (person) { return person.id === reviewedByUserId; });
+    /* Assignment is independent of review: setting one never fills the other.
+       The server re-validates the id, so this name is only a display hint. */
+    var assignedToUserId = (($('[name="taskAssignedToUserId"]', root) || {}).value || '').trim();
+    var assignee = (state.staffInterviewers || []).find(function (person) { return person.id === assignedToUserId; });
     var task = {
       title: (($('[name="taskTitle"]', root) || {}).value || '').trim(),
       notes: (($('[name="taskNotes"]', root) || {}).value || '').trim(),
       status: ($('[name="taskStatus"]', root) || {}).value || 'sent',
       decision: ($('[name="taskDecision"]', root) || {}).value || 'pending',
+      assignedToUserId: assignedToUserId,
+      assignedTo: assignee ? assignee.name : '',
       reviewedByUserId: reviewedByUserId,
       reviewedBy: reviewer ? reviewer.name : '',
       score: (($('[name="taskScore"]', root) || {}).value || '').trim()
@@ -2834,6 +2854,7 @@
             return '<option value="' + option[0] + '"' + (option[0] === ((pipe.task && pipe.task.status) || 'sent') ? ' selected' : '') + '>' + option[1] + '</option>';
           }).join('') +
           '</select></label>' +
+          '<label class="hr-field"><span>Assigned to <em>shows in their queue</em></span><select name="taskAssignedToUserId">' + reviewerOptionsHtml(pipe.task && pipe.task.assignedToUserId) + '</select></label>' +
           '<label class="hr-field"><span>Reviewed by <em>required to Approve</em></span><select name="taskReviewedByUserId">' + reviewerOptionsHtml(pipe.task && pipe.task.reviewedByUserId) + '</select></label>' +
           '<label class="hr-field hr-score-field"><span>Score <em>0–10 · required to approve</em></span><input name="taskScore" type="number" min="0" max="10" step="0.5" inputmode="decimal" value="' + escapeHtml((pipe.task && pipe.task.score != null) ? pipe.task.score : '') + '" placeholder="e.g. 7.5"><small class="hr-score-hint">Required before Approve · half points allowed</small></label>' +
           '<label class="hr-field hr-span-2"><span>Notes</span><textarea name="taskNotes" rows="2" placeholder="Instructions or notes">' + escapeHtml((pipe.task && pipe.task.notes) || '') + '</textarea></label>' +

@@ -206,7 +206,7 @@ function defaultPipeline() {
     stage: 'phone_screen',
     phoneScreen: 'pending',
     pathway: null,
-    task: { title: '', notes: '', status: 'sent', decision: 'pending', reviewedBy: '', reviewedByUserId: '', score: null },
+    task: { title: '', notes: '', status: 'sent', decision: 'pending', assignedTo: '', assignedToUserId: '', reviewedBy: '', reviewedByUserId: '', score: null },
     interviews: [],
     offer: { status: 'none', declinedReason: '' },
     history: [],
@@ -622,6 +622,18 @@ async function cleanPipelinePayload(input, existingApplication, session) {
     80,
   );
   const reviewer = reviewedByUserId ? await findStaffInterviewer(reviewedByUserId) : null;
+  /* Who the task is routed to. Independent of reviewedByUserId, which records
+     who actually submitted the decision — normally the assignee, but HR when
+     they review it themselves. Assignment is a routing hint only: it decides
+     whose queue the task appears in and never gates who may review it.
+     Validated through findStaffInterviewer so an inactive or unknown account
+     cannot be assigned; an unresolvable id clears the assignment rather than
+     silently storing a dangling reference. */
+  const assignedToUserId = text(
+    taskIncoming.assignedToUserId != null ? taskIncoming.assignedToUserId : taskExisting.assignedToUserId,
+    80,
+  );
+  const assignee = assignedToUserId ? await findStaffInterviewer(assignedToUserId) : null;
   const taskScoreRaw = Object.prototype.hasOwnProperty.call(taskIncoming, 'score')
     ? taskIncoming.score
     : taskExisting.score;
@@ -630,6 +642,10 @@ async function cleanPipelinePayload(input, existingApplication, session) {
     notes: text(taskIncoming.notes != null ? taskIncoming.notes : taskExisting.notes, 4000),
     status: TASK_STATUSES.has(taskIncoming.status) ? taskIncoming.status : (TASK_STATUSES.has(taskExisting.status) ? taskExisting.status : 'sent'),
     decision: TASK_DECISIONS.has(taskIncoming.decision) ? taskIncoming.decision : (TASK_DECISIONS.has(taskExisting.decision) ? taskExisting.decision : 'pending'),
+    /* Name is snapshotted alongside the id, as interview rounds do, so the HR
+       view still reads correctly if the account is later deactivated. */
+    assignedToUserId: assignee ? assignee.id : '',
+    assignedTo: assignee ? assignee.name : '',
     reviewedByUserId: reviewer ? reviewer.id : '',
     reviewedBy: reviewer
       ? reviewer.name
@@ -742,6 +758,8 @@ async function cleanPipelinePayload(input, existingApplication, session) {
       notes: task.notes,
       status: task.status || 'sent',
       decision: task.decision || 'pending',
+      assignedToUserId: task.assignedToUserId || '',
+      assignedTo: task.assignedTo || '',
       reviewedByUserId: task.reviewedByUserId || '',
       reviewedBy: task.reviewedBy || '',
       score: task.score,
@@ -1001,6 +1019,35 @@ function interviewerRoundView(application, round) {
          round happened. Used by the queue to separate awaiting from done. */
       recorded: result !== 'pending' || score != null || notes.trim() !== '',
     },
+  };
+}
+
+/**
+ * The task on this application, if it is routed to the given interviewer and
+ * still needs a decision. Returns null otherwise.
+ *
+ * A task only enters the queue once its status is `done`: before that the work
+ * sits with the candidate, not the reviewer, so listing it would misrepresent
+ * what the interviewer is being asked to do. Assignment is a routing hint — HR
+ * can review any task regardless of who it is assigned to.
+ */
+function interviewerTaskView(application, userId) {
+  const id = String(userId || '');
+  const task = application && application.pipeline && application.pipeline.task;
+  if (!id || !task || typeof task !== 'object') return null;
+  if (String(task.assignedToUserId || '') !== id) return null;
+  if (task.decision && task.decision !== 'pending') return null; // actioned — leaves the queue
+  if (task.status !== 'done') return null;                       // still with the candidate
+  return {
+    applicationId: application.id,
+    reference: application.reference || '',
+    candidateName: application.fullName || '',
+    role: application.role || '',
+    title: task.title || '',
+    notes: task.notes || '',
+    status: task.status,
+    decision: task.decision || 'pending',
+    bucket: 'tasks',
   };
 }
 
@@ -2434,34 +2481,35 @@ async function handleApi(req, res, url) {
     return json(res, 200, { updatedAt: data.updatedAt, rounds });
   }
 
-  /* The work queue: everything awaiting this interviewer, in three buckets.
-     Rounds with feedback recorded are omitted — actioned items leave the queue.
-
-     There is deliberately no `tasks` bucket. dbo.applications stores a task's
-     reviewedByUserId, which is written at the moment of the decision and records
-     who reviewed rather than who should. No assignment field exists, so a task
-     cannot be attributed to an interviewer ahead of time. Inventing one is out
-     of scope here. */
+  /* The work queue: everything awaiting this interviewer. Items they have
+     already actioned are omitted — a round with feedback recorded, or a task
+     with a decision, leaves the queue. */
   if (pathname === '/api/admin/interviewer/queue' && req.method === 'GET') {
     const session = await requireInterviewer(req, res, false);
     if (!session) return;
     const data = await readApplications();
     const rounds = [];
+    const tasks = [];
     for (const application of data.applications || []) {
       for (const round of roundsAssignedTo(application, session.userId)) {
         rounds.push(interviewerRoundView(application, round));
       }
+      const task = interviewerTaskView(application, session.userId);
+      if (task) tasks.push(task);
     }
+    tasks.sort((a, b) => String(a.candidateName || '').localeCompare(String(b.candidateName || '')));
     const buckets = interviewerQueueBuckets(rounds);
     return json(res, 200, {
       generatedAt: new Date().toISOString(),
       staleAfterDays: INTERVIEW_FEEDBACK_STALE_DAYS,
       counts: {
+        tasks: tasks.length,
         upcoming: buckets.upcoming.length,
         awaitingFeedback: buckets.awaitingFeedback.length,
         stale: buckets.stale.length,
-        total: buckets.upcoming.length + buckets.awaitingFeedback.length + buckets.stale.length,
+        total: tasks.length + buckets.upcoming.length + buckets.awaitingFeedback.length + buckets.stale.length,
       },
+      tasks,
       ...buckets,
     });
   }
