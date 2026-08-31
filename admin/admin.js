@@ -85,7 +85,7 @@
       { name: 'niceToHave', label: 'Nice to Have', type: 'richtext', full: true, hint: 'Optional skills that are a plus.' },
       { name: 'roleOffers', label: 'What This Role Offers', type: 'richtext', full: true, hint: 'Benefits, growth, and what candidates get from this role.' },
       { type: 'section', label: 'Interview process' },
-      { name: 'interviewStages', label: 'Interview stages', type: 'checklist', full: true, options: [['HR', 'HR'], ['Tech', 'Tech'], ['CEO', 'CEO'], ['CTO', 'CTO'], ['Marketing', 'Marketing'], ['Sales', 'Sales'], ['AI & Data', 'AI & Data']], hint: 'Stages used in Active Hiring Process when a candidate is accepted after phone screening.' }
+      { name: 'interviewStages', label: 'Interview stages', type: 'checklist', full: true, options: [['HR', 'HR'], ['Technical', 'Technical'], ['CEO', 'CEO'], ['CTO', 'CTO'], ['Marketing', 'Marketing'], ['Sales', 'Sales'], ['AI & Data', 'AI & Data']], hint: 'Stages used in Active Hiring Process when a candidate is accepted after phone screening.' }
     ],
     team: [
       { name: 'name', label: 'Team member name', required: true, full: true },
@@ -2599,7 +2599,7 @@
     });
   }
 
-  var INTERVIEW_TYPE_OPTIONS = ['HR', 'Tech', 'CEO', 'CTO', 'Marketing', 'Sales', 'AI & Data'];
+  var INTERVIEW_TYPE_OPTIONS = ['HR', 'Technical', 'CEO', 'CTO', 'Marketing', 'Sales', 'AI & Data'];
   var INTERVIEW_FORMAT_OPTIONS = [['online', 'Online'], ['onsite', 'Onsite']];
 
   function interviewFormatLabel(value) {

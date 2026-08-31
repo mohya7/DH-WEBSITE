@@ -189,7 +189,7 @@ async function writeApplications(data, options) {
   return hiringDb.writeApplicationsStore(data, options);
 }
 
-const DEFAULT_INTERVIEW_STAGES = ['HR', 'Tech', 'CEO', 'CTO', 'Marketing', 'Sales', 'AI & Data'];
+const DEFAULT_INTERVIEW_STAGES = ['HR', 'Technical', 'CEO', 'CTO', 'Marketing', 'Sales', 'AI & Data'];
 const INTERVIEW_STAGE_SET = new Set(DEFAULT_INTERVIEW_STAGES);
 const PHONE_SCREEN_OUTCOMES = new Set(['pending', 'accepted', 'rejected', 'shortlisted', 'requirements_not_met']);
 const TASK_STATUSES = new Set(['sent', 'in_progress', 'done']);
