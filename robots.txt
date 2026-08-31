@@ -1,6 +1,7 @@
 User-agent: *
 Allow: /
 Disallow: /admin/
+Disallow: /book
 Disallow: /api/
 Disallow: /content/admin-content.json
 Disallow: /content/admin-users.json

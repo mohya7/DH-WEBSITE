@@ -47,7 +47,7 @@ const CONTENT_DIR_KEY = pathKey(CONTENT_DIR);
  * CONTENT_PUBLIC_ALLOW below.
  */
 const PUBLIC_DIRS = new Set([
-  'admin', 'assets', 'blogs', 'careers', 'cases', 'content',
+  'admin', 'assets', 'blogs', 'book', 'careers', 'cases', 'content',
   'css', 'js', 'news', 'partners', 'services',
 ]);
 
@@ -134,6 +134,22 @@ const sessions = new Map();
 const applicationAttempts = new Map();
 const contactAttempts = new Map();
 const loginAttempts = new Map();
+const bookingLookupAttempts = new Map();
+const bookingBookAttempts = new Map();
+const BOOKING_LOOKUP_INVALID_BODY = Buffer.from(JSON.stringify({
+  error: 'BOOKING_INVALID',
+  message: 'This booking link is invalid or has expired.',
+}));
+
+function sendBookingLookupInvalid(res) {
+  res.writeHead(400, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Content-Length': BOOKING_LOOKUP_INVALID_BODY.length,
+    'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff',
+  });
+  res.end(BOOKING_LOOKUP_INVALID_BODY);
+}
 
 function json(res, status, payload, extraHeaders = {}) {
   const body = JSON.stringify(payload);
@@ -392,14 +408,19 @@ async function normalizeInterviewEntry(entry, index, fallbackLabel = '') {
     if (!staffRequired) {
       throw Object.assign(new Error(`Pick an interviewer before saving ${label || `round ${index + 1}`}.`), { status: 422 });
     }
-    if (!scheduledAt) {
-      throw Object.assign(new Error(`Set the interview date and time for ${label || `round ${index + 1}`}.`), { status: 422 });
-    }
-    if (format === 'online' && !meetingLink) {
-      throw Object.assign(new Error(`Add a meeting link for online ${label || `round ${index + 1}`}.`), { status: 422 });
-    }
-    if (format === 'online' && !/^https?:\/\/\S+$/i.test(meetingLink)) {
-      throw Object.assign(new Error(`Add a valid meeting link (http/https) for ${label || `round ${index + 1}`}.`), { status: 422 });
+    /* Candidate self-booking: interviewer assigned, no time yet. Date and
+       meeting link are filled when they pick a slot — not on this save. */
+    const awaitingCandidateBooking = Boolean(interviewerUserId) && !scheduledAt && result === 'pending';
+    if (!awaitingCandidateBooking) {
+      if (!scheduledAt) {
+        throw Object.assign(new Error(`Set the interview date and time for ${label || `round ${index + 1}`}.`), { status: 422 });
+      }
+      if (format === 'online' && !meetingLink) {
+        throw Object.assign(new Error(`Add a meeting link for online ${label || `round ${index + 1}`}.`), { status: 422 });
+      }
+      if (format === 'online' && !/^https?:\/\/\S+$/i.test(meetingLink)) {
+        throw Object.assign(new Error(`Add a valid meeting link (http/https) for ${label || `round ${index + 1}`}.`), { status: 422 });
+      }
     }
   }
 
@@ -486,6 +507,61 @@ async function applyFeedbackAttribution(interviews, existingInterviews, session)
   });
 }
 
+/**
+ * Booking invitations fire only when an interviewer is newly assigned to a
+ * round that still has no time. Notes, score, result, meeting-link, and
+ * datetime edits do not qualify. Phone screen must already have passed.
+ * If HR also set scheduledAt, the existing schedule email handles it.
+ */
+function detectBookingInvitationNeeds(previousInterviews, nextInterviews, pipeline) {
+  if (!pipeline || pipeline.phoneScreen !== 'accepted') return [];
+  if (!pipeline.pathway) return [];
+  if (pipeline.stage === 'closed' || pipeline.stage === 'phone_screen') return [];
+  const prevMap = new Map((previousInterviews || []).map((entry) => [String(entry && entry.id || ''), entry]));
+  const needed = [];
+  (nextInterviews || []).forEach((entry) => {
+    if (!entry || !entry.interviewerUserId) return;
+    if (entry.scheduledAt) return;
+    if (entry.result && entry.result !== 'pending') return;
+    const prev = prevMap.get(String(entry.id || ''));
+    const previousInterviewer = prev && prev.interviewerUserId ? String(prev.interviewerUserId) : '';
+    if (previousInterviewer === String(entry.interviewerUserId)) return;
+    needed.push(entry);
+  });
+  return needed;
+}
+
+async function issueBookingInvitations(application, rounds, req) {
+  const baseUrl = mail.publicBaseUrl(req && req.headers && req.headers.host);
+  const results = [];
+  for (const round of rounds) {
+    const invite = createInvite();
+    await hiringDb.cancelSentInvitationsForRound(application.id, round.id);
+    await hiringDb.insertBookingInvitation({
+      applicationId: application.id,
+      roundId: round.id,
+      interviewerUserId: round.interviewerUserId,
+      tokenHash: invite.inviteTokenHash,
+      expiresAt: invite.inviteExpiresAt,
+    });
+    const bookingUrl = `${baseUrl}/book/?k=${encodeURIComponent(invite.raw)}`;
+    const mailed = await mail.sendBookingInvitationEmail({
+      application,
+      round,
+      bookingUrl,
+      expiresAt: invite.inviteExpiresAt,
+      baseUrl,
+    });
+    results.push({
+      roundId: round.id,
+      sent: Boolean(mailed && mailed.sent),
+      skipped: Boolean(mailed && mailed.skipped),
+      failed: Boolean(mailed && !mailed.sent && !mailed.skipped),
+    });
+  }
+  return results;
+}
+
 function detectInterviewScheduleChanges(previousInterviews, nextInterviews) {
   const prevMap = new Map((previousInterviews || []).map((entry) => [String(entry.id || ''), entry]));
   const changed = [];
@@ -501,6 +577,21 @@ function detectInterviewScheduleChanges(previousInterviews, nextInterviews) {
     });
   });
   return changed;
+}
+
+/** Rounds whose time HR changed or cleared — booked interviewer slots must reopen. */
+function detectBookedSlotReleases(previousInterviews, nextInterviews) {
+  const nextMap = new Map((nextInterviews || []).map((entry) => [String(entry && entry.id || ''), entry]));
+  const roundIds = [];
+  (previousInterviews || []).forEach((entry) => {
+    if (!entry || !entry.id) return;
+    const prevAt = String(entry.scheduledAt || '');
+    if (!prevAt) return;
+    const next = nextMap.get(String(entry.id));
+    const nextAt = next && next.scheduledAt ? String(next.scheduledAt) : '';
+    if (prevAt !== nextAt) roundIds.push(String(entry.id));
+  });
+  return roundIds;
 }
 
 async function notifyInterviewSchedules(application, changes, req) {
@@ -533,7 +624,104 @@ async function notifyInterviewSchedules(application, changes, req) {
 }
 
 let reminderJobRunning = false;
+/* In-memory once-per-Cairo-day slot for the 10:00 job. Interview day reminders
+   and unbooked-invitation reminders both use this; the durable once-guard for
+   invitations is booking_invitations.reminder_sent_at. */
 let reminderLastSlot = '';
+/* Once-a-day guard for recurring slot extension. Compared to Africa/Cairo
+   calendar date (mail.zonedYmd), not the 10:00 reminder hour, so availability
+   still grows when SES is off. In-memory — a process restart may run once more
+   the same day; inserts are idempotent. */
+let availabilityExtendLastDay = '';
+let availabilityExtendRunning = false;
+let bookingExpiryRunning = false;
+
+function bookingReminderDue(invitation, todayYmd) {
+  const createdAt = invitation && invitation.createdAt ? new Date(invitation.createdAt) : null;
+  if (!createdAt || Number.isNaN(createdAt.getTime())) return false;
+  const createdYmd = mail.zonedYmd(createdAt);
+  if (!createdYmd) return false;
+  const dueYmd = hiringDb.addCalendarDays(createdYmd, hiringDb.BOOKING_REMINDER_DAYS);
+  return String(todayYmd) >= String(dueYmd);
+}
+
+async function sendUnbookedInvitationReminders(data, todayYmd, baseUrl) {
+  const pending = await hiringDb.listSentInvitationsAwaitingReminder();
+  if (!pending.length) return;
+  const stamp = new Date().toISOString();
+  const apps = (data && data.applications) || [];
+  for (const invitation of pending) {
+    const expiresAt = invitation.expiresAt ? Date.parse(invitation.expiresAt) : NaN;
+    if (!Number.isNaN(expiresAt) && expiresAt < Date.now()) continue;
+    if (!bookingReminderDue(invitation, todayYmd)) continue;
+    const application = apps.find((entry) => entry.id === invitation.applicationId);
+    if (!application) continue;
+    const pipe = application.pipeline && typeof application.pipeline === 'object' ? application.pipeline : null;
+    if (!pipe || pipe.stage === 'closed') continue;
+    const round = Array.isArray(pipe.interviews)
+      ? pipe.interviews.find((entry) => String(entry && entry.id || '') === String(invitation.roundId))
+      : null;
+    if (!round || String(round.scheduledAt || '').trim()) continue;
+    const claimed = await hiringDb.claimBookingInvitationReminder(invitation.id, stamp);
+    if (!claimed) continue;
+    const enriched = await enrichInterviewRoundForMail(round);
+    await mail.sendBookingReminderEmail({
+      application,
+      round: enriched,
+      expiresAt: invitation.expiresAt,
+      baseUrl,
+    });
+  }
+}
+
+async function runBookingInvitationExpiry() {
+  if (bookingExpiryRunning) return;
+  bookingExpiryRunning = true;
+  try {
+    const expired = await hiringDb.expireSentBookingInvitations();
+    if (expired) console.log(`[booking] Expired ${expired} unused invitation(s).`);
+  } catch (error) {
+    console.error('[booking] Expiry sweep failed:', error.message || error);
+  } finally {
+    bookingExpiryRunning = false;
+  }
+}
+
+function effectiveBookingInvitationStatus(invite, now = Date.now()) {
+  if (!invite) return '';
+  if (invite.status === 'booked' || invite.status === 'expired') return invite.status;
+  if (invite.status === 'sent') {
+    const expires = invite.expiresAt ? Date.parse(invite.expiresAt) : NaN;
+    if (!Number.isNaN(expires) && expires < now) return 'expired';
+    return 'sent';
+  }
+  return invite.status || '';
+}
+
+async function attachBookingInvitations(applications) {
+  const list = Array.isArray(applications) ? applications : [];
+  if (!list.length) {
+    return list;
+  }
+  let invites = [];
+  try {
+    invites = await hiringDb.listActiveBookingInvitations();
+  } catch (error) {
+    console.error('[booking] Could not load invitations:', error.message || error);
+    list.forEach((app) => { app.bookingInvitations = []; });
+    return list;
+  }
+  const byApp = new Map();
+  invites.forEach((invite) => {
+    const view = Object.assign({}, invite, { status: effectiveBookingInvitationStatus(invite) });
+    if (!byApp.has(view.applicationId)) byApp.set(view.applicationId, []);
+    byApp.get(view.applicationId).push(view);
+  });
+  list.forEach((app) => {
+    app.bookingInvitations = byApp.get(app.id) || [];
+  });
+  return list;
+}
 
 async function runInterviewDayReminders() {
   if (reminderJobRunning) return;
@@ -586,6 +774,7 @@ async function runInterviewDayReminders() {
       }
     }
     if (pendingReminders.length) await hiringDb.applyReminderSentOn(pendingReminders);
+    await sendUnbookedInvitationReminders(data, today, baseUrl);
     reminderLastSlot = slot;
   } catch (error) {
     console.error('[mail] Day reminder job failed:', error.message || error);
@@ -594,14 +783,40 @@ async function runInterviewDayReminders() {
   }
 }
 
+async function runRecurringAvailabilityExtend() {
+  if (availabilityExtendRunning) return;
+  const today = mail.zonedYmd(new Date());
+  if (availabilityExtendLastDay === today) return;
+  availabilityExtendRunning = true;
+  try {
+    const result = await hiringDb.extendAllActiveRecurringSeries();
+    availabilityExtendLastDay = today;
+    if (result.added) {
+      console.log(`[availability] Extended ${result.added} slot(s) across ${result.users} interviewer(s).`);
+    }
+  } catch (error) {
+    console.error('[availability] Recurring extend failed:', error.message || error);
+  } finally {
+    availabilityExtendRunning = false;
+  }
+}
+
 function startInterviewReminderJob() {
   setInterval(() => {
     runInterviewDayReminders().catch((error) => {
       console.error('[mail] Reminder tick failed:', error.message || error);
     });
+    runRecurringAvailabilityExtend().catch((error) => {
+      console.error('[availability] Extend tick failed:', error.message || error);
+    });
+    runBookingInvitationExpiry().catch((error) => {
+      console.error('[booking] Expiry tick failed:', error.message || error);
+    });
   }, 60 * 1000);
   setTimeout(() => {
     runInterviewDayReminders().catch(() => {});
+    runRecurringAvailabilityExtend().catch(() => {});
+    runBookingInvitationExpiry().catch(() => {});
   }, 5000);
 }
 
@@ -1793,6 +2008,21 @@ async function requireHr(req, res, mutation) {
 
 /* Fails closed: only the exact string 'interviewer' passes, so a missing, null,
    or unexpected role is rejected. */
+function formatAvailabilityWhen(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value || '');
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: hiringDb.availabilityTimeZone(),
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(date);
+}
+
 async function requireInterviewer(req, res, mutation = false) {
   const session = mutation ? await requireMutationAuth(req, res) : await requireAuth(req, res);
   if (!session) return null;
@@ -2285,6 +2515,99 @@ function canAttemptLogin(req, username) {
   return state.count <= 8;
 }
 
+function incrementHourlyLimit(store, ip) {
+  const now = Date.now();
+  const state = store.get(ip) || { count: 0, resetAt: now + 60 * 60 * 1000 };
+  if (state.resetAt < now) {
+    state.count = 0;
+    state.resetAt = now + 60 * 60 * 1000;
+  }
+  state.count += 1;
+  store.set(ip, state);
+  return state.count <= 8;
+}
+
+/** Same window as login. Key is IP only — the token itself must not become a limiter key. */
+function canAttemptBookingLookup(req) {
+  return incrementHourlyLimit(bookingLookupAttempts, clientAddress(req));
+}
+
+function canAttemptBookingBook(req) {
+  return incrementHourlyLimit(bookingBookAttempts, clientAddress(req));
+}
+
+function publicBookingSlotView(slot) {
+  const when = new Date(slot.startsAt);
+  const day = mail.zonedYmd(when);
+  const time = mail.zonedHm(when);
+  return {
+    id: slot.id,
+    startsAt: slot.startsAt,
+    day,
+    time: time.label || `${String(time.hour).padStart(2, '0')}:${String(time.minute).padStart(2, '0')}`,
+  };
+}
+
+function publicBookingOpenPayload(application, round, invitation, listed) {
+  return {
+    state: 'open',
+    role: application.role || '',
+    stage: round.label || 'Interview',
+    interviewerName: round.interviewer || '',
+    interviewerTitle: round.interviewerTitle || '',
+    expiresAt: invitation.expiresAt,
+    window: listed.window,
+    slots: (listed.slots || []).map(publicBookingSlotView),
+  };
+}
+
+function publicBookingBookedPayload(application, round, invitation, listed) {
+  const used = Number(invitation && invitation.rescheduleCount) || 0;
+  const remaining = Math.max(0, hiringDb.MAX_BOOKING_RESCHEDULES - used);
+  const canReschedule = remaining > 0;
+  const payload = {
+    state: 'booked',
+    role: application.role || '',
+    stage: round.label || 'Interview',
+    interviewerName: round.interviewer || '',
+    interviewerTitle: round.interviewerTitle || '',
+    when: round.scheduledAt || '',
+    format: round.format || 'online',
+    rescheduleCount: used,
+    reschedulesRemaining: remaining,
+    canReschedule,
+  };
+  if (canReschedule && listed) {
+    payload.window = listed.window;
+    payload.slots = (listed.slots || []).map(publicBookingSlotView);
+  }
+  if (!canReschedule) {
+    payload.message = "You've already rescheduled three times. Reply to the invitation email and our HR team will help you find a new time.";
+  }
+  return payload;
+}
+
+async function publicBookingStatePayload(application, round, invitation) {
+  if (invitation.status === 'booked') {
+    const used = Number(invitation.rescheduleCount) || 0;
+    const listed = used < hiringDb.MAX_BOOKING_RESCHEDULES
+      ? await hiringDb.listOpenSlotsInBookingWindow(invitation.interviewerUserId)
+      : null;
+    return publicBookingBookedPayload(application, round, invitation, listed);
+  }
+  const listed = await hiringDb.listOpenSlotsInBookingWindow(invitation.interviewerUserId);
+  return publicBookingOpenPayload(application, round, invitation, listed);
+}
+
+async function loadInvitationRound(invitation) {
+  if (!invitation) return { application: null, round: null };
+  const application = (await readApplications()).applications.find((entry) => entry.id === invitation.applicationId);
+  const round = application && application.pipeline && Array.isArray(application.pipeline.interviews)
+    ? application.pipeline.interviews.find((entry) => String(entry && entry.id || '') === String(invitation.roundId))
+    : null;
+  return { application, round };
+}
+
 function cleanContactRequest(input) {
   const situation = text(input.situation, 40).toLowerCase();
   const name = text(input.name, 120);
@@ -2526,6 +2849,78 @@ async function handleApi(req, res, url) {
     return json(res, 200, { ok: true }, { 'Set-Cookie': sessionCookieHeader('', 0, req) });
   }
 
+  /* Token in the body, never a query string. Expired, cancelled, tampered, and
+     never-existed all write the same precomputed buffer — no status or message
+     variation an attacker can use to tell them apart. Booked is a 200: the
+     holder of the link may see their own booking (4.5), not a probe mode. */
+  if (pathname === '/api/booking/lookup' && req.method === 'POST') {
+    if (!canAttemptBookingLookup(req)) {
+      return json(res, 429, { error: 'RATE_LIMITED', message: 'Too many attempts. Please try again later.' });
+    }
+    const body = await readBody(req);
+    const rawToken = text(body && body.token, 200);
+    const tokenHash = hashInviteToken(rawToken);
+    let invitation = null;
+    try {
+      invitation = tokenHash ? await hiringDb.findBookingInvitationByTokenHash(tokenHash) : null;
+    } catch (_) {
+      invitation = null;
+    }
+    const now = Date.now();
+    const expiresAt = invitation && invitation.expiresAt ? Date.parse(invitation.expiresAt) : NaN;
+    const expired = invitation && (invitation.status === 'expired' || (!Number.isNaN(expiresAt) && expiresAt < now));
+    if (!invitation || invitation.status === 'cancelled') {
+      return sendBookingLookupInvalid(res);
+    }
+    const { application, round } = await loadInvitationRound(invitation);
+    if (!application || !round) {
+      return sendBookingLookupInvalid(res);
+    }
+    if (invitation.status === 'booked') {
+      return json(res, 200, await publicBookingStatePayload(application, round, invitation));
+    }
+    if (invitation.status !== 'sent' || expired) {
+      return sendBookingLookupInvalid(res);
+    }
+    return json(res, 200, await publicBookingStatePayload(application, round, invitation));
+  }
+
+  if (pathname === '/api/booking/book' && req.method === 'POST') {
+    if (!canAttemptBookingBook(req)) {
+      return json(res, 429, { error: 'RATE_LIMITED', message: 'Too many attempts. Please try again later.' });
+    }
+    const body = await readBody(req);
+    const rawToken = text(body && body.token, 200);
+    const slotId = text(body && body.slotId, 80);
+    const tokenHash = hashInviteToken(rawToken);
+    if (!tokenHash || !slotId) {
+      return sendBookingLookupInvalid(res);
+    }
+    let result;
+    try {
+      result = await hiringDb.bookOpenSlotForInvitation({ tokenHash, slotId });
+    } catch (error) {
+      if (error && error.code === 'BOOKING_INVALID') {
+        return sendBookingLookupInvalid(res);
+      }
+      if (error && (error.code === 'SLOT_TAKEN' || error.code === 'ROUND_ALREADY_SCHEDULED' || error.code === 'RESCHEDULE_LIMIT')) {
+        return json(res, error.status || 409, {
+          error: error.code,
+          message: error.message || 'That time was just taken. Please choose another.',
+        });
+      }
+      throw error;
+    }
+    const { application, round } = await loadInvitationRound(result.invitation);
+    if (!application || !round) {
+      return sendBookingLookupInvalid(res);
+    }
+    if (!result.alreadyBooked) {
+      await notifyInterviewSchedules(application, [{ round, rescheduled: Boolean(result.rescheduled) }], req);
+    }
+    return json(res, 200, await publicBookingStatePayload(application, round, result.invitation));
+  }
+
   if (!pathname.startsWith('/api/admin/')) return json(res, 404, { error: 'NOT_FOUND' });
 
   if (pathname === '/api/admin/users' && req.method === 'GET') {
@@ -2686,6 +3081,7 @@ async function handleApi(req, res, url) {
   if (pathname === '/api/admin/applications' && req.method === 'GET') {
     if (!(await requireHr(req, res, false))) return;
     const data = await readApplications();
+    await attachBookingInvitations(data.applications || []);
     return json(res, 200, { updatedAt: data.updatedAt, applications: data.applications || [] });
   }
 
@@ -2835,6 +3231,82 @@ async function handleApi(req, res, url) {
       return json(res, 403, { error: 'FORBIDDEN', message: 'You are not assigned to this candidate.' });
     }
     return json(res, 200, { candidate: interviewerCandidateView(application, session.userId) });
+  }
+
+  /* Own availability only. user_id always comes from the session — never from
+     the query string or body — so one interviewer cannot list or edit another. */
+  if (pathname === '/api/admin/interviewer/availability' && req.method === 'GET') {
+    const session = await requireInterviewer(req, res, false);
+    if (!session) return;
+    try {
+      const extended = await hiringDb.extendRecurringSeries(session.userId);
+      const slots = await hiringDb.listSlotsForUser(session.userId);
+      return json(res, 200, {
+        timezone: hiringDb.availabilityTimeZone(),
+        horizonDays: hiringDb.RECURRING_HORIZON_DAYS,
+        displayWindowDays: 14,
+        extended: extended.length,
+        slots,
+      });
+    } catch (error) {
+      return json(res, error.status || 500, {
+        error: error.code || 'AVAILABILITY_READ_FAILED',
+        message: error.message || 'Could not load availability.',
+      });
+    }
+  }
+
+  if (pathname === '/api/admin/interviewer/availability' && req.method === 'POST') {
+    const session = await requireInterviewer(req, res, true);
+    if (!session) return;
+    const body = await readBody(req);
+    try {
+      const startsAt = hiringDb.zonedLocalToUtc(body.date, body.startTime);
+      if (startsAt.getTime() <= Date.now()) {
+        return json(res, 422, { error: 'SLOT_IN_PAST', message: 'Pick a start time in the future.' });
+      }
+      const repeatWeekly = body.repeatWeekly === true || body.repeatWeekly === 'true';
+      const starts = repeatWeekly ? hiringDb.weeklyStartsFrom(startsAt) : [startsAt];
+      const created = await hiringDb.insertSlotRows(session.userId, starts, { fromRecurring: repeatWeekly });
+      return json(res, 201, { slots: created, created: created.length, repeatWeekly });
+    } catch (error) {
+      const overlap = error.overlap;
+      const message = error.code === 'SLOT_OVERLAP' && overlap
+        ? `That time overlaps an existing slot on ${formatAvailabilityWhen(overlap.startsAt)}.`
+        : (error.message || 'Could not add the slot.');
+      return json(res, error.status || 422, {
+        error: error.code || 'SLOT_INVALID',
+        message,
+        overlap: overlap ? { id: overlap.id, startsAt: overlap.startsAt, endsAt: overlap.endsAt } : undefined,
+      });
+    }
+  }
+
+  const availabilitySlotMatch = pathname.match(/^\/api\/admin\/interviewer\/availability\/([^/]+)$/);
+  if (availabilitySlotMatch && req.method === 'DELETE') {
+    const session = await requireInterviewer(req, res, true);
+    if (!session) return;
+    const slotId = decodeURIComponent(availabilitySlotMatch[1]);
+    try {
+      const result = await hiringDb.cancelOrDeleteSlotForUser(slotId, session.userId);
+      if (!result.slot) {
+        return json(res, 404, { error: 'SLOT_NOT_FOUND', message: 'Slot not found.' });
+      }
+      return json(res, 200, { ok: true, action: result.action });
+    } catch (error) {
+      if (error.code === 'SLOT_BOOKED' && error.slot) {
+        const who = error.slot.candidateName || 'a candidate';
+        const when = formatAvailabilityWhen(error.slot.startsAt);
+        return json(res, 409, {
+          error: 'SLOT_BOOKED',
+          message: `Cannot delete this slot — it is booked with ${who} on ${when}.`,
+        });
+      }
+      return json(res, error.status || 500, {
+        error: error.code || 'SLOT_DELETE_FAILED',
+        message: error.message || 'Could not delete the slot.',
+      });
+    }
   }
 
   if (pathname === '/api/admin/staff-interviewers' && req.method === 'GET') {
@@ -3209,10 +3681,24 @@ async function handleApi(req, res, url) {
         });
       }
       const scheduleChanges = detectInterviewScheduleChanges(previousInterviews, application.pipeline.interviews || []);
+      const bookingNeeds = detectBookingInvitationNeeds(
+        previousInterviews,
+        application.pipeline.interviews || [],
+        application.pipeline,
+      );
+      const slotReleases = detectBookedSlotReleases(previousInterviews, application.pipeline.interviews || []);
       await writeApplications(data, { stageEvents });
+      if (slotReleases.length) {
+        /* Invitation stays booked. Counter is not incremented. Candidate link still works. */
+        await hiringDb.releaseBookedSlotsForRounds(application.id, slotReleases);
+      }
       let mailResults = [];
       if (scheduleChanges.length) {
         mailResults = await notifyInterviewSchedules(application, scheduleChanges, req);
+      }
+      let bookingInvites = [];
+      if (bookingNeeds.length) {
+        bookingInvites = await issueBookingInvitations(application, bookingNeeds, req);
       }
       let onboarding = null;
       if (application.pipeline && application.pipeline.offer && application.pipeline.offer.status === 'joined') {
@@ -3225,6 +3711,7 @@ async function handleApi(req, res, url) {
           };
         }
       }
+      await attachBookingInvitations([application]);
       return json(res, 200, {
         application,
         onboarding,
@@ -3233,11 +3720,49 @@ async function handleApi(req, res, url) {
           sent: mailResults.filter((entry) => entry.sent).length,
           failed: mailResults.filter((entry) => !entry.sent && !entry.skipped).length,
           skipped: mailResults.filter((entry) => entry.skipped).length,
+          bookingInvites,
         },
       });
     } catch (error) {
       return json(res, error.status || 500, { error: 'PIPELINE_INVALID', message: error.message || 'Could not update the hiring pipeline.' });
     }
+  }
+
+  const bookingInviteMatch = pathname.match(/^\/api\/admin\/applications\/([^/]+)\/booking-invitations$/);
+  if (bookingInviteMatch && req.method === 'POST') {
+    if (!(await requireHr(req, res, true))) return;
+    const body = await readBody(req);
+    const roundId = text(body && body.roundId, 80);
+    if (!roundId) return json(res, 422, { error: 'ROUND_REQUIRED', message: 'Choose the interview round to send a booking link for.' });
+    const data = await readApplications();
+    const application = data.applications.find((entry) => entry.id === decodeURIComponent(bookingInviteMatch[1]));
+    if (!application) return json(res, 404, { error: 'APPLICATION_NOT_FOUND', message: 'Application not found.' });
+    const pipe = application.pipeline && typeof application.pipeline === 'object' ? application.pipeline : null;
+    const round = pipe && Array.isArray(pipe.interviews)
+      ? pipe.interviews.find((entry) => String(entry && entry.id || '') === roundId)
+      : null;
+    if (!round || !round.interviewerUserId) {
+      return json(res, 422, { error: 'INTERVIEWER_REQUIRED', message: 'Assign an interviewer before sending a booking link.' });
+    }
+    if (String(round.scheduledAt || '').trim()) {
+      return json(res, 422, { error: 'ALREADY_SCHEDULED', message: 'This round already has a time. Clear it before sending a new booking link.' });
+    }
+    const bookingInvites = await issueBookingInvitations(application, [round], req);
+    await attachBookingInvitations([application]);
+    return json(res, 200, { application, bookingInvites });
+  }
+
+  if (bookingInviteMatch && req.method === 'DELETE') {
+    if (!(await requireHr(req, res, true))) return;
+    const body = await readBody(req);
+    const roundId = text(body && body.roundId, 80);
+    if (!roundId) return json(res, 422, { error: 'ROUND_REQUIRED', message: 'Choose the interview round whose booking link to cancel.' });
+    const data = await readApplications();
+    const application = data.applications.find((entry) => entry.id === decodeURIComponent(bookingInviteMatch[1]));
+    if (!application) return json(res, 404, { error: 'APPLICATION_NOT_FOUND', message: 'Application not found.' });
+    await hiringDb.cancelSentInvitationsForRound(application.id, roundId);
+    await attachBookingInvitations([application]);
+    return json(res, 200, { application, cancelled: true });
   }
 
   if (pathname === '/api/admin/contact-requests' && req.method === 'GET') {
@@ -3901,6 +4426,10 @@ function isDeniedStaticTarget(absPath) {
   if (segments.length === 1 && !fsIsDirectory(resolved)) {
     return !PUBLIC_ROOT_FILES.has(first.toLowerCase());
   }
+  if (first.toLowerCase() === 'book') {
+    if (segments.length === 1) return false;
+    return !(segments.length === 2 && segments[1].toLowerCase() === 'index.html');
+  }
   return !PUBLIC_DIRS.has(first.toLowerCase());
 }
 
@@ -3966,7 +4495,7 @@ function serveStatic(req, res, url) {
       scheduledAt: '2026-08-21T11:00:00',
     };
     const when = new Date(sampleRound.scheduledAt);
-    const variants = [
+    let variants = [
       { audience: 'interviewer', kind: 'schedule', to: 'interviewer@digitalhub.com.eg · CC: HR' },
       { audience: 'candidate', kind: 'schedule', to: 'sara.hassan@example.com' },
       { audience: 'interviewer', kind: 'reminder', to: 'interviewer@digitalhub.com.eg · CC: HR' },
@@ -3982,13 +4511,45 @@ function serveStatic(req, res, url) {
       });
       return Object.assign({}, entry, body);
     });
+    const sampleBooking = mail.sampleInterviewPreviewData();
+    const bookingBody = mail.bookingInvitationBodies({
+      application: sampleBooking.application,
+      round: sampleBooking.round,
+      bookingUrl: sampleBooking.bookingUrl,
+      expiresAt: sampleBooking.expiresAt,
+      baseUrl: mail.publicBaseUrl(req.headers.host),
+    });
+    const reminderBody = mail.bookingInvitationBodies({
+      application: sampleBooking.application,
+      round: sampleBooking.round,
+      bookingUrl: '',
+      expiresAt: sampleBooking.expiresAt,
+      baseUrl: mail.publicBaseUrl(req.headers.host),
+      kind: 'bookingReminder',
+    });
+    const candidateSchedule = variants.find((entry) => entry.kind === 'schedule' && entry.audience === 'candidate');
+    const bookingCard = {
+      audience: 'candidate',
+      kind: 'booking',
+      to: 'sara.hassan@example.com',
+      subject: bookingBody.subject,
+      html: bookingBody.html,
+    };
+    const reminderCard = {
+      audience: 'candidate',
+      kind: 'bookingReminder',
+      to: 'sara.hassan@example.com',
+      subject: reminderBody.subject,
+      html: reminderBody.html,
+    };
+    variants = [candidateSchedule, bookingCard, reminderCard].concat(variants.filter((entry) => entry !== candidateSchedule));
     const cards = variants.map((entry) => `
       <article class="card">
         <div class="card-meta">
-          <span class="kind">${entry.kind === 'reminder' ? 'Day reminder' : 'Schedule'}</span>
+          <span class="kind">${entry.kind === 'reminder' ? 'Day reminder' : (entry.kind === 'bookingReminder' ? 'Booking reminder' : (entry.kind === 'booking' ? 'Booking invite' : 'Schedule'))}</span>
           <div class="audience">To ${entry.audience}</div>
           <div class="subject">${String(entry.subject).replace(/</g, '&lt;')}</div>
-          <div class="to">To: ${entry.to}${entry.kind === 'schedule' ? ' · + calendar.ics' : ''}</div>
+          <div class="to">To: ${entry.to}${entry.kind === 'schedule' ? ' · + calendar.ics' : ''}${entry.kind === 'booking' ? ' · no calendar yet' : ''}${entry.kind === 'bookingReminder' ? ' · original link, once' : ''}</div>
         </div>
         <div class="inbox"><div class="mail">${entry.html}</div></div>
       </article>`).join('');
@@ -4020,7 +4581,7 @@ function serveStatic(req, res, url) {
 <body>
   <div class="page-head">
     <h1>Interview email layout preview</h1>
-    <p>Live render from templates. Sample interviewer: <code>Omar Farid · Engineering Manager</code>. Edit <code>lib/email-templates/</code> then refresh this page.</p>
+    <p>Live render from templates. Candidate schedule sits next to the booking invite so the shared layout can be compared. Fixtures: <code>lib/email-templates/fixtures/</code>. Sample interviewer: <code>Omar Farid · Engineering Manager</code>.</p>
   </div>
   <div class="grid">${cards}</div>
   <p class="note">No mail is sent from this page. SES must be configured before real sends.</p>
@@ -4078,7 +4639,7 @@ function serveStatic(req, res, url) {
     return staticNotFound(req, res);
   }
   const type = mime[path.extname(target).toLowerCase()] || 'application/octet-stream';
-  const noCache = target === PUBLIC_JS_FILE || target === PUBLIC_JSON_FILE || pathname.startsWith('/admin');
+  const noCache = target === PUBLIC_JS_FILE || target === PUBLIC_JSON_FILE || pathname.startsWith('/admin') || pathname.startsWith('/book');
   const stat = fs.statSync(target);
   const extension = path.extname(target).toLowerCase();
   const etag = `W/"${stat.size.toString(16)}-${Math.trunc(stat.mtimeMs).toString(16)}"`;
@@ -4091,7 +4652,7 @@ function serveStatic(req, res, url) {
     'Last-Modified': stat.mtime.toUTCString(),
     ETag: etag,
   };
-  if (pathname.startsWith('/admin')) headers['X-Robots-Tag'] = 'noindex, nofollow, noarchive';
+  if (pathname.startsWith('/admin') || pathname.startsWith('/book')) headers['X-Robots-Tag'] = 'noindex, nofollow, noarchive';
   if (req.headers['if-none-match'] === etag) {
     res.writeHead(304, headers);
     return res.end();

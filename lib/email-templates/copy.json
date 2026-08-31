@@ -27,6 +27,18 @@
       "intro": "Dear {{candidate}},<br><br>This is a gentle reminder that your interview with Digital Hub is <strong>today</strong>. We look forward to speaking with you.",
       "text": "Digital Hub — Careers\n{{eyebrow}}\n\nDear {{candidate}},\n\nThis is a gentle reminder that your interview with Digital Hub is today. We look forward to speaking with you.\n\nRole: {{role}}\nStage: {{stage}}\nWhen: {{when}}\nFormat: {{format}}\n{{meeting_link_block}}Interviewer: {{interviewer_display}}\n\nIf you need to reschedule or have any questions, reply to this email and our HR team will help.\n\n—\nDigital Hub · Empowering Digital Evolution\n{{site_url}}"
     },
-    "footerHtml": "If you need to reschedule or have any questions, simply reply to this email and our HR team will help."
+    "footerHtml": "If you need to reschedule or have any questions, simply reply to this email and our HR team will help.",
+    "booking": {
+      "subject": "Choose your interview time at Digital Hub · {{stage}}",
+      "eyebrow": "Careers · Book your interview",
+      "intro": "Dear {{candidate}},<br><br>Thank you for your interest in Digital Hub. The next step for the <strong>{{role}}</strong> role is a <strong>{{stage}}</strong> interview. Please choose a one-hour slot that works for you — the link is below.",
+      "text": "Digital Hub — Careers\n{{eyebrow}}\n\nDear {{candidate}},\n\nThank you for your interest in Digital Hub. The next step for the {{role}} role is a {{stage}} interview. Please choose a one-hour slot that works for you.\n\nRole: {{role}}\nStage: {{stage}}\nInterviewer: {{interviewer_display}}\nBook a time: {{booking_url}}\nThis link expires on {{expires}}.\n\nIf you need help, reply to this email and our HR team will assist.\n\n—\nDigital Hub · Empowering Digital Evolution\n{{site_url}}"
+    },
+    "bookingReminder": {
+      "subject": "Reminder: choose your Digital Hub interview time · {{stage}}",
+      "eyebrow": "Careers · Booking reminder",
+      "intro": "Dear {{candidate}},<br><br>We sent you a link three days ago to book your <strong>{{stage}}</strong> interview for the <strong>{{role}}</strong> role. Please use that email to pick a one-hour slot. The link expires on <strong>{{expires}}</strong>.",
+      "text": "Digital Hub — Careers\n{{eyebrow}}\n\nDear {{candidate}},\n\nWe sent you a link three days ago to book your {{stage}} interview for the {{role}} role. Please use that email to pick a one-hour slot. The link expires on {{expires}}.\n\nRole: {{role}}\nStage: {{stage}}\nInterviewer: {{interviewer_display}}\nThis link expires on {{expires}}.\n\nIf you cannot find the original email, reply to this message and our HR team will send a new link.\n\n—\nDigital Hub · Empowering Digital Evolution\n{{site_url}}"
+    }
   }
 }

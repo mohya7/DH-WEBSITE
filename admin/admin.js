@@ -164,6 +164,7 @@
     editingUserId: null,
     editingUserRole: 'hr',
     queue: null,
+    availability: null,
     setupToken: '',
     currentPage: 'home',
     contactStatus: 'all',
@@ -617,19 +618,40 @@
         }
         return '<button class="dash-row" type="button" data-open-pipeline="' + escapeHtml(event.applicationId) + '">' +
           '<span class="dash-row__time"><strong>' + escapeHtml(formatInterviewTime(event.at)) + '</strong><small>' + escapeHtml(dayLabel) + '</small></span>' +
-          '<span class="dash-row__body"><strong>' + escapeHtml(event.candidate) + '</strong><small>' + escapeHtml(event.role) + ' · ' + escapeHtml(event.label) + ' · ' + escapeHtml(interviewFormatLabel(event.format)) + '</small></span>' +
+          '<span class="dash-row__body"><strong>' + escapeHtml(event.candidate) + '</strong><small>' + escapeHtml(event.role) + ' · ' + escapeHtml(event.label) + ' · ' + escapeHtml(interviewFormatLabel(event.format)) + (event.movedByCandidate ? ' · Moved by candidate' : '') + '</small></span>' +
           '<i class="ti ti-chevron-right"></i></button>';
       }).join('');
     }
 
     var attention = [];
-    hiring.filter(function (item) { return pipelineStageKey(item) === 'phone_screen'; }).slice(0, 4).forEach(function (item) {
-      attention.push({
-        id: item.id,
-        title: item.fullName || 'Candidate',
-        meta: (item.role || 'Role') + ' · Phone screen pending',
-        tone: 'phone'
-      });
+    hiring.forEach(function (item) {
+      var invite = outstandingBookingInvitation(item);
+      if (invite && invite.status === 'expired') {
+        attention.push({
+          id: item.id,
+          title: item.fullName || 'Candidate',
+          meta: (item.role || 'Role') + ' · Booking link expired',
+          tone: 'overdue'
+        });
+        return;
+      }
+      if (invite && invite.status === 'sent' && unusedBookingDays(invite) >= 3) {
+        attention.push({
+          id: item.id,
+          title: item.fullName || 'Candidate',
+          meta: (item.role || 'Role') + ' · ' + unusedBookingLabel(invite),
+          tone: 'phone'
+        });
+        return;
+      }
+      if (!invite && cancelledRoundNeedsNewTime(item)) {
+        attention.push({
+          id: item.id,
+          title: item.fullName || 'Candidate',
+          meta: (item.role || 'Role') + ' · Needs a new time',
+          tone: 'overdue'
+        });
+      }
     });
     scheduled.filter(function (event) { return event.at < now && event.result === 'pending'; }).slice(0, 3).forEach(function (event) {
       if (attention.some(function (entry) { return entry.id === event.applicationId; })) return;
@@ -638,6 +660,16 @@
         title: event.candidate,
         meta: event.role + ' · Interview overdue',
         tone: 'overdue'
+      });
+    });
+    hiring.filter(function (item) { return pipelineStageKey(item) === 'phone_screen'; }).forEach(function (item) {
+      if (attention.some(function (entry) { return entry.id === item.id; })) return;
+      if (attention.length >= 6) return;
+      attention.push({
+        id: item.id,
+        title: item.fullName || 'Candidate',
+        meta: (item.role || 'Role') + ' · Phone screen pending',
+        tone: 'phone'
       });
     });
     attention = attention.slice(0, 6);
@@ -749,7 +781,7 @@
     hr: ['dashboard', 'content', 'applications', 'hrPortal', 'hrAnalytics',
       'hrCalendar', 'interviewLog', 'interviewers', 'onboarding'],
     marketing: ['dashboard', 'onboarding'],
-    interviewer: ['interviewerQueue'],
+    interviewer: ['interviewerQueue', 'interviewerAvailability'],
   };
 
   /* ---- Interviewer work queue. Task review and interview feedback are live. */
@@ -966,6 +998,129 @@
     }
   }
 
+  async function loadInterviewerAvailability() {
+    try {
+      state.availability = await api('/api/admin/interviewer/availability');
+    } catch (error) {
+      state.availability = { error: error.message || 'Could not load your availability.' };
+    }
+    renderInterviewerAvailability();
+  }
+
+  function availabilityWhen(value) {
+    if (!value) return '';
+    var d = new Date(value);
+    if (isNaN(d.getTime())) return escapeHtml(value);
+    return d.toLocaleString(undefined, {
+      weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
+  }
+
+  function availabilityDayKey(value) {
+    var d = new Date(value);
+    if (isNaN(d.getTime())) return String(value || '');
+    return d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  }
+
+  function renderInterviewerAvailability() {
+    var box = $('#availabilityGroups');
+    var empty = $('#availabilityEmpty');
+    var err = $('#availabilityError');
+    var data = state.availability || {};
+    var slots = data.slots || [];
+    var openCount = slots.filter(function (slot) { return slot.status === 'open'; }).length;
+    setText('[data-availability-count]', String(openCount));
+    if (err) {
+      err.textContent = data.error || '';
+      err.classList.toggle('is-hidden', !data.error);
+    }
+    if (!box) return;
+    if (data.error) {
+      box.innerHTML = '';
+      if (empty) empty.classList.add('is-hidden');
+      return;
+    }
+    if (!slots.length) {
+      box.innerHTML = '';
+      if (empty) empty.classList.remove('is-hidden');
+      return;
+    }
+    if (empty) empty.classList.add('is-hidden');
+    var groups = [];
+    var byDay = {};
+    slots.forEach(function (slot) {
+      var key = availabilityDayKey(slot.startsAt);
+      if (!byDay[key]) {
+        byDay[key] = [];
+        groups.push(key);
+      }
+      byDay[key].push(slot);
+    });
+    box.innerHTML = groups.map(function (day) {
+      var rows = byDay[day].map(function (slot) {
+        var booked = slot.status === 'booked';
+        var badge = booked ? 'Booked' : 'Open';
+        var who = booked && slot.candidateName ? ' · ' + escapeHtml(slot.candidateName) : '';
+        var weekly = slot.fromRecurring ? '<span class="queue-round">Weekly</span>' : '';
+        return '<article class="queue-card availability-card' + (booked ? ' availability-card--booked' : '') + '">' +
+          '<div class="queue-card__head">' +
+            '<strong>' + escapeHtml(availabilityWhen(slot.startsAt)) + '</strong>' +
+            '<span class="queue-round">' + badge + who + '</span>' +
+            weekly +
+          '</div>' +
+          '<p class="queue-meta">One hour · ends ' + escapeHtml(availabilityWhen(slot.endsAt)) + '</p>' +
+          '<div class="availability-card__actions">' +
+            '<button class="danger-text" type="button" data-delete-slot="' + escapeHtml(slot.id) + '">' +
+              '<i class="ti ti-trash"></i> Remove</button>' +
+          '</div>' +
+        '</article>';
+      }).join('');
+      return '<section class="queue-group"><header><h2>' + escapeHtml(day) + ' <b>' + byDay[day].length + '</b></h2></header>' + rows + '</section>';
+    }).join('');
+  }
+
+  async function submitAvailability(event) {
+    event.preventDefault();
+    var form = $('#availabilityForm');
+    if (!form) return;
+    var button = $('button[type="submit"]', form);
+    var date = form.elements.namedItem('date');
+    var startTime = form.elements.namedItem('startTime');
+    var repeat = form.elements.namedItem('repeatWeekly');
+    try {
+      if (button) button.disabled = true;
+      var result = await api('/api/admin/interviewer/availability', {
+        method: 'POST',
+        body: JSON.stringify({
+          date: date ? date.value : '',
+          startTime: startTime ? startTime.value : '',
+          repeatWeekly: Boolean(repeat && repeat.checked),
+        }),
+      });
+      toast(result.repeatWeekly
+        ? 'Added ' + result.created + ' weekly slots.'
+        : 'Slot added.');
+      form.reset();
+      await loadInterviewerAvailability();
+    } catch (error) {
+      toast(error.message || 'Could not add the slot.', true);
+    } finally {
+      if (button) button.disabled = false;
+    }
+  }
+
+  async function deleteAvailabilitySlot(slotId) {
+    if (!slotId) return;
+    try {
+      await api('/api/admin/interviewer/availability/' + encodeURIComponent(slotId), { method: 'DELETE' });
+      toast('Slot removed.');
+      await loadInterviewerAvailability();
+    } catch (error) {
+      toast(error.message || 'Could not remove the slot.', true);
+    }
+  }
+
   function routeIsAllowed(route) {
     var view = (route && route.view) || 'dashboard';
     var collection = route && route.collection;
@@ -1083,6 +1238,7 @@
     if (view === 'hrCalendar') renderHrCalendar();
     if (view === 'interviewLog') renderInterviewLog();
     if (view === 'interviewers') loadManagedInterviewers();
+    if (view === 'interviewerAvailability') loadInterviewerAvailability();
     if (view === 'onboarding') renderOnboarding();
     if (view === 'contactRequests') renderContactRequests();
     writeAdminRoute(view, view === 'content' ? state.currentCollection : null);
@@ -2554,7 +2710,7 @@
     return staffPickerOptionsHtml(selectedId, 'Select reviewer', null);
   }
 
-  function interviewRowHtml(entry, index) {
+  function interviewRowHtml(entry, index, item) {
     var label = entry.label || 'HR';
     var isCustom = INTERVIEW_TYPE_OPTIONS.indexOf(label) === -1;
     var typeValue = isCustom ? '__custom__' : label;
@@ -2575,6 +2731,10 @@
       return '<option value="' + option[0] + '"' + (option[0] === format ? ' selected' : '') + '>' + option[1] + '</option>';
     }).join('');
     var meetingLink = format === 'online' ? String(entry.meetingLink || '').trim() : '';
+    var invite = invitationForRound(item, entry.id);
+    var canIssueLink = Boolean((entry.interviewerUserId || '').trim()) && !(entry.scheduledAt || '').trim();
+    var canCancelInvite = Boolean(invite && invite.status === 'sent');
+    var issueLabel = invite && (invite.status === 'sent' || invite.status === 'expired') ? 'Resend booking link' : 'Send booking link';
     return '<article class="hr-interview-card" data-interview-row data-interview-id="' + escapeHtml(entry.id || '') + '" data-result="' + escapeHtml(result) + '">' +
       '<header class="hr-interview-toolbar">' +
       '<div class="hr-interview-round"><span>Interview</span><strong>Round ' + (index + 1) + '</strong></div>' +
@@ -2582,6 +2742,12 @@
       '<select name="result" class="hr-result-select is-' + escapeHtml(result) + '" aria-label="Interview result">' + resultOptions + '</select>' +
       (interviewCanReschedule(entry)
         ? '<button class="secondary-btn" type="button" data-reschedule-round><i class="ti ti-calendar-event"></i> Reschedule</button>'
+        : '') +
+      (canIssueLink
+        ? '<button class="secondary-btn" type="button" data-reissue-booking="' + escapeHtml(entry.id || '') + '"><i class="ti ti-mail-forward"></i> ' + issueLabel + '</button>'
+        : '') +
+      (canCancelInvite
+        ? '<button class="secondary-btn" type="button" data-cancel-booking="' + escapeHtml(entry.id || '') + '">Cancel link</button>'
         : '') +
       '<button class="icon-btn hr-interview-remove" type="button" data-remove-interview aria-label="Remove interview"><i class="ti ti-trash"></i></button>' +
       '</header>' +
@@ -2909,7 +3075,7 @@
       }];
     }
     var interviewHtml = interviews.map(function (entry, index) {
-      return interviewRowHtml(entry, index);
+      return interviewRowHtml(entry, index, item);
     }).join('');
     var canAddInterview = canAddNextInterview(interviews);
 
@@ -3037,6 +3203,107 @@
     if (!value) return null;
     var date = new Date(value);
     return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  function latestInterviewReschedule(item) {
+    var history = pipelineOf(item).history || [];
+    var i;
+    for (i = 0; i < history.length; i += 1) {
+      if (history[i] && history[i].action === 'interview_reschedule') return history[i];
+    }
+    return null;
+  }
+
+  function candidateMovedInterview(item) {
+    var latest = latestInterviewReschedule(item);
+    if (!latest) return false;
+    return String(latest.by || '').trim() === String(item.fullName || '').trim();
+  }
+
+  function upcomingPendingInterview(item) {
+    var upcoming = null;
+    (pipelineOf(item).interviews || []).forEach(function (entry) {
+      if (!entry || !(entry.scheduledAt || '').trim()) return;
+      if (entry.result && entry.result !== 'pending') return;
+      var when = parseDateValue(entry.scheduledAt);
+      if (!when) return;
+      if (!upcoming || when < upcoming.at) upcoming = { at: when, label: entry.label || 'Interview' };
+    });
+    return upcoming;
+  }
+
+  function formatHrListWhen(date) {
+    if (!date) return '';
+    try {
+      return date.toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    } catch (_) {
+      return String(date);
+    }
+  }
+
+  function outstandingBookingInvitation(item) {
+    var list = (item && item.bookingInvitations) || [];
+    var i;
+    for (i = 0; i < list.length; i += 1) {
+      if (list[i] && (list[i].status === 'sent' || list[i].status === 'expired')) return list[i];
+    }
+    return null;
+  }
+
+  function unusedBookingDays(invite) {
+    if (!invite || !invite.createdAt) return null;
+    var then = parseDateValue(invite.createdAt);
+    if (!then) return null;
+    var days = Math.floor((Date.now() - then.getTime()) / 86400000);
+    return days < 0 ? 0 : days;
+  }
+
+  function unusedBookingLabel(invite) {
+    var days = unusedBookingDays(invite);
+    if (days == null) return 'Awaiting book';
+    if (days < 1) return 'Awaiting book · today';
+    if (days === 1) return 'Awaiting book · 1d';
+    return 'Awaiting book · ' + days + 'd';
+  }
+
+  /** Last round that is not a blank placeholder. Cancelled sits here until HR reschedules it. */
+  function lastActionableInterview(item) {
+    var interviews = (pipelineOf(item).interviews || []);
+    var i;
+    for (i = interviews.length - 1; i >= 0; i -= 1) {
+      if (interviews[i] && !isOpenInterview(interviews[i])) return interviews[i];
+    }
+    return null;
+  }
+
+  /** Cancelled round, nobody rescheduled, pipeline still on interview. */
+  function cancelledRoundNeedsNewTime(item) {
+    var pipe = pipelineOf(item);
+    if (pipe.stage === 'closed') return false;
+    var last = lastActionableInterview(item);
+    return Boolean(last && last.result === 'cancelled');
+  }
+
+  /**
+   * One attention chip besides the stage — never stack booking + moved badges.
+   * Precedence (first match wins): Link expired → Awaiting book → Needs a new time.
+   */
+  function hrListAttention(item) {
+    var invite = outstandingBookingInvitation(item);
+    if (invite && invite.status === 'expired') return { kind: 'expired', label: 'Link expired' };
+    if (invite && invite.status === 'sent') return { kind: 'sent', label: unusedBookingLabel(invite) };
+    if (cancelledRoundNeedsNewTime(item)) return { kind: 'needs-time', label: 'Needs a new time' };
+    return null;
+  }
+
+  function invitationForRound(item, roundId) {
+    var list = (item && item.bookingInvitations) || [];
+    var id = String(roundId || '');
+    var i;
+    for (i = 0; i < list.length; i += 1) {
+      if (list[i] && String(list[i].roundId || '') === id) return list[i];
+    }
+    return null;
   }
 
   function startOfDay(date) {
@@ -3347,7 +3614,8 @@
           interviewer: entry.interviewer || '',
           result: entry.result || 'pending',
           at: when,
-          dayKey: calendarDayKey(when)
+          dayKey: calendarDayKey(when),
+          movedByCandidate: candidateMovedInterview(item)
         });
       });
     });
@@ -3493,6 +3761,7 @@
           '</span>' +
           '</span>' +
           '<span class="calendar-event__aside">' +
+          (event.movedByCandidate ? '<span class="pipeline-chip is-moved">Moved by candidate</span>' : '') +
           '<span class="app-badge ' + badgeClass + '">' + escapeHtml(interviewResultLabel(result)) + '</span>' +
           '<i class="ti ti-chevron-right" aria-hidden="true"></i>' +
           '</span>' +
@@ -3970,6 +4239,14 @@
       var pipe = pipelineOf(item);
       var pathway = pipe.pathway === 'with_tasks' ? 'Tasks' : (pipe.pathway === 'no_tasks' ? 'Direct' : 'Pathway TBD');
       var active = item.id === state.hrSelectedId;
+      var upcoming = upcomingPendingInterview(item);
+      var whenLabel = upcoming ? formatHrListWhen(upcoming.at) : '';
+      var moved = candidateMovedInterview(item);
+      var attention = hrListAttention(item);
+      var asideBits = [];
+      if (whenLabel) asideBits.push(whenLabel);
+      if (moved && whenLabel) asideBits.push('moved by candidate');
+      asideBits.push(pathway);
       return '<button class="hr-candidate-row' + (active ? ' is-selected' : '') + '" type="button" data-hr-row-id="' + escapeHtml(item.id) + '" data-open-pipeline="' + escapeHtml(item.id) + '">' +
         '<span class="application-avatar">' + escapeHtml(applicationInitials(item.fullName)) + '</span>' +
         '<span class="hr-candidate-row__copy">' +
@@ -3977,8 +4254,11 @@
         '<small>' + escapeHtml(item.role || 'Role') + ' · ' + escapeHtml(phoneScreenLabel(pipe.phoneScreen)) + '</small>' +
         '</span>' +
         '<span class="hr-candidate-row__aside">' +
+        '<span class="hr-candidate-row__chips">' +
         '<span class="pipeline-chip">' + escapeHtml(pipelineStageLabel(pipe.stage)) + '</span>' +
-        '<small>' + escapeHtml(pathway) + '</small>' +
+        (attention ? '<span class="pipeline-chip is-invite-' + escapeHtml(attention.kind) + '">' + escapeHtml(attention.label) + '</span>' : '') +
+        '</span>' +
+        '<small>' + escapeHtml(asideBits.join(' · ')) + '</small>' +
         '</span></button>';
     }).join('');
 
@@ -4991,6 +5271,13 @@
         switchView(button.dataset.view || 'content', button.dataset.collection);
       });
     });
+    var availabilityForm = $('#availabilityForm');
+    if (availabilityForm) availabilityForm.addEventListener('submit', submitAvailability);
+    document.addEventListener('click', function (event) {
+      var remove = event.target.closest('[data-delete-slot]');
+      if (!remove) return;
+      deleteAvailabilitySlot(remove.getAttribute('data-delete-slot'));
+    });
     document.addEventListener('click', function (event) {
       var link = event.target.closest('[data-view-link]');
       if (!link) return;
@@ -5271,6 +5558,54 @@
         toast('Pick a new date and time, then save.');
         return;
       }
+      var reissueBtn = event.target.closest('[data-reissue-booking]');
+      if (reissueBtn) {
+        event.preventDefault();
+        var reissueRoundId = reissueBtn.getAttribute('data-reissue-booking') || '';
+        var reissueItem = (state.applications || []).find(function (entry) { return entry.id === state.hrSelectedId; });
+        if (!reissueItem || !reissueRoundId) return;
+        reissueBtn.disabled = true;
+        api('/api/admin/applications/' + encodeURIComponent(reissueItem.id) + '/booking-invitations', {
+          method: 'POST',
+          body: JSON.stringify({ roundId: reissueRoundId })
+        }).then(function (result) {
+          if (result && result.application) upsertApplicationInState(result.application);
+          renderHrPortal();
+          renderDashboard();
+          var mailed = result && result.bookingInvites && result.bookingInvites[0];
+          if (mailed && mailed.sent) toast('New booking link sent.');
+          else if (mailed && mailed.skipped) toast('Booking link created. Email skipped (mail not configured).');
+          else if (mailed && mailed.failed) toast('Booking link created, but the email failed to send.', true);
+          else toast('New booking link created.');
+        }).catch(function (error) {
+          toast(error.message, true);
+        }).then(function () {
+          reissueBtn.disabled = false;
+        });
+        return;
+      }
+      var cancelBtn = event.target.closest('[data-cancel-booking]');
+      if (cancelBtn) {
+        event.preventDefault();
+        var cancelRoundId = cancelBtn.getAttribute('data-cancel-booking') || '';
+        var cancelItem = (state.applications || []).find(function (entry) { return entry.id === state.hrSelectedId; });
+        if (!cancelItem || !cancelRoundId) return;
+        cancelBtn.disabled = true;
+        api('/api/admin/applications/' + encodeURIComponent(cancelItem.id) + '/booking-invitations', {
+          method: 'DELETE',
+          body: JSON.stringify({ roundId: cancelRoundId })
+        }).then(function (result) {
+          if (result && result.application) upsertApplicationInState(result.application);
+          renderHrPortal();
+          renderDashboard();
+          toast('Booking link cancelled.');
+        }).catch(function (error) {
+          toast(error.message, true);
+        }).then(function () {
+          cancelBtn.disabled = false;
+        });
+        return;
+      }
       var setResultBtn = event.target.closest('[data-set-result]');
       if (setResultBtn) {
         event.preventDefault();
@@ -5324,7 +5659,7 @@
           score: '',
           notes: '',
           result: 'pending'
-        }, rows.length));
+        }, rows.length, item));
         refreshAddInterviewControl();
         return;
       }

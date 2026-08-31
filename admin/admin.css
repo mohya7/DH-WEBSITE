@@ -326,6 +326,11 @@ img{display:block;max-width:100%}
 .application-status{--status-bg:#102a3d;--status-border:#285b77;display:grid;gap:5px}.application-status>span{color:#6f8599;font-size:8px}.application-status select{min-width:126px;border-color:var(--status-border)!important;background-color:var(--status-bg)!important;color:#f2f7fb!important}.application-status--reviewing{--status-bg:#342818;--status-border:#765326}.application-status--contacted{--status-bg:#123226;--status-border:#276d52}.application-status--rejected{--status-bg:#371e25;--status-border:#733a47}
 .pipeline-chip{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:rgba(31,158,233,.14);border:1px solid rgba(50,169,235,.28);color:#9fd4f4;font:700 8px/1 "DM Sans",sans-serif;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
 .pipeline-chip.is-closed{background:rgba(229,104,131,.12);border-color:rgba(229,104,131,.32);color:#f0b4c1}
+.pipeline-chip.is-moved{background:rgba(244,151,11,.16);border-color:rgba(244,151,11,.4);color:#f4c078}
+.pipeline-chip.is-invite-sent{background:rgba(31,158,233,.12);border-color:rgba(50,169,235,.32);color:#9fd4f4}
+.pipeline-chip.is-invite-booked{background:rgba(54,201,154,.14);border-color:rgba(54,201,154,.34);color:#6ed9b0}
+.pipeline-chip.is-invite-expired{background:rgba(244,151,11,.16);border-color:rgba(244,151,11,.4);color:#f4c078}
+.pipeline-chip.is-invite-needs-time{background:rgba(229,104,131,.14);border-color:rgba(229,104,131,.36);color:#f0b4c1}
 .hr-metrics{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin:0 0 14px}
 .hr-empty-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:14px}
 .hr-metric{display:flex;flex-direction:column;gap:3px;align-items:flex-start;min-height:0;padding:10px 12px;border:1px solid rgba(148,180,214,.14);border-radius:12px;background:rgba(11,24,40,.82);color:inherit;cursor:pointer;text-align:left;transition:.15s}
@@ -354,6 +359,7 @@ img{display:block;max-width:100%}
 .hr-candidate-row__copy strong{font-size:13px;color:#f2f6fa;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hr-candidate-row__copy small{font-size:11px;color:#8aa3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hr-candidate-row__aside{display:grid;justify-items:end;gap:6px}
+.hr-candidate-row__chips{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:4px}
 .hr-candidate-row__aside small{font-size:10px;color:#7f96ab}
 .hr-list-empty{margin:18px 14px;border:1px dashed rgba(148,180,214,.16);border-radius:14px;background:rgba(255,255,255,.015)}
 .hr-detail-empty{margin:28px 22px;border:1px dashed rgba(148,180,214,.16);border-radius:14px;background:rgba(255,255,255,.015)}
@@ -1198,3 +1204,8 @@ a.queue-where:hover{text-decoration:underline}
 .queue-task-form .primary-btn{height:36px}
 .queue-group--recorded header h2 b{background:rgba(157,124,245,.16);color:#9d7cf5}
 .queue-card--recorded{border-left-color:#9d7cf5}
+.availability-form{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;margin:8px 0 22px;padding:16px;border-radius:12px;background:#151922;border:1px solid #242935}
+.availability-duration{margin:0;font-size:12px;color:#7f96ab;display:flex;align-items:center;gap:6px}
+.availability-repeat{display:flex;align-items:center;gap:8px;font-size:13px;color:#c5cdd6;min-height:36px}
+.availability-card__actions{margin-top:10px}
+.availability-card--booked{border-left-color:#F4970B}
