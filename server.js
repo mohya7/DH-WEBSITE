@@ -408,19 +408,16 @@ async function normalizeInterviewEntry(entry, index, fallbackLabel = '') {
     if (!staffRequired) {
       throw Object.assign(new Error(`Pick an interviewer before saving ${label || `round ${index + 1}`}.`), { status: 422 });
     }
-    /* Candidate self-booking: interviewer assigned, no time yet. Date and
-       meeting link are filled when they pick a slot — not on this save. */
+    /* Candidate self-booking: interviewer assigned, no time yet. The date is
+       filled when they pick a slot — not on this save. A missing join URL is
+       not a save error: Needs a join link plus the follow-on email cover that,
+       and blocking persist here stopped HR from rescheduling a booked round. */
     const awaitingCandidateBooking = Boolean(interviewerUserId) && !scheduledAt && result === 'pending';
-    if (!awaitingCandidateBooking) {
-      if (!scheduledAt) {
-        throw Object.assign(new Error(`Set the interview date and time for ${label || `round ${index + 1}`}.`), { status: 422 });
-      }
-      if (format === 'online' && !meetingLink) {
-        throw Object.assign(new Error(`Add a meeting link for online ${label || `round ${index + 1}`}.`), { status: 422 });
-      }
-      if (format === 'online' && !/^https?:\/\/\S+$/i.test(meetingLink)) {
-        throw Object.assign(new Error(`Add a valid meeting link (http/https) for ${label || `round ${index + 1}`}.`), { status: 422 });
-      }
+    if (!awaitingCandidateBooking && !scheduledAt) {
+      throw Object.assign(new Error(`Set the interview date and time for ${label || `round ${index + 1}`}.`), { status: 422 });
+    }
+    if (format === 'online' && meetingLink && !/^https?:\/\/\S+$/i.test(meetingLink)) {
+      throw Object.assign(new Error(`Add a valid meeting link (http/https) for ${label || `round ${index + 1}`}.`), { status: 422 });
     }
   }
 
@@ -428,7 +425,7 @@ async function normalizeInterviewEntry(entry, index, fallbackLabel = '') {
     throw Object.assign(new Error(`Add a score (0–10) before marking ${label || `round ${index + 1}`} as Pass or Fail.`), { status: 422 });
   }
   if (interviewResultResolved(result) && blank) {
-    throw Object.assign(new Error(`Schedule ${label || `round ${index + 1}`} with an interviewer and time before recording a result.`), { status: 422 });
+    throw Object.assign(new Error(`Assign an interviewer and wait for a booked time before recording a result on ${label || `round ${index + 1}`}.`), { status: 422 });
   }
 
   const staff = interviewerUserId ? await findStaffInterviewer(interviewerUserId) : null;
@@ -531,6 +528,39 @@ function detectBookingInvitationNeeds(previousInterviews, nextInterviews, pipeli
   return needed;
 }
 
+function emptyAvailabilityMessage(name) {
+  const who = String(name || '').trim() || 'This interviewer';
+  return `${who} has no open times in the next 14 days. The candidate will receive a booking link with nothing to pick.`;
+}
+
+async function emptyAvailabilityWarnings(rounds) {
+  const seen = new Set();
+  const warnings = [];
+  for (const round of rounds || []) {
+    const id = String((round && round.interviewerUserId) || '');
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const listed = await hiringDb.listOpenSlotsInBookingWindow(id);
+    if (listed.slots.length) continue;
+    const staff = await findStaffInterviewer(id);
+    const name = (staff && staff.name) || (round && round.interviewer) || 'This interviewer';
+    warnings.push({
+      interviewerUserId: id,
+      interviewer: name,
+      message: emptyAvailabilityMessage(name),
+    });
+  }
+  return warnings;
+}
+
+function emptyAvailabilityResponse(warnings) {
+  return {
+    error: 'NO_OPEN_SLOTS',
+    message: (warnings || []).map((entry) => entry.message).join(' '),
+    slotWarnings: warnings || [],
+  };
+}
+
 async function issueBookingInvitations(application, rounds, req) {
   const baseUrl = mail.publicBaseUrl(req && req.headers && req.headers.host);
   const results = [];
@@ -594,6 +624,28 @@ function detectBookedSlotReleases(previousInterviews, nextInterviews) {
   return roundIds;
 }
 
+function validOnlineMeetingLink(round) {
+  if (!round || round.format === 'onsite') return '';
+  const link = String(round.meetingLink || '').trim();
+  return /^https?:\/\/\S+$/i.test(link) ? link : '';
+}
+
+/** First valid join URL on a round that already had a time and previously had none. */
+function detectMeetingLinkAdditions(previousInterviews, nextInterviews) {
+  const prevMap = new Map((previousInterviews || []).map((entry) => [String(entry && entry.id || ''), entry]));
+  const added = [];
+  (nextInterviews || []).forEach((entry) => {
+    if (!entry || !String(entry.scheduledAt || '').trim()) return;
+    if (entry.format === 'onsite') return;
+    const prev = prevMap.get(String(entry.id || ''));
+    if (!prev || !String(prev.scheduledAt || '').trim()) return;
+    if (validOnlineMeetingLink(prev)) return;
+    if (!validOnlineMeetingLink(entry)) return;
+    added.push(entry);
+  });
+  return added;
+}
+
 async function notifyInterviewSchedules(application, changes, req) {
   const baseUrl = mail.publicBaseUrl(req && req.headers && req.headers.host);
   const results = [];
@@ -618,6 +670,35 @@ async function notifyInterviewSchedules(application, changes, req) {
       continue;
     }
     const outcome = await mail.sendInterviewScheduleEmail({ application, round, baseUrl });
+    results.push(Object.assign({ id: round.id, interviewer: round.interviewer }, outcome));
+  }
+  return results;
+}
+
+async function notifyMeetingLinkAdditions(application, rounds, req) {
+  const baseUrl = mail.publicBaseUrl(req && req.headers && req.headers.host);
+  const results = [];
+  for (const entry of rounds || []) {
+    let round = await enrichInterviewRoundForMail(entry);
+    const hasInterviewer = Boolean(String(round.interviewerEmail || '').trim());
+    const hasCandidate = Boolean(String(application.email || '').trim());
+    if (!hasInterviewer) {
+      logInterviewerEmailUnresolved(application && application.id, round && round.id);
+    }
+    if (!hasInterviewer && !hasCandidate) {
+      results.push({
+        id: round.id,
+        sent: false,
+        skipped: true,
+        reason: 'no_recipients',
+        sides: [
+          { side: 'interviewer', sent: false, skipped: true, reason: 'no_interviewer_email' },
+          { side: 'candidate', sent: false, skipped: true, reason: 'no_candidate_email' },
+        ],
+      });
+      continue;
+    }
+    const outcome = await mail.sendInterviewMeetingLinkEmail({ application, round, baseUrl });
     results.push(Object.assign({ id: round.id, interviewer: round.interviewer }, outcome));
   }
   return results;
@@ -792,7 +873,7 @@ async function runRecurringAvailabilityExtend() {
     const result = await hiringDb.extendAllActiveRecurringSeries();
     availabilityExtendLastDay = today;
     if (result.added) {
-      console.log(`[availability] Extended ${result.added} slot(s) across ${result.users} interviewer(s).`);
+      console.log(`[availability] Extended ${result.added} slot(s) across ${result.users} account(s).`);
     }
   } catch (error) {
     console.error('[availability] Recurring extend failed:', error.message || error);
@@ -2033,6 +2114,21 @@ async function requireInterviewer(req, res, mutation = false) {
   return session;
 }
 
+/* Availability is session-scoped: HR and interviewers may only read or edit
+   their own slots. Queue, rounds, and candidate endpoints stay interviewer-only. */
+async function requireOwnAvailability(req, res, mutation = false) {
+  const session = mutation ? await requireMutationAuth(req, res) : await requireAuth(req, res);
+  if (!session) return null;
+  if (session.role !== 'interviewer' && session.role !== 'hr') {
+    json(res, 403, {
+      error: 'FORBIDDEN',
+      message: 'Availability is available to interviewer and HR accounts only.',
+    });
+    return null;
+  }
+  return session;
+}
+
 /* Role is required, never defaulted: an omitted role used to fall back to 'hr',
    which silently granted a new account full access to candidate data.
    'admin' stays unassignable here on purpose, so managed accounts cannot
@@ -2849,10 +2945,12 @@ async function handleApi(req, res, url) {
     return json(res, 200, { ok: true }, { 'Set-Cookie': sessionCookieHeader('', 0, req) });
   }
 
-  /* Token in the body, never a query string. Expired, cancelled, tampered, and
-     never-existed all write the same precomputed buffer — no status or message
-     variation an attacker can use to tell them apart. Booked is a 200: the
-     holder of the link may see their own booking (4.5), not a probe mode. */
+  /* Token in the body, never a query string. Expired, cancelled-link, tampered,
+     and never-existed all write the same precomputed buffer — no status or
+     message variation an attacker can use to tell them apart. A holder of a
+     real token whose round is no longer pending gets 409 ROUND_NOT_PENDING
+     instead: they had a valid link and the round changed. Booked is a 200
+     while the round is still pending. */
   if (pathname === '/api/booking/lookup' && req.method === 'POST') {
     if (!canAttemptBookingLookup(req)) {
       return json(res, 429, { error: 'RATE_LIMITED', message: 'Too many attempts. Please try again later.' });
@@ -2869,11 +2967,20 @@ async function handleApi(req, res, url) {
     const now = Date.now();
     const expiresAt = invitation && invitation.expiresAt ? Date.parse(invitation.expiresAt) : NaN;
     const expired = invitation && (invitation.status === 'expired' || (!Number.isNaN(expiresAt) && expiresAt < now));
-    if (!invitation || invitation.status === 'cancelled') {
+    if (!invitation) {
       return sendBookingLookupInvalid(res);
     }
     const { application, round } = await loadInvitationRound(invitation);
     if (!application || !round) {
+      return sendBookingLookupInvalid(res);
+    }
+    if (String(round.result || 'pending') !== 'pending') {
+      return json(res, 409, {
+        error: 'ROUND_NOT_PENDING',
+        message: hiringDb.ROUND_NOT_PENDING_MESSAGE,
+      });
+    }
+    if (invitation.status === 'cancelled') {
       return sendBookingLookupInvalid(res);
     }
     if (invitation.status === 'booked') {
@@ -2903,7 +3010,7 @@ async function handleApi(req, res, url) {
       if (error && error.code === 'BOOKING_INVALID') {
         return sendBookingLookupInvalid(res);
       }
-      if (error && (error.code === 'SLOT_TAKEN' || error.code === 'ROUND_ALREADY_SCHEDULED' || error.code === 'RESCHEDULE_LIMIT')) {
+      if (error && (error.code === 'SLOT_TAKEN' || error.code === 'ROUND_ALREADY_SCHEDULED' || error.code === 'RESCHEDULE_LIMIT' || error.code === 'ROUND_NOT_PENDING')) {
         return json(res, error.status || 409, {
           error: error.code,
           message: error.message || 'That time was just taken. Please choose another.',
@@ -3234,9 +3341,9 @@ async function handleApi(req, res, url) {
   }
 
   /* Own availability only. user_id always comes from the session — never from
-     the query string or body — so one interviewer cannot list or edit another. */
+     the query string or body — so one account cannot list or edit another. */
   if (pathname === '/api/admin/interviewer/availability' && req.method === 'GET') {
-    const session = await requireInterviewer(req, res, false);
+    const session = await requireOwnAvailability(req, res, false);
     if (!session) return;
     try {
       const extended = await hiringDb.extendRecurringSeries(session.userId);
@@ -3257,7 +3364,7 @@ async function handleApi(req, res, url) {
   }
 
   if (pathname === '/api/admin/interviewer/availability' && req.method === 'POST') {
-    const session = await requireInterviewer(req, res, true);
+    const session = await requireOwnAvailability(req, res, true);
     if (!session) return;
     const body = await readBody(req);
     try {
@@ -3284,7 +3391,7 @@ async function handleApi(req, res, url) {
 
   const availabilitySlotMatch = pathname.match(/^\/api\/admin\/interviewer\/availability\/([^/]+)$/);
   if (availabilitySlotMatch && req.method === 'DELETE') {
-    const session = await requireInterviewer(req, res, true);
+    const session = await requireOwnAvailability(req, res, true);
     if (!session) return;
     const slotId = decodeURIComponent(availabilitySlotMatch[1]);
     try {
@@ -3312,6 +3419,21 @@ async function handleApi(req, res, url) {
   if (pathname === '/api/admin/staff-interviewers' && req.method === 'GET') {
     if (!(await requireHr(req, res, false))) return;
     return json(res, 200, { interviewers: await listStaffInterviewers() });
+  }
+
+  const staffOpenSlotsMatch = pathname.match(/^\/api\/admin\/staff-interviewers\/([^/]+)\/open-slots$/);
+  if (staffOpenSlotsMatch && req.method === 'GET') {
+    if (!(await requireHr(req, res, false))) return;
+    const userId = decodeURIComponent(staffOpenSlotsMatch[1]);
+    const staff = await findStaffInterviewer(userId);
+    if (!staff) return json(res, 404, { error: 'NOT_FOUND', message: 'Interviewer not found.' });
+    const listed = await hiringDb.listOpenSlotsInBookingWindow(userId);
+    return json(res, 200, {
+      interviewerUserId: staff.id,
+      name: staff.name,
+      count: listed.slots.length,
+      window: listed.window,
+    });
   }
 
   if (pathname === '/api/admin/interviewers' && req.method === 'GET') {
@@ -3666,7 +3788,19 @@ async function handleApi(req, res, url) {
       const previousInterviews = previousPipeline && Array.isArray(previousPipeline.interviews)
         ? previousPipeline.interviews.slice()
         : [];
-      application.pipeline = await cleanPipelinePayload(body.pipeline || body, application, session || {});
+      const nextPipeline = await cleanPipelinePayload(body.pipeline || body, application, session || {});
+      const bookingNeeds = detectBookingInvitationNeeds(
+        previousInterviews,
+        nextPipeline.interviews || [],
+        nextPipeline,
+      );
+      if (bookingNeeds.length && body.acknowledgeEmptySlots !== true) {
+        const slotWarnings = await emptyAvailabilityWarnings(bookingNeeds);
+        if (slotWarnings.length) {
+          return json(res, 409, emptyAvailabilityResponse(slotWarnings));
+        }
+      }
+      application.pipeline = nextPipeline;
       applyApplicationStatus(application, mirrorInboxStatus(application.pipeline));
       application.updatedAt = new Date().toISOString();
       const nextStage = String((application.pipeline && application.pipeline.stage) || '');
@@ -3681,13 +3815,18 @@ async function handleApi(req, res, url) {
         });
       }
       const scheduleChanges = detectInterviewScheduleChanges(previousInterviews, application.pipeline.interviews || []);
-      const bookingNeeds = detectBookingInvitationNeeds(
+      const slotReleases = detectBookedSlotReleases(previousInterviews, application.pipeline.interviews || []);
+      const scheduleIds = new Set(scheduleChanges.map((entry) => String(entry.round && entry.round.id || '')));
+      const meetingLinkAdds = detectMeetingLinkAdditions(
         previousInterviews,
         application.pipeline.interviews || [],
-        application.pipeline,
-      );
-      const slotReleases = detectBookedSlotReleases(previousInterviews, application.pipeline.interviews || []);
+      ).filter((entry) => !scheduleIds.has(String(entry.id || '')));
       await writeApplications(data, { stageEvents });
+      for (const entry of (application.pipeline.interviews || [])) {
+        if (!entry || !entry.id) continue;
+        if (String(entry.result || 'pending') === 'pending') continue;
+        await hiringDb.cancelSentInvitationsForRound(application.id, entry.id);
+      }
       if (slotReleases.length) {
         /* Invitation stays booked. Counter is not incremented. Candidate link still works. */
         await hiringDb.releaseBookedSlotsForRounds(application.id, slotReleases);
@@ -3695,6 +3834,10 @@ async function handleApi(req, res, url) {
       let mailResults = [];
       if (scheduleChanges.length) {
         mailResults = await notifyInterviewSchedules(application, scheduleChanges, req);
+      }
+      let meetingLinkNotices = [];
+      if (meetingLinkAdds.length) {
+        meetingLinkNotices = await notifyMeetingLinkAdditions(application, meetingLinkAdds, req);
       }
       let bookingInvites = [];
       if (bookingNeeds.length) {
@@ -3717,9 +3860,12 @@ async function handleApi(req, res, url) {
         onboarding,
         mail: {
           scheduleNotices: mailResults,
-          sent: mailResults.filter((entry) => entry.sent).length,
-          failed: mailResults.filter((entry) => !entry.sent && !entry.skipped).length,
-          skipped: mailResults.filter((entry) => entry.skipped).length,
+          meetingLinkNotices,
+          sent: mailResults.filter((entry) => entry.sent).length + meetingLinkNotices.filter((entry) => entry.sent).length,
+          failed: mailResults.filter((entry) => !entry.sent && !entry.skipped).length
+            + meetingLinkNotices.filter((entry) => !entry.sent && !entry.skipped).length,
+          skipped: mailResults.filter((entry) => entry.skipped).length
+            + meetingLinkNotices.filter((entry) => entry.skipped).length,
           bookingInvites,
         },
       });
@@ -3746,6 +3892,18 @@ async function handleApi(req, res, url) {
     }
     if (String(round.scheduledAt || '').trim()) {
       return json(res, 422, { error: 'ALREADY_SCHEDULED', message: 'This round already has a time. Clear it before sending a new booking link.' });
+    }
+    if (String(round.result || 'pending') !== 'pending') {
+      return json(res, 422, {
+        error: 'ROUND_NOT_PENDING',
+        message: 'Set the round back to Pending before sending a booking link.',
+      });
+    }
+    if (body.acknowledgeEmptySlots !== true) {
+      const slotWarnings = await emptyAvailabilityWarnings([round]);
+      if (slotWarnings.length) {
+        return json(res, 409, emptyAvailabilityResponse(slotWarnings));
+      }
     }
     const bookingInvites = await issueBookingInvitations(application, [round], req);
     await attachBookingInvitations([application]);

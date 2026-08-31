@@ -12,6 +12,12 @@
       "intro": "Hi {{interviewer_display}},<br><br>Friendly reminder — your interview with <strong>{{candidate}}</strong> is <strong>today</strong>.",
       "text": "Digital Hub — Hiring\n{{eyebrow}}\n\nHi {{interviewer_display}},\n\nFriendly reminder — your interview with {{candidate}} is today.\n\nCandidate: {{candidate}}\nRole: {{role}}\nStage: {{stage}}\nWhen: {{when}}\nFormat: {{format}}\n{{meeting_link_block}}Email: {{candidate_email}}\nPhone: {{candidate_phone}}\n\n—\nDigital Hub · New Cairo, Egypt\n{{site_url}}"
     },
+    "meetingLink": {
+      "subject": "Join link added: {{candidate}} · {{stage}}",
+      "eyebrow": "Hiring · Meeting link",
+      "intro": "Hi {{interviewer_display}},<br><br>The join link for your interview with <strong>{{candidate}}</strong> is ready. The time has not changed — an updated calendar invite is attached.",
+      "text": "Digital Hub — Hiring\n{{eyebrow}}\n\nHi {{interviewer_display}},\n\nThe join link for your interview with {{candidate}} is ready. The time has not changed. An updated calendar invite is attached.\n\nCandidate: {{candidate}}\nRole: {{role}}\nStage: {{stage}}\nWhen: {{when}}\nFormat: {{format}}\n{{meeting_link_block}}Email: {{candidate_email}}\nPhone: {{candidate_phone}}\n\n—\nDigital Hub · New Cairo, Egypt\n{{site_url}}"
+    },
     "footerHtml": ""
   },
   "candidate": {
@@ -26,6 +32,12 @@
       "eyebrow": "Careers · Interview today",
       "intro": "Dear {{candidate}},<br><br>This is a gentle reminder that your interview with Digital Hub is <strong>today</strong>. We look forward to speaking with you.",
       "text": "Digital Hub — Careers\n{{eyebrow}}\n\nDear {{candidate}},\n\nThis is a gentle reminder that your interview with Digital Hub is today. We look forward to speaking with you.\n\nRole: {{role}}\nStage: {{stage}}\nWhen: {{when}}\nFormat: {{format}}\n{{meeting_link_block}}Interviewer: {{interviewer_display}}\n\nIf you need to reschedule or have any questions, reply to this email and our HR team will help.\n\n—\nDigital Hub · Empowering Digital Evolution\n{{site_url}}"
+    },
+    "meetingLink": {
+      "subject": "Join link for your Digital Hub interview · {{stage}}",
+      "eyebrow": "Careers · Meeting link",
+      "intro": "Dear {{candidate}},<br><br>Your <strong>{{stage}}</strong> interview time has not changed. Use the join link below for the online meeting — an updated calendar invite is attached.",
+      "text": "Digital Hub — Careers\n{{eyebrow}}\n\nDear {{candidate}},\n\nYour {{stage}} interview time has not changed. Use the join link below for the online meeting. An updated calendar invite is attached.\n\nRole: {{role}}\nStage: {{stage}}\nWhen: {{when}}\nFormat: {{format}}\n{{meeting_link_block}}Interviewer: {{interviewer_display}}\n\nIf you need to reschedule or have any questions, reply to this email and our HR team will help.\n\n—\nDigital Hub · Empowering Digital Evolution\n{{site_url}}"
     },
     "footerHtml": "If you need to reschedule or have any questions, simply reply to this email and our HR team will help.",
     "booking": {

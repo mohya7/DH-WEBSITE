@@ -154,6 +154,11 @@
         subtitle.textContent = '';
         hide(intro); hide(banner); hide(meta); hide(slotsEl); hide(actionsEl); hide(statusEl);
       }
+      function unavailable() {
+        title.textContent = 'This interview is no longer available to book.';
+        subtitle.textContent = 'If you still need to meet, reply to the invitation email and our HR team will help.';
+        hide(intro); hide(banner); hide(meta); hide(slotsEl); hide(actionsEl); hide(statusEl);
+      }
       function formatWhen(value) {
         var match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
         if (!match) return value || '';
@@ -250,6 +255,10 @@
                 show(banner, result.body.message || "You've already rescheduled three times.");
                 return load();
               }
+              if (result.body && result.body.error === 'ROUND_NOT_PENDING') {
+                unavailable();
+                return;
+              }
               invalid();
             }).catch(function () {
               show(banner, 'Something went wrong. Please try again.');
@@ -267,6 +276,10 @@
           }
           if (result.status === 200 && result.body && result.body.state === 'open') {
             openState(result.body);
+            return;
+          }
+          if (result.body && result.body.error === 'ROUND_NOT_PENDING') {
+            unavailable();
             return;
           }
           invalid();

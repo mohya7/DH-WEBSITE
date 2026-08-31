@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
-  <link rel="stylesheet" href="/admin/admin.css?v=20260831i-needs-time">
+  <link rel="stylesheet" href="/admin/admin.css?v=20260831o-hr-avail">
 </head>
 <body>
   <div class="ambient" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -98,7 +98,7 @@
         <button class="side-link" type="button" data-view="interviewLog" data-hr-only><i class="ti ti-notebook"></i><span>Interview Log</span><b data-interview-log-count>0</b></button>
         <button class="side-link" type="button" data-view="interviewers" data-hr-only><i class="ti ti-address-book"></i><span>Interviewers</span><b data-interviewer-count>0</b></button>
         <button class="side-link" type="button" data-view="interviewerQueue" data-interviewer-only><i class="ti ti-calendar-check"></i><span>Your interviews</span><b data-queue-count>0</b></button>
-        <button class="side-link" type="button" data-view="interviewerAvailability" data-interviewer-only><i class="ti ti-clock-plus"></i><span>Availability</span><b data-availability-count>0</b></button>
+        <button class="side-link" type="button" data-view="interviewerAvailability" data-availability><i class="ti ti-clock-plus"></i><span>Availability</span><b data-availability-count>0</b></button>
         <p class="side-label" data-onboarding>PEOPLE</p>
         <button class="side-link" type="button" data-view="onboarding" data-onboarding><i class="ti ti-user-plus"></i><span>Employee Onboarding</span><b data-onboarding-count>0</b></button>
         <p class="side-label" data-admin-only>WEBSITE &amp; SYSTEM</p>
@@ -758,7 +758,7 @@
           </div>
         </section>
 
-        <section class="view" id="interviewerAvailabilityView" data-interviewer-only>
+        <section class="view" id="interviewerAvailabilityView" data-availability>
           <div class="section-title-row">
             <div>
               <h1>Your availability</h1>
@@ -942,6 +942,6 @@
 
   <div class="toast-stack" id="toastStack" aria-live="polite"></div>
   <div class="mobile-overlay" id="mobileOverlay"></div>
-  <script src="/admin/admin.js?v=20260831i-needs-time"></script>
+  <script src="/admin/admin.js?v=20260831o-hr-avail"></script>
 </body>
 </html>

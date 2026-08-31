@@ -188,6 +188,7 @@
   function isHr() { return Boolean(state.currentUser && state.currentUser.role === 'hr'); }
   function isMarketing() { return Boolean(state.currentUser && state.currentUser.role === 'marketing'); }
   function isInterviewer() { return Boolean(state.currentUser && state.currentUser.role === 'interviewer'); }
+  function canUseAvailability() { return isHr() || isInterviewer(); }
   function canUseOnboarding() {
     return Boolean(state.permissions && state.permissions.canUseOnboarding) || isHr() || isMarketing();
   }
@@ -216,6 +217,7 @@
     $$('[data-onboarding-hr]').forEach(function (node) { node.classList.toggle('role-hidden', !isHr()); });
     $$('[data-onboarding-marketing]').forEach(function (node) { node.classList.toggle('role-hidden', !isMarketing()); });
     $$('[data-interviewer-only]').forEach(function (node) { node.classList.toggle('role-hidden', !isInterviewer()); });
+    $$('[data-availability]').forEach(function (node) { node.classList.toggle('role-hidden', !canUseAvailability()); });
     /* Hide any sidebar link the role cannot actually open. Without this a link
        can render and then bounce back on click, which reads as a broken button
        rather than an absent feature. Driven by the same allow-list as routing,
@@ -299,7 +301,13 @@
       await loadContent();
       throw new Error('Content changed in another session. The latest version has been loaded; review your edit and try again.');
     }
-    if (!response.ok) throw new Error(payload.message || 'The operation could not be completed.');
+    if (!response.ok) {
+      var err = new Error(payload.message || 'The operation could not be completed.');
+      err.code = payload.error || '';
+      err.status = response.status;
+      err.payload = payload;
+      throw err;
+    }
     return payload;
   }
 
@@ -644,6 +652,15 @@
         });
         return;
       }
+      if (onlineRoundNeedsJoinLink(item)) {
+        attention.push({
+          id: item.id,
+          title: item.fullName || 'Candidate',
+          meta: (item.role || 'Role') + ' · Needs a join link',
+          tone: 'phone'
+        });
+        return;
+      }
       if (!invite && cancelledRoundNeedsNewTime(item)) {
         attention.push({
           id: item.id,
@@ -779,7 +796,7 @@
   var ROUTE_ALLOW = {
     admin: ['dashboard', 'content', 'pages', 'users', 'tools', 'contactRequests'],
     hr: ['dashboard', 'content', 'applications', 'hrPortal', 'hrAnalytics',
-      'hrCalendar', 'interviewLog', 'interviewers', 'onboarding'],
+      'hrCalendar', 'interviewLog', 'interviewers', 'interviewerAvailability', 'onboarding'],
     marketing: ['dashboard', 'onboarding'],
     interviewer: ['interviewerQueue', 'interviewerAvailability'],
   };
@@ -2622,7 +2639,8 @@
 
   function interviewCanReschedule(entry) {
     var result = entry && entry.result;
-    return result === 'cancelled' || result === 'no_show';
+    if (result !== 'cancelled' && result !== 'no_show') return false;
+    return Boolean((entry.scheduledAt || '').trim());
   }
 
   function nextInterviewLabel(existing, item) {
@@ -2676,7 +2694,7 @@
     if (canAdd) {
       return '<div class="hr-add-interview" data-add-interview-wrap><button class="secondary-btn" type="button" data-add-interview><i class="ti ti-plus"></i> Add next interview</button></div>';
     }
-    return '<div class="hr-add-interview is-locked" data-add-interview-wrap><span>Set a result (Pass, Fail, or No-show) to unlock the next interview.</span></div>';
+    return '<div class="hr-add-interview is-locked" data-add-interview-wrap><span>Pass, Fail, or No-show unlocks the next interview. Cancelled does not — set a new time on this round instead.</span></div>';
   }
 
   function refreshAddInterviewControl() {
@@ -2706,6 +2724,41 @@
     return staffPickerOptionsHtml(selectedId, 'Select staff interviewer', 'Previous interviewer (update required)');
   }
 
+  function confirmEmptyAvailability(error, proceedLabel) {
+    var message = (error && error.message) || emptyAvailabilityMessage('This interviewer');
+    return window.confirm(message + '\n\n' + (proceedLabel || 'Assign anyway?'));
+  }
+
+  function emptyAvailabilityMessage(name) {
+    return String(name || 'This interviewer') + ' has no open times in the next 14 days. The candidate will receive a booking link with nothing to pick.';
+  }
+
+  function refreshInterviewSlotWarnings(root) {
+    $$('[data-interview-row]', root || document).forEach(function (row) {
+      refreshInterviewerSlotWarning(row);
+    });
+  }
+
+  function refreshInterviewerSlotWarning(row) {
+    if (!row) return;
+    var warn = $('[data-slot-warn]', row);
+    var select = $('[name="interviewerUserId"]', row);
+    if (!warn || !select) return;
+    var userId = (select.value || '').trim();
+    var hasTime = Boolean((($('[name="scheduledAt"]', row) || {}).value || '').trim());
+    warn.classList.add('is-hidden');
+    warn.textContent = '';
+    if (!userId || hasTime) return;
+    var token = String(Date.now()) + '-' + userId;
+    row.dataset.slotWarnToken = token;
+    api('/api/admin/staff-interviewers/' + encodeURIComponent(userId) + '/open-slots').then(function (payload) {
+      if (row.dataset.slotWarnToken !== token) return;
+      if (!payload || payload.count) return;
+      warn.textContent = emptyAvailabilityMessage(payload.name);
+      warn.classList.remove('is-hidden');
+    }).catch(function () { /* hint only */ });
+  }
+
   function reviewerOptionsHtml(selectedId) {
     return staffPickerOptionsHtml(selectedId, 'Select reviewer', null);
   }
@@ -2731,10 +2784,13 @@
       return '<option value="' + option[0] + '"' + (option[0] === format ? ' selected' : '') + '>' + option[1] + '</option>';
     }).join('');
     var meetingLink = format === 'online' ? String(entry.meetingLink || '').trim() : '';
+    var hasTime = Boolean((entry.scheduledAt || '').trim());
     var invite = invitationForRound(item, entry.id);
-    var canIssueLink = Boolean((entry.interviewerUserId || '').trim()) && !(entry.scheduledAt || '').trim();
-    var canCancelInvite = Boolean(invite && invite.status === 'sent');
-    var issueLabel = invite && (invite.status === 'sent' || invite.status === 'expired') ? 'Resend booking link' : 'Send booking link';
+    var inviteStatus = invite ? invite.status : '';
+    var awaitingBook = Boolean((entry.id || '').trim()) && Boolean((entry.interviewerUserId || '').trim()) && !hasTime;
+    var canCancelInvite = Boolean(invite && inviteStatus === 'sent');
+    var canResendLink = awaitingBook && (inviteStatus === 'sent' || inviteStatus === 'expired');
+    var canSendLink = awaitingBook && (!invite || inviteStatus === 'cancelled');
     return '<article class="hr-interview-card" data-interview-row data-interview-id="' + escapeHtml(entry.id || '') + '" data-result="' + escapeHtml(result) + '">' +
       '<header class="hr-interview-toolbar">' +
       '<div class="hr-interview-round"><span>Interview</span><strong>Round ' + (index + 1) + '</strong></div>' +
@@ -2743,8 +2799,8 @@
       (interviewCanReschedule(entry)
         ? '<button class="secondary-btn" type="button" data-reschedule-round><i class="ti ti-calendar-event"></i> Reschedule</button>'
         : '') +
-      (canIssueLink
-        ? '<button class="secondary-btn" type="button" data-reissue-booking="' + escapeHtml(entry.id || '') + '"><i class="ti ti-mail-forward"></i> ' + issueLabel + '</button>'
+      (canResendLink || canSendLink
+        ? '<button class="secondary-btn" type="button" data-reissue-booking="' + escapeHtml(entry.id || '') + '"><i class="ti ti-mail-forward"></i> ' + (canResendLink ? 'Resend booking link' : 'Send booking link') + '</button>'
         : '') +
       (canCancelInvite
         ? '<button class="secondary-btn" type="button" data-cancel-booking="' + escapeHtml(entry.id || '') + '">Cancel link</button>'
@@ -2758,14 +2814,20 @@
       '<label class="hr-field"><span>Interview type</span><select name="interviewFormat">' + formatOptions + '</select></label>' +
       '<label class="hr-field"><span>Interviewer <em>required</em></span><select name="interviewerUserId">' + interviewerOptionsHtml(entry.interviewerUserId) + '</select></label>' +
       '</div>' +
+      '<p class="hr-slot-warn is-hidden" data-slot-warn></p>' +
       '<div class="hr-interview-grid hr-interview-grid--schedule">' +
-      '<label class="hr-field"><span>When <em>required</em></span><input name="scheduledAt" type="datetime-local" value="' + escapeHtml(scheduled) + '"' + (interviewCanReschedule(entry) ? ' readonly' : '') + '></label>' +
+      (hasTime
+        ? '<label class="hr-field"><span>When</span><input name="scheduledAt" type="datetime-local" value="' + escapeHtml(scheduled) + '"' + (interviewCanReschedule(entry) ? ' readonly' : '') + '></label>'
+        : '') +
       '<label class="hr-field hr-score-field"><span>Score <em>0–10 · Pass/Fail</em></span><input name="score" type="number" min="0" max="10" step="0.5" inputmode="decimal" value="' + escapeHtml(scoreVal) + '" placeholder="e.g. 7.5"><small class="hr-score-hint">Needed before Pass / Fail</small></label>' +
       '</div>' +
-      '<label class="hr-field hr-meeting-link' + (format === 'online' ? '' : ' is-hidden') + '" data-meeting-link><span>Meeting link <em>required</em></span><input name="meetingLink" type="url" maxlength="500" value="' + escapeHtml(meetingLink) + '" placeholder="https://meet.google.com/..." inputmode="url" autocomplete="off" ' + (format === 'online' ? 'required ' : '') + '><small class="hr-score-hint">Required for online rounds · shown in interview emails</small></label>' +
+      '<label class="hr-field hr-meeting-link' + (format === 'online' ? '' : ' is-hidden') + '" data-meeting-link><span>Meeting link <em>optional</em></span><input name="meetingLink" type="url" maxlength="500" value="' + escapeHtml(meetingLink) + '" placeholder="https://meet.google.com/..." inputmode="url" autocomplete="off"><small class="hr-score-hint">' + (hasTime ? 'Add a join URL before the interview. Until then this round shows Needs a join link.' : 'Optional at assignment — add a join URL later, after they book') + '</small></label>' +
       '<label class="hr-field hr-interview-notes"><span>Notes</span><textarea name="notes" rows="2" placeholder="Feedback">' + escapeHtml(entry.notes || '') + '</textarea></label>' +
-      ((interviewIsEnded(entry) || interviewCanReschedule(entry)) && (entry.recordedBy || '').trim()
+      ((interviewIsEnded(entry) || interviewCanReschedule(entry) || result === 'cancelled') && (entry.recordedBy || '').trim()
         ? '<p class="hr-recorded-by">Recorded by ' + escapeHtml(entry.recordedBy) + '</p>'
+        : '') +
+      (result === 'cancelled' && !hasTime
+        ? '<p class="hr-book-hint">This round was never booked. Set the result back to Pending and send a booking link.</p>'
         : '') +
       '</div></article>';
   }
@@ -2864,32 +2926,20 @@
         }
         return round + label + ': pick an interviewer before saving this round.';
       }
-      if (!(entry.scheduledAt || '').trim()) {
-        if (whenInput) {
-          whenInput.classList.add('is-invalid');
-          whenInput.focus();
-        }
+      /* When is omitted until the round has a time. No field = awaiting candidate booking. */
+      var awaitingBooking = !whenInput;
+      if (!awaitingBooking && !(entry.scheduledAt || '').trim()) {
+        whenInput.classList.add('is-invalid');
+        whenInput.focus();
         return round + label + ': set the interview date and time.';
       }
-      if (entry.format === 'online') {
-        var meetingLink = (entry.meetingLink || '').trim();
-        if (!meetingLink) {
-          if (meetingInput) {
-            meetingInput.classList.add('is-invalid');
-            meetingInput.focus();
-          }
-          return round + label + ': add a meeting link for online interviews.';
+      var meetingLink = (entry.meetingLink || '').trim();
+      if (entry.format === 'online' && meetingLink && !isValidMeetingLink(meetingLink)) {
+        if (meetingInput) {
+          meetingInput.classList.add('is-invalid');
+          meetingInput.focus();
         }
-        if (!isValidMeetingLink(meetingLink)) {
-          if (meetingInput) {
-            meetingInput.classList.add('is-invalid');
-            meetingInput.focus();
-          }
-          return round + label + ': meeting link must start with http:// or https://.';
-        }
-      }
-      if (entry.interviewerUserId && !entry.scheduledAt) {
-        return round + label + ': pick a staff interviewer before scheduling.';
+        return round + label + ': meeting link must start with http:// or https://.';
       }
     }
     return '';
@@ -3169,7 +3219,7 @@
         ? '<li class="hr-flow-step' + (stage === 'interview' ? ' is-current' : '') + '">' +
           '<div class="hr-flow-marker"><b>' + stepInterview + '</b></div>' +
           '<div class="hr-flow-body">' +
-          '<div class="hr-flow-title"><h3>Interviews</h3><p>Schedule each round with interviewer + time. Pass/Fail needs a score. Offer unlocks when every round has a result.</p></div>' +
+          '<div class="hr-flow-title"><h3>Interviews</h3><p>Assign an interviewer so the candidate can book a time. Pass/Fail needs a score. Offer unlocks when every round has a result.</p></div>' +
           '<div class="hr-interview-list" data-interview-list>' + (interviewHtml || '') + '</div>' +
           addInterviewButtonHtml(canAddInterview) +
           (showInterviews && !showOffer
@@ -3190,6 +3240,7 @@
       '</ol>' +
       '<div class="hr-save-row"><button class="primary-btn" type="submit"><i class="ti ti-device-floppy"></i> Save pipeline</button></div>' +
       '</form>';
+    refreshInterviewSlotWarnings(detail);
   }
 
 
@@ -3286,14 +3337,29 @@
 
   /**
    * One attention chip besides the stage — never stack booking + moved badges.
-   * Precedence (first match wins): Link expired → Awaiting book → Needs a new time.
+   * Precedence (first match wins): Link expired → Awaiting book → Needs a join link → Needs a new time.
    */
   function hrListAttention(item) {
     var invite = outstandingBookingInvitation(item);
     if (invite && invite.status === 'expired') return { kind: 'expired', label: 'Link expired' };
     if (invite && invite.status === 'sent') return { kind: 'sent', label: unusedBookingLabel(invite) };
+    if (onlineRoundNeedsJoinLink(item)) return { kind: 'needs-link', label: 'Needs a join link' };
     if (cancelledRoundNeedsNewTime(item)) return { kind: 'needs-time', label: 'Needs a new time' };
     return null;
+  }
+
+  function roundNeedsJoinLink(entry) {
+    if (!entry) return false;
+    if (interviewFormatOf(entry) !== 'online') return false;
+    if (!(entry.scheduledAt || '').trim()) return false;
+    if (entry.result && entry.result !== 'pending') return false;
+    return !isValidMeetingLink(entry.meetingLink);
+  }
+
+  function onlineRoundNeedsJoinLink(item) {
+    var pipe = pipelineOf(item);
+    if (pipe.stage === 'closed') return false;
+    return (pipe.interviews || []).some(roundNeedsJoinLink);
   }
 
   function invitationForRound(item, roundId) {
@@ -4319,10 +4385,22 @@
     }
     try {
       setBusy(button, true);
-      var result = await api('/api/admin/applications/' + encodeURIComponent(state.hrSelectedId) + '/pipeline', {
-        method: 'PUT',
-        body: JSON.stringify({ pipeline: payload })
-      });
+      var result;
+      try {
+        result = await api('/api/admin/applications/' + encodeURIComponent(state.hrSelectedId) + '/pipeline', {
+          method: 'PUT',
+          body: JSON.stringify({ pipeline: payload })
+        });
+      } catch (error) {
+        if (error.code !== 'NO_OPEN_SLOTS') throw error;
+        setBusy(button, false);
+        if (!confirmEmptyAvailability(error, 'Assign anyway?')) return;
+        setBusy(button, true);
+        result = await api('/api/admin/applications/' + encodeURIComponent(state.hrSelectedId) + '/pipeline', {
+          method: 'PUT',
+          body: JSON.stringify({ pipeline: payload, acknowledgeEmptySlots: true })
+        });
+      }
       upsertApplicationInState(result.application);
       renderHrPortal();
       renderApplications();
@@ -4343,6 +4421,8 @@
       } else {
         var mailInfo = result.mail || {};
         var notices = mailInfo.scheduleNotices || [];
+        var invites = mailInfo.bookingInvites || [];
+        var linkNotices = mailInfo.meetingLinkNotices || [];
         var sentLabels = [];
         notices.forEach(function (notice) {
           (notice.sides || []).forEach(function (side) {
@@ -4351,7 +4431,27 @@
             else sentLabels.push(notice.interviewer || 'interviewer');
           });
         });
-        if (sentLabels.length) {
+        var linkLabels = [];
+        linkNotices.forEach(function (notice) {
+          (notice.sides || []).forEach(function (side) {
+            if (!side || !side.sent) return;
+            if (side.side === 'candidate') linkLabels.push('candidate');
+            else linkLabels.push(notice.interviewer || 'interviewer');
+          });
+        });
+        if (invites.some(function (entry) { return entry && entry.sent; })) {
+          toast('Booking link sent to the candidate.');
+        } else if (invites.some(function (entry) { return entry && entry.failed; })) {
+          toast('Pipeline saved, but the booking email failed to send.', true);
+        } else if (invites.some(function (entry) { return entry && entry.skipped; })) {
+          toast('Booking link created. Email skipped (mail not configured).');
+        } else if (linkLabels.length) {
+          toast('Join link sent to ' + linkLabels.join(' and ') + '.');
+        } else if (linkNotices.some(function (entry) { return entry && entry.failed; })) {
+          toast('Pipeline saved, but the join-link email failed to send.', true);
+        } else if (linkNotices.some(function (entry) { return entry && entry.skipped; })) {
+          toast('Pipeline saved. Join-link email skipped (mail not configured).');
+        } else if (sentLabels.length) {
           toast('Interview email sent to ' + sentLabels.join(' and ') + '.');
         } else if (mailInfo.failed) {
           toast('Pipeline saved, but the interview email failed to send.', true);
@@ -5565,10 +5665,8 @@
         var reissueItem = (state.applications || []).find(function (entry) { return entry.id === state.hrSelectedId; });
         if (!reissueItem || !reissueRoundId) return;
         reissueBtn.disabled = true;
-        api('/api/admin/applications/' + encodeURIComponent(reissueItem.id) + '/booking-invitations', {
-          method: 'POST',
-          body: JSON.stringify({ roundId: reissueRoundId })
-        }).then(function (result) {
+        var reissueBody = { roundId: reissueRoundId };
+        function applyReissueResult(result) {
           if (result && result.application) upsertApplicationInState(result.application);
           renderHrPortal();
           renderDashboard();
@@ -5577,8 +5675,24 @@
           else if (mailed && mailed.skipped) toast('Booking link created. Email skipped (mail not configured).');
           else if (mailed && mailed.failed) toast('Booking link created, but the email failed to send.', true);
           else toast('New booking link created.');
+        }
+        api('/api/admin/applications/' + encodeURIComponent(reissueItem.id) + '/booking-invitations', {
+          method: 'POST',
+          body: JSON.stringify(reissueBody)
+        }).then(function (result) {
+          applyReissueResult(result);
         }).catch(function (error) {
-          toast(error.message, true);
+          if (error.code !== 'NO_OPEN_SLOTS') {
+            toast(error.message, true);
+            return;
+          }
+          if (!confirmEmptyAvailability(error, 'Send the link anyway?')) return;
+          return api('/api/admin/applications/' + encodeURIComponent(reissueItem.id) + '/booking-invitations', {
+            method: 'POST',
+            body: JSON.stringify({ roundId: reissueRoundId, acknowledgeEmptySlots: true })
+          }).then(applyReissueResult).catch(function (retryError) {
+            toast(retryError.message, true);
+          });
         }).then(function () {
           reissueBtn.disabled = false;
         });
@@ -5681,6 +5795,10 @@
         if (customWrap) customWrap.classList.toggle('is-hidden', event.target.value !== '__custom__');
         return;
       }
+      if (event.target.matches('[name="interviewerUserId"]')) {
+        refreshInterviewerSlotWarning(event.target.closest('[data-interview-row]'));
+        return;
+      }
       if (event.target.matches('[name="interviewFormat"]')) {
         var formatRow = event.target.closest('[data-interview-row]');
         var meetingWrap = formatRow && $('[data-meeting-link]', formatRow);
@@ -5688,7 +5806,6 @@
         var isOnline = event.target.value === 'online';
         if (meetingWrap) meetingWrap.classList.toggle('is-hidden', !isOnline);
         if (meetingInput) {
-          meetingInput.required = isOnline;
           meetingInput.classList.remove('is-invalid');
           if (!isOnline) meetingInput.value = '';
         }
@@ -5703,9 +5820,14 @@
             chip.classList.toggle('is-active', chip.dataset.setResult === event.target.value);
           });
           var dateInput = $('[name="scheduledAt"]', resultRow);
-          if (dateInput) dateInput.readOnly = interviewCanReschedule({ result: event.target.value });
+          if (dateInput) dateInput.readOnly = interviewCanReschedule({ result: event.target.value, scheduledAt: dateInput.value });
           var rescheduleBtn = $('[data-reschedule-round]', resultRow);
-          if (rescheduleBtn) rescheduleBtn.classList.toggle('is-hidden', !interviewCanReschedule({ result: event.target.value }));
+          if (rescheduleBtn) {
+            rescheduleBtn.classList.toggle('is-hidden', !interviewCanReschedule({
+              result: event.target.value,
+              scheduledAt: dateInput ? dateInput.value : ''
+            }));
+          }
           var scoreInput = $('[name="score"]', resultRow);
           if ((event.target.value === 'pass' || event.target.value === 'fail') && scoreInput && !String(scoreInput.value || '').trim()) {
             scoreInput.classList.add('is-invalid');
