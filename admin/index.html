@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
-  <link rel="stylesheet" href="/admin/admin.css?v=20260831o-hr-avail">
+  <link rel="stylesheet" href="/admin/admin.css?v=20260905i-round-details">
 </head>
 <body>
   <div class="ambient" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -97,7 +97,7 @@
         <button class="side-link" type="button" data-view="hrCalendar" data-hr-only><i class="ti ti-calendar-event"></i><span>Interview Calendar</span></button>
         <button class="side-link" type="button" data-view="interviewLog" data-hr-only><i class="ti ti-notebook"></i><span>Interview Log</span><b data-interview-log-count>0</b></button>
         <button class="side-link" type="button" data-view="interviewers" data-hr-only><i class="ti ti-address-book"></i><span>Interviewers</span><b data-interviewer-count>0</b></button>
-        <button class="side-link" type="button" data-view="interviewerQueue" data-interviewer-only><i class="ti ti-calendar-check"></i><span>Your interviews</span><b data-queue-count>0</b></button>
+        <button class="side-link" type="button" data-view="interviewerQueue" data-queue><i class="ti ti-calendar-check"></i><span>Your interviews</span><b data-queue-count>0</b></button>
         <button class="side-link" type="button" data-view="interviewerAvailability" data-availability><i class="ti ti-clock-plus"></i><span>Availability</span><b data-availability-count>0</b></button>
         <p class="side-label" data-onboarding>PEOPLE</p>
         <button class="side-link" type="button" data-view="onboarding" data-onboarding><i class="ti ti-user-plus"></i><span>Employee Onboarding</span><b data-onboarding-count>0</b></button>
@@ -332,33 +332,31 @@
 
         <section class="view" id="hrPortalView">
           <div class="section-title-row">
-            <div><button class="back-dashboard" type="button" data-view-link="dashboard"><i class="ti ti-arrow-left"></i> Overview</button><h1>Active Hiring Process</h1><p>Active candidates until joined or rejected. Ending a vacancy keeps ongoing pipelines running; new starts need an open role.</p></div>
+            <div>
+              <button class="back-dashboard" type="button" data-view-link="dashboard"><i class="ti ti-arrow-left"></i> Overview</button>
+              <button class="back-dashboard is-hidden" id="hrVacancyBack" type="button" data-hr-back-vacancies><i class="ti ti-arrow-left"></i> All vacancies</button>
+              <h1 id="hrPortalTitle">Active Hiring Process</h1>
+              <p id="hrPortalLead">Active candidates until joined or rejected. Ending a vacancy keeps ongoing pipelines running; new starts need an open role.</p>
+            </div>
             <button class="secondary-btn" type="button" data-view-link="applications"><i class="ti ti-file-cv"></i> Start from Applications</button>
           </div>
-          <div class="hr-metrics" id="hrMetrics">
-            <button class="hr-metric is-active" type="button" data-hr-filter="open"><small>Open</small><strong id="hrOpenCount">0</strong></button>
-            <button class="hr-metric" type="button" data-hr-filter="phone_screen"><small>Phone</small><strong id="hrPhoneCount">0</strong></button>
-            <button class="hr-metric" type="button" data-hr-filter="task"><small>Tasks</small><strong id="hrTaskCount">0</strong></button>
-            <button class="hr-metric" type="button" data-hr-filter="interview"><small>Interviews</small><strong id="hrInterviewCount">0</strong></button>
-            <button class="hr-metric" type="button" data-hr-filter="offer"><small>Offer</small><strong id="hrOfferCount">0</strong></button>
-            <button class="hr-metric" type="button" data-hr-filter="all"><small>All</small><strong id="hrPipelineTotal">0</strong></button>
-          </div>
-          <div class="hr-workspace" id="hrPortalLayout">
+          <div class="hr-vacancy-grid is-hidden" id="hrVacancyGrid"></div>
+          <div class="empty-state hr-list-empty is-hidden" id="hrPickPrompt"><span><i class="ti ti-route"></i></span><h2>No active hiring</h2><p>Start a candidate from Applications on an open vacancy. Joined and rejected candidates appear in Analytics &amp; History.</p><div class="hr-empty-actions"><button class="primary-btn" type="button" data-view-link="applications"><i class="ti ti-file-cv"></i> Go to Applications</button><button class="secondary-btn" type="button" data-view-link="hrAnalytics"><i class="ti ti-chart-histogram"></i> Analytics &amp; History</button></div></div>
+          <div class="hr-workspace is-hidden" id="hrPortalLayout">
             <aside class="panel hr-list-panel">
               <header class="panel-head">
                 <div>
-                  <h2>Pipeline</h2>
+                  <h2 id="hrListTitle">Candidates</h2>
                   <p id="hrListMeta">Active candidates</p>
                 </div>
               </header>
               <div class="hr-toolbar" id="hrPipelineFilters">
-                <label class="hr-search"><i class="ti ti-search"></i><input id="hrCandidateSearch" type="search" placeholder="Search name, role, email..."></label>
+                <label class="hr-search"><i class="ti ti-search"></i><input id="hrCandidateSearch" type="search" placeholder="Search name or email..."></label>
               </div>
               <div class="hr-candidate-list" id="hrPipelineList"></div>
-              <div class="empty-state hr-list-empty is-hidden" id="hrPickPrompt"><span><i class="ti ti-route"></i></span><h2>No active hiring</h2><p>Start a candidate from Applications on an open vacancy. Joined and rejected candidates appear in Analytics &amp; History.</p><div class="hr-empty-actions"><button class="primary-btn" type="button" data-view-link="applications"><i class="ti ti-file-cv"></i> Go to Applications</button><button class="secondary-btn" type="button" data-view-link="hrAnalytics"><i class="ti ti-chart-histogram"></i> Analytics &amp; History</button></div></div>
             </aside>
             <section class="panel hr-detail-panel" id="hrPipelinePanel">
-              <div class="empty-state hr-detail-empty" id="hrCandidatePrompt"><span><i class="ti ti-user-search"></i></span><h2>Select a candidate</h2><p>Choose someone from the pipeline list to continue their hiring process.</p></div>
+              <div class="empty-state hr-detail-empty" id="hrCandidatePrompt"><span><i class="ti ti-user-search"></i></span><h2>Select a candidate</h2><p>Choose someone from this vacancy to continue their hiring process.</p></div>
               <div class="hr-pipeline-detail is-hidden" id="hrPipelineDetail"></div>
             </section>
           </div>
@@ -743,7 +741,7 @@
 
         <!-- Interviewer work queue. Task cards and past interview cards have
              working forms. Upcoming rounds stay read-only. -->
-        <section class="view" id="interviewerQueueView" data-interviewer-only>
+        <section class="view" id="interviewerQueueView" data-queue>
           <div class="section-title-row">
             <div>
               <h1>Your interviews</h1>
@@ -754,7 +752,7 @@
           <div class="empty-state is-hidden" id="queueEmpty">
             <span><i class="ti ti-calendar-check"></i></span>
             <h2>Nothing waiting on you</h2>
-            <p>When HR assigns you an interview round it will appear here, with the candidate and the joining link.</p>
+            <p>When you are assigned an interview round it will appear here, with the candidate and the joining link.</p>
           </div>
         </section>
 
@@ -887,7 +885,7 @@
       </header>
       <form id="interviewerForm">
         <div class="account-form-body">
-          <div class="account-form-grid">
+          <div class="account-form-grid" id="interviewerIdentityFields">
             <label class="form-field"><span>Full name</span><span class="field-shell"><i class="ti ti-user"></i><input name="name" maxlength="120" placeholder="e.g. Mohamed Mansour" required></span></label>
             <label class="form-field"><span>Username</span><span class="field-shell"><i class="ti ti-at"></i><input name="username" maxlength="40" placeholder="e.g. mohamed.mansour" required></span></label>
             <label class="form-field"><span>Title</span><span class="field-shell"><i class="ti ti-id-badge"></i><input name="jobTitle" maxlength="120" placeholder="e.g. Engineering Manager"></span></label>
@@ -897,6 +895,11 @@
               <span class="switch"><input name="active" type="checkbox" checked><span></span></span>
             </label>
           </div>
+          <fieldset class="interviewer-stages-field">
+            <legend>Interview stages</legend>
+            <p class="interviewer-stages-hint">Leave all unchecked to cover every stage. HR accounts use the same rule.</p>
+            <div class="checklist-grid" id="interviewerStagesGrid"></div>
+          </fieldset>
         </div>
         <div class="invite-result is-hidden" id="interviewerInviteResult">
           <p><strong>Account created.</strong> <span id="interviewerInviteStatus"></span></p>
@@ -905,7 +908,7 @@
         </div>
         <footer class="account-modal__foot">
           <button class="secondary-btn" id="cancelInterviewerModalBtn" type="button">Cancel</button>
-          <button class="primary-btn" type="submit"><i class="ti ti-device-floppy"></i><span>Save interviewer</span></button>
+          <button class="primary-btn" type="submit" id="interviewerSaveBtn"><i class="ti ti-device-floppy"></i><span>Save interviewer</span></button>
         </footer>
       </form>
     </section>
@@ -942,6 +945,6 @@
 
   <div class="toast-stack" id="toastStack" aria-live="polite"></div>
   <div class="mobile-overlay" id="mobileOverlay"></div>
-  <script src="/admin/admin.js?v=20260831o-hr-avail"></script>
+  <script src="/admin/admin.js?v=20260905i-round-details"></script>
 </body>
 </html>

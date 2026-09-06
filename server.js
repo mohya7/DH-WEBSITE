@@ -235,6 +235,25 @@ function normalizeInterviewStages(value, fallback = DEFAULT_INTERVIEW_STAGES) {
   return unique.length ? unique : [...DEFAULT_INTERVIEW_STAGES];
 }
 
+/** Interviewer/HR coverage. Empty means every stage — do not substitute the default list. */
+function normalizeInterviewerStageSet(value) {
+  const raw = Array.isArray(value) ? value : [];
+  return [...new Set(raw.map((entry) => text(entry, 40)).filter((entry) => INTERVIEW_STAGE_SET.has(entry)))];
+}
+
+function interviewerPublicView(person) {
+  return {
+    id: person.id,
+    name: person.name,
+    title: person.title || '',
+    email: person.email || '',
+    interviewStages: normalizeInterviewerStageSet(person.interviewStages),
+    active: person.active !== false,
+    source: person.source || 'account',
+    readOnly: Boolean(person.readOnly),
+  };
+}
+
 function defaultPipeline() {
   return {
     stage: 'phone_screen',
@@ -288,6 +307,7 @@ async function findStaffInterviewer(userId) {
       name: text(person.name, 120) || email,
       title: text(person.title, 120),
       email,
+      interviewStages: normalizeInterviewerStageSet(person.interviewStages),
       source: person.source || 'manual',
       readOnly: Boolean(person.readOnly),
     };
@@ -370,6 +390,7 @@ async function listStaffInterviewers() {
         name: text(person.name, 120) || person.email,
         title: text(person.title, 120),
         email: text(person.email, 160).toLowerCase(),
+        interviewStages: normalizeInterviewerStageSet(person.interviewStages),
         source: person.source || 'manual',
         readOnly: Boolean(person.readOnly),
       }))
@@ -911,6 +932,21 @@ async function seedInterviews(stages, existing = []) {
   return out;
 }
 
+/* First interview only, and only on a transition. A second save has a
+   pathway already stored and/or a round already present, so this stays false. */
+function shouldSeedFirstInterview(pathway, task, existing, interviews) {
+  if ((interviews || []).length) return false;
+  if (task && task.decision === 'rejected') return false;
+  const unlocked = pathway === 'no_tasks' || (pathway === 'with_tasks' && task && task.decision === 'approved');
+  if (!unlocked) return false;
+  const justAccepted = existing.phoneScreen !== 'accepted';
+  const justChosePathway = Boolean(pathway) && pathway !== existing.pathway;
+  const justApprovedTask = pathway === 'with_tasks'
+    && task.decision === 'approved'
+    && ((existing.task && existing.task.decision) !== 'approved');
+  return justAccepted || justChosePathway || justApprovedTask;
+}
+
 function derivePipelineStage(pipeline) {
   const phone = pipeline.phoneScreen;
   if (phone === 'rejected' || phone === 'requirements_not_met') return 'closed';
@@ -1032,15 +1068,10 @@ async function cleanPipelinePayload(input, existingApplication, session) {
   let interviews = Array.isArray(incoming.interviews) ? incoming.interviews : (existing.interviews || []);
   if (phoneScreen === 'accepted') {
     const stages = jobStagesForApplication(existingApplication);
-    const justAccepted = incoming.phoneScreen === 'accepted' && existing.phoneScreen !== 'accepted';
-    const justChosePathway = Boolean(pathway) && !existing.pathway;
-    const justApprovedTask = pathway === 'with_tasks' && task.decision === 'approved' && taskExisting.decision !== 'approved';
     if (task.decision === 'rejected') {
       interviews = [];
-    } else if (!interviews.length && (justAccepted || justChosePathway || justApprovedTask)) {
-      if (pathway === 'no_tasks' || task.decision === 'approved') {
-        interviews = await seedInterviews(stages.slice(0, 1), interviews);
-      }
+    } else if (shouldSeedFirstInterview(pathway, task, existing, interviews)) {
+      interviews = await seedInterviews(stages.slice(0, 1), interviews);
     } else if (interviews.length) {
       // Keep filled rounds + at most one open/pending blank round from older multi-seed data.
       const existingById = new Map((existing.interviews || []).map((entry) => [String(entry.id || ''), entry]));
@@ -1247,6 +1278,9 @@ async function createManagedAccount(body, { role: forcedRole } = {}) {
     createdAt: now,
     updatedAt: now,
     lastLoginAt: null,
+    interviewStages: (role === 'hr' || role === 'interviewer')
+      ? normalizeInterviewerStageSet(body.interviewStages)
+      : [],
   };
   let invite = null;
   if (password) account.passwordHash = passwordHash(password);
@@ -1452,6 +1486,12 @@ async function applyInterviewerTaskReview(application, session, incoming) {
   if (decision === 'approved' && score == null) {
     throw Object.assign(new Error('Add a task score (0–10) before approving.'), { status: 422 });
   }
+  let interviews = Array.isArray(existing.interviews) ? existing.interviews.slice() : [];
+  if (decision === 'rejected') {
+    interviews = [];
+  } else if (decision === 'approved' && !interviews.length) {
+    interviews = await seedInterviews(jobStagesForApplication(application).slice(0, 1), interviews);
+  }
   const pipeline = {
     stage: existing.stage || 'task',
     phoneScreen: existing.phoneScreen || 'pending',
@@ -1467,7 +1507,7 @@ async function applyInterviewerTaskReview(application, session, incoming) {
       reviewedBy: reviewer.name,
       score,
     },
-    interviews: Array.isArray(existing.interviews) ? existing.interviews : [],
+    interviews,
     offer: existing.offer && typeof existing.offer === 'object'
       ? existing.offer
       : { status: 'none', declinedReason: '' },
@@ -2104,18 +2144,24 @@ function formatAvailabilityWhen(value) {
   }).format(date);
 }
 
+/* Queue, rounds, task review, and candidate GET. Interviewer or HR, always
+   scoped to session.userId. Assignment checks stay in the apply helpers —
+   HR does not get a second write path. */
 async function requireInterviewer(req, res, mutation = false) {
   const session = mutation ? await requireMutationAuth(req, res) : await requireAuth(req, res);
   if (!session) return null;
-  if (session.role !== 'interviewer') {
-    json(res, 403, { error: 'FORBIDDEN', message: 'Interviewer tools are available to interviewer accounts only.' });
+  if (session.role !== 'interviewer' && session.role !== 'hr') {
+    json(res, 403, {
+      error: 'FORBIDDEN',
+      message: 'These tools are available to interviewer and HR accounts only.',
+    });
     return null;
   }
   return session;
 }
 
 /* Availability is session-scoped: HR and interviewers may only read or edit
-   their own slots. Queue, rounds, and candidate endpoints stay interviewer-only. */
+   their own slots. Queue and feedback use the same role pair via requireInterviewer. */
 async function requireOwnAvailability(req, res, mutation = false) {
   const session = mutation ? await requireMutationAuth(req, res) : await requireAuth(req, res);
   if (!session) return null;
@@ -2375,7 +2421,21 @@ function cleanItem(collection, input, existing = {}) {
     else output.alt = title;
   }
   output.updatedAt = new Date().toISOString();
+  if (collection === 'jobs') stampJobPublishedAt(output, existing);
   return output;
+}
+
+/** First time a vacancy becomes published. Never overwrite. Never fill a job that is already published. */
+function stampJobPublishedAt(output, existing) {
+  if (!output) return;
+  const kept = text(existing && existing.publishedAt, 40);
+  if (kept) {
+    output.publishedAt = kept;
+    return;
+  }
+  if (output.status !== 'published') return;
+  if ((existing && existing.status) === 'published') return;
+  output.publishedAt = output.updatedAt;
 }
 
 function cleanBlogItem(input, existing = {}, id) {
@@ -3175,7 +3235,7 @@ async function handleApi(req, res, url) {
     for (const collection of COLLECTIONS) {
       const items = Array.isArray(body.collections[collection]) ? body.collections[collection] : [];
       next.collections[collection] = items.slice(0, 500).map((item) => {
-        const cleaned = cleanItem(collection, item);
+        const cleaned = cleanItem(collection, item, item);
         finalizeBlogItem(cleaned);
         return cleaned;
       });
@@ -3192,9 +3252,8 @@ async function handleApi(req, res, url) {
     return json(res, 200, { updatedAt: data.updatedAt, applications: data.applications || [] });
   }
 
-  /* Every round assigned to the signed-in interviewer, across all applications.
-     requireInterviewer fails closed, so HR, admin, marketing and any unknown
-     role get 403 here. */
+  /* Every round assigned to the signed-in interviewer or HR user, across all
+     applications. Admin, marketing, and unknown roles still get 403. */
   if (pathname === '/api/admin/interviewer/rounds' && req.method === 'GET') {
     const session = await requireInterviewer(req, res, false);
     if (!session) return;
@@ -3209,9 +3268,9 @@ async function handleApi(req, res, url) {
     return json(res, 200, { updatedAt: data.updatedAt, rounds });
   }
 
-  /* The work queue: everything awaiting this interviewer. Items they have
-     already actioned are omitted — a round with feedback recorded, or a task
-     with a decision, leaves the queue. */
+  /* The work queue: everything awaiting this interviewer or HR user. Items
+     they have already actioned are omitted — a round with feedback recorded,
+     or a task with a decision, leaves the queue. */
   if (pathname === '/api/admin/interviewer/queue' && req.method === 'GET') {
     const session = await requireInterviewer(req, res, false);
     if (!session) return;
@@ -3243,7 +3302,7 @@ async function handleApi(req, res, url) {
     });
   }
 
-  /* Task review from the interviewer queue. Same stored fields as HR's pipeline
+  /* Task review from the shared queue. Same stored fields as HR's pipeline
      form (decision, reviewedBy, reviewedByUserId, score). Identity comes from
      the session. Does not accept a full pipeline payload. */
   const interviewerTaskMatch = pathname.match(/^\/api\/admin\/interviewer\/candidates\/([^/]+)\/task$/);
@@ -3290,10 +3349,11 @@ async function handleApi(req, res, url) {
     }
   }
 
-  /* Interview feedback from the interviewer queue. Same stored fields as HR's
+  /* Interview feedback from the shared queue. Same stored fields as HR's
      interview card (result, score, notes). Identity is who the round is
-     assigned to. Does not accept a full pipeline payload and does not move
-     the candidate forward. */
+     assigned to. HR and interviewers both hit this handler — there is no
+     second write path. Does not accept a full pipeline payload and does
+     not move the candidate forward. */
   const interviewerRoundMatch = pathname.match(/^\/api\/admin\/interviewer\/candidates\/([^/]+)\/rounds\/([^/]+)$/);
   if (interviewerRoundMatch && req.method === 'PUT') {
     const session = await requireInterviewer(req, res, true);
@@ -3325,8 +3385,9 @@ async function handleApi(req, res, url) {
     }
   }
 
-  /* One candidate, for an interviewer assigned to at least one of their rounds
-     or the task. Anyone else gets 403, not 404, because the record does exist. */
+  /* One candidate, for the signed-in interviewer or HR user assigned to at
+     least one of their rounds or the task. Anyone else gets 403, not 404,
+     because the record does exist. */
   const interviewerCandidateMatch = pathname.match(/^\/api\/admin\/interviewer\/candidates\/([^/]+)$/);
   if (interviewerCandidateMatch && req.method === 'GET') {
     const session = await requireInterviewer(req, res, false);
@@ -3451,15 +3512,16 @@ async function handleApi(req, res, url) {
     try {
       const { account, invite } = await createManagedAccount(body, { role: 'interviewer' });
       return json(res, 201, {
-        interviewer: {
+        interviewer: interviewerPublicView({
           id: account.id,
           name: account.name,
           title: account.jobTitle || '',
           email: account.email,
+          interviewStages: account.interviewStages,
           active: account.active,
           source: 'account',
           readOnly: true,
-        },
+        }),
         interviewers: await hiringDb.listMergedInterviewersStore(),
         ...(await inviteResponsePart(account, invite, req)),
       });
@@ -3501,6 +3563,38 @@ async function handleApi(req, res, url) {
     } catch (error) {
       return json(res, error.status || 422, { error: error.code || 'CONVERT_FAILED', message: error.message || 'Could not convert this interviewer.' });
     }
+  }
+
+  const interviewerStagesMatch = pathname.match(/^\/api\/admin\/interviewers\/([^/]+)\/stages$/);
+  if (interviewerStagesMatch && req.method === 'PATCH') {
+    if (!(await requireHr(req, res, true))) return;
+    const targetId = decodeURIComponent(interviewerStagesMatch[1]);
+    const body = await readBody(req);
+    const forbidden = ['name', 'email', 'role', 'active'];
+    const extraKeys = Object.keys(body || {}).filter((key) => key !== 'stages');
+    if (forbidden.some((key) => Object.prototype.hasOwnProperty.call(body || {}, key)) || extraKeys.length) {
+      return json(res, 422, {
+        error: 'STAGES_ONLY',
+        message: 'This path can only change interview stages. Name, email, role, and active are rejected here.',
+      });
+    }
+    if (!Array.isArray(body && body.stages)) {
+      return json(res, 422, { error: 'STAGES_REQUIRED', message: 'Send a stages array. Leave it empty for every stage.' });
+    }
+    const staff = await hiringDb.resolveStaffInterviewerById(targetId);
+    if (!staff || staff.source !== 'account') {
+      return json(res, 404, { error: 'NOT_FOUND', message: 'No interviewer or HR account with that id.' });
+    }
+    const stages = normalizeInterviewerStageSet(body.stages);
+    const updated = await hiringDb.updateAdminUserInterviewStages(targetId, stages);
+    if (!updated) {
+      return json(res, 404, { error: 'NOT_FOUND', message: 'No interviewer or HR account with that id.' });
+    }
+    return json(res, 200, {
+      ok: true,
+      interviewer: interviewerPublicView({ ...staff, interviewStages: stages }),
+      interviewers: await hiringDb.listMergedInterviewersStore(),
+    });
   }
 
   /* The manual write path is retired: entries are created as accounts and

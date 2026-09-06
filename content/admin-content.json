@@ -1,10 +1,17 @@
 {
   "meta": {
     "version": 1,
-    "revision": 128,
-    "updatedAt": "2026-08-23T11:08:16.056Z",
-    "updatedBy": "ali.mohi",
+    "revision": 129,
+    "updatedAt": "2026-09-05T12:54:01.131Z",
+    "updatedBy": "hr",
     "audit": [
+      {
+        "id": "audit-229f4c4e-4005-4c88-8dab-2ce6ac8b25e7",
+        "action": "create",
+        "label": "Created Platform Engineer (test vacancy)",
+        "at": "2026-09-05T12:54:01.131Z",
+        "by": "hr"
+      },
       {
         "id": "audit-8f3b243f-72a9-41ef-83a7-32c2ceda651b",
         "action": "update",
@@ -346,13 +353,6 @@
         "action": "upload",
         "label": "Uploaded 1786631464473-headsss-for-the-website-05.webp",
         "at": "2026-08-13T14:31:05.054Z",
-        "by": "admin"
-      },
-      {
-        "id": "audit-d3073faa-8eac-4982-9cd6-51e16dedbc72",
-        "action": "update",
-        "label": "Updated Mahmoud Yasser",
-        "at": "2026-08-13T14:30:01.212Z",
         "by": "admin"
       }
     ]
@@ -1324,7 +1324,31 @@
         "status": "published",
         "featured": false,
         "order": 30,
-        "updatedAt": "2026-08-23T11:08:16.055Z"
+        "updatedAt": "2026-08-23T11:08:16.055Z",
+        "publishedAt": "2026-08-24T10:17:13.000Z"
+      },
+      {
+        "id": "jobs-e05065f2-6ebf-4eb6-9a61-d760dbe88d9c",
+        "title": "Platform Engineer (test vacancy)",
+        "summary": "Test vacancy so Active Hiring can show a named vacancy card, not only the catch-all.",
+        "aboutRole": "<p>Test vacancy for the vacancy-first Active Hiring grid.</p>",
+        "keyResponsibilities": "<p>Exercise the named vacancy card path.</p>",
+        "requiredSkills": "<p>None — test data only.</p>",
+        "niceToHave": "",
+        "roleOffers": "",
+        "interviewStages": [
+          "HR",
+          "Technical"
+        ],
+        "href": "careers/platform-engineer-test-vacancy.html",
+        "department": "Engineering",
+        "location": "Cairo, New Cairo",
+        "type": "Full time",
+        "status": "published",
+        "featured": false,
+        "order": 40,
+        "updatedAt": "2026-09-05T12:54:01.131Z",
+        "publishedAt": "2026-09-05T12:54:01.131Z"
       }
     ],
     "team": [
