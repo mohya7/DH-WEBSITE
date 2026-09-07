@@ -120,6 +120,7 @@
     onboardingRequests: [],
     onboardingStatus: 'all',
     onboardingSelectedId: '',
+    suppressOnboardingAutoselect: false,
     applicationRole: 'all',
     applicationQuery: '',
     applicationStatus: 'all',
@@ -127,6 +128,7 @@
     applicationNoticeMax: 'all',
     applicationSalaryMax: '',
     hrVacancyKey: '',
+    hrFilter: '',
     hrQuery: '',
     hrSelectedId: '',
     analyticsFrom: '',
@@ -165,13 +167,26 @@
     editingUserRole: 'hr',
     queue: null,
     availability: null,
+    availabilitySkipped: [],
+    ownCalendar: null,
+    ivCalendarMonth: null,
+    ivCalendarSelectedDay: '',
     setupToken: '',
     currentPage: 'home',
     contactStatus: 'all',
     contactQuery: '',
     contactSituation: 'all',
-    pendingDelete: null
+    contactSelectedId: '',
+    queueFocusApplicationId: '',
+    queueFocusRoundId: '',
+    pendingRoute: null,
+    pendingDelete: null,
+    notifications: [],
+    notificationUnread: 0
   };
+
+  var NOTIFICATION_POLL_MS = 30000;
+  var notificationPollTimer = null;
 
   var $ = function (selector, context) { return (context || document).querySelector(selector); };
   var $$ = function (selector, context) { return Array.prototype.slice.call((context || document).querySelectorAll(selector)); };
@@ -218,6 +233,7 @@
     $$('[data-onboarding-hr]').forEach(function (node) { node.classList.toggle('role-hidden', !isHr()); });
     $$('[data-onboarding-marketing]').forEach(function (node) { node.classList.toggle('role-hidden', !isMarketing()); });
     $$('[data-interviewer-only]').forEach(function (node) { node.classList.toggle('role-hidden', !isInterviewer()); });
+    $$('[data-not-interviewer]').forEach(function (node) { node.classList.toggle('role-hidden', isInterviewer()); });
     $$('[data-queue]').forEach(function (node) { node.classList.toggle('role-hidden', !canUseQueue()); });
     $$('[data-availability]').forEach(function (node) { node.classList.toggle('role-hidden', !canUseAvailability()); });
     /* Hide any sidebar link the role cannot actually open. Without this a link
@@ -334,8 +350,211 @@
     setTimeout(function () { if (node.isConnected) node.remove(); }, 4500);
   }
 
+  function stopNotificationPoll() {
+    if (notificationPollTimer) {
+      clearInterval(notificationPollTimer);
+      notificationPollTimer = null;
+    }
+  }
+
+  function startNotificationPoll() {
+    stopNotificationPoll();
+    if (!state.currentUser) return;
+    refreshNotificationBadge();
+    if (document.hidden) return;
+    notificationPollTimer = setInterval(function () {
+      if (document.hidden || !state.currentUser) {
+        stopNotificationPoll();
+        return;
+      }
+      refreshNotificationBadge();
+    }, NOTIFICATION_POLL_MS);
+  }
+
+  function safeNotificationHref(href) {
+    var raw = String(href || '').trim();
+    return /^#[A-Za-z][A-Za-z0-9/_-]*$/.test(raw) ? raw : '';
+  }
+
+  /* Hash ids must stay inside safeNotificationHref. Current app/round/contact
+     ids already match [A-Za-z0-9_-]. Anything else becomes enc- + hex so we
+     never add % . ? or other characters the allow-list rejects. */
+  function encodeRouteId(value) {
+    var raw = String(value || '').trim();
+    if (!raw) return '';
+    if (/^[A-Za-z0-9_-]+$/.test(raw)) return raw;
+    var hex = '';
+    for (var i = 0; i < raw.length; i++) {
+      var h = raw.charCodeAt(i).toString(16);
+      hex += (h.length < 2 ? '0' : '') + h;
+    }
+    return 'enc-' + hex;
+  }
+
+  function decodeRouteId(value) {
+    var raw = String(value || '').trim();
+    if (!raw) return '';
+    if (/^enc-[0-9a-f]+$/i.test(raw) && (raw.length - 4) % 2 === 0) {
+      var hex = raw.slice(4);
+      var out = '';
+      for (var i = 0; i < hex.length; i += 2) {
+        out += String.fromCharCode(parseInt(hex.slice(i, i + 2), 16));
+      }
+      return out;
+    }
+    return raw;
+  }
+
+  function scrollRouteTarget(node) {
+    if (!node || !node.scrollIntoView) return;
+    try { node.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+    catch (_) { node.scrollIntoView(); }
+  }
+
+  var NOTIFY_ICONS = {
+    application_submitted: { icon: 'ti-file-cv', tone: 'blue' },
+    interviewer_stranded: { icon: 'ti-user-exclamation', tone: 'orange' },
+    booking_booked: { icon: 'ti-calendar-check', tone: 'green' },
+    booking_rescheduled: { icon: 'ti-calendar-event', tone: 'blue' },
+    booking_reschedule_limit: { icon: 'ti-calendar-off', tone: 'orange' },
+    feedback_recorded: { icon: 'ti-message-check', tone: 'green' },
+    feedback_amended: { icon: 'ti-message-plus', tone: 'violet' },
+    task_decided: { icon: 'ti-checklist', tone: 'blue' },
+    task_needs_review: { icon: 'ti-file-check', tone: 'orange' },
+    interviewer_assigned: { icon: 'ti-user-check', tone: 'blue' },
+    hr_round_scheduled: { icon: 'ti-calendar-plus', tone: 'blue' },
+    hr_round_rescheduled: { icon: 'ti-calendar-time', tone: 'orange' },
+    round_cancelled: { icon: 'ti-calendar-x', tone: 'red' },
+    interview_upcoming: { icon: 'ti-bell-ringing', tone: 'orange' },
+    onboarding_created: { icon: 'ti-user-plus', tone: 'green' },
+    contact_submitted: { icon: 'ti-mail-forward', tone: 'blue' },
+    recurring_stopped: { icon: 'ti-repeat-off', tone: 'orange' },
+    recurring_extend_failed: { icon: 'ti-alert-triangle', tone: 'red' },
+    recurring_horizon_short: { icon: 'ti-clock', tone: 'orange' }
+  };
+
+  function notificationIcon(eventType) {
+    return NOTIFY_ICONS[eventType] || { icon: 'ti-bell', tone: 'blue' };
+  }
+
+  function startOfLocalDay(date) {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  }
+
+  function isSameLocalDay(value, now) {
+    var at = new Date(value);
+    if (!Number.isFinite(at.getTime())) return false;
+    return startOfLocalDay(at) === startOfLocalDay(now || new Date());
+  }
+
+  function notificationTimeLabel(value) {
+    var at = new Date(value);
+    if (!Number.isFinite(at.getTime())) return '—';
+    var now = new Date();
+    var diff = Math.max(0, now.getTime() - at.getTime());
+    var minutes = Math.floor(diff / 60000);
+    if (minutes < 60) return Math.max(1, minutes) + 'm ago';
+    var dayDiff = Math.round((startOfLocalDay(now) - startOfLocalDay(at)) / 86400000);
+    if (dayDiff === 0) return Math.floor(minutes / 60) + 'h ago';
+    if (dayDiff === 1) return 'Yesterday';
+    return formatDate(value, false);
+  }
+
+  function renderNotificationBadge(unread) {
+    state.notificationUnread = Number(unread) || 0;
+    var badge = $('#notifyBadge');
+    var btn = $('#notifyBtn');
+    if (!badge || !btn) return;
+    var count = state.notificationUnread;
+    badge.textContent = count > 99 ? '99+' : String(count);
+    badge.classList.toggle('is-hidden', count < 1);
+    btn.setAttribute('aria-label', count
+      ? ('Notifications, ' + count + ' unread')
+      : 'Notifications');
+  }
+
+  function renderNotificationItem(item) {
+    var unread = !item.readAt;
+    var visual = notificationIcon(item.eventType);
+    return '<div class="notify-item' + (unread ? ' is-unread' : '') + '" data-notify-id="' + escapeHtml(item.id) + '" data-notify-href="' + escapeHtml(safeNotificationHref(item.href)) + '" role="button" tabindex="0">' +
+      '<span class="notify-item__icon notify-item__icon--' + visual.tone + '" aria-hidden="true"><i class="ti ' + escapeHtml(visual.icon) + '"></i></span>' +
+      '<div class="notify-item__copy">' +
+      '<strong>' + escapeHtml(item.title) + '</strong>' +
+      '<span class="notify-item__body">' + escapeHtml(item.body) + '</span>' +
+      '<time datetime="' + escapeHtml(item.createdAt || '') + '">' + escapeHtml(notificationTimeLabel(item.createdAt)) + '</time>' +
+      '</div>' +
+      '<button type="button" class="notify-item__dismiss" data-notify-dismiss aria-label="Dismiss notification"><i class="ti ti-x" aria-hidden="true"></i></button>' +
+      '</div>';
+  }
+
+  function renderNotificationList() {
+    var list = $('#notifyList');
+    var markAll = $('#notifyMarkAll');
+    if (!list) return;
+    var items = state.notifications || [];
+    if (markAll) markAll.classList.toggle('is-hidden', state.notificationUnread < 1);
+    if (!items.length) {
+      list.innerHTML = '<div class="notify-empty"><i class="ti ti-bell-off" aria-hidden="true"></i><p>You\'re all caught up</p><small>New hiring updates will appear here.</small></div>';
+      return;
+    }
+    var today = [];
+    var earlier = [];
+    var now = new Date();
+    items.forEach(function (item) {
+      if (isSameLocalDay(item.createdAt, now)) today.push(item);
+      else earlier.push(item);
+    });
+    var html = '';
+    if (today.length) html += '<p class="notify-group">Today</p>' + today.map(renderNotificationItem).join('');
+    if (earlier.length) html += '<p class="notify-group">Earlier</p>' + earlier.map(renderNotificationItem).join('');
+    list.innerHTML = html;
+  }
+
+  async function refreshNotificationBadge() {
+    if (!state.currentUser) return;
+    try {
+      var payload = await api('/api/admin/notifications/unread-count');
+      renderNotificationBadge(payload.unread);
+    } catch (_) { /* poll stays quiet */ }
+  }
+
+  async function loadNotifications() {
+    if (!state.currentUser) return;
+    var payload = await api('/api/admin/notifications');
+    state.notifications = payload.notifications || [];
+    renderNotificationBadge(payload.unread);
+    renderNotificationList();
+  }
+
+  function closeNotifyMenu() {
+    var menu = $('#notifyMenu');
+    var btn = $('#notifyBtn');
+    var panel = $('#notifyPanel');
+    if (!menu || !btn || !panel) return;
+    menu.classList.remove('is-open');
+    btn.setAttribute('aria-expanded', 'false');
+    panel.hidden = true;
+  }
+
+  function openNotificationHref(href) {
+    var safe = safeNotificationHref(href);
+    if (!safe) return;
+    var hash = safe.slice(1);
+    var next = '#' + hash;
+    if ((window.location.hash || '') === next) {
+      restoreAdminRoute();
+      return;
+    }
+    window.location.hash = hash;
+  }
+
   function showLogin(options) {
     options = options || {};
+    stopNotificationPoll();
+    closeNotifyMenu();
+    state.notifications = [];
+    state.notificationUnread = 0;
+    renderNotificationBadge(0);
     $('#loginShell').classList.remove('is-hidden');
     $('#appShell').classList.add('is-hidden');
     var setupToken = options.setupToken || '';
@@ -375,6 +594,7 @@
   function showApp() {
     $('#loginShell').classList.add('is-hidden');
     $('#appShell').classList.remove('is-hidden');
+    startNotificationPoll();
   }
 
   async function loadContent() {
@@ -397,11 +617,12 @@
     var payload = await api('/api/admin/applications');
     state.applications = payload.applications || [];
     await loadStaffInterviewers();
-    if (state.currentView === 'interviewers') await loadManagedInterviewers();
+    await loadManagedInterviewers();
     renderApplications();
     renderHrPortal();
     renderDashboard();
     renderInterviewLogCounts();
+    renderHrCalendarCount();
     if (state.currentView === 'hrAnalytics') renderHrAnalytics();
     if (state.currentView === 'hrCalendar') renderHrCalendar();
     if (state.currentView === 'interviewLog') renderInterviewLog();
@@ -466,6 +687,7 @@
       if (!isInterviewer()) await loadContent();
       if (isHr()) await loadApplications();
       if (canUseQueue()) await loadInterviewerQueue();
+      if (canUseAvailability()) await loadInterviewerAvailability();
       if (canUseOnboarding()) await loadOnboarding();
       if (isAdmin()) {
         await loadContactRequests();
@@ -511,8 +733,11 @@
 
   function renderCounts() {
     Object.keys(collectionInfo).forEach(function (key) {
-      var count = (state.data.collections[key] || []).length;
-      $$('[data-count="' + key + '"]').forEach(function (node) { node.textContent = count; });
+      var items = state.data.collections[key] || [];
+      var count = key === 'jobs'
+        ? items.filter(function (item) { return item.status === 'published'; }).length
+        : items.length;
+      setSidebarCounts('[data-count="' + key + '"]', count);
     });
   }
 
@@ -533,6 +758,10 @@
   }
 
   function renderDashboard() {
+    if (isInterviewer()) {
+      renderInterviewerDashboard();
+      return;
+    }
     var hour = new Date().getHours();
     var greeting = hour < 12 ? 'Good morning' : (hour < 18 ? 'Good afternoon' : 'Good evening');
     var name = ((state.currentUser && (state.currentUser.name || state.currentUser.username)) || '').split(/\s+/)[0] || 'team';
@@ -774,6 +1003,22 @@
     if (node) node.textContent = value;
   }
 
+  function setSidebarCounts(selector, count) {
+    $$(selector).forEach(function (node) {
+      node.textContent = String(count);
+      node.classList.toggle('is-zero', Number(count) === 0);
+    });
+  }
+
+  function renderHrCalendarCount() {
+    if (!isHr()) return;
+    var week = workWeekBounds(new Date());
+    var count = collectScheduledInterviews().filter(function (event) {
+      return event.at >= week.start && event.at <= week.end;
+    }).length;
+    setSidebarCounts('[data-hr-calendar-count]', count);
+  }
+
   function readStoredAdminRoute() {
     var raw = String((window.location.hash || '').replace(/^#/, '')).trim();
     if (!raw) {
@@ -784,10 +1029,19 @@
     if (parts[0] === 'content' && parts[1]) {
       return { view: 'content', collection: decodeURIComponent(parts[1]) };
     }
+    /* stranded is a list filter, never a candidate id. */
+    if (parts[0] === 'hrPortal' && parts[1] === 'stranded') {
+      return { view: 'hrPortal', collection: null, filter: 'stranded' };
+    }
     if (parts[0] && Object.prototype.hasOwnProperty.call(collectionInfo, parts[0])) {
       return { view: 'content', collection: parts[0] };
     }
-    return { view: parts[0], collection: null };
+    var route = { view: parts[0], collection: null };
+    if (parts[1] && (parts[0] === 'hrPortal' || parts[0] === 'interviewerQueue' || parts[0] === 'onboarding' || parts[0] === 'contactRequests')) {
+      route.recordId = decodeRouteId(parts[1]);
+      if (parts[0] === 'interviewerQueue' && parts[2]) route.roundId = decodeRouteId(parts[2]);
+    }
+    return route;
   }
 
   /* Views each role may open. This is an allow-list on purpose: the previous
@@ -798,20 +1052,29 @@
   var ROUTE_ALLOW = {
     admin: ['dashboard', 'content', 'pages', 'users', 'tools', 'contactRequests'],
     hr: ['dashboard', 'content', 'applications', 'hrPortal', 'hrAnalytics',
-      'hrCalendar', 'interviewLog', 'interviewers', 'interviewerQueue', 'interviewerAvailability', 'onboarding'],
+      'hrCalendar', 'interviewLog', 'interviewers', 'interviewerQueue', 'interviewerCalendar', 'interviewerAvailability', 'onboarding'],
     marketing: ['dashboard', 'onboarding'],
-    interviewer: ['interviewerQueue', 'interviewerAvailability'],
+    interviewer: ['dashboard', 'interviewerQueue', 'interviewerCalendar', 'interviewerAvailability'],
   };
 
   /* ---- Interviewer work queue. Task review and interview feedback are live. */
 
+  var interviewerQueueLoad = null;
   async function loadInterviewerQueue() {
+    if (interviewerQueueLoad) return interviewerQueueLoad;
+    interviewerQueueLoad = (async function () {
+      try {
+        state.queue = await api('/api/admin/interviewer/queue');
+      } catch (error) {
+        state.queue = { error: error.message || 'Could not load your queue.' };
+      }
+      renderInterviewerQueue();
+    })();
     try {
-      state.queue = await api('/api/admin/interviewer/queue');
-    } catch (error) {
-      state.queue = { error: error.message || 'Could not load your queue.' };
+      await interviewerQueueLoad;
+    } finally {
+      interviewerQueueLoad = null;
     }
-    renderInterviewerQueue();
   }
 
   function queueWhen(value) {
@@ -824,11 +1087,112 @@
     });
   }
 
-  function queueTaskCard(item) {
+  function interviewerAssignedRounds(q) {
+    return [].concat(q.upcoming || [], q.awaitingFeedback || [], q.stale || [], q.recorded || []);
+  }
+
+  function interviewerCalendarWeekBounds(date) {
+    var start = new Date(date.getFullYear(), date.getMonth(), date.getDate() - date.getDay(), 0, 0, 0, 0);
+    return { start: start, end: new Date(start.getFullYear(), start.getMonth(), start.getDate() + 7) };
+  }
+
+  function interviewerRoundWhen(item) {
+    if (!item || !item.scheduledAt) return null;
+    var at = new Date(item.scheduledAt);
+    return isNaN(at.getTime()) ? null : at;
+  }
+
+  function interviewerSafeJoinHref(item) {
+    if (!item || item.format === 'onsite') return '';
+    var link = String(item.meetingLink || '').trim();
+    return /^https?:\/\//i.test(link) ? link : '';
+  }
+
+  function renderInterviewerDashboard() {
+    if (!isInterviewer()) return;
+    var hour = new Date().getHours();
+    var greeting = hour < 12 ? 'Good morning' : (hour < 18 ? 'Good afternoon' : 'Good evening');
+    var name = ((state.currentUser && (state.currentUser.name || state.currentUser.username)) || '').split(/\s+/)[0] || 'there';
+    var dashGreeting = $('#dashGreeting');
+    var dashWelcomeText = $('#dashWelcomeText');
+    var dashKicker = $('#dashKicker');
+    if (dashKicker) dashKicker.textContent = 'YOUR WEEK';
+    if (dashGreeting) dashGreeting.innerHTML = escapeHtml(greeting) + ', ' + escapeHtml(name);
+    if (dashWelcomeText) dashWelcomeText.textContent = 'What is coming up, and what still needs you.';
+
+    var q = state.queue || {};
+    var now = new Date();
+    var week = interviewerCalendarWeekBounds(now);
+    var weekCount = 0;
+    if (!q.error) {
+      interviewerAssignedRounds(q).forEach(function (item) {
+        if (item.feedback && item.feedback.result === 'cancelled') return;
+        var at = interviewerRoundWhen(item);
+        if (at && at >= week.start && at < week.end) weekCount += 1;
+      });
+    }
+    setText('#dashIvWeek', weekCount);
+    setText('#dashIvFeedback', q.error ? 0 : (q.awaitingFeedback || []).length + (q.stale || []).length);
+    setText('#dashIvTasks', q.error ? 0 : (q.tasks || []).length);
+
+    var next = null;
+    if (!q.error) {
+      (q.upcoming || []).some(function (item) {
+        if (item.feedback && item.feedback.result === 'cancelled') return false;
+        var at = interviewerRoundWhen(item);
+        if (!at || at < now) return false;
+        next = item;
+        return true;
+      });
+    }
+    var card = $('#dashNextInterview');
+    var empty = $('#dashNextInterviewEmpty');
+    if (!card || !empty) return;
+    if (!next) {
+      card.classList.add('is-hidden');
+      card.innerHTML = '';
+      empty.classList.remove('is-hidden');
+      return;
+    }
+    empty.classList.add('is-hidden');
+    card.classList.remove('is-hidden');
+    var joinHref = interviewerSafeJoinHref(next);
+    var join = next.format === 'onsite'
+      ? '<span class="queue-where"><i class="ti ti-map-pin"></i> Onsite</span>'
+      : (joinHref
+        ? '<a class="primary-btn" href="' + escapeHtml(joinHref) + '" target="_blank" rel="noopener"><i class="ti ti-video"></i><span>Join</span></a>'
+        : '<span class="queue-where"><i class="ti ti-video-off"></i> Link not set</span>');
+    card.innerHTML =
+      '<div class="dash-next__copy">' +
+        '<strong>' + escapeHtml(next.candidateName || 'Candidate') + '</strong>' +
+        '<small>' + queueWhen(next.scheduledAt) + '</small>' +
+        '<span class="queue-round">' + escapeHtml(next.label || 'Interview') + '</span>' +
+      '</div>' +
+      '<div class="dash-next__actions">' + join + '</div>';
+  }
+
+  function queueCardActions(item, options) {
+    options = options || {};
+    var when = options.when === false
+      ? ''
+      : '<div class="queue-when' + (item.scheduledAt ? '' : ' is-pending') + '"><span>When</span><strong>' + escapeHtml(queueWhen(item.scheduledAt)) + '</strong></div>';
+    var joinHref = interviewerSafeJoinHref(item);
+    var link = options.link === false
+      ? ''
+      : (item.format === 'onsite'
+        ? '<span class="queue-action is-disabled">Onsite</span>'
+        : (joinHref
+          ? '<a class="queue-action queue-action--link" href="' + escapeHtml(joinHref) + '" target="_blank" rel="noopener">Link</a>'
+          : '<span class="queue-action is-disabled">Link</span>'));
     var cv = item.applicationId
-      ? '<a class="queue-where" href="/api/admin/applications/' + encodeURIComponent(item.applicationId) + '/resume"><i class="ti ti-download"></i> CV</a>'
+      ? '<a class="queue-action" href="/api/admin/applications/' + encodeURIComponent(item.applicationId) + '/resume">CV</a>'
       : '';
-    return '<article class="queue-card queue-card--tasks">' +
+    if (!when && !link && !cv) return '';
+    return '<div class="queue-card__bar">' + when + '<div class="queue-card__actions">' + link + cv + '</div></div>';
+  }
+
+  function queueTaskCard(item) {
+    return '<article class="queue-card queue-card--tasks' + queueFocusClass(item) + '" data-application-id="' + escapeHtml(item.applicationId || '') + '">' +
       '<div class="queue-card__head">' +
         '<strong>' + escapeHtml(item.candidateName) + '</strong>' +
         '<span class="queue-round">Task</span>' +
@@ -836,7 +1200,7 @@
       '<p class="queue-role">' + escapeHtml(item.role) + '</p>' +
       (item.title ? '<p class="queue-task-title">' + escapeHtml(item.title) + '</p>' : '') +
       (item.notes ? '<p class="queue-meta">' + escapeHtml(item.notes) + '</p>' : '') +
-      (cv ? '<p class="queue-meta">' + cv + '</p>' : '') +
+      queueCardActions(item, { when: false, link: false }) +
       '<form class="queue-task-form" data-task-review="' + escapeHtml(item.applicationId) + '">' +
         '<label class="queue-field"><span>Decision</span>' +
           '<select name="decision" required>' +
@@ -855,13 +1219,28 @@
     return value === current ? ' selected' : '';
   }
 
+  function queueFeedbackSummary(item) {
+    var feedback = item.feedback || {};
+    var result = feedback.result || '';
+    var score = feedback.score == null ? '' : String(feedback.score);
+    var notes = String(feedback.notes || '').trim();
+    var label = result === 'pass' ? 'Pass' : (result === 'fail' ? 'Fail' : 'Recorded');
+    return '<div class="queue-feedback">' +
+      '<div class="queue-feedback__head">' +
+        '<span class="queue-feedback-chip' + (result ? ' is-' + escapeHtml(result) : '') + '">' + escapeHtml(label) + '</span>' +
+        (score !== '' ? '<div class="queue-stat"><span>Score</span><strong>' + escapeHtml(score) + '</strong></div>' : '') +
+      '</div>' +
+      (notes ? '<div class="queue-stat queue-stat--notes"><span>Feedback</span><p>' + escapeHtml(notes) + '</p></div>' : '') +
+      '</div>';
+  }
+
   function queueInterviewForm(item) {
     var feedback = item.feedback || {};
     var result = feedback.result || '';
     var score = feedback.score == null ? '' : String(feedback.score);
     var notes = feedback.notes || '';
     var recorded = item.bucket === 'recorded';
-    return '<form class="queue-task-form" data-round-feedback="' + escapeHtml(item.applicationId) + '" data-round-id="' + escapeHtml(item.roundId) + '">' +
+    var form = '<form class="queue-task-form" data-round-feedback="' + escapeHtml(item.applicationId) + '" data-round-id="' + escapeHtml(item.roundId) + '">' +
       '<label class="queue-field"><span>Result</span>' +
         '<select name="result" required>' +
           '<option value="">Choose…</option>' +
@@ -876,22 +1255,19 @@
         (recorded ? 'Update feedback' : 'Record feedback') +
       '</span></button>' +
       '</form>';
+    if (!recorded) return form;
+    return '<details class="queue-edit">' +
+      '<summary>' + queueFeedbackSummary(item) +
+        '<span class="queue-edit__cta"><span class="queue-edit__open">Update</span><span class="queue-edit__close">Close</span></span>' +
+      '</summary>' +
+      form +
+      '</details>';
   }
 
   function queueCard(item) {
     if (item.bucket === 'tasks') return queueTaskCard(item);
     var overdue = item.bucket === 'stale' && item.daysOverdue != null
       ? '<span class="queue-flag">' + item.daysOverdue + ' days ago</span>'
-      : '';
-    /* Onsite rounds carry no meeting link by design, so show the format instead
-       of an empty row. Upcoming stays read-only — the interview has not happened. */
-    var where = item.format === 'onsite'
-      ? '<span class="queue-where"><i class="ti ti-map-pin"></i> Onsite</span>'
-      : (item.meetingLink
-        ? '<a class="queue-where" href="' + escapeHtml(item.meetingLink) + '" target="_blank" rel="noopener"><i class="ti ti-video"></i> Join online</a>'
-        : '<span class="queue-where"><i class="ti ti-video-off"></i> Link not set</span>');
-    var cv = item.applicationId
-      ? '<a class="queue-where" href="/api/admin/applications/' + encodeURIComponent(item.applicationId) + '/resume"><i class="ti ti-download"></i> CV</a>'
       : '';
     var parked = item.feedback && (item.feedback.result === 'no_show' || item.feedback.result === 'cancelled');
     var parkedNote = item.feedback && item.feedback.result === 'no_show'
@@ -900,13 +1276,13 @@
     var form = item.bucket === 'upcoming' || parked
       ? parkedNote
       : queueInterviewForm(item);
-    return '<article class="queue-card queue-card--' + escapeHtml(item.bucket) + '">' +
+    return '<article class="queue-card queue-card--' + escapeHtml(item.bucket) + queueFocusClass(item) + '" data-application-id="' + escapeHtml(item.applicationId || '') + '" data-round-id="' + escapeHtml(item.roundId || '') + '">' +
       '<div class="queue-card__head">' +
         '<strong>' + escapeHtml(item.candidateName) + '</strong>' +
         '<span class="queue-round">' + escapeHtml(item.label) + '</span>' + overdue +
       '</div>' +
       '<p class="queue-role">' + escapeHtml(item.role) + '</p>' +
-      '<p class="queue-meta">' + escapeHtml(queueWhen(item.scheduledAt)) + ' · ' + where + (cv ? ' · ' + cv : '') + '</p>' +
+      queueCardActions(item, { link: item.bucket !== 'recorded' }) +
       form +
       '</article>';
   }
@@ -914,12 +1290,16 @@
   function renderInterviewerQueue() {
     var groupsNode = $('#queueGroups');
     var emptyNode = $('#queueEmpty');
-    if (!groupsNode || !emptyNode) return;
+    if (!groupsNode || !emptyNode) {
+      renderInterviewerDashboard();
+      return;
+    }
     var q = state.queue || {};
 
     if (q.error) {
       groupsNode.innerHTML = '<div class="queue-error">' + escapeHtml(q.error) + '</div>';
       emptyNode.classList.add('is-hidden');
+      renderInterviewerDashboard();
       return;
     }
 
@@ -932,11 +1312,12 @@
     ];
     var total = (q.counts && q.counts.total) || 0;
     var recordedCount = (q.recorded || []).length;
-    $$('[data-queue-count]').forEach(function (n) { n.textContent = total; });
+    setSidebarCounts('[data-queue-count]', total);
 
     if (!total && !recordedCount) {
       groupsNode.innerHTML = '';
       emptyNode.classList.remove('is-hidden');
+      renderInterviewerDashboard();
       return;
     }
     emptyNode.classList.add('is-hidden');
@@ -960,6 +1341,15 @@
           : total + ' items waiting on you.';
       }
     }
+    renderInterviewerDashboard();
+    scrollRouteTarget($('.queue-card.is-route-target'));
+  }
+
+  function queueFocusClass(item) {
+    if (!item || !state.queueFocusApplicationId) return '';
+    if (String(item.applicationId || '') !== String(state.queueFocusApplicationId)) return '';
+    if (state.queueFocusRoundId && String(item.roundId || '') !== String(state.queueFocusRoundId)) return '';
+    return ' is-route-target';
   }
 
   async function submitTaskReview(event) {
@@ -1024,6 +1414,7 @@
       state.availability = { error: error.message || 'Could not load your availability.' };
     }
     renderInterviewerAvailability();
+    updateAvailabilityBulkPreview();
   }
 
   function availabilityWhen(value) {
@@ -1042,6 +1433,38 @@
     return d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   }
 
+  function horizonLastLabel(horizon) {
+    if (!horizon || !horizon.lastAt) return '';
+    var d = new Date(horizon.lastAt);
+    if (isNaN(d.getTime())) return '';
+    try {
+      return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function renderHorizonBanner(selector, horizon, shortLine) {
+    var node = $(selector);
+    if (!node) return;
+    var show = Boolean(horizon && horizon.short);
+    var when = horizonLastLabel(horizon);
+    node.classList.toggle('is-hidden', !show);
+    if (!show) {
+      node.textContent = '';
+      return;
+    }
+    if (shortLine) {
+      node.textContent = when
+        ? 'Weekly hours only go through ' + when + '.'
+        : 'Weekly hours run out in under three weeks.';
+      return;
+    }
+    node.textContent = when
+      ? 'Your weekly hours only go through ' + when + '. Add more so candidates can keep booking.'
+      : 'Your weekly hours run out in under three weeks. Add more so candidates can keep booking.';
+  }
+
   function renderInterviewerAvailability() {
     var box = $('#availabilityGroups');
     var empty = $('#availabilityEmpty');
@@ -1049,7 +1472,9 @@
     var data = state.availability || {};
     var slots = data.slots || [];
     var openCount = slots.filter(function (slot) { return slot.status === 'open'; }).length;
-    setText('[data-availability-count]', String(openCount));
+    setSidebarCounts('[data-availability-count]', openCount);
+    renderHorizonBanner('#availabilityHorizon', data.horizon, false);
+    renderAvailabilitySkipped();
     if (err) {
       err.textContent = data.error || '';
       err.classList.toggle('is-hidden', !data.error);
@@ -1099,6 +1524,97 @@
     }).join('');
   }
 
+  function padAvailability(value) {
+    return String(value).padStart(2, '0');
+  }
+
+  function addAvailabilityDays(ymd, days) {
+    var parts = String(ymd || '').split('-').map(Number);
+    var next = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2] + Number(days)));
+    return next.getUTCFullYear() + '-' + padAvailability(next.getUTCMonth() + 1) + '-' + padAvailability(next.getUTCDate());
+  }
+
+  function availabilityBulkHours(startTime, endTime) {
+    var start = /^(\d{2}):(\d{2})$/.exec(String(startTime || '').trim());
+    var end = /^(\d{2}):(\d{2})$/.exec(String(endTime || '').trim());
+    if (!start || !end) return [];
+    var from = Number(start[1]) * 60 + Number(start[2]);
+    var to = Number(end[1]) * 60 + Number(end[2]);
+    var hours = [];
+    while (from + 60 <= to) {
+      hours.push(padAvailability(Math.floor(from / 60)) + ':' + padAvailability(from % 60));
+      from += 60;
+    }
+    return hours;
+  }
+
+  function readAvailabilityBulkForm(form) {
+    if (!form) return { days: [], startTime: '', endTime: '', weeks: 0 };
+    var days = [];
+    form.querySelectorAll('input[name="day"]:checked').forEach(function (box) {
+      days.push(Number(box.value));
+    });
+    var start = form.elements.namedItem('startTime');
+    var end = form.elements.namedItem('endTime');
+    var weeks = form.elements.namedItem('weeks');
+    return {
+      days: days,
+      startTime: start ? start.value : '',
+      endTime: end ? end.value : '',
+      weeks: Number(weeks && weeks.value),
+    };
+  }
+
+  function countAvailabilityBulkPreview(form) {
+    var spec = readAvailabilityBulkForm(form);
+    var hours = availabilityBulkHours(spec.startTime, spec.endTime);
+    if (!spec.days.length || !hours.length || !Number.isInteger(spec.weeks) || spec.weeks < 1 || spec.weeks > 8) {
+      return 0;
+    }
+    var now = new Date();
+    var today = now.getFullYear() + '-' + padAvailability(now.getMonth() + 1) + '-' + padAvailability(now.getDate());
+    var endYmd = addAvailabilityDays(today, spec.weeks * 7);
+    var horizon = now.getTime() + 56 * 24 * 60 * 60 * 1000;
+    var count = 0;
+    var ymd;
+    for (ymd = today; ymd < endYmd; ymd = addAvailabilityDays(ymd, 1)) {
+      var parts = ymd.split('-').map(Number);
+      var dow = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2])).getUTCDay();
+      if (spec.days.indexOf(dow) === -1) continue;
+      hours.forEach(function (time) {
+        var hm = time.split(':');
+        var at = new Date(parts[0], parts[1] - 1, parts[2], Number(hm[0]), Number(hm[1]), 0, 0);
+        if (at.getTime() > now.getTime() && at.getTime() < horizon) count += 1;
+      });
+    }
+    return count;
+  }
+
+  function updateAvailabilityBulkPreview() {
+    var form = $('#availabilityBulkForm');
+    var preview = $('#availabilityBulkPreview');
+    var button = $('#availabilityBulkSubmit');
+    if (!form || !preview) return;
+    var count = countAvailabilityBulkPreview(form);
+    preview.textContent = count === 0
+      ? 'Nothing to add — adjust the days, hours, or weeks.'
+      : (count === 1 ? 'This will add 1 hour.' : 'This will add ' + count + ' hours.');
+    if (button) button.disabled = count === 0;
+  }
+
+  function renderAvailabilitySkipped() {
+    var box = $('#availabilitySkipped');
+    var list = $('#availabilitySkippedList');
+    var count = $('#availabilitySkippedCount');
+    var skipped = state.availabilitySkipped || [];
+    if (!box || !list) return;
+    box.classList.toggle('is-hidden', !skipped.length);
+    if (count) count.textContent = skipped.length;
+    list.innerHTML = skipped.map(function (value) {
+      return '<li>' + escapeHtml(availabilityWhen(value)) + '</li>';
+    }).join('');
+  }
+
   async function submitAvailability(event) {
     event.preventDefault();
     var form = $('#availabilityForm');
@@ -1122,10 +1638,44 @@
         : 'Slot added.');
       form.reset();
       await loadInterviewerAvailability();
+      updateAvailabilityBulkPreview();
     } catch (error) {
       toast(error.message || 'Could not add the slot.', true);
     } finally {
       if (button) button.disabled = false;
+    }
+  }
+
+  async function submitAvailabilityBulk(event) {
+    event.preventDefault();
+    var form = $('#availabilityBulkForm');
+    if (!form) return;
+    var button = $('#availabilityBulkSubmit');
+    var spec = readAvailabilityBulkForm(form);
+    try {
+      if (button) button.disabled = true;
+      var result = await api('/api/admin/interviewer/availability/bulk', {
+        method: 'POST',
+        body: JSON.stringify({
+          days: spec.days,
+          startTime: spec.startTime,
+          endTime: spec.endTime,
+          weeks: spec.weeks,
+        }),
+      });
+      state.availabilitySkipped = result.skippedStarts || [];
+      var created = result.created || 0;
+      var skipped = result.skipped || 0;
+      if (skipped) {
+        toast('Added ' + created + ' hour' + (created === 1 ? '' : 's') + '. Skipped ' + skipped + ' that were already taken.');
+      } else {
+        toast(created === 1 ? 'Added 1 hour.' : 'Added ' + created + ' hours.');
+      }
+      await loadInterviewerAvailability();
+    } catch (error) {
+      toast(error.message || 'Could not add those hours.', true);
+    } finally {
+      updateAvailabilityBulkPreview();
     }
   }
 
@@ -1137,6 +1687,150 @@
       await loadInterviewerAvailability();
     } catch (error) {
       toast(error.message || 'Could not remove the slot.', true);
+    }
+  }
+
+  async function loadInterviewerCalendar() {
+    try {
+      state.ownCalendar = await api('/api/admin/interviewer/calendar');
+    } catch (error) {
+      state.ownCalendar = { error: error.message || 'Could not load your calendar.' };
+    }
+    renderInterviewerCalendar();
+  }
+
+  function ensureIvCalendarState() {
+    if (!(state.ivCalendarMonth instanceof Date) || Number.isNaN(state.ivCalendarMonth.getTime())) {
+      state.ivCalendarMonth = calendarMonthStart(new Date());
+    }
+    if (!state.ivCalendarSelectedDay) state.ivCalendarSelectedDay = calendarDayKey(new Date());
+  }
+
+  function collectOwnCalendarEvents() {
+    var data = state.ownCalendar || {};
+    var events = [];
+    (data.interviews || []).forEach(function (item) {
+      if (item.feedback && item.feedback.result === 'cancelled') return;
+      var at = interviewerRoundWhen(item);
+      if (!at) return;
+      events.push({
+        kind: 'interview',
+        at: at,
+        dayKey: calendarDayKey(at),
+        candidateName: item.candidateName || 'Candidate',
+        label: item.label || 'Interview',
+      });
+    });
+    (data.slots || []).forEach(function (slot) {
+      if (slot.status && slot.status !== 'open') return;
+      var at = slot.startsAt ? new Date(slot.startsAt) : null;
+      if (!at || isNaN(at.getTime())) return;
+      events.push({
+        kind: 'availability',
+        at: at,
+        dayKey: calendarDayKey(at),
+      });
+    });
+    return events.sort(function (a, b) { return a.at.getTime() - b.at.getTime(); });
+  }
+
+  function ivCalendarPreview(dayEvents) {
+    if (!dayEvents.length) return '';
+    return '<span class="calendar-previews">' +
+      dayEvents.slice(0, 2).map(function (event) {
+        if (event.kind === 'availability') {
+          return '<span class="calendar-preview is-open">' + escapeHtml(formatInterviewTime(event.at)) + '</span>';
+        }
+        return '<span class="calendar-preview is-booked"><b>' + escapeHtml(event.candidateName) + '</b> ' +
+          escapeHtml(event.label) + '</span>';
+      }).join('') +
+      (dayEvents.length > 2 ? '<span class="calendar-more">+' + (dayEvents.length - 2) + ' more</span>' : '') +
+      '</span>';
+  }
+
+  function ivCalendarAgendaItem(event) {
+    if (event.kind === 'availability') {
+      return '<div class="calendar-event is-open">' +
+        '<span class="calendar-event__time"><strong>' + escapeHtml(formatInterviewTime(event.at)) + '</strong></span>' +
+        '</div>';
+    }
+    return '<button class="calendar-event is-booked" type="button" data-view-link="interviewerQueue">' +
+      '<span class="calendar-event__time"><strong>' + escapeHtml(formatInterviewTime(event.at)) + '</strong></span>' +
+      '<span class="calendar-event__copy">' +
+        '<strong>' + escapeHtml(event.candidateName) + '</strong>' +
+        '<small>' + escapeHtml(event.label) + '</small>' +
+      '</span>' +
+      '</button>';
+  }
+
+  function renderInterviewerCalendar() {
+    ensureIvCalendarState();
+    var month = state.ivCalendarMonth;
+    var data = state.ownCalendar || {};
+    var events = data.error ? [] : collectOwnCalendarEvents();
+    var byDay = {};
+    events.forEach(function (event) {
+      if (!byDay[event.dayKey]) byDay[event.dayKey] = [];
+      byDay[event.dayKey].push(event);
+    });
+
+    var todayKey = calendarDayKey(new Date());
+    var monthKeyPrefix = month.getFullYear() + '-' + String(month.getMonth() + 1).padStart(2, '0');
+    var monthEvents = events.filter(function (event) { return event.dayKey.indexOf(monthKeyPrefix) === 0; });
+    var bookedMonth = monthEvents.filter(function (event) { return event.kind === 'interview'; }).length;
+    var openMonth = monthEvents.filter(function (event) { return event.kind === 'availability'; }).length;
+
+    var monthLabel = $('#ivCalMonthLabel');
+    var monthMeta = $('#ivCalMonthMeta');
+    if (monthLabel) {
+      try {
+        monthLabel.textContent = month.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+      } catch (_) {
+        monthLabel.textContent = (month.getMonth() + 1) + '/' + month.getFullYear();
+      }
+    }
+    if (monthMeta) {
+      monthMeta.textContent = monthEvents.length === 1 ? '1 item this month' : monthEvents.length + ' items this month';
+    }
+    setText('#ivCalStatBooked', bookedMonth);
+    setText('#ivCalStatOpen', openMonth);
+    renderHorizonBanner('#ivCalHorizon', data.horizon, true);
+
+    var grid = $('#ivCalGrid');
+    if (grid) {
+      grid.innerHTML = monthGridHtml(month, {
+        byDay: byDay,
+        selectedKey: state.ivCalendarSelectedDay,
+        todayKey: todayKey,
+        extrasFn: ivCalendarPreview,
+      });
+    }
+
+    var selectedKey = state.ivCalendarSelectedDay;
+    var selectedEvents = byDay[selectedKey] || [];
+    var agendaTitle = $('#ivCalAgendaTitle');
+    var agendaMeta = $('#ivCalAgendaMeta');
+    var agendaList = $('#ivCalAgendaList');
+    var agendaEmpty = $('#ivCalAgendaEmpty');
+    var selectedDate = parseDateValue(selectedKey + 'T12:00:00');
+    if (agendaTitle) {
+      try {
+        agendaTitle.textContent = selectedDate
+          ? selectedDate.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })
+          : 'Selected day';
+      } catch (_) {
+        agendaTitle.textContent = selectedKey || 'Selected day';
+      }
+    }
+    if (agendaMeta) {
+      agendaMeta.textContent = selectedEvents.length
+        ? selectedEvents.length === 1 ? '1 item' : selectedEvents.length + ' items'
+        : (data.error || 'Nothing on this day');
+    }
+    if (agendaEmpty) agendaEmpty.classList.toggle('is-hidden', selectedEvents.length > 0);
+    if (agendaList) {
+      agendaList.classList.toggle('is-hidden', selectedEvents.length === 0);
+      agendaList.innerHTML = selectedEvents.map(ivCalendarAgendaItem).join('');
     }
   }
 
@@ -1156,9 +1850,8 @@
     return true;
   }
 
-  /* Falls back to the role's own landing view, not always the dashboard — an
-     interviewer has no dashboard, so defaulting there would render an empty
-     shell they are not allowed to see. */
+  /* Falls back to the role's own landing view. Interviewers now land on
+     Overview; the queue stays a separate item for waiting work. */
   function defaultRouteFor(role) {
     var permitted = ROUTE_ALLOW[role] || [];
     if (permitted.indexOf('dashboard') > -1) return { view: 'dashboard', collection: null };
@@ -1170,8 +1863,19 @@
     return defaultRouteFor(state.currentUser && state.currentUser.role);
   }
 
+  function applyHrPortalFilter(route) {
+    state.hrFilter = route && route.view === 'hrPortal' && route.filter === 'stranded' ? 'stranded' : '';
+  }
+
+  function clearHrPortalFilter() {
+    state.hrFilter = '';
+    state.hrVacancyKey = '';
+    state.hrSelectedId = '';
+  }
+
   function applyRouteShell(route) {
     route = resolveAccessibleRoute(route || { view: 'dashboard', collection: null });
+    applyHrPortalFilter(route);
     var view = route.view || 'dashboard';
     var collection = route.collection || null;
     if (collection) {
@@ -1186,13 +1890,43 @@
       if (!collection && view === 'content') active = node.dataset.collection === state.currentCollection;
       node.classList.toggle('is-active', Boolean(active));
     });
-    writeAdminRoute(view, view === 'content' ? state.currentCollection : null);
+    writeAdminRoute(view, view === 'content' ? state.currentCollection : null, route);
   }
 
-  function writeAdminRoute(view, collection) {
-    var hash = 'dashboard';
-    if (view === 'content' && collection) hash = 'content/' + encodeURIComponent(collection);
-    else if (view && view !== 'dashboard') hash = String(view);
+  function routeHashFor(view, collection, route) {
+    route = route || state.pendingRoute || null;
+    if (view === 'content' && collection) return 'content/' + encodeURIComponent(collection);
+    if (view === 'hrPortal' && state.hrFilter === 'stranded') return 'hrPortal/stranded';
+    if (view === 'hrPortal') {
+      var hrId = state.hrSelectedId || (route && route.view === 'hrPortal' && route.recordId) || '';
+      return hrId ? 'hrPortal/' + encodeRouteId(hrId) : 'hrPortal';
+    }
+    if (view === 'interviewerQueue') {
+      var qApp = state.queueFocusApplicationId || (route && route.view === 'interviewerQueue' && route.recordId) || '';
+      var qRound = state.queueFocusRoundId || (route && route.view === 'interviewerQueue' && route.roundId) || '';
+      if (qApp && qRound) return 'interviewerQueue/' + encodeRouteId(qApp) + '/' + encodeRouteId(qRound);
+      if (qApp) return 'interviewerQueue/' + encodeRouteId(qApp);
+      return 'interviewerQueue';
+    }
+    if (view === 'onboarding') {
+      var onbApp = '';
+      if (state.onboardingSelectedId) {
+        var onb = (state.onboardingRequests || []).find(function (item) { return item.id === state.onboardingSelectedId; });
+        if (onb && onb.applicationId) onbApp = onb.applicationId;
+      }
+      if (!onbApp && route && route.view === 'onboarding') onbApp = route.recordId || '';
+      return onbApp ? 'onboarding/' + encodeRouteId(onbApp) : 'onboarding';
+    }
+    if (view === 'contactRequests') {
+      var contactId = state.contactSelectedId || (route && route.view === 'contactRequests' && route.recordId) || '';
+      return contactId ? 'contactRequests/' + encodeRouteId(contactId) : 'contactRequests';
+    }
+    if (view && view !== 'dashboard') return String(view);
+    return 'dashboard';
+  }
+
+  function writeAdminRoute(view, collection, route) {
+    var hash = routeHashFor(view, collection, route);
     try { sessionStorage.setItem('dh-admin-route', hash); } catch (_) {}
     var next = '#' + hash;
     if ((window.location.hash || '') === next) return;
@@ -1210,12 +1944,182 @@
 
   function restoreAdminRoute() {
     var route = resolveAccessibleRoute(readStoredAdminRoute());
+    applyHrPortalFilter(route);
+    state.pendingRoute = route;
+    if (route.view === 'hrPortal' && route.recordId) {
+      var known = (state.applications || []).find(function (entry) { return entry.id === route.recordId; });
+      if (known && isInHiringProcess(known)) {
+        state.hrFilter = '';
+        state.hrSelectedId = known.id;
+        state.hrVacancyKey = vacancyKeyForItem(known);
+      }
+    }
     state._restoringRoute = true;
     try {
       switchView(route.view, route.collection || undefined);
     } finally {
       state._restoringRoute = false;
     }
+    applyPendingRouteRecord();
+  }
+
+  function applyPendingRouteRecord() {
+    var route = state.pendingRoute;
+    if (!route || !route.recordId) return;
+    if (state.currentView !== route.view) {
+      state.pendingRoute = null;
+      return;
+    }
+    if (route.view === 'hrPortal') {
+      var appsReady = isHr() ? loadApplications() : Promise.resolve();
+      appsReady.then(function () {
+        if (state.currentView !== 'hrPortal') {
+          if (state.pendingRoute === route) state.pendingRoute = null;
+          return;
+        }
+        applyHrPortalRecord(route.recordId);
+      }).catch(function () {
+        if (state.pendingRoute === route) state.pendingRoute = null;
+        if (state.currentView === 'hrPortal') applyHrPortalRecord(route.recordId);
+      });
+      return;
+    }
+    if (route.view === 'interviewerQueue') {
+      loadInterviewerQueue().then(function () {
+        if (state.currentView !== 'interviewerQueue') {
+          if (state.pendingRoute === route) state.pendingRoute = null;
+          return;
+        }
+        applyQueueRecord(route.recordId, route.roundId || '');
+      }).catch(function () {
+        if (state.pendingRoute === route) state.pendingRoute = null;
+        if (state.currentView === 'interviewerQueue') applyQueueRecord(route.recordId, route.roundId || '');
+      });
+      return;
+    }
+    if (route.view === 'onboarding') {
+      var onbReady = canUseOnboarding() ? loadOnboarding() : Promise.resolve();
+      onbReady.then(function () {
+        if (state.currentView !== 'onboarding') {
+          if (state.pendingRoute === route) state.pendingRoute = null;
+          return;
+        }
+        applyOnboardingRecord(route.recordId);
+      }).catch(function () {
+        if (state.pendingRoute === route) state.pendingRoute = null;
+        if (state.currentView === 'onboarding') applyOnboardingRecord(route.recordId);
+      });
+      return;
+    }
+    if (route.view === 'contactRequests') {
+      var contactReady = isAdmin() ? loadContactRequests() : Promise.resolve();
+      contactReady.then(function () {
+        if (state.currentView !== 'contactRequests') {
+          if (state.pendingRoute === route) state.pendingRoute = null;
+          return;
+        }
+        applyContactRecord(route.recordId);
+      }).catch(function () {
+        if (state.pendingRoute === route) state.pendingRoute = null;
+        if (state.currentView === 'contactRequests') applyContactRecord(route.recordId);
+      });
+    }
+  }
+
+  function applyHrPortalRecord(applicationId) {
+    state.pendingRoute = null;
+    var item = (state.applications || []).find(function (entry) { return entry.id === applicationId; });
+    if (!item || !isInHiringProcess(item)) {
+      state.hrSelectedId = '';
+      state.hrVacancyKey = '';
+      renderHrPortal();
+      writeAdminRoute('hrPortal');
+      toast(item ? 'This candidate is no longer in Active Hiring.' : 'This candidate is no longer available.', true);
+      return;
+    }
+    state.hrFilter = '';
+    state.hrSelectedId = item.id;
+    state.hrVacancyKey = vacancyKeyForItem(item);
+    renderHrPortal();
+    writeAdminRoute('hrPortal');
+    scrollRouteTarget($('[data-hr-row-id="' + item.id + '"]'));
+  }
+
+  function findQueueItem(applicationId, roundId) {
+    var q = state.queue || {};
+    if (q.error) return null;
+    var buckets = ['tasks', 'awaitingFeedback', 'upcoming', 'stale', 'recorded'];
+    var i;
+    var j;
+    var list;
+    var entry;
+    for (i = 0; i < buckets.length; i++) {
+      list = q[buckets[i]] || [];
+      for (j = 0; j < list.length; j++) {
+        entry = list[j];
+        if (String(entry.applicationId || '') !== String(applicationId)) continue;
+        if (roundId && String(entry.roundId || '') !== String(roundId)) continue;
+        return entry;
+      }
+    }
+    return null;
+  }
+
+  function applyQueueRecord(applicationId, roundId) {
+    state.pendingRoute = null;
+    var item = findQueueItem(applicationId, roundId);
+    if (!item) {
+      state.queueFocusApplicationId = '';
+      state.queueFocusRoundId = '';
+      renderInterviewerQueue();
+      writeAdminRoute('interviewerQueue');
+      toast(roundId ? 'This interview is no longer in your queue.' : 'This item is no longer in your queue.', true);
+      return;
+    }
+    state.queueFocusApplicationId = applicationId;
+    state.queueFocusRoundId = item.roundId || roundId || '';
+    renderInterviewerQueue();
+    writeAdminRoute('interviewerQueue');
+    scrollRouteTarget($('.queue-card.is-route-target'));
+  }
+
+  function applyOnboardingRecord(applicationId) {
+    state.pendingRoute = null;
+    var list = state.onboardingRequests || [];
+    var item = list.find(function (entry) {
+      return entry.applicationId === applicationId && entry.status !== 'completed';
+    }) || list.find(function (entry) {
+      return entry.applicationId === applicationId;
+    });
+    if (!item) {
+      state.onboardingSelectedId = '';
+      state.suppressOnboardingAutoselect = true;
+      renderOnboarding();
+      writeAdminRoute('onboarding');
+      toast('This onboarding record is no longer available.', true);
+      return;
+    }
+    state.suppressOnboardingAutoselect = false;
+    state.onboardingSelectedId = item.id;
+    renderOnboarding();
+    writeAdminRoute('onboarding');
+    scrollRouteTarget($('[data-onboarding-id="' + item.id + '"]'));
+  }
+
+  function applyContactRecord(contactId) {
+    state.pendingRoute = null;
+    var item = (state.contactRequests || []).find(function (entry) { return entry.id === contactId; });
+    if (!item) {
+      state.contactSelectedId = '';
+      renderContactRequests();
+      writeAdminRoute('contactRequests');
+      toast('This contact request is no longer available.', true);
+      return;
+    }
+    state.contactSelectedId = item.id;
+    renderContactRequests();
+    writeAdminRoute('contactRequests');
+    scrollRouteTarget($('[data-contact-id="' + item.id + '"]'));
   }
 
   function switchView(view, collection) {
@@ -1228,6 +2132,9 @@
     }
     if (isMarketing() && view !== 'dashboard' && view !== 'onboarding') {
       return deny('Marketing accounts can only access Employee Onboarding.');
+    }
+    if (isInterviewer() && view !== 'dashboard' && view !== 'interviewerQueue' && view !== 'interviewerCalendar' && view !== 'interviewerAvailability') {
+      return deny('Your interviewer account can only access Overview, your interviews, your calendar, and availability.');
     }
     if (isAdmin() && (view === 'applications' || view === 'hrPortal' || view === 'hrAnalytics' || view === 'hrCalendar' || view === 'interviewLog' || view === 'interviewers' || view === 'onboarding' || collection === 'jobs')) {
       return deny('Hiring and onboarding tools are available to HR and Marketing accounts only.');
@@ -1257,7 +2164,12 @@
     if (view === 'hrCalendar') renderHrCalendar();
     if (view === 'interviewLog') renderInterviewLog();
     if (view === 'interviewers') loadManagedInterviewers();
+    if (view === 'dashboard') {
+      if (isInterviewer()) loadInterviewerQueue();
+      else renderDashboard();
+    }
     if (view === 'interviewerQueue') loadInterviewerQueue();
+    if (view === 'interviewerCalendar') loadInterviewerCalendar();
     if (view === 'interviewerAvailability') loadInterviewerAvailability();
     if (view === 'onboarding') renderOnboarding();
     if (view === 'contactRequests') renderContactRequests();
@@ -2330,7 +3242,7 @@
     renderVacancyCards(list);
     var newCount = list.filter(function (item) { return item.status === 'new'; }).length;
     var progressCount = list.filter(function (item) { return item.status === 'reviewing' || item.status === 'contacted'; }).length;
-    $$('[data-application-count]').forEach(function (node) { node.textContent = newCount; node.classList.toggle('is-zero', newCount === 0); });
+    setSidebarCounts('[data-application-count]', newCount);
     $('#applicationsTotal').textContent = list.length;
     $('#applicationsNew').textContent = newCount;
     $('#applicationsProgress').textContent = progressCount;
@@ -2480,6 +3392,7 @@
       interview: 'Interviews',
       offer: 'Offer',
       closed: 'Closed',
+      other: 'Other',
       new: 'New'
     })[stage] || stage || 'Phone screen';
   }
@@ -2576,6 +3489,7 @@
     }
 
     function enterPipeline(target) {
+      if (!options.keepFilter) state.hrFilter = '';
       state.hrSelectedId = target.id;
       state.hrVacancyKey = vacancyKeyForItem(target);
       switchView('hrPortal');
@@ -3684,10 +4598,19 @@
   }
 
 
+  var PIPELINE_LIST_STAGES = {
+    phone_screen: true,
+    task: true,
+    interview: true,
+    offer: true,
+    closed: true
+  };
+
   function pipelineStageKey(item) {
     var pipe = pipelineOf(item);
     if (isPipelineClosed(item)) return 'closed';
-    return pipe.stage || 'phone_screen';
+    var stage = pipe.stage || 'phone_screen';
+    return PIPELINE_LIST_STAGES[stage] ? stage : 'other';
   }
 
   function parseDateValue(value) {
@@ -4088,6 +5011,38 @@
     return new Date(date.getFullYear(), date.getMonth(), 1);
   }
 
+  /* Shared month grid used by the HR interview calendar and the interviewer
+     "My calendar". Monday-first, same cell chrome; callers supply the chips. */
+  function monthGridHtml(month, options) {
+    var byDay = (options && options.byDay) || {};
+    var selectedKey = (options && options.selectedKey) || '';
+    var todayKey = (options && options.todayKey) || calendarDayKey(new Date());
+    var extrasFn = (options && options.extrasFn) || function () { return ''; };
+    var firstDay = new Date(month.getFullYear(), month.getMonth(), 1);
+    var startOffset = (firstDay.getDay() + 6) % 7;
+    var daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+    var cells = [];
+    var i;
+    for (i = 0; i < startOffset; i += 1) cells.push('<div class="calendar-cell is-empty" aria-hidden="true"></div>');
+    for (i = 1; i <= daysInMonth; i += 1) {
+      var dayDate = new Date(month.getFullYear(), month.getMonth(), i);
+      var key = calendarDayKey(dayDate);
+      var dayEvents = byDay[key] || [];
+      var classes = ['calendar-cell'];
+      if (key === todayKey) classes.push('is-today');
+      if (key === selectedKey) classes.push('is-selected');
+      if (dayEvents.length) classes.push('has-events');
+      cells.push(
+        '<button class="' + classes.join(' ') + '" type="button" data-calendar-day="' + escapeHtml(key) + '" aria-pressed="' + (key === selectedKey) + '">' +
+        '<span class="calendar-cell__day">' + i + '</span>' +
+        (dayEvents.length ? '<span class="calendar-cell__count">' + dayEvents.length + '</span>' : '') +
+        extrasFn(dayEvents) +
+        '</button>'
+      );
+    }
+    return cells.join('');
+  }
+
   function ensureCalendarState() {
     if (!(state.calendarMonth instanceof Date) || Number.isNaN(state.calendarMonth.getTime())) {
       state.calendarMonth = calendarMonthStart(new Date());
@@ -4133,6 +5088,7 @@
   }
 
   function renderHrCalendar() {
+    renderHrCalendarCount();
     ensureCalendarState();
     var month = state.calendarMonth;
     var events = collectScheduledInterviews();
@@ -4166,53 +5122,34 @@
 
     var grid = $('#calendarGrid');
     if (grid) {
-      var firstDay = new Date(month.getFullYear(), month.getMonth(), 1);
-      var startOffset = (firstDay.getDay() + 6) % 7;
-      var daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
-      var cells = [];
-      var i;
-      for (i = 0; i < startOffset; i += 1) cells.push('<div class="calendar-cell is-empty" aria-hidden="true"></div>');
-      for (i = 1; i <= daysInMonth; i += 1) {
-        var dayDate = new Date(month.getFullYear(), month.getMonth(), i);
-        var key = calendarDayKey(dayDate);
-        var dayEvents = byDay[key] || [];
-        var classes = ['calendar-cell'];
-        if (key === todayKey) classes.push('is-today');
-        if (key === state.calendarSelectedDay) classes.push('is-selected');
-        if (dayEvents.length) classes.push('has-events');
-        var dots = '';
-        if (dayEvents.length) {
+      grid.innerHTML = monthGridHtml(month, {
+        byDay: byDay,
+        selectedKey: state.calendarSelectedDay,
+        todayKey: todayKey,
+        extrasFn: function (dayEvents) {
+          if (!dayEvents.length) return '';
           var toneCounts = { pending: 0, pass: 0, fail: 0 };
           dayEvents.forEach(function (event) {
             var tone = event.result === 'pass' || event.result === 'fail' ? event.result : 'pending';
             toneCounts[tone] += 1;
           });
-          dots = '<span class="calendar-dots" aria-hidden="true">' +
+          var dots = '<span class="calendar-dots" aria-hidden="true">' +
             ['pending', 'pass', 'fail'].map(function (tone) {
               if (!toneCounts[tone]) return '';
               return '<i class="is-' + tone + '"></i>';
             }).join('') +
             '</span>';
-        }
-        cells.push(
-          '<button class="' + classes.join(' ') + '" type="button" data-calendar-day="' + escapeHtml(key) + '" aria-pressed="' + (key === state.calendarSelectedDay) + '">' +
-          '<span class="calendar-cell__day">' + i + '</span>' +
-          (dayEvents.length ? '<span class="calendar-cell__count">' + dayEvents.length + '</span>' : '') +
-          dots +
-          (dayEvents.length
-            ? '<span class="calendar-previews">' + dayEvents.slice(0, 2).map(function (event) {
-                return '<span class="calendar-preview is-' + escapeHtml(event.result || 'pending') + '">' +
-                  '<b>' + escapeHtml(formatInterviewTime(event.at)) + '</b> ' +
-                  escapeHtml(event.candidate) +
-                  '</span>';
-              }).join('') +
-              (dayEvents.length > 2 ? '<span class="calendar-more">+' + (dayEvents.length - 2) + ' more</span>' : '') +
-              '</span>'
-            : '') +
-          '</button>'
-        );
-      }
-      grid.innerHTML = cells.join('');
+          return dots +
+            '<span class="calendar-previews">' + dayEvents.slice(0, 2).map(function (event) {
+              return '<span class="calendar-preview is-' + escapeHtml(event.result || 'pending') + '">' +
+                '<b>' + escapeHtml(formatInterviewTime(event.at)) + '</b> ' +
+                escapeHtml(event.candidate) +
+                '</span>';
+            }).join('') +
+            (dayEvents.length > 2 ? '<span class="calendar-more">+' + (dayEvents.length - 2) + ' more</span>' : '') +
+            '</span>';
+        },
+      });
     }
 
     var selectedKey = state.calendarSelectedDay;
@@ -4517,7 +5454,7 @@
 
   function renderInterviewLogCounts() {
     var count = collectInterviewLogProfiles().length;
-    $$('[data-interview-log-count]').forEach(function (node) { node.textContent = count; });
+    setSidebarCounts('[data-interview-log-count]', count);
   }
 
   function interviewScoreBadge(score) {
@@ -4713,6 +5650,9 @@
   }
 
   function hrWorkSignal(item) {
+    if (isStrandedAssignment(item)) {
+      return { lane: 'you', label: 'Needs a new interviewer' };
+    }
     var pipe = pipelineOf(item);
     var stage = pipelineStageKey(item);
     if (stage === 'phone_screen') {
@@ -4820,26 +5760,65 @@
     });
   }
 
+  function vacancyStageCounts(items) {
+    var counts = { phone_screen: 0, task: 0, interview: 0, offer: 0 };
+    (items || []).forEach(function (item) {
+      var key = pipelineStageKey(item);
+      if (counts[key] != null) counts[key] += 1;
+    });
+    return counts;
+  }
+
   function vacancyCardHtml(group) {
-    var stats = [];
-    if (group.needYou) {
-      stats.push('<span class="is-you"><b>' + group.needYou + '</b> need you</span>');
-    }
-    stats.push('<span><b>' + group.items.length + '</b> in pipeline</span>');
-    if (group.offerCount) {
-      stats.push('<span><b>' + group.offerCount + '</b> at offer</span>');
-    }
-    if (group.openLabel) {
-      stats.push('<span>' + escapeHtml(group.openLabel) + '</span>');
-    }
-    return '<button class="hr-vacancy-card' +
+    var unlisted = group.key === HR_UNLISTED_VACANCY;
+    var stages = vacancyStageCounts(group.items);
+    var stageBits = [
+      ['phone_screen', 'Phone'],
+      ['task', 'Tasks'],
+      ['interview', 'Interviews'],
+      ['offer', 'Offer']
+    ].map(function (entry) {
+      var count = stages[entry[0]] || 0;
+      return '<span class="hr-role__stage' + (count ? ' is-on' : '') + '"><b>' + count + '</b>' + escapeHtml(entry[1]) + '</span>';
+    }).join('');
+    var meta = [group.meta, group.openLabel].filter(Boolean).join(' · ');
+    return '<button class="hr-role' +
       (group.needYou ? ' is-needs-you' : '') +
-      (group.key === HR_UNLISTED_VACANCY ? ' is-unlisted' : '') +
+      (unlisted ? ' is-unlisted' : '') +
       '" type="button" data-hr-vacancy="' + escapeHtml(group.key) + '">' +
+      '<span class="hr-role__main">' +
       '<strong>' + escapeHtml(group.title) + '</strong>' +
-      (group.meta ? '<small>' + escapeHtml(group.meta) + '</small>' : '') +
-      '<div class="hr-vacancy-card__stats">' + stats.join('') + '</div>' +
+      (meta ? '<small>' + escapeHtml(meta) + '</small>' : '') +
+      '<span class="hr-role__rail">' + stageBits + '</span>' +
+      '</span>' +
+      '<span class="hr-role__nums">' +
+      '<span' + (group.needYou ? ' class="is-you"' : '') + '><b>' + group.needYou + '</b><small>need you</small></span>' +
+      '<span><b>' + group.items.length + '</b><small>pipeline</small></span>' +
+      '<span><b>' + group.offerCount + '</b><small>offer</small></span>' +
+      '</span>' +
+      '<i class="ti ti-chevron-right hr-role__go" aria-hidden="true"></i>' +
       '</button>';
+  }
+
+  function hrVacancyGroupHtml(title, groups) {
+    if (!groups.length) return '';
+    var count = groups.length + (groups.length === 1 ? ' role' : ' roles');
+    return '<section class="hr-role-stack">' +
+      '<header class="hr-role-stack__head"><h2>' + escapeHtml(title) + '</h2><span>' + count + '</span></header>' +
+      '<div class="hr-role-list">' + groups.map(vacancyCardHtml).join('') + '</div>' +
+      '</section>';
+  }
+
+  function renderHrVacancyOverview(groups) {
+    var wrap = $('#hrVacancyGroups');
+    if (!wrap) return;
+    var needs = groups.filter(function (group) { return group.needYou; });
+    var open = groups.filter(function (group) { return !group.needYou && group.key !== HR_UNLISTED_VACANCY; });
+    var unlisted = groups.filter(function (group) { return !group.needYou && group.key === HR_UNLISTED_VACANCY; });
+    wrap.innerHTML =
+      hrVacancyGroupHtml('Needs you', needs) +
+      hrVacancyGroupHtml('Moving', open) +
+      hrVacancyGroupHtml('Unlisted', unlisted);
   }
 
   function hrCandidateRowHtml(item) {
@@ -4859,44 +5838,95 @@
       '</span></button>';
   }
 
+  function activeStaffInterviewerIds() {
+    var ids = {};
+    (state.staffInterviewers || []).forEach(function (person) {
+      if (person && person.id) ids[String(person.id)] = true;
+    });
+    return ids;
+  }
+
+  function isStrandedAssignment(item) {
+    if (!isInHiringProcess(item)) return false;
+    var active = activeStaffInterviewerIds();
+    var pipe = pipelineOf(item);
+    var rounds = Array.isArray(pipe.interviews) ? pipe.interviews : [];
+    var roundHit = rounds.some(function (entry) {
+      var id = String((entry && entry.interviewerUserId) || '').trim();
+      return id && !active[id] && (!entry.result || entry.result === 'pending');
+    });
+    var task = pipe.task && typeof pipe.task === 'object' ? pipe.task : {};
+    var taskId = String(task.assignedToUserId || '').trim();
+    var taskHit = taskId && !active[taskId] && (task.decision || 'pending') === 'pending';
+    return roundHit || taskHit;
+  }
+
   function renderHrPortal() {
     var list = (state.applications || []).filter(isInHiringProcess);
-    $$('[data-hr-pipeline-count]').forEach(function (node) {
-      node.textContent = list.length;
-      node.classList.toggle('is-zero', list.length === 0);
-    });
+    setSidebarCounts('[data-hr-pipeline-count]', list.length);
+    renderHrCalendarCount();
 
+    var strandedMode = state.hrFilter === 'stranded';
+    var strandedItems = strandedMode ? list.filter(isStrandedAssignment) : [];
     var groups = groupHiringByVacancy(list);
-    if (state.hrVacancyKey && !groups.some(function (group) { return group.key === state.hrVacancyKey; })) {
+    if (!strandedMode && state.hrVacancyKey && !groups.some(function (group) { return group.key === state.hrVacancyKey; })) {
       state.hrVacancyKey = '';
       state.hrSelectedId = '';
     }
-    var vacancy = groups.filter(function (group) { return group.key === state.hrVacancyKey; })[0] || null;
-    var grid = $('#hrVacancyGrid');
+    var vacancy = strandedMode ? null : (groups.filter(function (group) { return group.key === state.hrVacancyKey; })[0] || null);
+    var workspaceItems = strandedMode ? strandedItems : (vacancy ? vacancy.items : []);
+    var overview = $('#hrVacancyOverview');
     var workspace = $('#hrPortalLayout');
     var empty = $('#hrPickPrompt');
     var back = $('#hrVacancyBack');
     var title = $('#hrPortalTitle');
     var lead = $('#hrPortalLead');
+    var kicker = $('#hrPortalKicker');
     var listTitle = $('#hrListTitle');
     var listMeta = $('#hrListMeta');
     var candidateList = $('#hrPipelineList');
-    var showEmpty = list.length === 0;
-    var showGrid = !showEmpty && !vacancy;
-    var showWorkspace = Boolean(vacancy);
+    var showEmpty = strandedMode ? strandedItems.length === 0 : list.length === 0;
+    var showGrid = !strandedMode && !showEmpty && !vacancy;
+    var showWorkspace = strandedMode ? !showEmpty : Boolean(vacancy);
 
-    if (empty) empty.classList.toggle('is-hidden', !showEmpty);
-    if (grid) {
-      grid.classList.toggle('is-hidden', !showGrid);
-      grid.innerHTML = showGrid ? groups.map(vacancyCardHtml).join('') : '';
+    if (empty) {
+      empty.classList.toggle('is-hidden', !showEmpty);
+      var emptyTitle = $('#hrPickPrompt h2');
+      var emptyLead = $('#hrPickPrompt p');
+      if (emptyTitle) emptyTitle.textContent = strandedMode ? 'No stranded assignments' : 'No active hiring';
+      if (emptyLead) {
+        emptyLead.textContent = strandedMode
+          ? 'Every open pipeline has an active interviewer.'
+          : 'Start a candidate from Applications on an open vacancy. Joined and rejected candidates appear in Analytics & History.';
+      }
     }
+    if (overview) {
+      overview.classList.toggle('is-hidden', !showGrid);
+      if (showGrid) renderHrVacancyOverview(groups);
+      else {
+        var groupsWrap = $('#hrVacancyGroups');
+        if (groupsWrap) groupsWrap.innerHTML = '';
+      }
+    }
+    if (kicker) kicker.textContent = strandedMode ? 'Attention' : (vacancy ? 'Pipeline' : 'Hiring');
     if (workspace) workspace.classList.toggle('is-hidden', !showWorkspace);
-    if (back) back.classList.toggle('is-hidden', !showWorkspace);
-    if (title) title.textContent = vacancy ? vacancy.title : 'Active Hiring Process';
+    if (back) {
+      back.classList.toggle('is-hidden', !(strandedMode || showWorkspace));
+      back.innerHTML = strandedMode
+        ? '<i class="ti ti-arrow-left"></i> Show all'
+        : '<i class="ti ti-arrow-left"></i> All vacancies';
+    }
+    if (title) {
+      title.textContent = strandedMode
+        ? 'Needs a new interviewer'
+        : (vacancy ? vacancy.title : 'Active Hiring Process');
+    }
     if (lead) {
-      lead.textContent = vacancy
-        ? (vacancy.meta || (vacancy.items.length + ' in pipeline'))
-        : 'Active candidates until joined or rejected. Ending a vacancy keeps ongoing pipelines running; new starts need an open role.';
+      lead.textContent = strandedMode
+        ? 'Open pipelines assigned to a deleted or deactivated interviewer.'
+        : (vacancy
+          ? (vacancy.meta || (vacancy.items.length + ' in pipeline'))
+          : 'Active candidates until joined or rejected. Ending a vacancy keeps ongoing pipelines running; new starts need an open role.');
     }
 
     if (!showWorkspace) {
@@ -4906,23 +5936,27 @@
     }
 
     var query = state.hrQuery.trim().toLowerCase();
-    var candidates = vacancy.items.filter(function (item) {
+    var candidates = workspaceItems.filter(function (item) {
       return !query || [item.fullName, item.email, item.phone].join(' ').toLowerCase().indexOf(query) > -1;
     });
     var selected = candidates.find(function (item) { return item.id === state.hrSelectedId; }) || null;
     if (state.hrSelectedId && !selected) state.hrSelectedId = '';
 
-    if (listTitle) listTitle.textContent = vacancy.title;
+    if (listTitle) listTitle.textContent = strandedMode ? 'Needs a new interviewer' : vacancy.title;
     if (listMeta) {
+      var needYou = strandedMode
+        ? candidates.filter(function (item) { return hrWorkSignal(item).lane === 'you'; }).length
+        : (vacancy.needYou || 0);
       listMeta.textContent = candidates.length + ' candidate' + (candidates.length === 1 ? '' : 's') +
-        (vacancy.needYou ? ' · ' + vacancy.needYou + ' need you' : '');
+        (needYou ? ' · ' + needYou + ' need you' : '');
     }
 
     var stageOrder = [
       { key: 'phone_screen', label: 'Phone' },
       { key: 'task', label: 'Task' },
       { key: 'interview', label: 'Interview' },
-      { key: 'offer', label: 'Offer' }
+      { key: 'offer', label: 'Offer' },
+      { key: 'other', label: 'Other' }
     ];
     if (candidateList) {
       candidateList.innerHTML = candidates.length
@@ -5088,7 +6122,7 @@
     var list = state.contactRequests || [];
     var newCount = list.filter(function (item) { return item.status === 'new'; }).length;
     var progressCount = list.filter(function (item) { return item.status === 'reviewing' || item.status === 'contacted'; }).length;
-    $$('[data-contact-count]').forEach(function (node) { node.textContent = newCount; node.classList.toggle('is-zero', newCount === 0); });
+    setSidebarCounts('[data-contact-count]', newCount);
     $('#contactTotal').textContent = list.length;
     $('#contactNew').textContent = newCount;
     $('#contactProgress').textContent = progressCount;
@@ -5106,7 +6140,7 @@
       var status = item.status || 'new';
       var statusOptions = [['new', 'New'], ['reviewing', 'Reviewing'], ['contacted', 'Contacted'], ['closed', 'Closed']];
       var select = statusOptions.map(function (option) { return '<option value="' + option[0] + '"' + (option[0] === status ? ' selected' : '') + '>' + option[1] + '</option>'; }).join('');
-      return '<article class="panel application-card contact-request-card" data-contact-id="' + escapeHtml(item.id) + '">' +
+      return '<article class="panel application-card contact-request-card' + (item.id === state.contactSelectedId ? ' is-route-target' : '') + '" data-contact-id="' + escapeHtml(item.id) + '">' +
         '<header><span class="application-avatar">' + escapeHtml(applicationInitials(item.name)) + '</span><div><span class="application-role">' + escapeHtml(item.situationLabel || item.situation) + '</span><h2>' + escapeHtml(item.name) + '</h2><p>Reference ' + escapeHtml(item.reference || '') + ' · Submitted ' + escapeHtml(formatDate(item.submittedAt, true)) + '</p></div><label class="application-status application-status--' + escapeHtml(status === 'closed' ? 'rejected' : status) + '"><span>Status</span><select data-contact-status>' + select + '</select></label></header>' +
         '<div class="application-details"><div><small>Email</small><a href="mailto:' + encodeURIComponent(item.email) + '">' + escapeHtml(item.email) + '</a></div><div><small>Organization</small><strong>' + escapeHtml(item.organization) + '</strong></div><div><small>Role / Title</small><strong>' + escapeHtml(item.role || '—') + '</strong></div></div>' +
         '<div class="contact-request-message"><small>Message</small><p>' + escapeHtml(item.message) + '</p></div>' +
@@ -5222,7 +6256,7 @@
     if (!canUseOnboarding()) return;
     var list = state.onboardingRequests || [];
     var openCount = list.filter(function (item) { return item.status === 'sent' || item.status === 'draft' || item.status === 'returned'; }).length;
-    $$('[data-onboarding-count]').forEach(function (node) { node.textContent = openCount; });
+    setSidebarCounts('[data-onboarding-count]', openCount);
     var filter = state.onboardingStatus || 'all';
     var statusSelect = $('#onboardingStatusFilter');
     if (statusSelect && statusSelect.value !== filter) statusSelect.value = filter;
@@ -5258,7 +6292,9 @@
         '<span class="onboarding-status is-' + escapeHtml(item.status) + '">' + escapeHtml(onboardingStatusLabel(item.status)) + '</span>' +
         '</button>';
     }).join('');
-    if (!state.onboardingSelectedId && filtered.length) state.onboardingSelectedId = filtered[0].id;
+    if (!state.onboardingSelectedId && filtered.length && !state.suppressOnboardingAutoselect) {
+      state.onboardingSelectedId = filtered[0].id;
+    }
     if (state.onboardingSelectedId && !list.some(function (item) { return item.id === state.onboardingSelectedId; })) {
       state.onboardingSelectedId = filtered.length ? filtered[0].id : '';
     }
@@ -5488,7 +6524,7 @@
     setText('#interviewersTotal', list.length);
     setText('#interviewersActive', activeCount);
     setText('#interviewersDisabled', list.length - activeCount);
-    $$('[data-interviewer-count]').forEach(function (node) { node.textContent = list.length; });
+    setSidebarCounts('[data-interviewer-count]', list.filter(function (entry) { return entry.active; }).length);
     var empty = $('#interviewersEmpty');
     var listNode = $('#interviewersList');
     if (!listNode) return;
@@ -5705,7 +6741,7 @@
     var marketingCount = $('#usersMarketing');
     if (marketingCount) marketingCount.textContent = marketingUsers.filter(function (user) { return user.active; }).length;
     $('#usersDisabled').textContent = managedUsers.filter(function (user) { return !user.active; }).length;
-    $$('[data-user-count]').forEach(function (node) { node.textContent = managedUsers.length; });
+    setSidebarCounts('[data-user-count]', managedUsers.length);
     $('#usersList').innerHTML = state.users.slice().sort(function (a, b) {
       var order = { admin: 0, hr: 1, marketing: 2 };
       var left = order[a.role] != null ? order[a.role] : 9;
@@ -5973,8 +7009,10 @@
         showApp();
         toast('Welcome back. Your content is ready.');
         try {
-          await loadContent();
+          if (!isInterviewer()) await loadContent();
           await loadApplications();
+          if (canUseQueue()) await loadInterviewerQueue();
+          if (canUseAvailability()) await loadInterviewerAvailability();
           if (canUseOnboarding()) await loadOnboarding();
           if (isAdmin()) {
             await loadContactRequests();
@@ -6043,11 +7081,81 @@
 
     $('#userMenuBtn').addEventListener('click', function (event) {
       event.stopPropagation();
+      closeNotifyMenu();
       toggleUserMenu();
     });
     document.addEventListener('click', function (event) {
       if (!$('#userMenu') || $('#userMenu').contains(event.target)) return;
       closeUserMenu();
+    });
+
+    async function toggleNotifyMenu() {
+      var menu = $('#notifyMenu');
+      var btn = $('#notifyBtn');
+      var panel = $('#notifyPanel');
+      if (!menu || !btn || !panel) return;
+      var open = panel.hidden;
+      if (open) {
+        closeUserMenu();
+        menu.classList.add('is-open');
+        btn.setAttribute('aria-expanded', 'true');
+        panel.hidden = false;
+        try { await loadNotifications(); } catch (error) {
+          $('#notifyList').innerHTML = '<div class="notify-empty"><p>Could not load notifications</p><small>' + escapeHtml(error.message || '') + '</small></div>';
+        }
+      } else {
+        closeNotifyMenu();
+      }
+    }
+
+    $('#notifyBtn').addEventListener('click', function (event) {
+      event.stopPropagation();
+      toggleNotifyMenu();
+    });
+    document.addEventListener('click', function (event) {
+      if (!$('#notifyMenu') || $('#notifyMenu').contains(event.target)) return;
+      closeNotifyMenu();
+    });
+    $('#notifyMarkAll').addEventListener('click', async function (event) {
+      event.stopPropagation();
+      try {
+        await api('/api/admin/notifications/read-all', { method: 'POST', body: '{}' });
+        await loadNotifications();
+      } catch (error) {
+        toast(error.message || 'Could not mark notifications as read.', true);
+      }
+    });
+    $('#notifyList').addEventListener('click', async function (event) {
+      var dismiss = event.target.closest('[data-notify-dismiss]');
+      var item = event.target.closest('[data-notify-id]');
+      if (!item) return;
+      var id = item.getAttribute('data-notify-id');
+      if (dismiss) {
+        event.preventDefault();
+        event.stopPropagation();
+        try {
+          if (id) await api('/api/admin/notifications/' + encodeURIComponent(id) + '/read', { method: 'POST', body: '{}' });
+          await loadNotifications();
+        } catch (error) {
+          toast(error.message || 'Could not dismiss notification.', true);
+        }
+        return;
+      }
+      var href = item.getAttribute('data-notify-href') || '';
+      closeNotifyMenu();
+      try {
+        if (id) await api('/api/admin/notifications/' + encodeURIComponent(id) + '/read', { method: 'POST', body: '{}' });
+        await refreshNotificationBadge();
+      } catch (_) { /* navigation still happens */ }
+      if (href) openNotificationHref(href);
+    });
+    document.addEventListener('visibilitychange', function () {
+      if (!state.currentUser || $('#appShell').classList.contains('is-hidden')) {
+        stopNotificationPoll();
+        return;
+      }
+      if (document.hidden) stopNotificationPoll();
+      else startNotificationPoll();
     });
 
     $('#logoutBtn').addEventListener('click', async function () {
@@ -6059,14 +7167,30 @@
     $$('.side-link').forEach(function (button) {
       button.addEventListener('click', function () {
         if (button.dataset.view === 'hrPortal') {
-          state.hrSelectedId = '';
-          state.hrVacancyKey = '';
+          clearHrPortalFilter();
+        }
+        if (button.dataset.view === 'interviewerQueue') {
+          state.queueFocusApplicationId = '';
+          state.queueFocusRoundId = '';
+        }
+        if (button.dataset.view === 'contactRequests') {
+          state.contactSelectedId = '';
+        }
+        if (button.dataset.view === 'onboarding') {
+          state.suppressOnboardingAutoselect = false;
         }
         switchView(button.dataset.view || 'content', button.dataset.collection);
       });
     });
     var availabilityForm = $('#availabilityForm');
     if (availabilityForm) availabilityForm.addEventListener('submit', submitAvailability);
+    var availabilityBulkForm = $('#availabilityBulkForm');
+    if (availabilityBulkForm) {
+      availabilityBulkForm.addEventListener('submit', submitAvailabilityBulk);
+      availabilityBulkForm.addEventListener('input', updateAvailabilityBulkPreview);
+      availabilityBulkForm.addEventListener('change', updateAvailabilityBulkPreview);
+      updateAvailabilityBulkPreview();
+    }
     document.addEventListener('click', function (event) {
       var remove = event.target.closest('[data-delete-slot]');
       if (!remove) return;
@@ -6076,8 +7200,7 @@
       var link = event.target.closest('[data-view-link]');
       if (!link) return;
       if (link.dataset.viewLink === 'hrPortal') {
-        state.hrVacancyKey = '';
-        state.hrSelectedId = '';
+        clearHrPortalFilter();
       }
       if (link.dataset.onboardingFilter) {
         state.onboardingStatus = link.dataset.onboardingFilter;
@@ -6152,7 +7275,9 @@
         var row = event.target.closest('[data-onboarding-id]');
         if (!row) return;
         state.onboardingSelectedId = row.dataset.onboardingId;
+        state.suppressOnboardingAutoselect = false;
         renderOnboarding();
+        writeAdminRoute('onboarding');
       });
     }
     var onboardingDetail = $('#onboardingDetail');
@@ -6209,7 +7334,7 @@
       var row = event.target.closest('[data-hr-row-id]');
       var id = button ? button.dataset.openPipeline : (row && row.dataset.hrRowId);
       if (!id) return;
-      openHrPipeline(id);
+      openHrPipeline(id, { keepFilter: true });
     });
     $('#hrCandidateSearch').addEventListener('input', function () {
       state.hrQuery = this.value;
@@ -6273,6 +7398,40 @@
       if (!card) return;
       openHrPipeline(card.dataset.openPipeline);
     });
+    var ivCalPrev = $('#ivCalPrevMonth');
+    var ivCalNext = $('#ivCalNextMonth');
+    var ivCalToday = $('#ivCalTodayBtn');
+    var ivCalGrid = $('#ivCalGrid');
+    if (ivCalPrev) {
+      ivCalPrev.addEventListener('click', function () {
+        ensureIvCalendarState();
+        state.ivCalendarMonth = new Date(state.ivCalendarMonth.getFullYear(), state.ivCalendarMonth.getMonth() - 1, 1);
+        renderInterviewerCalendar();
+      });
+    }
+    if (ivCalNext) {
+      ivCalNext.addEventListener('click', function () {
+        ensureIvCalendarState();
+        state.ivCalendarMonth = new Date(state.ivCalendarMonth.getFullYear(), state.ivCalendarMonth.getMonth() + 1, 1);
+        renderInterviewerCalendar();
+      });
+    }
+    if (ivCalToday) {
+      ivCalToday.addEventListener('click', function () {
+        var today = new Date();
+        state.ivCalendarMonth = calendarMonthStart(today);
+        state.ivCalendarSelectedDay = calendarDayKey(today);
+        renderInterviewerCalendar();
+      });
+    }
+    if (ivCalGrid) {
+      ivCalGrid.addEventListener('click', function (event) {
+        var dayBtn = event.target.closest('[data-calendar-day]');
+        if (!dayBtn) return;
+        state.ivCalendarSelectedDay = dayBtn.dataset.calendarDay || '';
+        renderInterviewerCalendar();
+      });
+    }
     document.addEventListener('click', function (event) {
       var vacancyCard = event.target.closest('[data-hr-vacancy]');
       if (vacancyCard) {
@@ -6282,15 +7441,16 @@
         var search = $('#hrCandidateSearch');
         if (search) search.value = '';
         renderHrPortal();
+        writeAdminRoute('hrPortal');
         return;
       }
       var vacancyBack = event.target.closest('[data-hr-back-vacancies]');
       if (vacancyBack) {
-        state.hrVacancyKey = '';
-        state.hrSelectedId = '';
+        clearHrPortalFilter();
         state.hrQuery = '';
         var vacancySearch = $('#hrCandidateSearch');
         if (vacancySearch) vacancySearch.value = '';
+        writeAdminRoute('hrPortal', null);
         renderHrPortal();
       }
     });
@@ -6299,6 +7459,7 @@
       if (back) {
         state.hrSelectedId = '';
         renderHrPortal();
+        writeAdminRoute('hrPortal');
         return;
       }
       var saveAndSend = event.target.closest('[data-save-and-send]');
@@ -6894,7 +8055,8 @@
     document.addEventListener('keydown', function (event) {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); $('#globalSearch').focus(); }
       if (event.key === 'Escape') {
-        if ($('#userMenu') && $('#userMenu').classList.contains('is-open')) closeUserMenu();
+        if ($('#notifyPanel') && !$('#notifyPanel').hidden) closeNotifyMenu();
+        else if ($('#userMenu') && $('#userMenu').classList.contains('is-open')) closeUserMenu();
         else if ($('#changePasswordBackdrop').classList.contains('is-open')) closeChangePasswordModal();
         else if ($('#userModalBackdrop').classList.contains('is-open')) closeUserModal();
         else if ($('#modalBackdrop').classList.contains('is-open')) closeConfirm();

@@ -630,6 +630,226 @@ function detectInterviewScheduleChanges(previousInterviews, nextInterviews) {
   return changed;
 }
 
+function detectInterviewerAssignmentNeeds(previousInterviews, nextInterviews) {
+  const prevMap = new Map((previousInterviews || []).map((entry) => [String(entry && entry.id || ''), entry]));
+  const needed = [];
+  (nextInterviews || []).forEach((entry) => {
+    if (!entry || !String(entry.interviewerUserId || '').trim()) return;
+    if (entry.result && entry.result !== 'pending') return;
+    const prev = prevMap.get(String(entry.id || ''));
+    const previousInterviewer = prev && prev.interviewerUserId ? String(prev.interviewerUserId) : '';
+    if (previousInterviewer === String(entry.interviewerUserId)) return;
+    needed.push(entry);
+  });
+  return needed;
+}
+
+function detectTaskAssignmentNeed(previousPipeline, nextPipeline) {
+  const prevId = String((((previousPipeline || {}).task || {}).assignedToUserId) || '').trim();
+  const nextTask = nextPipeline && nextPipeline.task && typeof nextPipeline.task === 'object'
+    ? nextPipeline.task
+    : {};
+  const nextId = String(nextTask.assignedToUserId || '').trim();
+  if (!nextId || nextId === prevId) return null;
+  if ((nextTask.decision || 'pending') !== 'pending') return null;
+  return nextTask;
+}
+
+function detectRoundCancellations(previousInterviews, nextInterviews) {
+  const prevMap = new Map((previousInterviews || []).map((entry) => [String(entry && entry.id || ''), entry]));
+  const cancelled = [];
+  (nextInterviews || []).forEach((entry) => {
+    if (!entry || entry.result !== 'cancelled') return;
+    const prev = prevMap.get(String(entry.id || ''));
+    if (prev && prev.result === 'cancelled') return;
+    cancelled.push(entry);
+  });
+  return cancelled;
+}
+
+/** Live interviewer assignment ended: reassigned, cancelled, or the round left the array. */
+function detectEndedRoundAssignments(previousInterviews, nextInterviews) {
+  const nextMap = new Map((nextInterviews || []).map((entry) => [String(entry && entry.id || ''), entry]));
+  const ended = [];
+  const seen = new Set();
+  (previousInterviews || []).forEach((entry) => {
+    if (!entry || !entry.id || !String(entry.interviewerUserId || '').trim()) return;
+    const id = String(entry.id);
+    const prevUser = String(entry.interviewerUserId);
+    const next = nextMap.get(id);
+    let reason = '';
+    if (!next) reason = 'removed';
+    else if (String(next.interviewerUserId || '') !== prevUser) reason = 'reassigned';
+    else if (next.result === 'cancelled' && entry.result !== 'cancelled') reason = 'cancelled';
+    if (!reason) return;
+    const key = `${prevUser}:${id}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    ended.push({ interviewerUserId: prevUser, roundId: id, reason });
+  });
+  return ended;
+}
+
+function detectEndedTaskAssignment(previousPipeline, nextPipeline) {
+  const prevId = String((((previousPipeline || {}).task || {}).assignedToUserId) || '').trim();
+  if (!prevId) return null;
+  const nextTask = nextPipeline && nextPipeline.task && typeof nextPipeline.task === 'object'
+    ? nextPipeline.task
+    : {};
+  const nextId = String(nextTask.assignedToUserId || '').trim();
+  const nextPending = (nextTask.decision || 'pending') === 'pending';
+  if (nextId === prevId && nextPending) return null;
+  return { assignedToUserId: prevId };
+}
+
+function applicationAssignedLiveToUser(application, userId) {
+  const id = String(userId || '');
+  if (!id || !application) return false;
+  const pipe = application.pipeline && typeof application.pipeline === 'object'
+    ? application.pipeline
+    : {};
+  if (pipe.stage === 'closed') return false;
+  const rounds = Array.isArray(pipe.interviews) ? pipe.interviews : [];
+  const roundHit = rounds.some((entry) => (
+    String((entry && entry.interviewerUserId) || '') === id
+    && (!entry.result || entry.result === 'pending')
+  ));
+  const task = pipe.task && typeof pipe.task === 'object' ? pipe.task : {};
+  const taskHit = String(task.assignedToUserId || '') === id
+    && (task.decision || 'pending') === 'pending';
+  return roundHit || taskHit;
+}
+
+function strandedApplicationsForUser(applications, userId) {
+  return (applications || []).filter((application) => applicationAssignedLiveToUser(application, userId));
+}
+
+function strandedAssignmentCount(applications, userId) {
+  return strandedApplicationsForUser(applications, userId).length;
+}
+
+function formatStrandedPeople(applications) {
+  const names = (applications || []).map((item) => notificationCandidateName(item));
+  if (!names.length) return 'candidates';
+  if (names.length <= 3) return names.join(', ');
+  const extra = names.length - 3;
+  return `${names.slice(0, 3).join(', ')}, and ${extra} other${extra === 1 ? '' : 's'}`;
+}
+
+function interviewerDisplayName(account) {
+  return String((account && (account.name || account.username)) || '').trim() || 'An interviewer';
+}
+
+async function notifyStrandedAssignments(account, applications, title) {
+  const stranded = strandedApplicationsForUser(applications, account && account.id);
+  if (!stranded.length) return;
+  await notifyActiveRole('hr', 'interviewer_stranded', {
+    title: title || 'Interviewer assignments stranded',
+    body: `${interviewerDisplayName(account)} left ${formatStrandedPeople(stranded)} without an interviewer.`,
+    href: '#hrPortal/stranded',
+    dedupeKey: `interviewer_stranded:${account.id}:-`,
+  });
+}
+
+function encodeAdminRouteId(id) {
+  const raw = String(id || '').trim();
+  if (!raw) return '';
+  if (/^[A-Za-z0-9_-]+$/.test(raw)) return raw;
+  let hex = '';
+  for (let i = 0; i < raw.length; i += 1) {
+    hex += raw.charCodeAt(i).toString(16).padStart(2, '0');
+  }
+  return `enc-${hex}`;
+}
+
+function notificationRecordHref(view, recordId, extraId) {
+  const id = encodeAdminRouteId(recordId);
+  if (!id) return `#${view}`;
+  const extra = encodeAdminRouteId(extraId);
+  return extra ? `#${view}/${id}/${extra}` : `#${view}/${id}`;
+}
+
+function notificationCandidateName(application) {
+  return String((application && application.fullName) || '').trim() || 'A candidate';
+}
+
+function notificationWhenLabel(scheduledAt) {
+  if (!scheduledAt) return '';
+  const when = scheduledAt instanceof Date ? scheduledAt : new Date(scheduledAt);
+  if (Number.isNaN(when.getTime())) return String(scheduledAt);
+  return `${mail.zonedYmd(when)} ${mail.zonedHm(when).label}`;
+}
+
+async function notifyActiveRole(role, eventType, payload) {
+  try {
+    const users = await hiringDb.listActiveUsersByRole(role);
+    for (const user of users) {
+      await hiringDb.writeNotification(user.id, eventType, payload);
+    }
+  } catch (error) {
+    console.error(`[notifications] fan-out failed: ${error && error.message}`);
+  }
+}
+
+async function notifyUser(userId, eventType, payload) {
+  if (!userId) return;
+  await hiringDb.writeNotification(userId, eventType, payload);
+}
+
+async function notifyOnboardingCreated(application) {
+  const name = notificationCandidateName(application);
+  await notifyActiveRole('marketing', 'onboarding_created', {
+    title: 'Onboarding started',
+    body: `${name} is ready for onboarding assets.`,
+    href: notificationRecordHref('onboarding', application && application.id),
+    applicationId: application && application.id,
+    dedupeKey: `onboarding_created:${(application && application.id) || '-'}:-`,
+  });
+}
+
+async function notifyBookingOutcome(application, round, invitation, { rescheduled, rescheduleCount }) {
+  const name = notificationCandidateName(application);
+  const label = String((round && round.label) || 'Interview');
+  const when = notificationWhenLabel(round && round.scheduledAt);
+  const applicationId = application && application.id;
+  const roundId = round && round.id;
+  const interviewerUserId = invitation && invitation.interviewerUserId;
+  if (rescheduled) {
+    const payload = {
+      title: 'Candidate rescheduled',
+      body: when ? `${name} moved ${label} to ${when}` : `${name} moved ${label}`,
+      href: notificationRecordHref('hrPortal', applicationId),
+      applicationId,
+      roundId,
+    };
+    await notifyActiveRole('hr', 'booking_rescheduled', payload);
+    await notifyUser(interviewerUserId, 'booking_rescheduled', Object.assign({}, payload, {
+      href: notificationRecordHref('interviewerQueue', applicationId, roundId),
+    }));
+    if (rescheduleCount === hiringDb.MAX_BOOKING_RESCHEDULES) {
+      await notifyActiveRole('hr', 'booking_reschedule_limit', {
+        title: 'Reschedule limit reached',
+        body: `${name} has used all three reschedules for ${label}.`,
+        href: notificationRecordHref('hrPortal', applicationId),
+        applicationId,
+        roundId,
+      });
+    }
+    return;
+  }
+  const payload = {
+    title: 'Candidate booked',
+    body: when ? `${name} booked ${label} · ${when}` : `${name} booked ${label}`,
+    href: notificationRecordHref('hrPortal', applicationId),
+    applicationId,
+    roundId,
+  };
+  await notifyActiveRole('hr', 'booking_booked', payload);
+  await notifyUser(interviewerUserId, 'booking_booked', Object.assign({}, payload, {
+    href: notificationRecordHref('interviewerQueue', applicationId, roundId),
+  }));
+}
+
 /** Rounds whose time HR changed or cleared — booked interviewer slots must reopen. */
 function detectBookedSlotReleases(previousInterviews, nextInterviews) {
   const nextMap = new Map((nextInterviews || []).map((entry) => [String(entry && entry.id || ''), entry]));
@@ -737,6 +957,8 @@ let reminderLastSlot = '';
 let availabilityExtendLastDay = '';
 let availabilityExtendRunning = false;
 let bookingExpiryRunning = false;
+let tomorrowNoticeLastSlot = '';
+let tomorrowNoticeRunning = false;
 
 function bookingReminderDue(invitation, todayYmd) {
   const createdAt = invitation && invitation.createdAt ? new Date(invitation.createdAt) : null;
@@ -885,12 +1107,41 @@ async function runInterviewDayReminders() {
   }
 }
 
+function cairoWeekSundayYmd(todayYmd) {
+  const [year, month, day] = String(todayYmd || '').split('-').map(Number);
+  if (!year || !month || !day) return todayYmd;
+  const dow = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  return hiringDb.addCalendarDays(todayYmd, -dow);
+}
+
+async function notifyShortRecurringHorizons(todayYmd) {
+  const weekKey = cairoWeekSundayYmd(todayYmd);
+  const users = ((await readUsers()).users || []);
+  const byId = new Map(users.map((user) => [user.id, user]));
+  const short = await hiringDb.listShortRecurringHorizons();
+  for (const row of short) {
+    const who = interviewerDisplayName(byId.get(row.userId) || {});
+    const through = row.lastAt ? mail.zonedYmd(new Date(row.lastAt)) : 'soon';
+    await notifyActiveRole('hr', 'recurring_horizon_short', {
+      title: 'Weekly hours running short',
+      body: `${who}'s weekly hours only go through ${through}.`,
+      href: '#interviewers',
+      dedupeKey: `recurring_horizon_short:${row.userId}:${weekKey}`,
+    });
+  }
+}
+
 async function runRecurringAvailabilityExtend() {
   if (availabilityExtendRunning) return;
   const today = mail.zonedYmd(new Date());
   if (availabilityExtendLastDay === today) return;
   availabilityExtendRunning = true;
   try {
+    try {
+      await notifyShortRecurringHorizons(today);
+    } catch (error) {
+      console.error('[availability] Horizon notice failed:', error.message || error);
+    }
     const result = await hiringDb.extendAllActiveRecurringSeries();
     availabilityExtendLastDay = today;
     if (result.added) {
@@ -898,8 +1149,55 @@ async function runRecurringAvailabilityExtend() {
     }
   } catch (error) {
     console.error('[availability] Recurring extend failed:', error.message || error);
+    await notifyActiveRole('hr', 'recurring_extend_failed', {
+      title: 'Availability extend failed',
+      body: 'Today\'s weekly-hours job did not finish. Check the server log.',
+      href: '#interviewers',
+      dedupeKey: `recurring_extend_failed:${today}`,
+    });
+    return;
   } finally {
     availabilityExtendRunning = false;
+  }
+}
+
+async function runInterviewTomorrowNotifications() {
+  if (tomorrowNoticeRunning) return;
+  const now = new Date();
+  const hm = mail.zonedHm(now);
+  if (hm.hour !== 10 || hm.minute > 1) return;
+  const today = mail.zonedYmd(now);
+  const slot = `${today}T10`;
+  if (tomorrowNoticeLastSlot === slot) return;
+  tomorrowNoticeRunning = true;
+  try {
+    const tomorrow = hiringDb.addCalendarDays(today, 1);
+    const data = await readApplications();
+    for (const application of data.applications || []) {
+      const pipe = application.pipeline && typeof application.pipeline === 'object' ? application.pipeline : null;
+      if (!pipe || pipe.stage === 'closed' || !Array.isArray(pipe.interviews)) continue;
+      const name = notificationCandidateName(application);
+      for (const round of pipe.interviews) {
+        if (!round || !round.scheduledAt || !round.interviewerUserId) continue;
+        if (round.result && round.result !== 'pending') continue;
+        const when = new Date(round.scheduledAt);
+        if (Number.isNaN(when.getTime())) continue;
+        if (mail.zonedYmd(when) !== tomorrow) continue;
+        await notifyUser(round.interviewerUserId, 'interview_upcoming', {
+          title: 'Interview tomorrow',
+          body: `${name} · ${round.label || 'Interview'} · ${notificationWhenLabel(round.scheduledAt)}`,
+          href: notificationRecordHref('interviewerQueue', application.id, round.id),
+          applicationId: application.id,
+          roundId: round.id,
+          dedupeKey: `interview_upcoming:${application.id}:${round.id}:${tomorrow}`,
+        });
+      }
+    }
+    tomorrowNoticeLastSlot = slot;
+  } catch (error) {
+    console.error('[notifications] Tomorrow notice job failed:', error.message || error);
+  } finally {
+    tomorrowNoticeRunning = false;
   }
 }
 
@@ -907,6 +1205,9 @@ function startInterviewReminderJob() {
   setInterval(() => {
     runInterviewDayReminders().catch((error) => {
       console.error('[mail] Reminder tick failed:', error.message || error);
+    });
+    runInterviewTomorrowNotifications().catch((error) => {
+      console.error('[notifications] Tomorrow tick failed:', error.message || error);
     });
     runRecurringAvailabilityExtend().catch((error) => {
       console.error('[availability] Extend tick failed:', error.message || error);
@@ -917,6 +1218,7 @@ function startInterviewReminderJob() {
   }, 60 * 1000);
   setTimeout(() => {
     runInterviewDayReminders().catch(() => {});
+    runInterviewTomorrowNotifications().catch(() => {});
     runRecurringAvailabilityExtend().catch(() => {});
     runBookingInvitationExpiry().catch(() => {});
   }, 5000);
@@ -2892,6 +3194,12 @@ async function handleApi(req, res, url) {
     if (text(multipart.fields.website, 200)) return json(res, 201, { ok: true, reference: 'received' });
     const result = cleanApplication(multipart.fields, multipart.files.resume);
     await hiringDb.insertApplicationWithResume(result.application, result.resume);
+    await notifyActiveRole('hr', 'application_submitted', {
+      title: 'New application',
+      body: `${notificationCandidateName(result.application)} applied for ${result.application.role}.`,
+      href: '#applications',
+      applicationId: result.application.id,
+    });
     return json(res, 201, { ok: true, reference: result.application.reference });
   }
 
@@ -2903,6 +3211,12 @@ async function handleApi(req, res, url) {
     const data = readContactRequests();
     data.requests.unshift(request);
     writeContactRequests(data);
+    await notifyActiveRole('admin', 'contact_submitted', {
+      title: 'New contact request',
+      body: `${request.name} · ${request.situationLabel}`,
+      href: notificationRecordHref('contactRequests', request.id),
+      dedupeKey: `contact_submitted:${request.id}:-`,
+    });
     return json(res, 201, { ok: true, reference: request.reference });
   }
 
@@ -3005,6 +3319,38 @@ async function handleApi(req, res, url) {
     return json(res, 200, { ok: true }, { 'Set-Cookie': sessionCookieHeader('', 0, req) });
   }
 
+  if (pathname === '/api/admin/notifications' && req.method === 'GET') {
+    const session = await requireAuth(req, res);
+    if (!session) return;
+    const notifications = await hiringDb.listNotificationsForUser(session.userId);
+    return json(res, 200, {
+      notifications,
+      unread: notifications.filter((item) => !item.readAt).length,
+    });
+  }
+
+  if (pathname === '/api/admin/notifications/unread-count' && req.method === 'GET') {
+    const session = await requireAuth(req, res);
+    if (!session) return;
+    return json(res, 200, { unread: await hiringDb.countUnreadNotificationsForUser(session.userId) });
+  }
+
+  if (pathname === '/api/admin/notifications/read-all' && req.method === 'POST') {
+    const session = await requireMutationAuth(req, res);
+    if (!session) return;
+    const result = await hiringDb.markAllNotificationsRead(session.userId);
+    return json(res, 200, { ok: true, updated: result.updated });
+  }
+
+  const notificationReadMatch = pathname.match(/^\/api\/admin\/notifications\/([^/]+)\/read$/);
+  if (notificationReadMatch && req.method === 'POST') {
+    const session = await requireMutationAuth(req, res);
+    if (!session) return;
+    const result = await hiringDb.markNotificationRead(session.userId, decodeURIComponent(notificationReadMatch[1]));
+    if (!result) return json(res, 404, { error: 'NOT_FOUND', message: 'Notification not found.' });
+    return json(res, 200, { ok: true, alreadyRead: Boolean(result.alreadyRead) });
+  }
+
   /* Token in the body, never a query string. Expired, cancelled-link, tampered,
      and never-existed all write the same precomputed buffer — no status or
      message variation an attacker can use to tell them apart. A holder of a
@@ -3084,6 +3430,10 @@ async function handleApi(req, res, url) {
     }
     if (!result.alreadyBooked) {
       await notifyInterviewSchedules(application, [{ round, rescheduled: Boolean(result.rescheduled) }], req);
+      await notifyBookingOutcome(application, round, result.invitation, {
+        rescheduled: Boolean(result.rescheduled),
+        rescheduleCount: Number(result.invitation && result.invitation.rescheduleCount) || 0,
+      });
     }
     return json(res, 200, await publicBookingStatePayload(application, round, result.invitation));
   }
@@ -3167,11 +3517,13 @@ async function handleApi(req, res, url) {
     }
 
     if (req.method === 'DELETE') {
+      const apps = await readApplications();
       users.users.splice(index, 1);
       for (const [token, activeSession] of sessions.entries()) {
         if (activeSession.userId === account.id) sessions.delete(token);
       }
       await hiringDb.hardDeleteAdminUser(account.id);
+      await notifyStrandedAssignments(account, apps.applications, 'Interviewer removed');
       const remaining = await readUsers();
       return json(res, 200, { users: remaining.users.map(safeUser) });
     }
@@ -3188,6 +3540,7 @@ async function handleApi(req, res, url) {
     if (users.users.some((user) => user.id !== account.id && String(user.email || '').toLowerCase() === email)) {
       return json(res, 409, { error: 'EMAIL_EXISTS', message: 'This work email is already in use.' });
     }
+    const wasActive = account.active !== false;
     account.username = username;
     account.name = name;
     account.email = email;
@@ -3211,6 +3564,26 @@ async function handleApi(req, res, url) {
       }
     }
     await writeUsers(users);
+    if (wasActive && !account.active) {
+      try {
+        if (await hiringDb.hasAliveRecurringSeries(account.id)) {
+          await notifyActiveRole('hr', 'recurring_stopped', {
+            title: 'Availability stopped extending',
+            body: `${account.name || account.username}'s weekly slots will no longer extend.`,
+            href: '#interviewers',
+            dedupeKey: `recurring_stopped:${account.id}:account`,
+          });
+        }
+      } catch (error) {
+        console.error(`[notifications] recurring stop failed: ${error && error.message}`);
+      }
+      try {
+        const apps = await readApplications();
+        await notifyStrandedAssignments(account, apps.applications);
+      } catch (error) {
+        console.error(`[notifications] stranded notice failed: ${error && error.message}`);
+      }
+    }
     return json(res, 200, {
       user: safeUser(account),
       users: (await readUsers()).users.map(safeUser),
@@ -3302,6 +3675,54 @@ async function handleApi(req, res, url) {
     });
   }
 
+  /* Own calendar only. Interview rounds and open slots are scoped to
+     session.userId — never a query or body userId — so one account cannot
+     read another person's bookings or availability. Same role pair as the
+     queue (interviewer and HR). */
+  if (pathname === '/api/admin/interviewer/calendar' && req.method === 'GET') {
+    const session = await requireInterviewer(req, res, false);
+    if (!session) return;
+    let horizon = { hasSeries: false, lastAt: '', daysLeft: null, short: false };
+    try {
+      const slotsBefore = await hiringDb.listSlotsForUser(session.userId);
+      horizon = hiringDb.recurringHorizonFromSlots(slotsBefore);
+      try {
+        await hiringDb.extendRecurringSeries(session.userId);
+      } catch (error) {
+        console.error('[availability] Calendar extend failed:', error.message || error);
+      }
+    } catch (error) {
+      return json(res, error.status || 500, {
+        error: error.code || 'CALENDAR_READ_FAILED',
+        message: error.message || 'Could not load your calendar.',
+      });
+    }
+    const data = await readApplications();
+    const interviews = [];
+    for (const application of data.applications || []) {
+      for (const round of roundsAssignedTo(application, session.userId)) {
+        interviews.push(interviewerRoundView(application, round));
+      }
+    }
+    interviews.sort((a, b) => String(a.scheduledAt || '').localeCompare(String(b.scheduledAt || '')));
+    let slots = [];
+    try {
+      const allSlots = await hiringDb.listSlotsForUser(session.userId);
+      slots = allSlots.filter((slot) => slot.status === 'open');
+    } catch (error) {
+      return json(res, error.status || 500, {
+        error: error.code || 'CALENDAR_READ_FAILED',
+        message: error.message || 'Could not load your calendar.',
+      });
+    }
+    return json(res, 200, {
+      generatedAt: new Date().toISOString(),
+      interviews,
+      slots,
+      horizon,
+    });
+  }
+
   /* Task review from the shared queue. Same stored fields as HR's pipeline
      form (decision, reviewedBy, reviewedByUserId, score). Identity comes from
      the session. Does not accept a full pipeline payload. */
@@ -3317,6 +3738,7 @@ async function handleApi(req, res, url) {
       const previousStage = application.pipeline && application.pipeline.stage
         ? String(application.pipeline.stage)
         : '';
+      const previousTaskDecision = String((((application.pipeline || {}).task || {}).decision) || 'pending');
       application.pipeline = await applyInterviewerTaskReview(application, session, await readBody(req));
       applyApplicationStatus(application, mirrorInboxStatus(application.pipeline));
       application.updatedAt = new Date().toISOString();
@@ -3332,6 +3754,15 @@ async function handleApi(req, res, url) {
         });
       }
       await writeApplications(data, { stageEvents });
+      const decision = String((application.pipeline.task && application.pipeline.task.decision) || '');
+      if ((decision === 'approved' || decision === 'rejected') && decision !== previousTaskDecision) {
+        await notifyActiveRole('hr', 'task_decided', {
+          title: 'Task reviewed',
+          body: `${notificationCandidateName(application)}'s task was ${decision}.`,
+          href: notificationRecordHref('hrPortal', application.id),
+          applicationId: application.id,
+        });
+      }
       return json(res, 200, {
         applicationId: application.id,
         task: {
@@ -3364,10 +3795,32 @@ async function handleApi(req, res, url) {
     const application = (data.applications || []).find((entry) => entry.id === applicationId);
     if (!application) return json(res, 404, { error: 'APPLICATION_NOT_FOUND', message: 'Application not found.' });
     try {
+      const prevRound = ((application.pipeline && application.pipeline.interviews) || [])
+        .find((entry) => String(entry && entry.id || '') === String(roundId));
+      const previous = {
+        result: (prevRound && prevRound.result) || 'pending',
+        score: !prevRound || prevRound.score == null ? null : prevRound.score,
+        notes: (prevRound && prevRound.notes) || '',
+      };
       application.pipeline = await applyInterviewerRoundFeedback(application, session, roundId, await readBody(req));
       application.updatedAt = new Date().toISOString();
       await writeApplications(data);
       const round = (application.pipeline.interviews || []).find((entry) => String(entry && entry.id || '') === String(roundId));
+      const changed = round && (
+        previous.result !== round.result
+        || previous.score !== round.score
+        || previous.notes !== (round.notes || '')
+      );
+      const edited = previous.result === 'pass' || previous.result === 'fail';
+      if (round && changed) {
+        await notifyActiveRole('hr', edited ? 'feedback_amended' : 'feedback_recorded', {
+          title: edited ? 'Feedback amended' : 'Feedback submitted',
+          body: `${round.recordedBy || session.username} recorded ${round.result} on ${round.label || 'Interview'} for ${notificationCandidateName(application)}.`,
+          href: notificationRecordHref('hrPortal', application.id),
+          applicationId: application.id,
+          roundId,
+        });
+      }
       return json(res, 200, {
         applicationId: application.id,
         roundId,
@@ -3407,14 +3860,19 @@ async function handleApi(req, res, url) {
     const session = await requireOwnAvailability(req, res, false);
     if (!session) return;
     try {
+      const slotsBefore = await hiringDb.listSlotsForUser(session.userId);
+      const horizon = hiringDb.recurringHorizonFromSlots(slotsBefore);
       const extended = await hiringDb.extendRecurringSeries(session.userId);
-      const slots = await hiringDb.listSlotsForUser(session.userId);
+      const slots = extended.length
+        ? await hiringDb.listSlotsForUser(session.userId)
+        : slotsBefore;
       return json(res, 200, {
         timezone: hiringDb.availabilityTimeZone(),
         horizonDays: hiringDb.RECURRING_HORIZON_DAYS,
         displayWindowDays: 14,
         extended: extended.length,
         slots,
+        horizon,
       });
     } catch (error) {
       return json(res, error.status || 500, {
@@ -3450,6 +3908,47 @@ async function handleApi(req, res, url) {
     }
   }
 
+  /* Own hours only. user_id is the session — a body userId is ignored. Finite
+     one-hour slots; overlaps and cancelled tombstones are skipped, not resurrected. */
+  if (pathname === '/api/admin/interviewer/availability/bulk' && req.method === 'POST') {
+    const session = await requireOwnAvailability(req, res, true);
+    if (!session) return;
+    const body = await readBody(req);
+    try {
+      const starts = hiringDb.generateBulkAvailabilityStarts({
+        days: body.days,
+        startTime: body.startTime,
+        endTime: body.endTime,
+        weeks: body.weeks,
+      });
+      if (!starts.length) {
+        return json(res, 422, {
+          error: 'SLOT_RANGE_EMPTY',
+          message: 'Nothing to add — those hours are in the past or the range is empty.',
+        });
+      }
+      const created = await hiringDb.insertSlotRows(session.userId, starts, {
+        fromRecurring: false,
+        skipOverlap: true,
+      });
+      const createdTimes = new Set(created.map((slot) => Date.parse(slot.startsAt)));
+      const skippedStarts = starts
+        .filter((at) => !createdTimes.has(at.getTime()))
+        .map((at) => at.toISOString());
+      return json(res, 201, {
+        created: created.length,
+        skipped: skippedStarts.length,
+        skippedStarts,
+        slots: created,
+      });
+    } catch (error) {
+      return json(res, error.status || 422, {
+        error: error.code || 'SLOT_INVALID',
+        message: error.message || 'Could not add those hours.',
+      });
+    }
+  }
+
   const availabilitySlotMatch = pathname.match(/^\/api\/admin\/interviewer\/availability\/([^/]+)$/);
   if (availabilitySlotMatch && req.method === 'DELETE') {
     const session = await requireOwnAvailability(req, res, true);
@@ -3459,6 +3958,23 @@ async function handleApi(req, res, url) {
       const result = await hiringDb.cancelOrDeleteSlotForUser(slotId, session.userId);
       if (!result.slot) {
         return json(res, 404, { error: 'SLOT_NOT_FOUND', message: 'Slot not found.' });
+      }
+      if (result.action === 'cancelled' && result.slot.fromRecurring) {
+        try {
+          const seriesKey = hiringDb.seriesKeyFromStart(result.slot.startsAt);
+          const alive = await hiringDb.hasAliveRecurringSeries(session.userId, seriesKey);
+          if (!alive) {
+            const who = (session.name || session.username || 'An interviewer').trim();
+            await notifyActiveRole('hr', 'recurring_stopped', {
+              title: 'Availability stopped extending',
+              body: `${who}'s weekly ${seriesKey.replace('|', ' ')} series will no longer extend.`,
+              href: '#interviewers',
+              dedupeKey: `recurring_stopped:${session.userId}:${seriesKey}`,
+            });
+          }
+        } catch (error) {
+          console.error(`[notifications] recurring stop failed: ${error && error.message}`);
+        }
       }
       return json(res, 200, { ok: true, action: result.action });
     } catch (error) {
@@ -3667,6 +4183,7 @@ async function handleApi(req, res, url) {
       return json(res, 422, { error: 'NOT_JOINED', message: 'Onboarding can only start for candidates marked as Joined.' });
     }
     const result = await ensureOnboardingDraftForApplication(application, session.username, body);
+    if (result.created) await notifyOnboardingCreated(application);
     return json(res, result.created ? 201 : 200, {
       request: result.request,
       requests: result.store.requests,
@@ -3861,6 +4378,27 @@ async function handleApi(req, res, url) {
     if (!(await requireHr(req, res, true))) return;
     const session = await getSession(req);
     const id = decodeURIComponent(applicationMatch[1]);
+    const existing = (await readApplications()).applications.find((entry) => entry.id === id);
+    if (existing) {
+      try {
+        const pipe = existing.pipeline && typeof existing.pipeline === 'object' ? existing.pipeline : {};
+        const recipients = new Set();
+        (pipe.interviews || []).forEach((entry) => {
+          const userId = String((entry && entry.interviewerUserId) || '').trim();
+          if (userId) recipients.add(userId);
+        });
+        const taskUser = String((((pipe.task) || {}).assignedToUserId) || '').trim();
+        if (taskUser) recipients.add(taskUser);
+        for (const userId of recipients) {
+          await hiringDb.retractAssignmentNotifications({
+            recipientUserId: userId,
+            applicationId: id,
+          });
+        }
+      } catch (error) {
+        console.error(`[notifications] retract on delete failed: ${error && error.message}`);
+      }
+    }
     await hiringDb.hardDeleteApplication(id, session && session.username);
     return json(res, 200, { ok: true });
   }
@@ -3916,6 +4454,21 @@ async function handleApi(req, res, url) {
         application.pipeline.interviews || [],
       ).filter((entry) => !scheduleIds.has(String(entry.id || '')));
       await writeApplications(data, { stageEvents });
+      for (const ended of detectEndedRoundAssignments(previousInterviews, application.pipeline.interviews || [])) {
+        await hiringDb.retractAssignmentNotifications({
+          recipientUserId: ended.interviewerUserId,
+          applicationId: application.id,
+          roundId: ended.roundId,
+        });
+      }
+      const endedTask = detectEndedTaskAssignment(previousPipeline, application.pipeline);
+      if (endedTask) {
+        await hiringDb.retractAssignmentNotifications({
+          recipientUserId: endedTask.assignedToUserId,
+          applicationId: application.id,
+          taskOnly: true,
+        });
+      }
       for (const entry of (application.pipeline.interviews || [])) {
         if (!entry || !entry.id) continue;
         if (String(entry.result || 'pending') === 'pending') continue;
@@ -3947,6 +4500,49 @@ async function handleApi(req, res, url) {
             existing: !ensured.created,
           };
         }
+        if (ensured.created) await notifyOnboardingCreated(application);
+      }
+      const assignedRounds = detectInterviewerAssignmentNeeds(previousInterviews, application.pipeline.interviews || []);
+      for (const round of assignedRounds) {
+        await notifyUser(round.interviewerUserId, 'interviewer_assigned', {
+          title: 'Interview assigned',
+          body: `${notificationCandidateName(application)} · ${round.label || 'Interview'}`,
+          href: notificationRecordHref('interviewerQueue', application.id, round.id),
+          applicationId: application.id,
+          roundId: round.id,
+        });
+      }
+      const assignedTask = detectTaskAssignmentNeed(previousPipeline, application.pipeline);
+      if (assignedTask) {
+        await notifyUser(assignedTask.assignedToUserId, 'task_needs_review', {
+          title: 'Task to review',
+          body: `${notificationCandidateName(application)} · ${assignedTask.title || 'Task'}`,
+          href: notificationRecordHref('interviewerQueue', application.id),
+          applicationId: application.id,
+        });
+      }
+      for (const change of scheduleChanges) {
+        if (!change.round || !change.round.interviewerUserId) continue;
+        const when = notificationWhenLabel(change.round.scheduledAt);
+        const eventType = change.rescheduled ? 'hr_round_rescheduled' : 'hr_round_scheduled';
+        await notifyUser(change.round.interviewerUserId, eventType, {
+          title: change.rescheduled ? 'Interview moved' : 'Interview scheduled',
+          body: change.rescheduled
+            ? `${notificationCandidateName(application)} moved to ${when}`
+            : `${notificationCandidateName(application)} scheduled for ${when}`,
+          href: notificationRecordHref('interviewerQueue', application.id, change.round.id),
+          applicationId: application.id,
+          roundId: change.round.id,
+        });
+      }
+      for (const round of detectRoundCancellations(previousInterviews, application.pipeline.interviews || [])) {
+        await notifyUser(round.interviewerUserId, 'round_cancelled', {
+          title: 'Interview cancelled',
+          body: `${notificationCandidateName(application)} · ${round.label || 'Interview'} was cancelled.`,
+          href: notificationRecordHref('interviewerQueue', application.id, round.id),
+          applicationId: application.id,
+          roundId: round.id,
+        });
       }
       await attachBookingInvitations([application]);
       return json(res, 200, {

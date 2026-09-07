@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
-  <link rel="stylesheet" href="/admin/admin.css?v=20260905i-round-details">
+  <link rel="stylesheet" href="/admin/admin.css?v=20260906v-queue-labels">
 </head>
 <body>
   <div class="ambient" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -81,30 +81,45 @@
 
       <nav class="side-nav" aria-label="Admin navigation">
         <button class="side-link is-active" type="button" data-view="dashboard"><i class="ti ti-layout-dashboard"></i><span>Overview</span></button>
-        <p class="side-label" data-admin-only>WEBSITE CONTENT</p>
-        <button class="side-link" type="button" data-collection="services" data-admin-only><i class="ti ti-stack-2"></i><span>Services</span><b data-count="services">0</b></button>
-        <button class="side-link" type="button" data-collection="caseStudies" data-admin-only><i class="ti ti-briefcase"></i><span>Case Studies</span><b data-count="caseStudies">0</b></button>
-        <button class="side-link" type="button" data-collection="blogs" data-admin-only><i class="ti ti-news"></i><span>Blog</span><b data-count="blogs">0</b></button>
-        <button class="side-link" type="button" data-collection="news" data-admin-only><i class="ti ti-antenna"></i><span>News</span><b data-count="news">0</b></button>
-        <button class="side-link" type="button" data-collection="partners" data-admin-only><i class="ti ti-building-skyscraper"></i><span>Partners</span><b data-count="partners">0</b></button>
-        <button class="side-link" type="button" data-view="contactRequests" data-admin-only><i class="ti ti-mail-forward"></i><span>Get in Touch</span><b data-contact-count>0</b></button>
-        <button class="side-link" type="button" data-collection="team" data-admin-only><i class="ti ti-users-group"></i><span>Leadership Team</span><b data-count="team">0</b></button>
-        <p class="side-label" data-hr-only>HIRING</p>
-        <button class="side-link" type="button" data-collection="jobs" data-hr-only><i class="ti ti-id-badge-2"></i><span>Vacancies</span><b data-count="jobs">0</b></button>
-        <button class="side-link" type="button" data-view="applications" data-hr-only><i class="ti ti-file-cv"></i><span>Applications</span><b data-application-count>0</b></button>
-        <button class="side-link" type="button" data-view="hrPortal" data-hr-only><i class="ti ti-user-search"></i><span>Active Hiring Process</span><b data-hr-pipeline-count>0</b></button>
-        <button class="side-link" type="button" data-view="hrAnalytics" data-hr-only><i class="ti ti-chart-histogram"></i><span>Analytics &amp; History</span></button>
-        <button class="side-link" type="button" data-view="hrCalendar" data-hr-only><i class="ti ti-calendar-event"></i><span>Interview Calendar</span></button>
-        <button class="side-link" type="button" data-view="interviewLog" data-hr-only><i class="ti ti-notebook"></i><span>Interview Log</span><b data-interview-log-count>0</b></button>
-        <button class="side-link" type="button" data-view="interviewers" data-hr-only><i class="ti ti-address-book"></i><span>Interviewers</span><b data-interviewer-count>0</b></button>
-        <button class="side-link" type="button" data-view="interviewerQueue" data-queue><i class="ti ti-calendar-check"></i><span>Your interviews</span><b data-queue-count>0</b></button>
-        <button class="side-link" type="button" data-view="interviewerAvailability" data-availability><i class="ti ti-clock-plus"></i><span>Availability</span><b data-availability-count>0</b></button>
-        <p class="side-label" data-onboarding>PEOPLE</p>
-        <button class="side-link" type="button" data-view="onboarding" data-onboarding><i class="ti ti-user-plus"></i><span>Employee Onboarding</span><b data-onboarding-count>0</b></button>
-        <p class="side-label" data-admin-only>WEBSITE &amp; SYSTEM</p>
-        <button class="side-link" type="button" data-view="pages" data-admin-only><i class="ti ti-file-text"></i><span>Page Content</span></button>
-        <button class="side-link" type="button" data-view="users" data-admin-only><i class="ti ti-user-shield"></i><span>User Management</span><b data-user-count>0</b></button>
-        <button class="side-link" type="button" data-view="tools" data-admin-only><i class="ti ti-adjustments-horizontal"></i><span>Backups &amp; Tools</span></button>
+        <div class="side-group" data-admin-only>
+          <p class="side-label">WEBSITE CONTENT</p>
+          <button class="side-link" type="button" data-collection="services"><i class="ti ti-stack-2"></i><span>Services</span><b data-count="services">0</b></button>
+          <button class="side-link" type="button" data-collection="caseStudies"><i class="ti ti-briefcase"></i><span>Case Studies</span><b data-count="caseStudies">0</b></button>
+          <button class="side-link" type="button" data-collection="blogs"><i class="ti ti-news"></i><span>Blog</span><b data-count="blogs">0</b></button>
+          <button class="side-link" type="button" data-collection="news"><i class="ti ti-antenna"></i><span>News</span><b data-count="news">0</b></button>
+          <button class="side-link" type="button" data-collection="partners"><i class="ti ti-building-skyscraper"></i><span>Partners</span><b data-count="partners">0</b></button>
+          <button class="side-link" type="button" data-view="contactRequests"><i class="ti ti-mail-forward"></i><span>Get in Touch</span><b data-contact-count>0</b></button>
+          <button class="side-link" type="button" data-collection="team"><i class="ti ti-users-group"></i><span>Leadership Team</span><b data-count="team">0</b></button>
+        </div>
+        <div class="side-group" data-hr-only>
+          <p class="side-label">HIRING</p>
+          <button class="side-link" type="button" data-collection="jobs"><i class="ti ti-id-badge-2"></i><span>Vacancies</span><b data-count="jobs">0</b></button>
+          <button class="side-link" type="button" data-view="applications"><i class="ti ti-file-cv"></i><span>Applications</span><b data-application-count>0</b></button>
+          <button class="side-link" type="button" data-view="hrPortal"><i class="ti ti-user-search"></i><span>Active Hiring Process</span><b data-hr-pipeline-count>0</b></button>
+          <button class="side-link" type="button" data-view="hrAnalytics"><i class="ti ti-chart-histogram"></i><span>Analytics &amp; History</span></button>
+        </div>
+        <div class="side-group" data-hr-only>
+          <p class="side-label">INTERVIEWS</p>
+          <button class="side-link" type="button" data-view="hrCalendar"><i class="ti ti-calendar-event"></i><span>Interview Calendar</span><b data-hr-calendar-count>0</b></button>
+          <button class="side-link" type="button" data-view="interviewLog"><i class="ti ti-notebook"></i><span>Interview Log</span><b data-interview-log-count>0</b></button>
+        </div>
+        <div class="side-group" data-queue>
+          <p class="side-label">YOUR WORK</p>
+          <button class="side-link" type="button" data-view="interviewerQueue"><i class="ti ti-calendar-check"></i><span>Your interviews</span><b data-queue-count>0</b></button>
+          <button class="side-link" type="button" data-view="interviewerCalendar"><i class="ti ti-calendar"></i><span>My calendar</span></button>
+          <button class="side-link" type="button" data-view="interviewerAvailability" data-availability><i class="ti ti-clock-plus"></i><span>Availability</span><b data-availability-count>0</b></button>
+        </div>
+        <div class="side-group" data-onboarding>
+          <p class="side-label">PEOPLE</p>
+          <button class="side-link" type="button" data-view="interviewers" data-hr-only><i class="ti ti-address-book"></i><span>Interviewers</span><b data-interviewer-count>0</b></button>
+          <button class="side-link" type="button" data-view="onboarding"><i class="ti ti-user-plus"></i><span>Employee Onboarding</span><b data-onboarding-count>0</b></button>
+        </div>
+        <div class="side-group" data-admin-only>
+          <p class="side-label">WEBSITE &amp; SYSTEM</p>
+          <button class="side-link" type="button" data-view="pages"><i class="ti ti-file-text"></i><span>Page Content</span></button>
+          <button class="side-link" type="button" data-view="users"><i class="ti ti-user-shield"></i><span>User Management</span><b data-user-count>0</b></button>
+          <button class="side-link" type="button" data-view="tools"><i class="ti ti-adjustments-horizontal"></i><span>Backups &amp; Tools</span></button>
+        </div>
       </nav>
 
       <div class="sidebar-foot">
@@ -118,6 +133,19 @@
         <div class="top-search"><i class="ti ti-search"></i><input id="globalSearch" type="search" placeholder="Search all content..." aria-label="Search"><kbd>⌘ K</kbd></div>
         <div class="top-actions">
           <a class="view-site" href="../index.html" target="_blank" rel="noopener"><i class="ti ti-external-link"></i><span>View website</span></a>
+          <div class="notify" id="notifyMenu">
+            <button class="icon-btn notify__bell" id="notifyBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="notifyPanel" aria-label="Notifications">
+              <i class="ti ti-bell" aria-hidden="true"></i>
+              <span class="notify__badge is-hidden" id="notifyBadge">0</span>
+            </button>
+            <div class="notify__panel" id="notifyPanel" hidden>
+              <div class="notify__head">
+                <strong>Notifications</strong>
+                <button class="text-btn notify__mark-all is-hidden" id="notifyMarkAll" type="button">Mark all read</button>
+              </div>
+              <div class="notify__list" id="notifyList"></div>
+            </div>
+          </div>
           <div class="user-menu" id="userMenu">
             <button class="user-chip" id="userMenuBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="userMenuDropdown">
               <div class="user-avatar" id="currentUserAvatar">DH</div>
@@ -153,68 +181,109 @@
             </div>
           </div>
 
-          <div class="dash-metrics" id="dashOnboardingMetrics" data-onboarding>
-            <button class="dash-metric dash-metric--orange" type="button" data-view-link="onboarding" data-onboarding-filter="sent">
-              <span class="dash-metric__icon"><i class="ti ti-send"></i></span>
-              <span class="dash-metric__copy"><small>Waiting on Marketing</small><strong id="dashOnboardingSent">0</strong><em>Sent packages</em></span>
-            </button>
-            <button class="dash-metric dash-metric--cyan" type="button" data-view-link="onboarding" data-onboarding-filter="returned">
-              <span class="dash-metric__icon"><i class="ti ti-package"></i></span>
-              <span class="dash-metric__copy"><small>Returned to HR</small><strong id="dashOnboardingReturned">0</strong><em>Ready to review</em></span>
-            </button>
-            <button class="dash-metric dash-metric--blue" type="button" data-view-link="onboarding" data-onboarding-filter="draft" data-onboarding-hr>
-              <span class="dash-metric__icon"><i class="ti ti-pencil"></i></span>
-              <span class="dash-metric__copy"><small>Draft packages</small><strong id="dashOnboardingDraft">0</strong><em>Not sent yet</em></span>
-            </button>
-            <button class="dash-metric dash-metric--green" type="button" data-view-link="onboarding" data-onboarding-filter="completed">
-              <span class="dash-metric__icon"><i class="ti ti-circle-check"></i></span>
-              <span class="dash-metric__copy"><small>Completed</small><strong id="dashOnboardingCompleted">0</strong><em>Closed requests</em></span>
-            </button>
-          </div>
-
-          <div class="dash-metrics" id="dashHiringMetrics" data-hr-only>
-            <button class="dash-metric dash-metric--blue" type="button" data-view-link="applications">
-              <span class="dash-metric__icon"><i class="ti ti-sparkles"></i></span>
-              <span class="dash-metric__copy"><small>New applications</small><strong id="dashNewApps">0</strong><em>Status: New (no date filter)</em></span>
-            </button>
-            <button class="dash-metric dash-metric--cyan" type="button" data-view-link="hrPortal">
-              <span class="dash-metric__icon"><i class="ti ti-route"></i></span>
-              <span class="dash-metric__copy"><small>Open pipelines</small><strong id="dashOpenPipelines">0</strong><em>Active hiring</em></span>
-            </button>
-            <button class="dash-metric dash-metric--orange" type="button" data-view-link="hrCalendar">
-              <span class="dash-metric__icon"><i class="ti ti-calendar-stats"></i></span>
-              <span class="dash-metric__copy"><small>Interviews this week</small><strong id="dashInterviewsWeek">0</strong><em id="dashInterviewsToday">Sun 10:00 – Thu 18:00</em></span>
-            </button>
-            <button class="dash-metric dash-metric--violet" type="button" data-view-link="hrPortal">
-              <span class="dash-metric__icon"><i class="ti ti-briefcase"></i></span>
-              <span class="dash-metric__copy"><small>In offer stage</small><strong id="dashOffers">0</strong><em>Ready to close</em></span>
-            </button>
-            <button class="dash-metric dash-metric--green" type="button" data-view-link="content" data-dash-collection="jobs">
-              <span class="dash-metric__icon"><i class="ti ti-id-badge-2"></i></span>
-              <span class="dash-metric__copy"><small>Open vacancies</small><strong id="dashOpenJobs">0</strong><em>Published roles</em></span>
-            </button>
-            <button class="dash-metric dash-metric--mint" type="button" data-view-link="hrAnalytics">
-              <span class="dash-metric__icon"><i class="ti ti-user-check"></i></span>
-              <span class="dash-metric__copy"><small>Hired</small><strong id="dashHired">0</strong><em>Joined candidates</em></span>
-            </button>
-          </div>
-
-          <div class="stats-grid dash-content-stats" data-admin-only>
-            <article class="stat-card stat-card--blue"><div class="stat-icon"><i class="ti ti-box-multiple"></i></div><div><span>Total cards</span><strong id="statTotal">0</strong><small><i class="ti ti-trending-up"></i> Website content</small></div><div class="stat-spark"><i></i><i></i><i></i><i></i><i></i><i></i></div></article>
-            <article class="stat-card stat-card--green"><div class="stat-icon"><i class="ti ti-circle-check"></i></div><div><span>Published content</span><strong id="statPublished">0</strong><small>Visible to visitors now</small></div><div class="stat-ring" id="publishedRing"><span>0%</span></div></article>
-            <article class="stat-card stat-card--orange"><div class="stat-icon"><i class="ti ti-pencil"></i></div><div><span>Drafts</span><strong id="statDrafts">0</strong><small>Ready for review</small></div><span class="stat-badge">Draft</span></article>
-            <article class="stat-card stat-card--violet"><div class="stat-icon"><i class="ti ti-clock-edit"></i></div><div><span>Last updated</span><strong class="stat-date" id="statUpdated">—</strong><small id="statUpdatedBy">By —</small></div></article>
-          </div>
-
-          <section class="panel dash-funnel" data-hr-only>
-            <header class="panel-head">
-              <div><h2>Hiring funnel</h2><p>Where open candidates sit right now</p></div>
-              <button class="text-btn" type="button" data-view-link="hrPortal">Open pipelines <i class="ti ti-arrow-right"></i></button>
+          <section class="dash-section" data-interviewer-only>
+            <header class="dash-section__head">
+              <div>
+                <span class="dash-section__kicker">Your work</span>
+                <h2>Interview queue</h2>
+                <p>Rounds, feedback, and tasks assigned to you</p>
+              </div>
+              <button class="text-btn" type="button" data-view-link="interviewerQueue">Your interviews <i class="ti ti-arrow-right"></i></button>
             </header>
-            <div class="dash-funnel__track" id="dashFunnel"></div>
+            <div class="dash-metrics" id="dashInterviewerMetrics">
+              <button class="dash-metric dash-metric--blue" type="button" data-view-link="interviewerQueue">
+                <span class="dash-metric__icon"><i class="ti ti-calendar-week"></i></span>
+                <span class="dash-metric__copy"><small>Interviews this week</small><strong id="dashIvWeek">0</strong><em>On your calendar</em></span>
+              </button>
+              <button class="dash-metric dash-metric--orange" type="button" data-view-link="interviewerQueue">
+                <span class="dash-metric__icon"><i class="ti ti-message-dots"></i></span>
+                <span class="dash-metric__copy"><small>Feedback owed</small><strong id="dashIvFeedback">0</strong><em>Waiting on you</em></span>
+              </button>
+              <button class="dash-metric dash-metric--cyan" type="button" data-view-link="interviewerQueue">
+                <span class="dash-metric__icon"><i class="ti ti-checklist"></i></span>
+                <span class="dash-metric__copy"><small>Tasks to review</small><strong id="dashIvTasks">0</strong><em>Candidate work is in</em></span>
+              </button>
+            </div>
+            <div class="dash-section__body dash-next">
+              <header class="dash-section__subhead">
+                <div><h3>Next interview</h3><p>The soonest conversation on your calendar</p></div>
+              </header>
+              <div class="dash-next__card is-hidden" id="dashNextInterview"></div>
+              <div class="empty-state dash-empty" id="dashNextInterviewEmpty">
+                <span><i class="ti ti-calendar-off"></i></span>
+                <h2>Nothing scheduled</h2>
+                <p>When HR books a round with you, it will show up here.</p>
+              </div>
+            </div>
           </section>
 
-          <div class="dashboard-grid dash-ops-grid" data-hr-only>
+          <section class="dash-section" data-hr-only>
+            <header class="dash-section__head">
+              <div>
+                <span class="dash-section__kicker">Hiring</span>
+                <h2>Recruitment</h2>
+                <p>Applications, pipelines, interviews, and open roles</p>
+              </div>
+              <button class="text-btn" type="button" data-view-link="hrPortal">Open pipelines <i class="ti ti-arrow-right"></i></button>
+            </header>
+            <div class="dash-metrics" id="dashHiringMetrics">
+              <button class="dash-metric dash-metric--blue" type="button" data-view-link="applications">
+                <span class="dash-metric__icon"><i class="ti ti-sparkles"></i></span>
+                <span class="dash-metric__copy"><small>New applications</small><strong id="dashNewApps">0</strong><em>Status: New (no date filter)</em></span>
+              </button>
+              <button class="dash-metric dash-metric--cyan" type="button" data-view-link="hrPortal">
+                <span class="dash-metric__icon"><i class="ti ti-route"></i></span>
+                <span class="dash-metric__copy"><small>Open pipelines</small><strong id="dashOpenPipelines">0</strong><em>Active hiring</em></span>
+              </button>
+              <button class="dash-metric dash-metric--orange" type="button" data-view-link="hrCalendar">
+                <span class="dash-metric__icon"><i class="ti ti-calendar-stats"></i></span>
+                <span class="dash-metric__copy"><small>Interviews this week</small><strong id="dashInterviewsWeek">0</strong><em id="dashInterviewsToday">Sun 10:00 – Thu 18:00</em></span>
+              </button>
+              <button class="dash-metric dash-metric--violet" type="button" data-view-link="hrPortal">
+                <span class="dash-metric__icon"><i class="ti ti-briefcase"></i></span>
+                <span class="dash-metric__copy"><small>In offer stage</small><strong id="dashOffers">0</strong><em>Ready to close</em></span>
+              </button>
+              <button class="dash-metric dash-metric--green" type="button" data-view-link="content" data-dash-collection="jobs">
+                <span class="dash-metric__icon"><i class="ti ti-id-badge-2"></i></span>
+                <span class="dash-metric__copy"><small>Open vacancies</small><strong id="dashOpenJobs">0</strong><em>Published roles</em></span>
+              </button>
+              <button class="dash-metric dash-metric--mint" type="button" data-view-link="hrAnalytics">
+                <span class="dash-metric__icon"><i class="ti ti-user-check"></i></span>
+                <span class="dash-metric__copy"><small>Hired</small><strong id="dashHired">0</strong><em>Joined candidates</em></span>
+              </button>
+            </div>
+            <div class="dash-section__body dash-funnel">
+              <header class="dash-section__subhead">
+                <div><h3>Hiring funnel</h3><p>Where open candidates sit right now</p></div>
+              </header>
+              <div class="dash-funnel__track" id="dashFunnel"></div>
+            </div>
+          </section>
+
+          <section class="dash-section" data-admin-only>
+            <header class="dash-section__head">
+              <div>
+                <span class="dash-section__kicker">Website</span>
+                <h2>Content</h2>
+                <p>Published cards, drafts, and last update</p>
+              </div>
+              <button class="text-btn" type="button" data-view-link="pages">Page content <i class="ti ti-arrow-right"></i></button>
+            </header>
+            <div class="stats-grid dash-content-stats">
+              <article class="stat-card stat-card--blue"><div class="stat-icon"><i class="ti ti-box-multiple"></i></div><div><span>Total cards</span><strong id="statTotal">0</strong><small><i class="ti ti-trending-up"></i> Website content</small></div><div class="stat-spark"><i></i><i></i><i></i><i></i><i></i><i></i></div></article>
+              <article class="stat-card stat-card--green"><div class="stat-icon"><i class="ti ti-circle-check"></i></div><div><span>Published content</span><strong id="statPublished">0</strong><small>Visible to visitors now</small></div><div class="stat-ring" id="publishedRing"><span>0%</span></div></article>
+              <article class="stat-card stat-card--orange"><div class="stat-icon"><i class="ti ti-pencil"></i></div><div><span>Drafts</span><strong id="statDrafts">0</strong><small>Ready for review</small></div><span class="stat-badge">Draft</span></article>
+              <article class="stat-card stat-card--violet"><div class="stat-icon"><i class="ti ti-clock-edit"></i></div><div><span>Last updated</span><strong class="stat-date" id="statUpdated">—</strong><small id="statUpdatedBy">By —</small></div></article>
+            </div>
+          </section>
+
+          <div class="dash-group" data-hr-only>
+            <header class="dash-group__head">
+              <span class="dash-section__kicker">Interviews</span>
+              <h2>Schedule &amp; follow-up</h2>
+              <p>Upcoming conversations and candidates waiting on a next step</p>
+            </header>
+            <div class="dashboard-grid dash-ops-grid">
             <section class="panel">
               <header class="panel-head">
                 <div><h2>Upcoming interviews</h2><p>Next scheduled conversations</p></div>
@@ -239,9 +308,45 @@
                 <p>No new applications or stalled pipelines right now.</p>
               </div>
             </section>
+            </div>
           </div>
 
-          <div class="dashboard-grid">
+          <section class="dash-section" data-onboarding>
+            <header class="dash-section__head">
+              <div>
+                <span class="dash-section__kicker">People</span>
+                <h2>Onboarding</h2>
+                <p>Joining packages between HR and Marketing</p>
+              </div>
+              <button class="text-btn" type="button" data-view-link="onboarding">Onboarding queue <i class="ti ti-arrow-right"></i></button>
+            </header>
+            <div class="dash-metrics" id="dashOnboardingMetrics">
+              <button class="dash-metric dash-metric--orange" type="button" data-view-link="onboarding" data-onboarding-filter="sent">
+                <span class="dash-metric__icon"><i class="ti ti-send"></i></span>
+                <span class="dash-metric__copy"><small>Waiting on Marketing</small><strong id="dashOnboardingSent">0</strong><em>Sent packages</em></span>
+              </button>
+              <button class="dash-metric dash-metric--cyan" type="button" data-view-link="onboarding" data-onboarding-filter="returned">
+                <span class="dash-metric__icon"><i class="ti ti-package"></i></span>
+                <span class="dash-metric__copy"><small>Returned to HR</small><strong id="dashOnboardingReturned">0</strong><em>Ready to review</em></span>
+              </button>
+              <button class="dash-metric dash-metric--blue" type="button" data-view-link="onboarding" data-onboarding-filter="draft" data-onboarding-hr>
+                <span class="dash-metric__icon"><i class="ti ti-pencil"></i></span>
+                <span class="dash-metric__copy"><small>Draft packages</small><strong id="dashOnboardingDraft">0</strong><em>Not sent yet</em></span>
+              </button>
+              <button class="dash-metric dash-metric--green" type="button" data-view-link="onboarding" data-onboarding-filter="completed">
+                <span class="dash-metric__icon"><i class="ti ti-circle-check"></i></span>
+                <span class="dash-metric__copy"><small>Completed</small><strong id="dashOnboardingCompleted">0</strong><em>Closed requests</em></span>
+              </button>
+            </div>
+          </section>
+
+          <div class="dash-group" data-not-interviewer>
+            <header class="dash-group__head">
+              <span class="dash-section__kicker">Workspace</span>
+              <h2>Activity</h2>
+              <p>Recent changes and how work is distributed</p>
+            </header>
+            <div class="dashboard-grid">
             <section class="panel activity-panel">
               <header class="panel-head">
                 <div><h2>Recent activity</h2><p>Latest changes in this workspace</p></div>
@@ -258,9 +363,10 @@
               </header>
               <div class="distribution-chart" id="distributionChart"></div>
             </section>
+            </div>
           </div>
 
-          <section class="panel quick-panel">
+          <section class="panel quick-panel" data-not-interviewer>
             <header class="panel-head"><div><h2>Quick actions</h2><p>Jump into the workflows you use most</p></div></header>
             <div class="quick-grid">
               <button type="button" data-view-link="applications" data-hr-only><span class="quick-icon quick-icon--violet"><i class="ti ti-file-cv"></i></span><span><strong>Review applications</strong><small>Inbox &amp; vacancy filters</small></span><i class="ti ti-chevron-right"></i></button>
@@ -335,12 +441,18 @@
             <div>
               <button class="back-dashboard" type="button" data-view-link="dashboard"><i class="ti ti-arrow-left"></i> Overview</button>
               <button class="back-dashboard is-hidden" id="hrVacancyBack" type="button" data-hr-back-vacancies><i class="ti ti-arrow-left"></i> All vacancies</button>
+              <span class="page-kicker" id="hrPortalKicker">Hiring</span>
               <h1 id="hrPortalTitle">Active Hiring Process</h1>
               <p id="hrPortalLead">Active candidates until joined or rejected. Ending a vacancy keeps ongoing pipelines running; new starts need an open role.</p>
             </div>
-            <button class="secondary-btn" type="button" data-view-link="applications"><i class="ti ti-file-cv"></i> Start from Applications</button>
+            <div class="welcome-actions">
+              <button class="secondary-btn" type="button" data-view-link="hrCalendar"><i class="ti ti-calendar-event"></i><span>Calendar</span></button>
+              <button class="primary-btn" type="button" data-view-link="applications"><i class="ti ti-file-cv"></i><span>Start from Applications</span></button>
+            </div>
           </div>
-          <div class="hr-vacancy-grid is-hidden" id="hrVacancyGrid"></div>
+          <div class="hr-role-board is-hidden" id="hrVacancyOverview">
+            <div id="hrVacancyGroups"></div>
+          </div>
           <div class="empty-state hr-list-empty is-hidden" id="hrPickPrompt"><span><i class="ti ti-route"></i></span><h2>No active hiring</h2><p>Start a candidate from Applications on an open vacancy. Joined and rejected candidates appear in Analytics &amp; History.</p><div class="hr-empty-actions"><button class="primary-btn" type="button" data-view-link="applications"><i class="ti ti-file-cv"></i> Go to Applications</button><button class="secondary-btn" type="button" data-view-link="hrAnalytics"><i class="ti ti-chart-histogram"></i> Analytics &amp; History</button></div></div>
           <div class="hr-workspace is-hidden" id="hrPortalLayout">
             <aside class="panel hr-list-panel">
@@ -756,6 +868,65 @@
           </div>
         </section>
 
+        <section class="view" id="interviewerCalendarView">
+          <div class="section-title-row">
+            <div>
+              <button class="back-dashboard" type="button" data-view-link="dashboard"><i class="ti ti-arrow-left"></i> Overview</button>
+              <h1>My calendar</h1>
+              <p>Your booked interviews and open hours. Nobody else’s.</p>
+            </div>
+            <button class="secondary-btn" type="button" data-view-link="interviewerAvailability"><i class="ti ti-clock-plus"></i> Availability</button>
+          </div>
+          <p class="horizon-banner horizon-banner--line is-hidden" id="ivCalHorizon"></p>
+
+          <div class="calendar-summary">
+            <article class="panel calendar-summary__card"><small>This month</small><strong id="ivCalStatBooked">0</strong><span>Booked interviews</span></article>
+            <article class="panel calendar-summary__card"><small>This month</small><strong id="ivCalStatOpen">0</strong><span>Open hours</span></article>
+            <article class="panel calendar-summary__card calendar-summary__legend">
+              <small>Blocks</small>
+              <div class="calendar-legend">
+                <span class="is-booked">Booked</span>
+                <span class="is-open">Open</span>
+              </div>
+            </article>
+          </div>
+
+          <div class="calendar-workspace">
+            <section class="panel calendar-board">
+              <header class="calendar-board__head">
+                <div class="calendar-board__nav">
+                  <button class="icon-btn" id="ivCalPrevMonth" type="button" aria-label="Previous month"><i class="ti ti-chevron-left"></i></button>
+                  <button class="icon-btn" id="ivCalNextMonth" type="button" aria-label="Next month"><i class="ti ti-chevron-right"></i></button>
+                </div>
+                <div class="calendar-board__title">
+                  <h2 id="ivCalMonthLabel">Month</h2>
+                  <p id="ivCalMonthMeta">0 items this month</p>
+                </div>
+                <button class="secondary-btn" id="ivCalTodayBtn" type="button"><i class="ti ti-calendar-event"></i> Today</button>
+              </header>
+              <div class="calendar-weekdays" aria-hidden="true">
+                <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+              </div>
+              <div class="calendar-grid" id="ivCalGrid"></div>
+            </section>
+
+            <aside class="panel calendar-agenda">
+              <header class="panel-head">
+                <div>
+                  <h2 id="ivCalAgendaTitle">Selected day</h2>
+                  <p id="ivCalAgendaMeta">Pick a day</p>
+                </div>
+              </header>
+              <div class="calendar-agenda__list" id="ivCalAgendaList"></div>
+              <div class="empty-state calendar-agenda__empty is-hidden" id="ivCalAgendaEmpty">
+                <span><i class="ti ti-calendar-off"></i></span>
+                <h2>Nothing on this day</h2>
+                <p>Booked interviews and open hours will show up here.</p>
+              </div>
+            </aside>
+          </div>
+        </section>
+
         <section class="view" id="interviewerAvailabilityView" data-availability>
           <div class="section-title-row">
             <div>
@@ -763,6 +934,7 @@
               <p class="muted">Add one-hour slots. Candidates see the next two weeks; a weekly repeat creates eight weeks so the series keeps going.</p>
             </div>
           </div>
+          <p class="horizon-banner is-hidden" id="availabilityHorizon"></p>
           <form class="availability-form" id="availabilityForm">
             <label class="queue-field"><span>Date</span><input name="date" type="date" required></label>
             <label class="queue-field"><span>Start time</span><input name="startTime" type="time" step="900" required></label>
@@ -773,6 +945,28 @@
             </label>
             <button class="primary-btn" type="submit"><i class="ti ti-plus"></i><span>Add slot</span></button>
           </form>
+          <form class="availability-form availability-form--bulk" id="availabilityBulkForm">
+            <p class="availability-bulk__kicker">Weekday hours</p>
+            <div class="availability-days" role="group" aria-label="Days">
+              <label><input name="day" type="checkbox" value="0" checked> Sun</label>
+              <label><input name="day" type="checkbox" value="1" checked> Mon</label>
+              <label><input name="day" type="checkbox" value="2" checked> Tue</label>
+              <label><input name="day" type="checkbox" value="3" checked> Wed</label>
+              <label><input name="day" type="checkbox" value="4" checked> Thu</label>
+              <label><input name="day" type="checkbox" value="5"> Fri</label>
+              <label><input name="day" type="checkbox" value="6"> Sat</label>
+            </div>
+            <label class="queue-field"><span>From</span><input name="startTime" type="time" step="900" value="10:00" required></label>
+            <label class="queue-field"><span>To</span><input name="endTime" type="time" step="900" value="16:00" required></label>
+            <label class="queue-field"><span>Weeks</span><input name="weeks" type="number" min="1" max="8" value="4" required></label>
+            <p class="availability-duration" id="availabilityBulkPreview">This will add 0 hours.</p>
+            <button class="primary-btn" type="submit" id="availabilityBulkSubmit"><i class="ti ti-plus"></i><span>Add hours</span></button>
+          </form>
+          <div class="availability-skipped is-hidden" id="availabilitySkipped">
+            <header><h2>Not added <b id="availabilitySkippedCount">0</b></h2>
+            <p>These hours were already taken or previously cancelled. Open and booked ones also appear on My calendar.</p></header>
+            <ul id="availabilitySkippedList"></ul>
+          </div>
           <div id="availabilityError" class="queue-error is-hidden"></div>
           <div class="queue-groups" id="availabilityGroups"></div>
           <div class="empty-state is-hidden" id="availabilityEmpty">
@@ -945,6 +1139,6 @@
 
   <div class="toast-stack" id="toastStack" aria-live="polite"></div>
   <div class="mobile-overlay" id="mobileOverlay"></div>
-  <script src="/admin/admin.js?v=20260905i-round-details"></script>
+  <script src="/admin/admin.js?v=20260906v-queue-labels"></script>
 </body>
 </html>
