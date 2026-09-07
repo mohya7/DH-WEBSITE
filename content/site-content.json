@@ -1,8 +1,8 @@
 {
   "meta": {
     "version": 1,
-    "revision": 129,
-    "updatedAt": "2026-09-05T12:54:01.131Z"
+    "revision": 130,
+    "updatedAt": "2026-09-06T00:32:28.542Z"
   },
   "pages": {
     "home": {
@@ -973,29 +973,6 @@
         "order": 30,
         "updatedAt": "2026-08-23T11:08:16.055Z",
         "publishedAt": "2026-08-24T10:17:13.000Z"
-      },
-      {
-        "id": "jobs-e05065f2-6ebf-4eb6-9a61-d760dbe88d9c",
-        "title": "Platform Engineer (test vacancy)",
-        "summary": "Test vacancy so Active Hiring can show a named vacancy card, not only the catch-all.",
-        "aboutRole": "<p>Test vacancy for the vacancy-first Active Hiring grid.</p>",
-        "keyResponsibilities": "<p>Exercise the named vacancy card path.</p>",
-        "requiredSkills": "<p>None — test data only.</p>",
-        "niceToHave": "",
-        "roleOffers": "",
-        "interviewStages": [
-          "HR",
-          "Technical"
-        ],
-        "href": "careers/platform-engineer-test-vacancy.html",
-        "department": "Engineering",
-        "location": "Cairo, New Cairo",
-        "type": "Full time",
-        "status": "published",
-        "featured": false,
-        "order": 40,
-        "updatedAt": "2026-09-05T12:54:01.131Z",
-        "publishedAt": "2026-09-05T12:54:01.131Z"
       }
     ],
     "team": [
