@@ -959,6 +959,8 @@ let availabilityExtendRunning = false;
 let bookingExpiryRunning = false;
 let tomorrowNoticeLastSlot = '';
 let tomorrowNoticeRunning = false;
+let notificationSweepLastSlot = '';
+let notificationSweepRunning = false;
 
 function bookingReminderDue(invitation, todayYmd) {
   const createdAt = invitation && invitation.createdAt ? new Date(invitation.createdAt) : null;
@@ -1201,6 +1203,28 @@ async function runInterviewTomorrowNotifications() {
   }
 }
 
+async function runNotificationRetentionSweep() {
+  if (notificationSweepRunning) return;
+  const now = new Date();
+  const hm = mail.zonedHm(now);
+  if (hm.hour !== 10 || hm.minute > 1) return;
+  const today = mail.zonedYmd(now);
+  const slot = `${today}T10`;
+  if (notificationSweepLastSlot === slot) return;
+  notificationSweepRunning = true;
+  try {
+    const result = await hiringDb.sweepExpiredNotifications();
+    notificationSweepLastSlot = slot;
+    if (result.expired || result.capped) {
+      console.log(`[notifications] Sweep deleted ${result.expired} expired, ${result.capped} over cap.`);
+    }
+  } catch (error) {
+    console.error('[notifications] Retention sweep failed:', error.message || error);
+  } finally {
+    notificationSweepRunning = false;
+  }
+}
+
 function startInterviewReminderJob() {
   setInterval(() => {
     runInterviewDayReminders().catch((error) => {
@@ -1208,6 +1232,9 @@ function startInterviewReminderJob() {
     });
     runInterviewTomorrowNotifications().catch((error) => {
       console.error('[notifications] Tomorrow tick failed:', error.message || error);
+    });
+    runNotificationRetentionSweep().catch((error) => {
+      console.error('[notifications] Sweep tick failed:', error.message || error);
     });
     runRecurringAvailabilityExtend().catch((error) => {
       console.error('[availability] Extend tick failed:', error.message || error);
@@ -1219,6 +1246,7 @@ function startInterviewReminderJob() {
   setTimeout(() => {
     runInterviewDayReminders().catch(() => {});
     runInterviewTomorrowNotifications().catch(() => {});
+    runNotificationRetentionSweep().catch(() => {});
     runRecurringAvailabilityExtend().catch(() => {});
     runBookingInvitationExpiry().catch(() => {});
   }, 5000);
