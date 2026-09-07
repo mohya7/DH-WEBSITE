@@ -427,6 +427,7 @@
     round_cancelled: { icon: 'ti-calendar-x', tone: 'red' },
     interview_upcoming: { icon: 'ti-bell-ringing', tone: 'orange' },
     onboarding_created: { icon: 'ti-user-plus', tone: 'green' },
+    onboarding_returned: { icon: 'ti-arrow-back-up', tone: 'green' },
     contact_submitted: { icon: 'ti-mail-forward', tone: 'blue' },
     recurring_stopped: { icon: 'ti-repeat-off', tone: 'orange' },
     recurring_extend_failed: { icon: 'ti-alert-triangle', tone: 'red' },

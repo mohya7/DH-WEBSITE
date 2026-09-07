@@ -807,6 +807,18 @@ async function notifyOnboardingCreated(application) {
   });
 }
 
+async function notifyOnboardingReturned(request) {
+  const name = String((request && request.fullName) || '').trim() || 'A candidate';
+  const applicationId = request && request.applicationId;
+  await notifyActiveRole('hr', 'onboarding_returned', {
+    title: 'Onboarding returned',
+    body: `${name}'s onboarding package is back from Marketing.`,
+    href: notificationRecordHref('onboarding', applicationId),
+    applicationId,
+    dedupeKey: `onboarding_returned:${applicationId || '-'}:-`,
+  });
+}
+
 async function notifyBookingOutcome(application, round, invitation, { rescheduled, rescheduleCount }) {
   const name = notificationCandidateName(application);
   const label = String((round && round.label) || 'Interview');
@@ -4289,6 +4301,7 @@ async function handleApi(req, res, url) {
     if (request.status !== 'sent' && request.status !== 'returned') {
       return json(res, 422, { error: 'INVALID_STATUS', message: 'Marketing can only update requests that were sent by HR.' });
     }
+    const previousStatus = request.status;
     if (!request.assets) request.assets = emptyOnboardingAssets();
     try {
       if (body.assets && typeof body.assets === 'object') {
@@ -4315,6 +4328,9 @@ async function handleApi(req, res, url) {
     }
     request.updatedAt = now;
     await writeOnboarding(store);
+    if (action === 'return' && previousStatus !== 'returned' && request.status === 'returned') {
+      await notifyOnboardingReturned(request);
+    }
     return json(res, 200, { request, requests: store.requests });
   }
 
