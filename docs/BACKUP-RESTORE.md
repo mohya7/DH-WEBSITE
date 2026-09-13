@@ -4,6 +4,8 @@ Someone other than the person who wrote this may have to run it. The database an
 
 **Recovery window:** SIMPLE recovery, hourly full database backups, hourly copy of content files. If the server dies, expect to lose **up to about one hour** of hiring and Studio work — not a day. Point-in-time (minute-level) restore is not available under SIMPLE.
 
+**The CMS SQL login cannot take backups.** `dh_hiring_app` is the application account in `.env` / `SQLSERVER_USER`. It can read and write hiring data. It **cannot** run `BACKUP DATABASE`, `RESTORE DATABASE`, or `CREATE DATABASE`. If you log in as `dh_hiring_app` at 2am and run the backup command, SQL Server will return a permission error. IT must provision a **separate** login (Windows service account or SQL login) with `BACKUP DATABASE` on `DigitalHubHiring` (and restore rights for the person who would recover). Point Agent jobs and Task Scheduler at **that** account, never at `dh_hiring_app`.
+
 A restore was proven on 13 Sep 2026: full backup restored to a **separate** database `DigitalHubHiring_RestoreDrill`, every table row count matched, and a CV `varbinary` written to disk from the copy had the same SHA-256 as live (`55B8F6C1…C6D57B`, 96,345-byte PDF). That drill database was dropped. Live was not overwritten.
 
 ---
@@ -39,7 +41,7 @@ One-off after SIMPLE, if the log is still huge: `DBCC SHRINKFILE` is worth doing
 
 ### SQL Server Agent (Standard / Developer / Enterprise)
 
-This machine is **Standard Developer Edition**; Agent exists. Create one job, e.g. `DigitalHubHiring_HourlyFull`, run every hour as a login that can `BACKUP DATABASE`:
+This machine is **Standard Developer Edition**; Agent exists. Create one job, e.g. `DigitalHubHiring_HourlyFull`, run every hour. **Do not** run the job as `dh_hiring_app`. Use the dedicated backup account IT created (`BACKUP DATABASE` permission, plus write access to the backup folder).
 
 ```sql
 DECLARE @path nvarchar(400) =
@@ -56,7 +58,7 @@ Second step (CmdExec or PowerShell): copy `content\*.json` to a folder with the 
 
 ### Express (no Agent) — Task Scheduler + sqlcmd
 
-Company SQL Server may be **Express**. Agent will not be there. Use **Windows Task Scheduler**, hourly, running as an account that is `sysadmin` or has `BACKUP DATABASE`:
+Company SQL Server may be **Express**. Agent will not be there. Use **Windows Task Scheduler**, hourly, running as the **backup** account — not `dh_hiring_app`. That Windows (or SQL) account must be allowed `BACKUP DATABASE`. `dh_hiring_app` will fail with a permission error if you substitute it.
 
 1. `sqlcmd` (ODBC 18 needs trust-server-certificate: `-C`):
 
@@ -83,7 +85,7 @@ If SQL authentication is required instead of `-E`, pass `-U` / `-P` from a prote
 
 ## Restore the database (do not overwrite live until you mean to)
 
-Need `sysadmin` (or equivalent) Windows or SQL login. `dh_hiring_app` cannot create databases or back up.
+Need a **sysadmin** (or backup-plus-create-database) Windows or SQL login. **`dh_hiring_app` cannot do this.** It cannot `BACKUP DATABASE`, restore, or create `DigitalHubHiring_RestoreDrill`. Use the separate backup/restore account.
 
 ### 1. Confirm the backup file
 
@@ -210,9 +212,9 @@ DBCC SHRINKFILE (N'DigitalHubHiring_log', 16);
 | | Company IT (SQL host) | Application / website server |
 |---|---|---|
 | Instance, disks, service account, Agent or Task Scheduler on the **SQL** box | **IT** | — |
-| `BACKUP DATABASE` job, `.bak` location, off-box copy, 7-day deletion | **IT** | — |
-| Edition (Express vs Agent) | **IT** — if Express, they own the Task Scheduler + sqlcmd job on a box that can reach SQL | — |
-| Database name, app login `dh_hiring_app` (data plane only, not backup) | IT creates; app uses | Node `server.js` uses SQL auth for CRUD only |
+| `BACKUP DATABASE` job, `.bak` location, off-box copy, 7-day deletion | **IT** — **separate backup account**; not `dh_hiring_app` | — |
+| Edition (Express vs Agent) | **IT** — if Express, they own the Task Scheduler + sqlcmd job on a box that can reach SQL, still **not** as `dh_hiring_app` | — |
+| Database name; app login `dh_hiring_app` | IT creates `dh_hiring_app` for **CRUD only** (no `BACKUP DATABASE`) | Node `server.js` uses that login for hiring data only |
 | `content\*.json` and `assets\uploads` | Copy off-box if IT already backs file servers | **App server** holds the live files; include them in the hourly copy (from the app host, or from a share IT backs up) |
 | Restore decision, `WITH REPLACE` on live, CMS restart | **IT** + whoever owns the site, together | Stop/start `node server.js` |
 | This document | Keep next to the handover | Repo `docs/BACKUP-RESTORE.md` |
