@@ -389,8 +389,8 @@ API gates: `requireAdmin`, `canEditCollection`, `canEditPage` (`server.js:1050-1
 | GET | `/api/admin/users` | Admin | users | none | `1731-1734` |
 | POST | `/api/admin/users` | Admin + CSRF | users | creates user | `1761-1808` |
 | PUT/DELETE | `/api/admin/users/:id` | Admin + CSRF | users | update/delete | `1811-1870` |
-| GET | `/api/admin/content` | Auth | admin-content (role-filtered `adminView`) | none | `1873-1877` |
-| PUT | `/api/admin/content` | Admin + CSRF + If-Match | import body | replaces pages/collections | `1879-1898` |
+| GET | `/api/admin/content` | Auth | admin-content (role-filtered `adminView`; admin includes `jobs`) | none | `adminView` / GET content |
+| PUT | `/api/admin/content` | Admin + CSRF + If-Match | import body | replaces pages; collections present in the file; **omitted collections are kept** | PUT content |
 | POST | `/api/admin/items/:collection` | Auth + CSRF + collection ACL + If-Match | content | create item | `2267-2276` |
 | PUT | `/api/admin/items/:collection/:id` | same | content | update | `2282-2288` |
 | DELETE | `/api/admin/items/:collection/:id` | same | content | delete | `2291-2308` |
@@ -429,7 +429,7 @@ API gates: `requireAdmin`, `canEditCollection`, `canEditPage` (`server.js:1050-1
 - Blog FAQ / comparison table validation marked **“warn-only for now”** in UI copy (`admin/admin.js:1099`, `1115`); config file also `"warn"`.
 - Tools “System health Operational” / collections count “7” are **static markup** (admin inventory: `admin/index.html` ~634).
 - Notifications bell: markup without JS handler (admin inventory).
-- **Bug:** content import `PUT /api/admin/content` references undefined identifier `data` instead of `current` at `server.js:1887` — will throw `ReferenceError` on import path when executed.
+- Content import `PUT /api/admin/content` uses `current` / `next` only — there is no `ReferenceError` on that path. Admin `GET /api/admin/content` includes `jobs`. Import keeps a collection unchanged when that key is omitted from the file (an explicit `[]` still clears it).
 - Dead function related to vacancies: `closeOpenPipelinesForJob` defined `server.js:662` but **never called** (repo grep only finds definition).
 
 ---
@@ -710,7 +710,7 @@ Ranked by severity (highest first). Only issues with concrete file evidence.
 | **Critical** | Security | (Mitigated) Onboarding no longer persists in a public JSON file; store is SQL Server. Legacy `content/onboarding-requests.json` remains gitignored if recreated | `.gitignore`; `lib/hiring-db.js` |
 | **High** | Security | Session cookie lacks `Secure` flag (HTTPS sites can still send cookie over HTTP if mixed) | Set-Cookie at `server.js:1711` |
 | **High** | Security | Sessions stored only in process memory — lost on restart; no multi-instance sticky support | `sessions = new Map()` `server.js:83` |
-| **High** | Data integrity | `PUT /api/admin/content` uses undefined `data` when cleaning imported pages — import path broken / throws | `server.js:1887` (`data.pages` vs `current`) |
+| **High** | Data integrity | (Mitigated) Admin export includes `jobs`; import preserves collections omitted from the file | `adminView`; `PUT /api/admin/content` |
 | **High** | Data integrity / concurrency | Contact requests and users JSON updates have **no revision/If-Match**; hiring/onboarding use SQL Server upserts without optimistic concurrency | Applications/`hiring-db` vs content `checkRevision` |
 | **High** | Security / docs mismatch | `ADMIN.md` claims “Rate limiting for login attempts” but **no login attempt limiter** exists in `server.js` (only application/contact limiters) | `ADMIN.md:67`; `canSubmitApplication`/`canSubmitContact` only; login handler `1680-1712` has no attempt map |
 | **Medium** | Security | `robots.txt` does not Disallow legacy `/content/onboarding-requests.json` or `/content/contact-requests.json` (contact blocked at server; onboarding store is SQL Server) | `robots.txt:1-10` |

@@ -2117,7 +2117,6 @@ function adminView(data, session) {
   if (session.role === 'admin') {
     const collections = {};
     for (const name of COLLECTIONS) {
-      if (name === 'jobs') continue;
       collections[name] = data.collections[name] || [];
     }
     return {
@@ -3721,6 +3720,12 @@ async function handleApi(req, res, url) {
     const next = { meta: current.meta, pages: {}, collections: {} };
     for (const page of PAGES) next.pages[page] = cleanPage(body.pages[page] || {}, (current.pages && current.pages[page]) || {});
     for (const collection of COLLECTIONS) {
+      if (!Object.prototype.hasOwnProperty.call(body.collections, collection)) {
+        next.collections[collection] = Array.isArray(current.collections && current.collections[collection])
+          ? current.collections[collection]
+          : [];
+        continue;
+      }
       const items = Array.isArray(body.collections[collection]) ? body.collections[collection] : [];
       next.collections[collection] = items.slice(0, 500).map((item) => {
         const cleaned = cleanItem(collection, item, item);
@@ -3730,7 +3735,7 @@ async function handleApi(req, res, url) {
     }
     addAudit(next, 'import', 'Imported a complete content backup', session.username);
     writeData(next);
-    return json(res, 200, next);
+    return json(res, 200, adminView(next, session));
   }
 
   if (pathname === '/api/admin/applications' && req.method === 'GET') {

@@ -99,3 +99,5 @@ Do not edit the two public content files manually. They are regenerated after ev
 Editing content and receiving applications or Get in Touch requests require Node.js and the server in `server.js`. A static-only deployment can display published content, but it cannot receive forms or provide the private admin inboxes.
 
 Run **one** Node process per environment. Sessions and every rate-limit bucket are in-memory maps. Two (or N) processes do not share them: each process has its own session table, and each limit is multiplied by the process count (for example 8 login attempts/hour/process becomes 16 behind a round-robin proxy). Do not scale out with a process cluster or multiple hosts until sessions and rate limits are moved to shared storage.
+
+**Backup and restore** (SQL `DigitalHubHiring` plus `content/*.json`) is documented in `docs/BACKUP-RESTORE.md`. Hourly native full backups, SIMPLE recovery, and a content file copy. SQL Server Agent where the edition has it; Task Scheduler plus `sqlcmd` on Express. Studio export is not a full backup.
