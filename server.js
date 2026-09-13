@@ -180,6 +180,12 @@ const contactAttempts = new Map();
 const loginAttempts = new Map();
 const bookingLookupAttempts = new Map();
 const bookingBookAttempts = new Map();
+const inviteAuthAttempts = new Map();
+const changePasswordAttempts = new Map();
+const inviteCreateAttempts = new Map();
+const uploadAttempts = new Map();
+const adminWriteAttempts = new Map();
+const adminAnonAttempts = new Map();
 const BOOKING_LOOKUP_INVALID_BODY = Buffer.from(JSON.stringify({
   error: 'BOOKING_INVALID',
   message: 'This booking link is invalid or has expired.',
@@ -3015,66 +3021,67 @@ function clientAddress(req) {
   return String(req.socket.remoteAddress || 'local');
 }
 
-function canSubmitApplication(req) {
-  const ip = clientAddress(req);
+function incrementHourlyLimit(store, key, max = 8) {
   const now = Date.now();
-  const state = applicationAttempts.get(ip) || { count: 0, resetAt: now + 60 * 60 * 1000 };
+  const state = store.get(key) || { count: 0, resetAt: now + 60 * 60 * 1000 };
   if (state.resetAt < now) {
     state.count = 0;
     state.resetAt = now + 60 * 60 * 1000;
   }
   state.count += 1;
-  applicationAttempts.set(ip, state);
-  return state.count <= 8;
+  store.set(key, state);
+  return state.count <= max;
+}
+
+function canSubmitApplication(req) {
+  return incrementHourlyLimit(applicationAttempts, clientAddress(req), 8);
 }
 
 function canSubmitContact(req) {
-  const ip = clientAddress(req);
-  const now = Date.now();
-  const state = contactAttempts.get(ip) || { count: 0, resetAt: now + 60 * 60 * 1000 };
-  if (state.resetAt < now) {
-    state.count = 0;
-    state.resetAt = now + 60 * 60 * 1000;
-  }
-  state.count += 1;
-  contactAttempts.set(ip, state);
-  return state.count <= 10;
+  return incrementHourlyLimit(contactAttempts, clientAddress(req), 10);
 }
 
 /** Same sliding window pattern as applications/contact; key = IP + username. Limit 8 / hour. */
 function canAttemptLogin(req, username) {
   const ip = clientAddress(req);
   const key = `${ip}\0${String(username || '').trim().toLowerCase()}`;
-  const now = Date.now();
-  const state = loginAttempts.get(key) || { count: 0, resetAt: now + 60 * 60 * 1000 };
-  if (state.resetAt < now) {
-    state.count = 0;
-    state.resetAt = now + 60 * 60 * 1000;
-  }
-  state.count += 1;
-  loginAttempts.set(key, state);
-  return state.count <= 8;
-}
-
-function incrementHourlyLimit(store, ip) {
-  const now = Date.now();
-  const state = store.get(ip) || { count: 0, resetAt: now + 60 * 60 * 1000 };
-  if (state.resetAt < now) {
-    state.count = 0;
-    state.resetAt = now + 60 * 60 * 1000;
-  }
-  state.count += 1;
-  store.set(ip, state);
-  return state.count <= 8;
+  return incrementHourlyLimit(loginAttempts, key, 8);
 }
 
 /** Same window as login. Key is IP only — the token itself must not become a limiter key. */
 function canAttemptBookingLookup(req) {
-  return incrementHourlyLimit(bookingLookupAttempts, clientAddress(req));
+  return incrementHourlyLimit(bookingLookupAttempts, clientAddress(req), 8);
 }
 
 function canAttemptBookingBook(req) {
-  return incrementHourlyLimit(bookingBookAttempts, clientAddress(req));
+  return incrementHourlyLimit(bookingBookAttempts, clientAddress(req), 8);
+}
+
+function isPublicAdminAuthPath(pathname) {
+  return pathname === '/api/admin/login'
+    || pathname === '/api/admin/auth/invite-info'
+    || pathname === '/api/admin/auth/setup-password';
+}
+
+function isCountedAdminWrite(pathname, method) {
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) return false;
+  if (isPublicAdminAuthPath(pathname)) return false;
+  if (pathname === '/api/admin/logout') return false;
+  if (pathname === '/api/admin/auth/change-password') return false;
+  if (pathname === '/api/admin/users' && method === 'POST') return false;
+  if (pathname === '/api/admin/interviewers' && method === 'POST') return false;
+  if (method === 'POST' && /^\/api\/admin\/interviewers\/[^/]+\/convert$/.test(pathname)) return false;
+  if (pathname === '/api/admin/upload') return false;
+  if (pathname === '/api/admin/notifications/read-all') return false;
+  if (method === 'POST' && /^\/api\/admin\/notifications\/[^/]+\/read$/.test(pathname)) return false;
+  return true;
+}
+
+function rateLimitExceeded(res, message) {
+  return json(res, 429, {
+    error: 'RATE_LIMITED',
+    message: message || 'Too many attempts. Please try again later.',
+  });
 }
 
 function publicBookingSlotView(slot) {
@@ -3266,6 +3273,19 @@ function applicationDownloadName(value) {
 async function handleApi(req, res, url) {
   const { pathname } = url;
 
+  if (pathname.startsWith('/api/admin/') && !isPublicAdminAuthPath(pathname)) {
+    const session = await getSession(req);
+    if (!session) {
+      if (!incrementHourlyLimit(adminAnonAttempts, clientAddress(req), 30)) {
+        return rateLimitExceeded(res);
+      }
+    } else if (isCountedAdminWrite(pathname, req.method)) {
+      if (!incrementHourlyLimit(adminWriteAttempts, `user:${session.userId}`, 120)) {
+        return rateLimitExceeded(res);
+      }
+    }
+  }
+
   if (pathname === '/api/content' && req.method === 'GET') {
     return json(res, 200, publicView(readData()));
   }
@@ -3307,6 +3327,9 @@ async function handleApi(req, res, url) {
      is chosen. The token travels in the body, never a query string, so it does
      not reach access logs or Referer headers. Reveals only the role. */
   if (pathname === '/api/admin/auth/invite-info' && req.method === 'POST') {
+    if (!incrementHourlyLimit(inviteAuthAttempts, clientAddress(req), 8)) {
+      return rateLimitExceeded(res);
+    }
     const body = await readBody(req);
     const users = await readUsers();
     const account = findUserByInviteToken(users.users, text(body.token, 200));
@@ -3317,6 +3340,9 @@ async function handleApi(req, res, url) {
   }
 
   if (pathname === '/api/admin/auth/setup-password' && req.method === 'POST') {
+    if (!incrementHourlyLimit(inviteAuthAttempts, clientAddress(req), 8)) {
+      return rateLimitExceeded(res);
+    }
     const body = await readBody(req);
     const rawToken = text(body.token, 200);
     const password = validatePassword(body.password, true);
@@ -3532,6 +3558,9 @@ async function handleApi(req, res, url) {
   if (pathname === '/api/admin/auth/change-password' && req.method === 'POST') {
     const session = await requireMutationAuth(req, res);
     if (!session) return;
+    if (!incrementHourlyLimit(changePasswordAttempts, `user:${session.userId}`, 8)) {
+      return rateLimitExceeded(res, 'Too many password-change attempts. Please try again later.');
+    }
     const body = await readBody(req);
     const currentPassword = String(body.currentPassword || '');
     const password = validatePassword(body.password, true);
@@ -3574,6 +3603,9 @@ async function handleApi(req, res, url) {
   if (pathname === '/api/admin/users' && req.method === 'POST') {
     const session = await requireAdmin(req, res, true);
     if (!session) return;
+    if (!incrementHourlyLimit(inviteCreateAttempts, `user:${session.userId}`, 8)) {
+      return rateLimitExceeded(res, 'Too many invitations were created. Please try again later.');
+    }
     const body = await readBody(req);
     try {
       const { account, users, invite } = await createManagedAccount(body);
@@ -4106,7 +4138,11 @@ async function handleApi(req, res, url) {
      interviewer) and issues an invite. Bare dbo.interviewers rows are no longer
      created; the table remains a read-only fallback for legacy data. */
   if (pathname === '/api/admin/interviewers' && req.method === 'POST') {
-    if (!(await requireHr(req, res, true))) return;
+    const session = await requireHr(req, res, true);
+    if (!session) return;
+    if (!incrementHourlyLimit(inviteCreateAttempts, `user:${session.userId}`, 8)) {
+      return rateLimitExceeded(res, 'Too many invitations were created. Please try again later.');
+    }
     const body = await readBody(req);
     try {
       const { account, invite } = await createManagedAccount(body, { role: 'interviewer' });
@@ -4136,7 +4172,11 @@ async function handleApi(req, res, url) {
      manual entry a login. */
   const convertMatch = pathname.match(/^\/api\/admin\/interviewers\/([^/]+)\/convert$/);
   if (convertMatch && req.method === 'POST') {
-    if (!(await requireHr(req, res, true))) return;
+    const session = await requireHr(req, res, true);
+    if (!session) return;
+    if (!incrementHourlyLimit(inviteCreateAttempts, `user:${session.userId}`, 8)) {
+      return rateLimitExceeded(res, 'Too many invitations were created. Please try again later.');
+    }
     const legacyId = decodeURIComponent(convertMatch[1]);
     try {
       const legacy = await hiringDb.getInterviewerById(legacyId);
@@ -4740,6 +4780,9 @@ async function handleApi(req, res, url) {
     if (!session) return;
     if (!canUploadAssets(session)) {
       return json(res, 403, { error: 'FORBIDDEN', message: 'You do not have permission to upload files.' });
+    }
+    if (!incrementHourlyLimit(uploadAttempts, `user:${session.userId}`, 20)) {
+      return rateLimitExceeded(res, 'Too many files were uploaded. Please try again later.');
     }
     const body = await readBody(req);
     const dataUrl = String(body.dataUrl || '');

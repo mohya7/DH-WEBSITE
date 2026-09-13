@@ -85,10 +85,10 @@ Do not edit the two public content files manually. They are regenerated after ev
 
 ## Security
 
-- Eight-hour `HttpOnly`, `SameSite=Strict` sessions.
+- Eight-hour `HttpOnly`, `SameSite=Strict` sessions. Sessions live in process memory (`Map`); a restart signs everyone out.
 - CSRF protection for every write operation.
 - Revision checks prevent overwriting newer content.
-- Rate limiting for login attempts (per IP and username, same window pattern as public forms).
+- Rate limiting uses the same in-memory hourly window as sessions (not shared across Node processes). Login is per IP + username (8/hour). Public applications (8/hour/IP), contact (10/hour/IP), and booking lookup/book (8/hour/IP) are IP-keyed from `req.socket.remoteAddress` only — no `X-Forwarded-For`. Invite setup (`invite-info` + `setup-password`) is 8/hour/IP. Signed-in password change is 8/hour per user. Account invitations (users POST, interviewers POST, convert) are 8/hour per user. Uploads are 20/hour per user. Other admin writes are 120/hour per user. Unauthenticated `/api/admin/*` (except login / invite-info / setup-password) is 30/hour/IP. Notification unread-count polling is GET and is not counted against the write budget.
 - Rate limiting and a honeypot field for public job applications and Get in Touch requests.
 - PDF and Word CV uploads only, up to 5MB.
 - PNG, JPG, WEBP, and GIF uploads only, up to 5MB.
@@ -97,3 +97,5 @@ Do not edit the two public content files manually. They are regenerated after ev
 ## Deployment
 
 Editing content and receiving applications or Get in Touch requests require Node.js and the server in `server.js`. A static-only deployment can display published content, but it cannot receive forms or provide the private admin inboxes.
+
+Run **one** Node process per environment. Sessions and every rate-limit bucket are in-memory maps. Two (or N) processes do not share them: each process has its own session table, and each limit is multiplied by the process count (for example 8 login attempts/hour/process becomes 16 behind a round-robin proxy). Do not scale out with a process cluster or multiple hosts until sessions and rate limits are moved to shared storage.
