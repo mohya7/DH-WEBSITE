@@ -68,6 +68,50 @@ function sessionCookieSecure() {
   return process.env.COOKIE_SECURE === 'true' || process.env.COOKIE_SECURE === '1';
 }
 
+const BASELINE_SECURITY_HEADERS = {
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'X-Frame-Options': 'DENY',
+};
+/* One day, host only. No includeSubDomains, no preload — both stick across
+   subdomains / the HSTS preload list and are hard to unwind. */
+const HSTS_HEADER_VALUE = 'max-age=86400';
+const CSP_VALUE = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+  "object-src 'none'",
+  "frame-src 'none'",
+  "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
+  "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net",
+  "img-src 'self' data:",
+  "connect-src 'self'",
+  "worker-src 'self'",
+].join('; ');
+
+function applyBaselineSecurityHeaders(res) {
+  if (res.headersSent) return;
+  Object.keys(BASELINE_SECURITY_HEADERS).forEach((name) => {
+    if (res.getHeader(name) == null) res.setHeader(name, BASELINE_SECURITY_HEADERS[name]);
+  });
+  if (sessionCookieSecure() && res.getHeader('Strict-Transport-Security') == null) {
+    res.setHeader('Strict-Transport-Security', HSTS_HEADER_VALUE);
+  }
+  if (res.getHeader('Content-Security-Policy') == null) {
+    res.setHeader('Content-Security-Policy', CSP_VALUE);
+  }
+}
+
+function bindBaselineSecurityHeaders(res) {
+  const originalWriteHead = res.writeHead;
+  res.writeHead = function writeHeadWithBaseline(statusCode, reason, headers) {
+    applyBaselineSecurityHeaders(this);
+    return originalWriteHead.apply(this, arguments);
+  };
+}
+
 function sessionCookieHeader(token, maxAgeSeconds, req) {
   const parts = [
     `dh_admin_session=${token}`,
@@ -146,7 +190,6 @@ function sendBookingLookupInvalid(res) {
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': BOOKING_LOOKUP_INVALID_BODY.length,
     'Cache-Control': 'no-store',
-    'X-Content-Type-Options': 'nosniff',
   });
   res.end(BOOKING_LOOKUP_INVALID_BODY);
 }
@@ -4398,7 +4441,6 @@ async function handleApi(req, res, url) {
       'Content-Length': resume.byteSize,
       'Content-Disposition': `attachment; filename="${downloadName}"; filename*=UTF-8''${encodeURIComponent(downloadName)}`,
       'Cache-Control': 'private, no-store',
-      'X-Content-Type-Options': 'nosniff',
     });
     return res.end(resume.content);
   }
@@ -5264,6 +5306,25 @@ function renderGeneratedDetail(collection, item) {
 </body></html>`;
 }
 
+function forceEmailPreviewScheme(html, scheme) {
+  const source = String(html || '');
+  if (scheme === 'dark') {
+    return source.replace(/@media \(prefers-color-scheme: dark\)/g, '@media all');
+  }
+  return source.replace(/@media \(prefers-color-scheme: dark\)/g, '@media not all');
+}
+
+function emailPreviewKindLabel(kind) {
+  return ({
+    schedule: 'Schedule',
+    reminder: 'Day reminder',
+    meetingLink: 'Meeting link',
+    booking: 'Booking invite',
+    bookingReminder: 'Booking reminder',
+    invite: 'Account invite',
+  })[kind] || kind;
+}
+
 function isCompressible(type) {
   return /^(?:text\/|application\/(?:javascript|json|xml))/i.test(type) || type === 'image/svg+xml';
 }
@@ -5352,7 +5413,6 @@ function serveStatic(req, res, url) {
     return sendBuffer(req, res, 200, sitemapXml(), {
       'Content-Type': 'application/xml; charset=utf-8',
       'Cache-Control': 'public, max-age=300',
-      'X-Content-Type-Options': 'nosniff',
     });
   }
   if (pathname === '/llms.txt') {
@@ -5366,116 +5426,123 @@ function serveStatic(req, res, url) {
     return sendBuffer(req, res, 200, fs.readFileSync(llmsPath), {
       'Content-Type': 'text/plain; charset=utf-8',
       'Cache-Control': 'public, max-age=300',
-      'X-Content-Type-Options': 'nosniff',
     });
   }
   if (pathname === '/admin/email-preview.html' || pathname === '/admin/email-preview') {
     mail.loadEmailTemplates(true);
-    const sampleApp = {
-      fullName: 'Sara Hassan',
-      role: 'Senior Backend Engineer',
-      email: 'sara.hassan@example.com',
-      phone: '+20 100 000 0000',
-    };
-    const sampleRound = {
-      label: 'Technical',
-      format: 'online',
-      meetingLink: 'https://meet.google.com/abc-defg-hij',
-      interviewer: 'Omar Farid',
-      interviewerTitle: 'Engineering Manager',
-      interviewerEmail: 'interviewer@digitalhub.com.eg',
-      scheduledAt: '2026-08-21T11:00:00',
-    };
-    const when = new Date(sampleRound.scheduledAt);
-    let variants = [
-      { audience: 'interviewer', kind: 'schedule', to: 'interviewer@digitalhub.com.eg · CC: HR' },
-      { audience: 'candidate', kind: 'schedule', to: 'sara.hassan@example.com' },
-      { audience: 'interviewer', kind: 'reminder', to: 'interviewer@digitalhub.com.eg · CC: HR' },
+    const baseUrl = mail.publicBaseUrl(req.headers.host);
+    const sample = mail.sampleInterviewPreviewData();
+    const when = new Date(sample.round.scheduledAt);
+    const interviewKinds = [
+      { audience: 'candidate', kind: 'schedule', to: 'sara.hassan@example.com · + calendar.ics' },
       { audience: 'candidate', kind: 'reminder', to: 'sara.hassan@example.com' },
+      { audience: 'candidate', kind: 'meetingLink', to: 'sara.hassan@example.com · + calendar.ics' },
+      { audience: 'interviewer', kind: 'schedule', to: 'interviewer@digitalhub.com.eg · CC: HR · + calendar.ics' },
+      { audience: 'interviewer', kind: 'reminder', to: 'interviewer@digitalhub.com.eg · CC: HR' },
+      { audience: 'interviewer', kind: 'meetingLink', to: 'interviewer@digitalhub.com.eg · CC: HR · + calendar.ics' },
     ].map((entry) => {
       const body = mail.interviewEmailBodies({
         kind: entry.kind,
         audience: entry.audience,
-        application: sampleApp,
-        round: sampleRound,
+        application: sample.application,
+        round: sample.round,
         when,
-        baseUrl: mail.publicBaseUrl(req.headers.host),
+        baseUrl,
+        embedLogo: false,
       });
       return Object.assign({}, entry, body);
     });
-    const sampleBooking = mail.sampleInterviewPreviewData();
     const bookingBody = mail.bookingInvitationBodies({
-      application: sampleBooking.application,
-      round: sampleBooking.round,
-      bookingUrl: sampleBooking.bookingUrl,
-      expiresAt: sampleBooking.expiresAt,
-      baseUrl: mail.publicBaseUrl(req.headers.host),
+      application: sample.application,
+      round: sample.round,
+      bookingUrl: sample.bookingUrl,
+      expiresAt: sample.expiresAt,
+      baseUrl,
+      embedLogo: false,
     });
-    const reminderBody = mail.bookingInvitationBodies({
-      application: sampleBooking.application,
-      round: sampleBooking.round,
+    const bookingReminderBody = mail.bookingInvitationBodies({
+      application: sample.application,
+      round: sample.round,
       bookingUrl: '',
-      expiresAt: sampleBooking.expiresAt,
-      baseUrl: mail.publicBaseUrl(req.headers.host),
+      expiresAt: sample.expiresAt,
+      baseUrl,
+      embedLogo: false,
       kind: 'bookingReminder',
     });
-    const candidateSchedule = variants.find((entry) => entry.kind === 'schedule' && entry.audience === 'candidate');
-    const bookingCard = {
-      audience: 'candidate',
-      kind: 'booking',
-      to: 'sara.hassan@example.com',
-      subject: bookingBody.subject,
-      html: bookingBody.html,
-    };
-    const reminderCard = {
-      audience: 'candidate',
-      kind: 'bookingReminder',
-      to: 'sara.hassan@example.com',
-      subject: reminderBody.subject,
-      html: reminderBody.html,
-    };
-    variants = [candidateSchedule, bookingCard, reminderCard].concat(variants.filter((entry) => entry !== candidateSchedule));
-    const cards = variants.map((entry) => `
-      <article class="card">
-        <div class="card-meta">
-          <span class="kind">${entry.kind === 'reminder' ? 'Day reminder' : (entry.kind === 'bookingReminder' ? 'Booking reminder' : (entry.kind === 'booking' ? 'Booking invite' : 'Schedule'))}</span>
-          <div class="audience">To ${entry.audience}</div>
-          <div class="subject">${String(entry.subject).replace(/</g, '&lt;')}</div>
-          <div class="to">To: ${entry.to}${entry.kind === 'schedule' ? ' · + calendar.ics' : ''}${entry.kind === 'booking' ? ' · no calendar yet' : ''}${entry.kind === 'bookingReminder' ? ' · original link, once' : ''}</div>
+    const inviteBody = mail.accountInviteBodies({
+      account: { name: 'Test HR', username: 'hr', role: 'hr', email: 'hr@digitalhub.com.eg' },
+      inviteUrl: `${baseUrl || 'https://digitalhub.com.eg'}/admin/?invite=sample-not-a-real-token`,
+      expiresAt: sample.expiresAt,
+      baseUrl,
+      embedLogo: false,
+    });
+    const variants = interviewKinds.concat([
+      { audience: 'candidate', kind: 'booking', to: 'sara.hassan@example.com · no calendar yet', subject: bookingBody.subject, html: bookingBody.html },
+      { audience: 'candidate', kind: 'bookingReminder', to: 'sara.hassan@example.com · original link, once', subject: bookingReminderBody.subject, html: bookingReminderBody.html },
+      { audience: 'hr', kind: 'invite', to: 'hr@digitalhub.com.eg', subject: inviteBody.subject, html: inviteBody.html },
+    ]);
+    const cards = variants.map((entry) => {
+      const light = htmlEscape(forceEmailPreviewScheme(entry.html, 'light'));
+      const dark = htmlEscape(forceEmailPreviewScheme(entry.html, 'dark'));
+      return `
+      <article class="tpl">
+        <header class="tpl-meta">
+          <span class="kind">${htmlEscape(emailPreviewKindLabel(entry.kind))}</span>
+          <div class="audience">To ${htmlEscape(entry.audience)}</div>
+          <div class="subject">${htmlEscape(entry.subject)}</div>
+          <div class="to">To: ${htmlEscape(entry.to)}</div>
+        </header>
+        <div class="pair">
+          <div class="pane pane--light">
+            <h2>Light</h2>
+            <iframe title="${htmlEscape(emailPreviewKindLabel(entry.kind))} light" srcdoc="${light}" sandbox="allow-same-origin"></iframe>
+          </div>
+          <div class="pane pane--dark">
+            <h2>Dark</h2>
+            <iframe title="${htmlEscape(emailPreviewKindLabel(entry.kind))} dark" srcdoc="${dark}" sandbox="allow-same-origin"></iframe>
+          </div>
         </div>
-        <div class="inbox"><div class="mail">${entry.html}</div></div>
-      </article>`).join('');
+      </article>`;
+    }).join('');
     const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Interview email layout preview</title>
+  <meta name="robots" content="noindex, nofollow, noarchive">
+  <title>Email templates · light and dark</title>
   <style>
-    body{margin:0;font-family:Segoe UI,Arial,sans-serif;background:linear-gradient(180deg,#dfe7ef,#e8edf2);color:#122033;padding:28px 20px 48px}
-    .page-head{max-width:1120px;margin:0 auto 24px}
+    body{margin:0;font-family:Segoe UI,Arial,sans-serif;background:#e8edf2;color:#122033;padding:28px 20px 48px}
+    .page-head{max-width:1200px;margin:0 auto 28px}
     .page-head h1{margin:0 0 6px;font-size:1.45rem}
-    .page-head p{margin:0;color:#5b6b7c;max-width:70ch;font-size:.95rem}
+    .page-head p{margin:0;color:#5b6b7c;max-width:78ch;font-size:.95rem}
     code{font-size:.85em;background:#fff;padding:1px 5px;border-radius:4px;border:1px solid #d5dde6}
-    .grid{max-width:1120px;margin:0 auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
-    @media (max-width:900px){.grid{grid-template-columns:1fr}}
-    .card{background:#f7f9fb;border:1px solid #d5dde6;border-radius:14px;overflow:hidden;box-shadow:0 10px 28px rgba(18,32,51,.06)}
-    .card-meta{padding:14px 16px 12px;border-bottom:1px solid #d5dde6;background:#fff}
+    .stack{max-width:1200px;margin:0 auto;display:grid;gap:28px}
+    .tpl{background:#f7f9fb;border:1px solid #d5dde6;border-radius:14px;overflow:hidden;box-shadow:0 10px 28px rgba(18,32,51,.06)}
+    .tpl-meta{padding:14px 16px 12px;border-bottom:1px solid #d5dde6;background:#fff}
     .audience{display:inline-block;font-size:.72rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#1A9AD6;margin-bottom:6px}
     .kind{float:right;font-size:.72rem;font-weight:650;color:#5b6b7c;background:#eef3f8;padding:3px 8px;border-radius:999px}
     .subject{clear:both;font-size:.92rem;font-weight:600;line-height:1.35}
     .to{margin-top:6px;font-size:.8rem;color:#5b6b7c}
-    .inbox{background:#eceff3;padding:18px 14px 22px}
-    .mail{max-width:560px;margin:0 auto}
-    .note{max-width:1120px;margin:18px auto 0;font-size:.85rem;color:#5b6b7c}
+    .pair{display:grid;grid-template-columns:1fr 1fr}
+    @media (max-width:900px){.pair{grid-template-columns:1fr}}
+    .pane{min-width:0}
+    .pane h2{margin:0;padding:10px 14px;font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+    .pane--light{background:#eceff3;border-right:1px solid #d5dde6}
+    .pane--light h2{color:#5b6b7c}
+    .pane--dark{background:#0e1114}
+    .pane--dark h2{color:#b0b0b0}
+    @media (max-width:900px){.pane--light{border-right:0;border-bottom:1px solid #d5dde6}}
+    iframe{display:block;width:100%;height:780px;border:0;background:transparent}
+    .note{max-width:1200px;margin:18px auto 0;font-size:.85rem;color:#5b6b7c}
   </style>
 </head>
 <body>
   <div class="page-head">
-    <h1>Interview email layout preview</h1>
-    <p>Live render from templates. Candidate schedule sits next to the booking invite so the shared layout can be compared. Fixtures: <code>lib/email-templates/fixtures/</code>. Sample interviewer: <code>Omar Farid · Engineering Manager</code>.</p>
+    <h1>Email templates · light and dark</h1>
+    <p>Live render from <code>lib/email-templates/</code>. Light ignores your OS theme; dark always applies the stylesheet clients use for <code>prefers-color-scheme: dark</code>. Sample: Sara Hassan · Omar Farid · Engineering Manager.</p>
   </div>
-  <div class="grid">${cards}</div>
+  <div class="stack">${cards}</div>
   <p class="note">No mail is sent from this page. SES must be configured before real sends.</p>
 </body>
 </html>`;
@@ -5522,8 +5589,6 @@ function serveStatic(req, res, url) {
       return sendBuffer(req, res, 200, renderGeneratedDetail(generated.collection, generated.item), {
         'Content-Type': 'text/html; charset=utf-8',
         'Cache-Control': 'no-cache',
-        'X-Content-Type-Options': 'nosniff',
-        'Referrer-Policy': 'strict-origin-when-cross-origin',
       });
     }
   }
@@ -5539,8 +5604,6 @@ function serveStatic(req, res, url) {
     'Content-Type': type,
     /* HTML is always revalidated so content updates show up on refresh; versioned assets stay cacheable. */
     'Cache-Control': noCache ? 'no-store' : (/^(?:\.png|\.jpe?g|\.webp|\.gif|\.svg|\.woff2?)$/.test(extension) ? 'public, max-age=2592000, immutable' : (extension === '.html' ? 'no-cache' : 'public, max-age=3600')),
-    'X-Content-Type-Options': 'nosniff',
-    'Referrer-Policy': 'strict-origin-when-cross-origin',
     'Last-Modified': stat.mtime.toUTCString(),
     ETag: etag,
   };
@@ -5559,6 +5622,7 @@ function serveStatic(req, res, url) {
 ensureStorage();
 
 const server = http.createServer(async (req, res) => {
+  bindBaselineSecurityHeaders(res);
   const url = new URL(req.url, `http://${req.headers.host || `${HOST}:${PORT}`}`);
   try {
     const requestHost = String(req.headers.host || '').split(':')[0].toLowerCase();
