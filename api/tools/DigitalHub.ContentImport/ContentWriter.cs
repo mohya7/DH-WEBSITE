@@ -362,9 +362,6 @@ static class ContentWriter
                     "vacancy_list" => VacancyFields(section),
                     _ => BodyFields(section, page.Source, media, warnings),
                 };
-                if (mapped == "contact_details")
-                    fields["address"] = PostalAddress(documents["get-in-touch.html"]);
-
                 var row = new Section
                 {
                     Id = IdFor("section:" + page.Owner + ":" + sort),
@@ -699,7 +696,7 @@ static class ContentWriter
         var mail = contact.QuerySelector("a[href^='mailto:']");
         var whatsApp = contact.QuerySelector("a[href^='https://wa.me/']")?.GetAttribute("href");
         var bottom = string.Join(" ", home.QuerySelectorAll("footer.footer .footer-bottom span").Select(span => Collapse(span.TextContent)));
-        var address = PostalAddress(contact);
+        var address = ReadPostalAddress(contact);
         return new SiteSettings
         {
             Id = IdFor("site-settings"),
@@ -710,7 +707,12 @@ static class ContentWriter
             Facebook = Cut(Text(social, "facebook"), 300),
             Instagram = Cut(Text(social, "instagram"), 300),
             TikTok = Cut(Text(social, "tiktok"), 300),
-            FooterText = string.Join(" ", new[] { bottom, address }.Where(part => !string.IsNullOrWhiteSpace(part))),
+            FooterText = string.IsNullOrWhiteSpace(bottom) ? null : bottom,
+            StreetAddress = Cut(address?.Street, 300),
+            Locality = Cut(address?.Locality, 120),
+            Region = Cut(address?.Region, 120),
+            PostalCode = Cut(address?.PostalCode, 20),
+            Country = Cut(address?.Country, 80),
             DefaultMetaTitle = Cut(Meta(home, "og:title") ?? home.Title, 300),
             DefaultMetaDescription = Cut(Meta(home, "description"), 500),
             OrganizationName = "Digital Hub",
@@ -718,7 +720,7 @@ static class ContentWriter
         };
     }
 
-    private static string? PostalAddress(AngleSharp.Html.Dom.IHtmlDocument contact)
+    private static PostalAddressParts? ReadPostalAddress(AngleSharp.Html.Dom.IHtmlDocument contact)
     {
         foreach (var script in contact.QuerySelectorAll("script[type='application/ld+json']"))
         {
@@ -738,16 +740,18 @@ static class ContentWriter
         return null;
     }
 
-    private static string? FindAddress(JsonElement element)
+    private static PostalAddressParts? FindAddress(JsonElement element)
     {
         if (element.ValueKind == JsonValueKind.Object)
         {
-            if (element.TryGetProperty("streetAddress", out var street))
+            if (element.TryGetProperty("streetAddress", out _))
             {
-                var parts = new[] { "streetAddress", "addressLocality", "addressRegion", "addressCountry" }
-                    .Select(name => element.TryGetProperty(name, out var value) ? value.GetString() : null)
-                    .Where(part => !string.IsNullOrWhiteSpace(part));
-                return string.Join(", ", parts);
+                return new PostalAddressParts(
+                    Text(element, "streetAddress"),
+                    Text(element, "addressLocality"),
+                    Text(element, "addressRegion"),
+                    Text(element, "postalCode"),
+                    Text(element, "addressCountry"));
             }
 
             foreach (var property in element.EnumerateObject())
@@ -1196,6 +1200,8 @@ static class ContentWriter
         && left.DefaultMetaTitle == right.DefaultMetaTitle && left.DefaultMetaDescription == right.DefaultMetaDescription
         && left.DefaultShareImageId == right.DefaultShareImageId && left.DefaultShareImageAltOverride == right.DefaultShareImageAltOverride
         && left.OrganizationName == right.OrganizationName && left.LegalName == right.LegalName
+        && left.StreetAddress == right.StreetAddress && left.Locality == right.Locality && left.Region == right.Region
+        && left.PostalCode == right.PostalCode && left.Country == right.Country
         && left.AnalyticsContainerId == right.AnalyticsContainerId && left.CookieBannerText == right.CookieBannerText;
 
     private static string T(DateTime? value) => value is null ? "" : value.Value.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
@@ -1404,6 +1410,8 @@ sealed class MediaWrite
 
     public List<string> Failures { get; } = [];
 }
+
+readonly record struct PostalAddressParts(string? Street, string? Locality, string? Region, string? PostalCode, string? Country);
 
 sealed class ImportModel
 {

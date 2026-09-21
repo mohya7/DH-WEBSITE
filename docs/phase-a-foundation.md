@@ -213,6 +213,12 @@ The largest part of this phase. The designed pages keep their content in HTML, n
 
 The importer is a separate console tool, `api/tools/DigitalHub.ContentImport`. The API never reads the old repository and never runs this import at startup. The tool takes the path to `DH-WEBSITE-main`, connects with the restricted login, and is idempotent. `--dry-run` extracts and reports without writing. Images are read with SkiaSharp. The media folder under the API is content: it is gitignored except `.gitkeep`.
 
+The source folder must be a clean checkout of `feature/interviewer-portal`. The importer refuses any other branch, and it records the commit it read. This import read `eb05f0647c3458cc612f8a9ed8625fbb0ebc7752`.
+
+Phase C keeps that design unchanged. The existing stylesheets are ported as they are, and pages are checked for screenshot parity against `feature/interviewer-portal`.
+
+Site settings email is `sales@digitalhubgroup.com`, the address on the page and in the company profile. The other address in the contact-page structured data is not imported. `site_settings` stores the postal address in `street_address`, `locality`, `region`, `postal_code`, and `country`. The footer text is the copyright line only. The footer and the contact section render from those fields. The source has no postal code, so that column is empty.
+
 The old site live on digitalhub.com.eg is out of scope. Nothing is carried over from it: no redirects and no SEO settings. The redirects table starts empty, and the importer does not build a legacy redirect map.
 
 **6.1** Import every collection item from `admin-content.json`.

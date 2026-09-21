@@ -1258,6 +1258,11 @@ namespace DigitalHub.Api.Data.Migrations
                         .HasColumnType("nvarchar(max)")
                         .HasColumnName("cookie_banner_text");
 
+                    b.Property<string>("Country")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)")
+                        .HasColumnName("country");
+
                     b.Property<string>("DefaultMetaDescription")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)")
@@ -1306,6 +1311,11 @@ namespace DigitalHub.Api.Data.Migrations
                         .HasColumnType("nvarchar(300)")
                         .HasColumnName("linked_in");
 
+                    b.Property<string>("Locality")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)")
+                        .HasColumnName("locality");
+
                     b.Property<string>("OrganizationName")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)")
@@ -1315,6 +1325,21 @@ namespace DigitalHub.Api.Data.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)")
                         .HasColumnName("phone");
+
+                    b.Property<string>("PostalCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("postal_code");
+
+                    b.Property<string>("Region")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)")
+                        .HasColumnName("region");
+
+                    b.Property<string>("StreetAddress")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)")
+                        .HasColumnName("street_address");
 
                     b.Property<string>("TikTok")
                         .HasMaxLength(300)

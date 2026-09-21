@@ -352,6 +352,21 @@ public sealed class SiteSettings
     public string? FooterText { get; set; }
 
     [MaxLength(300)]
+    public string? StreetAddress { get; set; }
+
+    [MaxLength(120)]
+    public string? Locality { get; set; }
+
+    [MaxLength(120)]
+    public string? Region { get; set; }
+
+    [MaxLength(20)]
+    public string? PostalCode { get; set; }
+
+    [MaxLength(80)]
+    public string? Country { get; set; }
+
+    [MaxLength(300)]
     public string? DefaultMetaTitle { get; set; }
 
     [MaxLength(500)]
