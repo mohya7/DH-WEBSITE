@@ -12,6 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalHub.Api.Tests;
 
+[Collection("SqlServer")]
 public sealed class AuthTests : IClassFixture<ApiFactory>
 {
     private readonly ApiFactory _factory;

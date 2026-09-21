@@ -178,19 +178,32 @@ Every collection table carries: `id`, `slug`, `title`, `status` (draft / publish
 
 **4.4** Report the entity classes and the first migration. **Do not apply it until I confirm.**
 
+### Confirmed with the schema
+
+- `blog_posts.faq` is a JSON column with the same document as an `faq` section: `{ "items": [ { "question", "answer" } ] }`. Answers are plain text so an article can emit FAQPage structured data. `blogs[].faq` maps here. Empty source arrays become `{ "items": [] }`.
+- `blog_posts.date_modified` is the editorial date. `blogs[].dateModified` maps to it. `updated_at` stays the row timestamp.
+- `blogs[].answerBlock` maps to `blog_posts.answer_block`. `blogs[].relatedPosts` maps to `blog_posts.related_slugs`. `blogs[].dataCallouts` and `blogs[].comparisonTable` are dropped: every value is empty or null, and a table inside an article is a TipTap table in `body`.
+- Every foreign key to `media` (`image_id`, `share_image_id`, `default_share_image_id`) and `contact_requests.handled_by_id` to `AspNetUsers` is `ON DELETE NO ACTION`. Section ownership stays four nullable foreign keys with `ON DELETE CASCADE` and a check that exactly one is set.
+- **Phase B must refuse to delete a media asset that is referenced by any column or by any section JSON.** The database will not clear those references.
+- String arrays (`case_studies.categories`, `blog_posts.related_slugs`, `vacancies.interview_stages`) are JSON arrays in `nvarchar(max)`.
+- `contact_requests.status` is `new` or `handled`, with `handled_by_id` and `handled_at`.
+- Alt text defaults on `media.alt`. A usage may set an override. Publish checks the effective value.
+
 ---
 
 ## Section 5 — Database
 
 After my confirmation:
 
-**5.1** Create `DigitalHubContent` on the local instance.
+**5.1** Create `DigitalHubContent` on the local instance, and `DigitalHubContent_Test` for integration tests.
 
-**5.2** Create a dedicated login for the API with read and write on that database only. Not sysadmin. Not the existing hiring login. Password in user-secrets; never printed.
+**5.2** Create a dedicated login for the API with read and write on `DigitalHubContent` only. The same read and write grants exist on `DigitalHubContent_Test`, because the API under test uses this login. Not sysadmin. Not `db_owner`. No DDL. Not the existing hiring login. Password in user-secrets; never printed. The API connection string uses this login, not Windows authentication.
 
-**5.3** Apply the migration.
+**5.3** Apply the migration with an elevated account, not the API login. Migrations are a deployment step. The application does not run them at startup.
 
-**5.4** Set the recovery model to SIMPLE.
+**5.4** Set both databases to SIMPLE recovery.
+
+**5.5** Integration tests run against `DigitalHubContent_Test` with the restricted login, not SQLite.
 
 ---
 
@@ -199,6 +212,10 @@ After my confirmation:
 The largest part of this phase. The designed pages keep their content in HTML, not in the JSON file, so it has to be extracted.
 
 **6.1** Import every collection item from `admin-content.json`.
+
+The vacancies table starts empty. All six vacancy records are test data: the three designed career pages (`careers/data-analyst.html`, `careers/dotnet-backend-developer.html`, `careers/full-stack-developer.html`) and all three JSON jobs. Do not migrate those three HTML files as pages or vacancies. The careers hub and the apply page are migrated. The vacancy list shows no openings.
+
+Before seeding any other collection, report anything that looks like test data — placeholder names, `asdasd`, `— Copy` entries — and wait for confirmation. Do not seed it before that confirmation.
 
 **6.2** Extract the content of every designed page from its HTML into sections — every heading, paragraph, image, link, and list — into the matching section type.
 

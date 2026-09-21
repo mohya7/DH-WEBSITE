@@ -66,8 +66,14 @@ public sealed class IdentitySeeder(IServiceProvider services, IConfiguration con
             var created = await users.CreateAsync(admin, password);
             if (!created.Succeeded)
             {
-                var codes = string.Join(", ", created.Errors.Select(error => error.Code));
-                throw new InvalidOperationException($"Could not create the initial admin user: {codes}.");
+                var duplicate = created.Errors.All(error =>
+                    error.Code is "DuplicateUserName" or "DuplicateEmail");
+                admin = await users.FindByEmailAsync(email);
+                if (!duplicate || admin is null)
+                {
+                    var codes = string.Join(", ", created.Errors.Select(error => error.Code));
+                    throw new InvalidOperationException($"Could not create the initial admin user: {codes}.");
+                }
             }
         }
 

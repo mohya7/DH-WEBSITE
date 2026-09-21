@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 
 namespace DigitalHub.Api.Tests;
 
+[Collection("SqlServer")]
 public sealed class ConventionTests : IClassFixture<ApiFactory>
 {
     private readonly HttpClient _client;
