@@ -1,4 +1,4 @@
-namespace DigitalHub.Api.Infrastructure;
+namespace DigitalHub.Api.Tests;
 
 public enum UpdateOutcome
 {
@@ -9,7 +9,7 @@ public enum UpdateOutcome
 
 public sealed record NoteResponse(Guid Id, string Name, int Version, DateTime UpdatedAt);
 
-public sealed class ExampleNoteStore
+public sealed class NoteStore
 {
     private readonly object _gate = new();
     private readonly List<NoteResponse> _notes = [];

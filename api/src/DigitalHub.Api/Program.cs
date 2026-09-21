@@ -1,11 +1,16 @@
 using System.Text;
+using System.Threading.RateLimiting;
+using DigitalHub.Api.Auth;
 using DigitalHub.Api.Conventions;
 using DigitalHub.Api.Data;
+using DigitalHub.Api.Identity;
 using DigitalHub.Api.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.FileProviders;
@@ -32,7 +37,54 @@ if (string.IsNullOrWhiteSpace(signingKey))
     throw new InvalidOperationException("Auth:SigningKey is not configured.");
 }
 
+if (string.IsNullOrWhiteSpace(builder.Configuration["Auth:InitialAdminPassword"]))
+{
+    throw new InvalidOperationException("Auth:InitialAdminPassword is not configured.");
+}
+
+if (string.IsNullOrWhiteSpace(builder.Configuration["Auth:InitialAdminEmail"]))
+{
+    throw new InvalidOperationException("Auth:InitialAdminEmail is not configured.");
+}
+
 builder.Services.AddDbContext<ContentDbContext>(options => options.UseSqlServer(connectionString));
+builder.Services.AddIdentityCore<ApplicationUser>(options =>
+{
+    options.User.RequireUniqueEmail = true;
+    options.Lockout.AllowedForNewUsers = false;
+})
+.AddRoles<IdentityRole>()
+.AddEntityFrameworkStores<ContentDbContext>();
+builder.Services.AddScoped<TokenService>();
+builder.Services.AddHostedService<IdentitySeeder>();
+
+var loginPermitLimit = builder.Configuration.GetValue("Auth:LoginPermitLimit", 8);
+var loginWindowHours = builder.Configuration.GetValue("Auth:LoginWindowHours", 1);
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = (context, token) =>
+    {
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        return new ValueTask(ProblemResults.WriteAsync(
+            context.HttpContext.Response,
+            StatusCodes.Status429TooManyRequests,
+            "rate_limited",
+            "Too many login attempts.",
+            token));
+    };
+    options.AddPolicy("login", httpContext =>
+    {
+        var ip = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var email = httpContext.Items[LoginRateLimitKeyMiddleware.EmailItem] as string ?? "";
+        return RateLimitPartition.GetFixedWindowLimiter($"{ip}\n{email}", _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = loginPermitLimit,
+            Window = TimeSpan.FromHours(loginWindowHours),
+            QueueLimit = 0,
+        });
+    });
+});
 
 builder.Services.AddExceptionHandler<UnhandledExceptionHandler>();
 builder.Services.AddProblemDetails();
@@ -66,6 +118,7 @@ builder.Services.AddControllers(options =>
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        options.MapInboundClaims = false;
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -76,6 +129,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = builder.Configuration["Auth:Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)),
             ClockSkew = TimeSpan.FromSeconds(30),
+            RoleClaimType = "role",
+            NameClaimType = "sub",
         };
         options.Events = new JwtBearerEvents
         {
@@ -97,6 +152,7 @@ builder.Services.AddAuthorization(options =>
 {
     options.FallbackPolicy = new AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
+        .RequireRole(Roles.All)
         .Build();
 
     foreach (var role in new[] { "admin", "editor", "hr", "marketing", "interviewer" })
@@ -108,8 +164,6 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<ContentDbContext>("database");
 
-builder.Services.AddSingleton<ExampleNoteStore>();
-
 var app = builder.Build();
 
 app.UseMiddleware<CorrelationIdMiddleware>();
@@ -120,6 +174,8 @@ app.UseSerilogRequestLogging(options =>
     options.MessageTemplate = "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms";
 });
 app.UseMiddleware<ExceptionShieldMiddleware>();
+app.UseMiddleware<LoginRateLimitKeyMiddleware>();
+app.UseRateLimiter();
 
 var mediaRoot = Path.Combine(app.Environment.ContentRootPath, "media");
 Directory.CreateDirectory(mediaRoot);

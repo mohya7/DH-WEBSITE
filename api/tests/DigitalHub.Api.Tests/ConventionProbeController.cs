@@ -2,20 +2,21 @@ using System.ComponentModel.DataAnnotations;
 using DigitalHub.Api.Conventions;
 using DigitalHub.Api.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
-namespace DigitalHub.Api.Controllers;
+namespace DigitalHub.Api.Tests;
 
 /// <summary>
-/// Shows the API conventions. Not a content resource.
+/// Exercises API conventions. Registered only by the test host.
 /// </summary>
 [ApiController]
 [Route("api/v1/examples")]
-public sealed class ExamplesController : ControllerBase
+public sealed class ConventionProbeController : ControllerBase
 {
-    private readonly ExampleNoteStore _notes;
+    private readonly NoteStore _notes;
 
-    public ExamplesController(ExampleNoteStore notes)
+    public ConventionProbeController(NoteStore notes)
     {
         _notes = notes;
     }
