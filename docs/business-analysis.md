@@ -4,10 +4,12 @@
 
 | | |
 |---|---|
-| Version | 1.0 — draft for review |
+| Version | 1.1 — updated after Phase A |
 | Date | 21 September 2026 |
 | Audience | Tech lead, backend and frontend teams, IT and DevOps, marketing |
 | Purpose | Agree where the platform stands and what changes, before DevOps design begins |
+
+**Changes in 1.1:** the old live site is out of scope, so there are no legacy redirects; the design is locked and verified by screenshot parity; content comes only from branch `feature/interviewer-portal`; case studies and blogs are placeholder drafts; no vacancies migrated; Phase A complete.
 
 ---
 
@@ -27,7 +29,7 @@ Staging carries temporary integration costs — two applications on one domain, 
 
 | | Today | Target |
 |---|---|---|
-| Public pages | 29, static HTML | 29, Next.js static export |
+| Public pages | 29, static HTML | 26, Next.js static export — the 3 test career pages are not migrated |
 | Pages editable by staff | Collections plus home and about | Every page |
 | Content storage | JSON file | SQL Server |
 | Roles | 4 | 5, one shared identity |
@@ -43,7 +45,7 @@ Staging carries temporary integration costs — two applications on one domain, 
 - Public website rebuild
 - Content Studio rebuild
 - Shared identity for all roles
-- Content migration from the current system
+- Content migration from branch `feature/interviewer-portal`
 - The transition architecture that lets the new website coexist with the existing hiring system
 
 **Defined here, built in the next stage**
@@ -53,6 +55,7 @@ Staging carries temporary integration costs — two applications on one domain, 
 - Phase 4: task file upload and emailed tasks
 - Zoom meeting generation
 - The 18 unwritten articles in the content plan — content work, running in parallel
+- **The old live site on `digitalhub.com.eg`.** A legacy single-page app serving the same empty shell on every URL. Nothing is carried over from it — no content, no design, no SEO settings, no redirects
 
 ---
 
@@ -161,7 +164,8 @@ One Node.js process serves everything.
 | Deployed anywhere | **No** |
 | Active branch | `feature/interviewer-portal` |
 | Frozen snapshot | `release/v1` at `3b7fda0` |
-| Legacy branch | `main` — pre-migration code, not to be used |
+| Legacy branch | `main` — pre-migration code, never used as a source |
+| Content and design source | Branch `feature/interviewer-portal` only; the importer refuses any other source |
 | Backup | Procedure written, restore drill passed, **no schedule running** |
 
 ### 5.7 Known issues and open findings
@@ -297,7 +301,7 @@ The previous site is kept deployable until the new one has run without incident.
 | Rich text | Sanitised HTML | TipTap structured documents | Rebuild |
 | Images | Upload and WebP conversion | Media library: metadata stripped, sizes, dimensions, alt text enforced, deduplicated | Rebuild and extend |
 | SEO | Partial; score 69 | Full system; target 100 | New |
-| Redirects | None | Automatic on slug change, legacy map, manual management | New |
+| Redirects | None | Automatic on slug change, manual management. No legacy map — the old live site is out of scope | New |
 | Preview | None | Live preview with the site's own components | New |
 | Revision history | Revision counter | Snapshot per publish, restore | New |
 | Audit | Deletions and hiring attribution only | All administrative actions | New |
@@ -406,8 +410,8 @@ Unchanged in this stage. Recorded here so the hiring rebuild has the reference.
 
 | ID | Requirement |
 |---|---|
-| FR-W-01 | Reproduce all 29 current pages, rendered statically from published content |
-| FR-W-02 | Clean URLs; every current URL returns a permanent redirect to its new address |
+| FR-W-01 | Reproduce every migrated page, rendered statically from published content, **visually identical** to branch `feature/interviewer-portal` |
+| FR-W-02 | Clean URLs. No legacy redirects; old URLs reach the custom 404 page, which links to the main sections |
 | FR-W-03 | Meta title, description, canonical, share image, and noindex per page |
 | FR-W-04 | Structured data per page type: Organization, WebSite, BreadcrumbList, Article, Service, JobPosting, FAQPage |
 | FR-W-05 | Generate `sitemap.xml`, `robots.txt`, and `llms.txt` at build |
@@ -439,6 +443,7 @@ Unchanged in this stage. Recorded here so the hiring rebuild has the reference.
 | NFR-14 | Tokens | Access token in memory; refresh token in `HttpOnly` cookie; CSRF protection on refresh |
 | NFR-15 | Scaling readiness | No session or rate-limit state held only in process memory if more than one instance is ever run |
 | NFR-16 | Browsers | Current versions of Chrome, Edge, Firefox, and Safari, including iOS Safari |
+| NFR-17 | Design parity | No design change. Existing stylesheets ported as they are. Automated screenshot comparison of every page at desktop, tablet, and mobile widths against `feature/interviewer-portal`; any difference fails |
 
 ---
 
@@ -446,15 +451,17 @@ Unchanged in this stage. Recorded here so the hiring rebuild has the reference.
 
 | Source | Target | Method | Verified by |
 |---|---|---|---|
-| Collections in `admin-content.json` | Collection tables | Seed | Row counts match the source |
-| Designed HTML pages | Pages and sections | Extraction from HTML | Per-page report listing anything not mapped |
-| Images referenced by content | Media library | Upload pipeline | Image count; list of images missing alt text |
-| Current URLs | Redirects table | Generated map | Every old URL returns 301 to a page returning 200 |
-| `contact-requests.json` | Contact enquiries table | Import | Counts match |
-| Vacancies | Vacancies table, plus the bridge file | Seed and export | Node reads the bridged file correctly |
+| Collections in `admin-content.json` | Collection tables | Importer tool, dry run first | Row counts match the source. **Done** |
+| Designed HTML pages | Pages and sections | Extraction from HTML | Per-page report. **Done** — 9 pages, 103 sections |
+| Images referenced by content | Media library | Upload pipeline | **Done** — 63 images, all with alt text; decorative usages marked per usage |
+| `contact-requests.json` | Contact enquiries table | Import | **Done** — the file held no requests |
+| Vacancies | Not migrated — all six were test data | — | Table empty; real vacancies created in the Studio |
+| Case studies and blog posts | Imported as **draft** — placeholder content | Importer | Not published until rewritten |
 | `DigitalHubHiring` | Unchanged | — | — |
 
-**Content parity sign-off is required before cutover.** A named reviewer from marketing compares every page on the new site against the old.
+**Content parity sign-off is required before cutover.** A named reviewer from marketing compares every page on the new site against branch `feature/interviewer-portal`.
+
+**The importer is a one-off tool.** It reads only a clean `feature/interviewer-portal` checkout, reports its source commit, and is idempotent. Phase A imported from commit `eb05f06`.
 
 ---
 
@@ -494,8 +501,10 @@ Unchanged in this stage. Recorded here so the hiring rebuild has the reference.
 
 | # | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|---|
-| R1 | Search traffic lost when URLs change | Medium | High | Tested redirect map for every current URL; canonical tags; monitor Search Console after cutover |
-| R2 | Content lost when extracting from HTML | High | Medium | Per-page extraction report; parity sign-off |
+| R1 | Search traffic lost at cutover | Low | Medium | Accepted. The old live site serves an empty shell with one title on every URL, so little is indexed. Custom 404 guides visitors; monitor Search Console after cutover |
+| R2 | Content lost when extracting from HTML | Low | Medium | Mitigated — dry run reviewed before import; parity sign-off |
+| R16 | Placeholder case studies or blogs published by mistake | Medium | High | Imported as drafts; publishing requires an editor's explicit action |
+| R17 | Design drifts during the rebuild | Medium | High | Existing stylesheets ported as they are; automated screenshot parity |
 | R3 | Editors think publishing is broken | Medium | Medium | Studio shows "awaiting build"; editors briefed |
 | R4 | Staff edit content in the old Node admin after cutover | Medium | High | Switch off Node content editing at cutover |
 | R5 | Two login systems confuse staff | High | Low | Shared identity from day one; transition documented |
@@ -529,11 +538,15 @@ Unchanged in this stage. Recorded here so the hiring rebuild has the reference.
 | Rich text | TipTap, stored as structured documents |
 | Editability | Every page, by sections |
 | Language | English only |
-| URLs | Clean URLs; every current URL redirected permanently |
+| URLs | Clean URLs; no legacy redirects |
+| Old live site | Out of scope entirely |
+| Design | Unchanged; existing stylesheets ported as they are |
+| Content source | Branch `feature/interviewer-portal` only |
+| Placeholder content | Case studies and blogs imported as drafts |
 | Analytics | Tag Manager and GA4 with Consent Mode v2 |
 | Contact form | Moves to the Content API |
 | Careers form | Stays on Node until hiring moves |
-| Vacancies | In the content database, bridged to Node |
+| Vacancies | In the content database, bridged to Node. None migrated — all were test data |
 | Hosting | IIS on Windows Server |
 
 ### 15.2 Open
@@ -558,11 +571,11 @@ Unchanged in this stage. Recorded here so the hiring rebuild has the reference.
 | Phase | Delivers | Exit criteria |
 |---|---|---|
 | 0 — Analysis | This document | Reviewed and signed off; open decisions resolved |
-| A — Foundation | Repository, Content API, schema, shared identity with five roles, migration and seed | Seed reports reviewed; row counts match; redirect map built |
+| A — Foundation | Repository, Content API, schema, shared identity with five roles, migration and seed | **Done** — commit `8c2f0d0` on `rebuild/dotnet-platform` |
 | B — Studio | Every Studio requirement | All FR-S requirements accepted |
 | C — Website | Every website requirement, shared section components | All FR-W and NFR-01 to 05 met on staging |
 | D — Transition setup | IIS routing, vacancy bridge, Node content editing switch-off prepared | Booking links and careers form work through the new routing |
-| E — Parallel run | New site on staging beside the current system | Parity sign-off; every legacy URL verified; reachability test passed |
+| E — Parallel run | New site on staging beside the current system | Content parity sign-off; screenshot parity passed; reachability test passed |
 | F — Cutover | New website and Studio live | Rollback tested; backups scheduled and verified |
 | G — Hiring rebuild | .NET hiring platform on the shared identity | Separate analysis |
 
@@ -576,7 +589,7 @@ After G: Phase 4, then Zoom.
 - Lighthouse SEO 100 on every page type
 - Lighthouse accessibility 95 or above; performance 93.5 or above
 - Zero horizontal overflow at 390px and 320px on every page
-- Every current URL returns 301 to a page returning 200
+- Screenshot parity with `feature/interviewer-portal` on every page, at desktop, tablet, and mobile widths
 - Structured data validates with no errors
 - No private path reachable on the deployed site
 - Content parity signed off
