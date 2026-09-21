@@ -34,6 +34,10 @@ secrets.json
 appsettings.*.json
 !appsettings.json
 
+# Media library content. Keep the folder, not the files.
+api/src/DigitalHub.Api/media/*
+!api/src/DigitalHub.Api/media/.gitkeep
+
 # OS
 .DS_Store
 Thumbs.db

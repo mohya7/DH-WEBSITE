@@ -21,9 +21,14 @@ public static class AltText
         return asset.Alt.Trim();
     }
 
-    public static bool IsPublishable(string? altOverride, MediaAsset? asset)
+    public static bool IsPublishable(string? altOverride, MediaAsset? asset, bool? usageDecorative = null)
     {
-        if (asset is null || asset.Decorative)
+        if (usageDecorative == true || asset is null)
+        {
+            return true;
+        }
+
+        if (usageDecorative is null && asset.Decorative)
         {
             return true;
         }

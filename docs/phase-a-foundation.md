@@ -211,11 +211,21 @@ After my confirmation:
 
 The largest part of this phase. The designed pages keep their content in HTML, not in the JSON file, so it has to be extracted.
 
+The importer is a separate console tool, `api/tools/DigitalHub.ContentImport`. The API never reads the old repository and never runs this import at startup. The tool takes the path to `DH-WEBSITE-main`, connects with the restricted login, and is idempotent. `--dry-run` extracts and reports without writing. Images are read with SkiaSharp. The media folder under the API is content: it is gitignored except `.gitkeep`.
+
+The old site live on digitalhub.com.eg is out of scope. Nothing is carried over from it: no redirects and no SEO settings. The redirects table starts empty, and the importer does not build a legacy redirect map.
+
 **6.1** Import every collection item from `admin-content.json`.
 
-The vacancies table starts empty. All six vacancy records are test data: the three designed career pages (`careers/data-analyst.html`, `careers/dotnet-backend-developer.html`, `careers/full-stack-developer.html`) and all three JSON jobs. Do not migrate those three HTML files as pages or vacancies. The careers hub and the apply page are migrated. The vacancy list shows no openings.
+Services, partners, team, news, pages, navigation, and site settings are real and are imported as they are. Case studies and blog posts are placeholder drafts: import every one, including `case-national-portal` and both HTML-only posts, with status `draft`. They stay in the Studio for editing and are not published. The vacancies table stays empty. Do not migrate the three career detail pages or the three JSON jobs as pages or vacancies. The careers hub and the apply page are migrated. The vacancy list shows no openings.
 
-Before seeding any other collection, report anything that looks like test data — placeholder names, `asdasd`, `— Copy` entries — and wait for confirmation. Do not seed it before that confirmation.
+For Phase C, listing sections — case cards, blog list, and vacancy list — hide themselves when nothing is published, rather than render empty.
+
+An image usage may set its own decorative flag. When that flag is set, publish does not require alt text for that usage. The media asset still holds the default alt. Internal links in imported content are rewritten to the clean URLs. The three careers-hub links to the dummy vacancy pages are removed at import. The vacancy list is generated from the vacancies table.
+
+A `related_items` section stores each target as `{ "type", "slug" }` — `service`, `partner`, `case_study`, or `blog_post` — not as a URL path, so renaming a slug does not break the reference. Blog posts do not own sections. The related block on a post is the same shape, stored on the body document as `relatedItems`, separate from the TipTap `content`. `related_slugs` stays empty.
+
+Team members use the `assets/team/` portraits the About page shows. The taller uploaded portraits are imported into the media library as unused alternates.
 
 **6.2** Extract the content of every designed page from its HTML into sections — every heading, paragraph, image, link, and list — into the matching section type.
 
@@ -231,7 +241,7 @@ Use a permissively licensed image library — SkiaSharp or NetVips. Do not use I
 
 **6.4** Import `contact-requests.json` into the contact requests table.
 
-**6.5** Build the legacy redirect map: every current URL, including `.html` paths, to its new clean URL.
+**6.5** No legacy redirects. The old live site is out of scope. The redirects table starts empty.
 
 **6.6** The migration runs on database creation only and is idempotent. Running it again on a populated database changes nothing.
 
@@ -262,7 +272,7 @@ Report each result. If any step fails, stop and show it.
 **Migration**
 - 7.13 Rows per table match items per collection in the source
 - 7.14 Running the migration twice changes nothing
-- 7.15 Every legacy URL has a redirect
+- 7.15 Skipped. The old live site is out of scope, so there is no legacy-redirect check.
 
 ---
 
