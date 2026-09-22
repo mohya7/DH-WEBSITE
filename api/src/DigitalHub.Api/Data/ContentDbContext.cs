@@ -38,6 +38,8 @@ public sealed class ContentDbContext : IdentityDbContext<ApplicationUser>
 
     public DbSet<SiteSettings> SiteSettings => Set<SiteSettings>();
 
+    public DbSet<WorkingCopy> WorkingCopies => Set<WorkingCopy>();
+
     public DbSet<Revision> Revisions => Set<Revision>();
 
     public DbSet<AuditLogEntry> AuditLog => Set<AuditLogEntry>();

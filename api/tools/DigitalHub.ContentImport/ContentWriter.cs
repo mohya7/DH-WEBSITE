@@ -211,7 +211,7 @@ static partial class ContentWriter
                     ContentHash = hash,
                     Alt = alt,
                     Decorative = image.Usages > 0 && image.DecorativeUsages == image.Usages,
-                    CreatedAt = Stamp(File.GetLastWriteTimeUtc(source)),
+                    CreatedAt = default,
                 };
             }
             catch (Exception ex)
@@ -288,7 +288,7 @@ static partial class ContentWriter
         foreach (var item in collections.GetProperty("services").EnumerateArray())
         {
             var slug = Path.GetFileNameWithoutExtension(Text(item, "href"));
-            var stamp = Stamp(Text(item, "updatedAt"), FileStamp(sourceRoot, "services/" + slug + ".html"));
+            var stamp = Editorial(Text(item, "updatedAt"));
             model.Services.Add(new Service
             {
                 Id = IdFor("service:" + slug),
@@ -301,8 +301,8 @@ static partial class ContentWriter
                 Status = ContentStatus.Published,
                 SortOrder = Int(item, "order"),
                 PublishedAt = stamp,
-                CreatedAt = stamp,
-                UpdatedAt = stamp,
+                CreatedAt = stamp ?? default,
+                UpdatedAt = stamp ?? default,
                 Version = 1,
             });
             sort++;
@@ -318,7 +318,7 @@ static partial class ContentWriter
             model.Team.Add(TeamFrom(item, media, documents["about-us.html"], sourceRoot, warnings));
 
         AddBlogs(model, collections.GetProperty("blogs"), documents, media, sourceRoot, warnings);
-        AddPages(model, documents, media, sourceRoot, warnings);
+        AddPages(model, documents, media, warnings);
         AddSections(model, documents, media, sourceRoot, warnings);
         AddNavigation(model, documents["index.html"]);
         model.Settings = Settings(json.RootElement, documents);
@@ -330,7 +330,7 @@ static partial class ContentWriter
         return model;
     }
 
-    private static void AddPages(ImportModel model, Dictionary<string, AngleSharp.Html.Dom.IHtmlDocument> documents, Dictionary<string, MediaAsset> media, string sourceRoot, List<string> warnings)
+    private static void AddPages(ImportModel model, Dictionary<string, AngleSharp.Html.Dom.IHtmlDocument> documents, Dictionary<string, MediaAsset> media, List<string> warnings)
     {
         var order = 10;
         foreach (var page in Catalog.PageList())
@@ -339,7 +339,6 @@ static partial class ContentWriter
                 continue;
             var slug = page.Owner["page.".Length..];
             var document = documents[page.Source];
-            var stamp = FileStamp(sourceRoot, page.Source);
             var record = new Page
             {
                 Id = IdFor("page:" + slug),
@@ -347,9 +346,6 @@ static partial class ContentWriter
                 Title = Required(HeadingText(document) ?? Meta(document, "og:title") ?? slug, 300),
                 Status = ContentStatus.Published,
                 SortOrder = order,
-                PublishedAt = stamp,
-                CreatedAt = stamp,
-                UpdatedAt = stamp,
                 Version = 1,
             };
             ApplySeo(record, document, media, page.Source, warnings);
@@ -445,7 +441,6 @@ static partial class ContentWriter
         var summary = htmlOnly ? Meta(document!, "description") ?? "" : Text(item, "summary");
         var modified = htmlOnly ? BylineDate(document!, "Updated") : ParseDate(Text(item, "dateModified"));
         var created = htmlOnly ? BylineDate(document!, "Published") ?? modified : ParseDate(Text(item, "datePublished")) ?? modified;
-        created ??= FileStamp(sourceRoot, source);
         modified ??= created;
         var imagePath = htmlOnly
             ? Catalog.NormalizeAsset(document!.QuerySelector(".blog-view-media img")?.GetAttribute("src") ?? "", source, sourceRoot)
@@ -459,8 +454,8 @@ static partial class ContentWriter
             Status = ContentStatus.Draft,
             SortOrder = htmlOnly ? 0 : Int(item, "order"),
             PublishedAt = null,
-            CreatedAt = created.Value,
-            UpdatedAt = modified.Value,
+            CreatedAt = created ?? default,
+            UpdatedAt = modified ?? created ?? default,
             DateModified = modified,
             Version = 1,
             Category = Required(htmlOnly ? Slugify(document!.QuerySelector(".blog-view-tag")?.TextContent) : Text(item, "category"), 80),
@@ -525,7 +520,7 @@ static partial class ContentWriter
     private static Partner PartnerFrom(JsonElement item, Dictionary<string, MediaAsset> media, string sourceRoot)
     {
         var slug = Path.GetFileNameWithoutExtension(Text(item, "href"));
-        var stamp = Stamp(Text(item, "updatedAt"), FileStamp(sourceRoot, Text(item, "href")));
+        var stamp = Editorial(Text(item, "updatedAt"));
         var partner = new Partner
         {
             Id = IdFor("partner:" + slug),
@@ -537,8 +532,8 @@ static partial class ContentWriter
             Status = ContentStatus.Published,
             SortOrder = Int(item, "order"),
             PublishedAt = stamp,
-            CreatedAt = stamp,
-            UpdatedAt = stamp,
+            CreatedAt = stamp ?? default,
+            UpdatedAt = stamp ?? default,
             Version = 1,
         };
         AttachImage(partner, item, media, sourceRoot, (row, id) => row.ImageId = id, (row, alt) => row.ImageAltOverride = alt);
@@ -549,7 +544,7 @@ static partial class ContentWriter
     {
         var id = Text(item, "id");
         var slug = id == "case-national-portal" ? "national-portal" : Path.GetFileNameWithoutExtension(Text(item, "href"));
-        var stamp = Stamp(Text(item, "updatedAt"), FileStamp(sourceRoot, "cases/" + slug + ".html"));
+        var stamp = Editorial(Text(item, "updatedAt"));
         var study = new CaseStudy
         {
             Id = IdFor("case:" + slug),
@@ -564,8 +559,8 @@ static partial class ContentWriter
             Status = ContentStatus.Draft,
             SortOrder = Int(item, "order"),
             PublishedAt = null,
-            CreatedAt = stamp,
-            UpdatedAt = stamp,
+            CreatedAt = stamp ?? default,
+            UpdatedAt = stamp ?? default,
             Version = 1,
         };
         AttachImage(study, item, media, sourceRoot, (row, imageId) => row.ImageId = imageId, (row, alt) => row.ImageAltOverride = alt);
@@ -575,7 +570,7 @@ static partial class ContentWriter
     private static NewsItem NewsFrom(JsonElement item, Dictionary<string, MediaAsset> media, string sourceRoot)
     {
         var slug = (Text(item, "id") ?? "").Replace("news-", "", StringComparison.Ordinal);
-        var stamp = Stamp(Text(item, "updatedAt"), FileStamp(sourceRoot, "news/index.html"));
+        var stamp = Editorial(Text(item, "updatedAt"));
         var news = new NewsItem
         {
             Id = IdFor("news:" + slug),
@@ -591,8 +586,8 @@ static partial class ContentWriter
             Status = ContentStatus.Published,
             SortOrder = Int(item, "order"),
             PublishedAt = stamp,
-            CreatedAt = stamp,
-            UpdatedAt = stamp,
+            CreatedAt = stamp ?? default,
+            UpdatedAt = stamp ?? default,
             Version = 1,
         };
         AttachImage(news, item, media, sourceRoot, (row, imageId) => row.ImageId = imageId, (row, alt) => row.ImageAltOverride = alt);
@@ -602,7 +597,7 @@ static partial class ContentWriter
     private static TeamMember TeamFrom(JsonElement item, Dictionary<string, MediaAsset> media, AngleSharp.Html.Dom.IHtmlDocument about, string sourceRoot, List<string> warnings)
     {
         var slug = (Text(item, "id") ?? "").Replace("team-", "", StringComparison.Ordinal);
-        var stamp = Stamp(Text(item, "updatedAt"), FileStamp(sourceRoot, "about-us.html"));
+        var stamp = Editorial(Text(item, "updatedAt"));
         var portrait = "assets/team/" + slug + ".webp";
         var member = new TeamMember
         {
@@ -616,8 +611,8 @@ static partial class ContentWriter
             Status = ContentStatus.Published,
             SortOrder = Int(item, "order"),
             PublishedAt = stamp,
-            CreatedAt = stamp,
-            UpdatedAt = stamp,
+            CreatedAt = stamp ?? default,
+            UpdatedAt = stamp ?? default,
             Version = 1,
         };
         if (media.TryGetValue(portrait, out var asset))
@@ -1125,14 +1120,14 @@ static partial class ContentWriter
         var options = new DbContextOptionsBuilder<ContentDbContext>().UseSqlServer(connectionString).Options;
         await using var db = new ContentDbContext(options);
         var changes = 0;
-        changes += Upsert(db, model.Media, await db.Media.AsNoTracking().ToDictionaryAsync(item => item.Id), SameMedia);
-        changes += Upsert(db, model.Services, await db.Services.AsNoTracking().ToDictionaryAsync(item => item.Id), SameService);
-        changes += Upsert(db, model.Partners, await db.Partners.AsNoTracking().ToDictionaryAsync(item => item.Id), SamePartner);
-        changes += Upsert(db, model.Cases, await db.CaseStudies.AsNoTracking().ToDictionaryAsync(item => item.Id), SameCase);
-        changes += Upsert(db, model.Blogs, await db.BlogPosts.AsNoTracking().ToDictionaryAsync(item => item.Id), SameBlog);
-        changes += Upsert(db, model.Team, await db.TeamMembers.AsNoTracking().ToDictionaryAsync(item => item.Id), SameTeam);
-        changes += Upsert(db, model.News, await db.NewsItems.AsNoTracking().ToDictionaryAsync(item => item.Id), SameNews);
-        changes += Upsert(db, model.Pages, await db.Pages.AsNoTracking().ToDictionaryAsync(item => item.Id), SamePage);
+        changes += UpsertMedia(db, model.Media, await db.Media.AsNoTracking().ToDictionaryAsync(item => item.Id));
+        changes += UpsertRecord(db, model.Services, await db.Services.AsNoTracking().ToDictionaryAsync(item => item.Id), SameService);
+        changes += UpsertRecord(db, model.Partners, await db.Partners.AsNoTracking().ToDictionaryAsync(item => item.Id), SamePartner);
+        changes += UpsertRecord(db, model.Cases, await db.CaseStudies.AsNoTracking().ToDictionaryAsync(item => item.Id), SameCase);
+        changes += UpsertRecord(db, model.Blogs, await db.BlogPosts.AsNoTracking().ToDictionaryAsync(item => item.Id), SameBlog);
+        changes += UpsertRecord(db, model.Team, await db.TeamMembers.AsNoTracking().ToDictionaryAsync(item => item.Id), SameTeam);
+        changes += UpsertRecord(db, model.News, await db.NewsItems.AsNoTracking().ToDictionaryAsync(item => item.Id), SameNews);
+        changes += UpsertRecord(db, model.Pages, await db.Pages.AsNoTracking().ToDictionaryAsync(item => item.Id), SamePage);
         var sections = Upsert(db, model.Sections, await db.Sections.AsNoTracking().ToDictionaryAsync(item => item.Id), SameSection);
         changes += sections;
         changes += Upsert(db, model.Navigation, await db.NavigationItems.AsNoTracking().ToDictionaryAsync(item => item.Id), SameNav);
@@ -1157,6 +1152,74 @@ static partial class ContentWriter
 
             if (same(existing, item))
                 continue;
+            db.Update(item);
+            changes++;
+        }
+
+        return changes;
+    }
+
+    private static int UpsertMedia(ContentDbContext db, IReadOnlyList<MediaAsset> desired, Dictionary<Guid, MediaAsset> current)
+    {
+        var changes = 0;
+        var now = Stamp(DateTime.UtcNow);
+        foreach (var item in desired)
+        {
+            if (!current.TryGetValue(item.Id, out var existing))
+            {
+                if (item.CreatedAt == default)
+                    item.CreatedAt = now;
+                db.Add(item);
+                changes++;
+                continue;
+            }
+
+            item.CreatedAt = existing.CreatedAt;
+            if (SameMedia(existing, item))
+                continue;
+            db.Update(item);
+            changes++;
+        }
+
+        return changes;
+    }
+
+    private static int UpsertRecord<T>(ContentDbContext db, IReadOnlyList<T> desired, Dictionary<Guid, T> current, Func<T, T, bool> same)
+        where T : ContentRecord
+    {
+        var changes = 0;
+        var now = Stamp(DateTime.UtcNow);
+        foreach (var item in desired)
+        {
+            var editorialCreated = item.CreatedAt;
+            var editorialUpdated = item.UpdatedAt;
+            var editorialPublished = item.PublishedAt;
+            if (!current.TryGetValue(item.Id, out var existing))
+            {
+                if (item.CreatedAt == default)
+                    item.CreatedAt = now;
+                if (item.UpdatedAt == default)
+                    item.UpdatedAt = now;
+                if (item.Status == ContentStatus.Published && item.PublishedAt is null)
+                    item.PublishedAt = item.UpdatedAt;
+                db.Add(item);
+                changes++;
+                continue;
+            }
+
+            item.Version = existing.Version;
+            if (item.CreatedAt == default)
+                item.CreatedAt = existing.CreatedAt;
+            if (item.UpdatedAt == default)
+                item.UpdatedAt = existing.UpdatedAt;
+            if (item.PublishedAt is null)
+                item.PublishedAt = existing.PublishedAt;
+            if (same(existing, item))
+                continue;
+
+            item.CreatedAt = editorialCreated == default ? existing.CreatedAt : editorialCreated;
+            item.UpdatedAt = editorialUpdated == default ? now : editorialUpdated;
+            item.PublishedAt = editorialPublished ?? existing.PublishedAt;
             db.Update(item);
             changes++;
         }
@@ -1292,12 +1355,7 @@ static partial class ContentWriter
         return new Guid(bytes);
     }
 
-    private static DateTime Stamp(string? iso, DateTime fallback)
-    {
-        if (!string.IsNullOrWhiteSpace(iso) && DateTime.TryParse(iso, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var parsed))
-            return Stamp(parsed);
-        return Stamp(fallback);
-    }
+    private static DateTime? Editorial(string? iso) => ParseDate(iso);
 
     private static DateTime Stamp(DateTime value) =>
         new(value.Year, value.Month, value.Day, value.Hour, value.Minute, value.Second, DateTimeKind.Utc);
@@ -1309,12 +1367,6 @@ static partial class ContentWriter
         return DateTime.TryParse(iso, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed)
             ? Stamp(parsed)
             : null;
-    }
-
-    private static DateTime FileStamp(string root, string relative)
-    {
-        var full = Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar));
-        return File.Exists(full) ? Stamp(File.GetLastWriteTimeUtc(full)) : Stamp(DateTime.UnixEpoch);
     }
 
     private static string? Text(JsonElement item, string name) =>

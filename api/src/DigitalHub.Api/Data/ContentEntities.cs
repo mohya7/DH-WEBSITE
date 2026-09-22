@@ -391,6 +391,47 @@ public sealed class SiteSettings
     public string? CookieBannerText { get; set; }
 }
 
+public sealed class WorkingCopy
+{
+    public Guid Id { get; set; }
+
+    public Guid? PageId { get; set; }
+
+    public Page? Page { get; set; }
+
+    public Guid? ServiceId { get; set; }
+
+    public Service? Service { get; set; }
+
+    public Guid? PartnerId { get; set; }
+
+    public Partner? Partner { get; set; }
+
+    public Guid? CaseStudyId { get; set; }
+
+    public CaseStudy? CaseStudy { get; set; }
+
+    public Guid? BlogPostId { get; set; }
+
+    public BlogPost? BlogPost { get; set; }
+
+    public Guid? VacancyId { get; set; }
+
+    public Vacancy? Vacancy { get; set; }
+
+    public Guid? TeamMemberId { get; set; }
+
+    public TeamMember? TeamMember { get; set; }
+
+    public Guid? NewsItemId { get; set; }
+
+    public NewsItem? NewsItem { get; set; }
+
+    public string Document { get; set; } = "";
+
+    public DateTime SavedAt { get; set; }
+}
+
 public sealed class Revision
 {
     public Guid Id { get; set; }

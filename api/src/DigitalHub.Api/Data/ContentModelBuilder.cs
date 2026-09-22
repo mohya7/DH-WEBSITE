@@ -10,6 +10,16 @@ public static class ContentModelBuilder
         " + CASE WHEN partner_id IS NOT NULL THEN 1 ELSE 0 END" +
         " + CASE WHEN case_study_id IS NOT NULL THEN 1 ELSE 0 END) = 1";
 
+    public const string ExactlyOneWorkingCopyOwner =
+        "(CASE WHEN page_id IS NOT NULL THEN 1 ELSE 0 END" +
+        " + CASE WHEN service_id IS NOT NULL THEN 1 ELSE 0 END" +
+        " + CASE WHEN partner_id IS NOT NULL THEN 1 ELSE 0 END" +
+        " + CASE WHEN case_study_id IS NOT NULL THEN 1 ELSE 0 END" +
+        " + CASE WHEN blog_post_id IS NOT NULL THEN 1 ELSE 0 END" +
+        " + CASE WHEN vacancy_id IS NOT NULL THEN 1 ELSE 0 END" +
+        " + CASE WHEN team_member_id IS NOT NULL THEN 1 ELSE 0 END" +
+        " + CASE WHEN news_item_id IS NOT NULL THEN 1 ELSE 0 END) = 1";
+
     public static void Configure(ModelBuilder builder)
     {
         ConfigureRecord<Page>(builder, "pages");
@@ -111,6 +121,24 @@ public static class ContentModelBuilder
             Snake(entity);
         });
 
+        builder.Entity<WorkingCopy>(entity =>
+        {
+            entity.ToTable("working_copies", table => table.HasCheckConstraint(
+                "ck_working_copies_exactly_one_owner",
+                ExactlyOneWorkingCopyOwner));
+            entity.HasKey(copy => copy.Id);
+            entity.Property(copy => copy.Document).IsRequired();
+            OwnCopy(entity, copy => copy.Page, copy => copy.PageId, "page_id");
+            OwnCopy(entity, copy => copy.Service, copy => copy.ServiceId, "service_id");
+            OwnCopy(entity, copy => copy.Partner, copy => copy.PartnerId, "partner_id");
+            OwnCopy(entity, copy => copy.CaseStudy, copy => copy.CaseStudyId, "case_study_id");
+            OwnCopy(entity, copy => copy.BlogPost, copy => copy.BlogPostId, "blog_post_id");
+            OwnCopy(entity, copy => copy.Vacancy, copy => copy.VacancyId, "vacancy_id");
+            OwnCopy(entity, copy => copy.TeamMember, copy => copy.TeamMemberId, "team_member_id");
+            OwnCopy(entity, copy => copy.NewsItem, copy => copy.NewsItemId, "news_item_id");
+            Snake(entity);
+        });
+
         builder.Entity<Revision>(entity =>
         {
             entity.ToTable("revisions");
@@ -168,6 +196,20 @@ public static class ContentModelBuilder
                 .OnDelete(DeleteBehavior.NoAction);
             Snake(entity);
         });
+    }
+
+    private static void OwnCopy<TOwner>(
+        Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<WorkingCopy> entity,
+        System.Linq.Expressions.Expression<Func<WorkingCopy, TOwner?>> navigation,
+        System.Linq.Expressions.Expression<Func<WorkingCopy, object?>> foreignKey,
+        string column)
+        where TOwner : class
+    {
+        entity.HasOne(navigation)
+            .WithOne()
+            .HasForeignKey<WorkingCopy>(foreignKey)
+            .OnDelete(DeleteBehavior.Cascade);
+        entity.HasIndex(foreignKey).IsUnique().HasFilter($"[{column}] IS NOT NULL");
     }
 
     private static void LinkImage<T>(

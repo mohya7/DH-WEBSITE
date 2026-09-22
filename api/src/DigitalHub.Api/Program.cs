@@ -1,6 +1,7 @@
 using System.Text;
 using System.Threading.RateLimiting;
 using DigitalHub.Api.Auth;
+using DigitalHub.Api.Content;
 using DigitalHub.Api.Conventions;
 using DigitalHub.Api.Data;
 using DigitalHub.Api.Identity;
@@ -56,6 +57,8 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
 .AddRoles<IdentityRole>()
 .AddEntityFrameworkStores<ContentDbContext>();
 builder.Services.AddScoped<TokenService>();
+builder.Services.AddSingleton<SectionSchemaSet>();
+builder.Services.AddScoped<ContentStore>();
 builder.Services.AddHostedService<IdentitySeeder>();
 
 var loginPermitLimit = builder.Configuration.GetValue("Auth:LoginPermitLimit", 8);
@@ -159,6 +162,9 @@ builder.Services.AddAuthorization(options =>
     {
         options.AddPolicy(role, policy => policy.RequireRole(role));
     }
+
+    options.AddPolicy("studio", policy => policy.RequireRole(Roles.Admin, Roles.Editor));
+    options.AddPolicy("studio-admin", policy => policy.RequireRole(Roles.Admin));
 });
 
 builder.Services.AddHealthChecks()

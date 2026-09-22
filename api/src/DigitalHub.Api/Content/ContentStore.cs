@@ -1,0 +1,764 @@
+using System.Text.Json;
+using DigitalHub.Api.Conventions;
+using DigitalHub.Api.Data;
+using Microsoft.EntityFrameworkCore;
+
+namespace DigitalHub.Api.Content;
+
+public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas)
+{
+    private static readonly Dictionary<string, (string EntityType, bool Sections)> Kinds = new(StringComparer.Ordinal)
+    {
+        ["pages"] = ("page", true),
+        ["services"] = ("service", true),
+        ["partners"] = ("partner", true),
+        ["case-studies"] = ("case_study", true),
+        ["blog-posts"] = ("blog_post", false),
+        ["vacancies"] = ("vacancy", false),
+        ["team-members"] = ("team_member", false),
+        ["news-items"] = ("news_item", false),
+    };
+
+    public bool Knows(string collection) => Kinds.ContainsKey(collection);
+
+    public async Task<ContentOutcome> ListAsync(string collection, int page, int pageSize, string? search, string? status, CancellationToken cancellationToken)
+    {
+        if (!Knows(collection))
+            return Unknown();
+        ContentStatus? parsed = null;
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            if (!Enum.TryParse<ContentStatus>(status, ignoreCase: true, out var value))
+                return Validation("status", "Status must be draft, published, or ended.");
+            parsed = value;
+        }
+
+        var term = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+        var copies = await CopyRowsAsync(collection, cancellationToken);
+        var copyIds = copies
+            .Where(copy => term is not null && copy.Document.Contains(term, StringComparison.OrdinalIgnoreCase))
+            .Select(copy => copy.OwnerId)
+            .ToList();
+        var byId = copies.ToDictionary(copy => copy.OwnerId, copy => copy.Document);
+
+        var rows = await RowsAsync(collection, parsed, term, copyIds, cancellationToken);
+        var total = rows.Count;
+        var items = rows
+            .OrderBy(row => row.Title, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(row => row.Slug, StringComparer.OrdinalIgnoreCase)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(row =>
+            {
+                var slug = row.Slug;
+                var title = row.Title;
+                var hasCopy = byId.TryGetValue(row.Id, out var document);
+                if (hasCopy && document is not null)
+                {
+                    var draft = JsonSerializer.Deserialize<DraftDocument>(document, ContentJson.Options);
+                    if (draft is not null)
+                    {
+                        slug = draft.Slug;
+                        title = draft.Title;
+                    }
+                }
+
+                return new
+                {
+                    row.Id,
+                    slug,
+                    title,
+                    status = row.Status.ToString().ToLowerInvariant(),
+                    row.Version,
+                    updatedAt = row.UpdatedAt,
+                    hasWorkingCopy = hasCopy,
+                };
+            })
+            .ToList();
+
+        return ContentOutcome.Ok(new PageResult<object>(items.Cast<object>().ToList(), page, pageSize, total));
+    }
+
+    public async Task<ContentOutcome> GetAsync(string collection, Guid id, CancellationToken cancellationToken)
+    {
+        if (!Knows(collection))
+            return Unknown();
+        var loaded = await LoadAsync(collection, id, cancellationToken);
+        return loaded is null ? Missing() : ContentOutcome.Ok(Present(collection, loaded, null));
+    }
+
+    public Task<ContentOutcome> CreateAsync(string collection, ContentWrite write, string? userId, CancellationToken cancellationToken)
+    {
+        if (!Knows(collection))
+            return Task.FromResult(Unknown());
+        return SaveNewAsync(collection, write, userId, cancellationToken);
+    }
+
+    public Task<ContentOutcome> UpdateAsync(string collection, Guid id, int version, ContentWrite write, string? userId, CancellationToken cancellationToken)
+    {
+        if (!Knows(collection))
+            return Task.FromResult(Unknown());
+        return MutateAsync(collection, id, version, userId, "update", draft => ContentFields.ApplyWrite(draft, write), cancellationToken);
+    }
+
+    public async Task<ContentOutcome> DeleteAsync(string collection, Guid id, int version, string? userId, CancellationToken cancellationToken)
+    {
+        if (!Knows(collection))
+            return Unknown();
+        var loaded = await LoadAsync(collection, id, cancellationToken);
+        if (loaded is null)
+            return Missing();
+        if (loaded.Record.Version != version)
+            return Conflict();
+        if (loaded.Record.Status == ContentStatus.Published)
+            return ContentOutcome.Fail(StatusCodes.Status409Conflict, "published", "Unpublish this item before deleting it.");
+
+        var path = ContentPaths.PublicPath(collection, loaded.Record.Slug);
+        var redirects = path is null
+            ? []
+            : await db.Redirects.Where(redirect => redirect.ToPath == path).ToListAsync(cancellationToken);
+        db.Redirects.RemoveRange(redirects);
+        foreach (var redirect in redirects)
+        {
+            db.AuditLog.Add(new AuditLogEntry
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                Action = "delete_redirect",
+                EntityType = "redirect",
+                EntityId = redirect.Id.ToString(),
+                At = DateTime.UtcNow,
+                Success = true,
+                Detail = redirect.FromPath + " -> " + redirect.ToPath,
+            });
+        }
+
+        var entityType = Kinds[collection].EntityType;
+        var revisions = await db.Revisions
+            .Where(revision => revision.EntityType == entityType && revision.EntityId == id)
+            .ToListAsync(cancellationToken);
+        db.Revisions.RemoveRange(revisions);
+        db.Remove(loaded.Record);
+        Audit(userId, "delete", collection, id);
+        return await CommitAsync(cancellationToken, () => ContentOutcome.Ok(new { }, StatusCodes.Status204NoContent));
+    }
+
+    public async Task<ContentOutcome> DiscardAsync(string collection, Guid id, int version, string? userId, CancellationToken cancellationToken)
+    {
+        if (!Knows(collection))
+            return Unknown();
+        var loaded = await LoadAsync(collection, id, cancellationToken);
+        if (loaded is null)
+            return Missing();
+        if (loaded.Record.Status != ContentStatus.Published)
+            return ContentOutcome.Fail(StatusCodes.Status409Conflict, "not_published", "Only a published item has live content to return to.");
+        if (loaded.Copy is null)
+            return ContentOutcome.Fail(StatusCodes.Status404NotFound, "no_working_copy", "This item has no draft to discard.");
+        if (loaded.Record.Version != version)
+            return Conflict();
+
+        db.WorkingCopies.Remove(loaded.Copy);
+        loaded.Copy = null;
+        loaded.Record.Version += 1;
+        Audit(userId, "discard_draft", collection, id);
+        return await CommitAsync(cancellationToken, () => ContentOutcome.Ok(Present(collection, loaded, null)));
+    }
+
+    public Task<ContentOutcome> AddSectionAsync(string collection, Guid id, int version, string type, bool visible, JsonElement fields, string? userId, CancellationToken cancellationToken)
+    {
+        if (!SectionsOf(collection))
+            return Task.FromResult(NoSections());
+        return MutateAsync(collection, id, version, userId, "add_section", draft =>
+        {
+            var order = draft.Sections.Count == 0 ? 10 : draft.Sections.Max(section => section.SortOrder) + 10;
+            draft.Sections.Add(new DraftSection
+            {
+                Id = Guid.NewGuid(),
+                Type = type.Trim(),
+                SortOrder = order,
+                Visible = visible,
+                Fields = fields.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null ? Parse("{}") : fields.Clone(),
+            });
+        }, cancellationToken);
+    }
+
+    public Task<ContentOutcome> UpdateSectionAsync(string collection, Guid id, Guid sectionId, int version, JsonElement fields, string? userId, CancellationToken cancellationToken)
+    {
+        if (!SectionsOf(collection))
+            return Task.FromResult(NoSections());
+        var missing = false;
+        return MutateAsync(collection, id, version, userId, "update_section", draft =>
+        {
+            var section = draft.Sections.FirstOrDefault(item => item.Id == sectionId);
+            if (section is null)
+            {
+                missing = true;
+                return;
+            }
+
+            section.Fields = fields.Clone();
+        }, cancellationToken, () => missing);
+    }
+
+    public Task<ContentOutcome> ReorderAsync(string collection, Guid id, int version, IReadOnlyList<Guid> sectionIds, string? userId, CancellationToken cancellationToken)
+    {
+        if (!SectionsOf(collection))
+            return Task.FromResult(NoSections());
+        return MutateAsync(collection, id, version, userId, "reorder_sections", draft =>
+        {
+            if (sectionIds.Count != draft.Sections.Count || sectionIds.Distinct().Count() != sectionIds.Count
+                || draft.Sections.Any(section => !sectionIds.Contains(section.Id)))
+            {
+                draft.Sections.Add(new DraftSection { Type = "", Fields = Parse("{\"__order\":\"invalid\"}") });
+                return;
+            }
+
+            var ordered = new List<DraftSection>();
+            for (var index = 0; index < sectionIds.Count; index++)
+            {
+                var section = draft.Sections.First(item => item.Id == sectionIds[index]);
+                section.SortOrder = (index + 1) * 10;
+                ordered.Add(section);
+            }
+
+            draft.Sections = ordered;
+        }, cancellationToken);
+    }
+
+    public Task<ContentOutcome> VisibilityAsync(string collection, Guid id, Guid sectionId, int version, bool visible, string? userId, CancellationToken cancellationToken)
+    {
+        if (!SectionsOf(collection))
+            return Task.FromResult(NoSections());
+        var missing = false;
+        return MutateAsync(collection, id, version, userId, visible ? "show_section" : "hide_section", draft =>
+        {
+            var section = draft.Sections.FirstOrDefault(item => item.Id == sectionId);
+            if (section is null)
+            {
+                missing = true;
+                return;
+            }
+
+            section.Visible = visible;
+        }, cancellationToken, () => missing);
+    }
+
+    public Task<ContentOutcome> RemoveSectionAsync(string collection, Guid id, Guid sectionId, int version, string? userId, CancellationToken cancellationToken)
+    {
+        if (!SectionsOf(collection))
+            return Task.FromResult(NoSections());
+        var missing = false;
+        return MutateAsync(collection, id, version, userId, "remove_section", draft =>
+        {
+            var section = draft.Sections.FirstOrDefault(item => item.Id == sectionId);
+            if (section is null)
+            {
+                missing = true;
+                return;
+            }
+
+            draft.Sections.Remove(section);
+        }, cancellationToken, () => missing);
+    }
+
+    private async Task<ContentOutcome> SaveNewAsync(string collection, ContentWrite write, string? userId, CancellationToken cancellationToken)
+    {
+        var record = NewRecord(collection);
+        record.Id = Guid.NewGuid();
+        record.Status = ContentStatus.Draft;
+        record.Version = 1;
+        record.CreatedAt = DateTime.UtcNow;
+        record.UpdatedAt = record.CreatedAt;
+        var draft = ContentFields.FromRecord(collection, record, []);
+        ContentFields.ApplyWrite(draft, write);
+        var errors = await CheckAsync(collection, record.Id, draft, cancellationToken);
+        if (errors.Count > 0)
+            return Validation(errors);
+
+        var applyErrors = new Dictionary<string, List<string>>();
+        ContentFields.ApplyToRecord(collection, record, draft, applyErrors);
+        if (applyErrors.Count > 0)
+            return Validation(applyErrors);
+        Add(record);
+        Audit(userId, "create", collection, record.Id);
+        var loaded = new Loaded { Record = record, Sections = [] };
+        return await CommitAsync(cancellationToken, () => ContentOutcome.Ok(Present(collection, loaded, draft), StatusCodes.Status201Created));
+    }
+
+    private async Task<ContentOutcome> MutateAsync(
+        string collection,
+        Guid id,
+        int version,
+        string? userId,
+        string action,
+        Action<DraftDocument> change,
+        CancellationToken cancellationToken,
+        Func<bool>? missing = null)
+    {
+        var loaded = await LoadAsync(collection, id, cancellationToken);
+        if (loaded is null)
+            return Missing();
+        if (loaded.Record.Version != version)
+            return Conflict();
+
+        var draft = loaded.Copy is null
+            ? ContentFields.FromRecord(collection, loaded.Record, loaded.Sections)
+            : JsonSerializer.Deserialize<DraftDocument>(loaded.Copy.Document, ContentJson.Options)
+                ?? ContentFields.FromRecord(collection, loaded.Record, loaded.Sections);
+        change(draft);
+        if (missing?.Invoke() == true)
+            return ContentOutcome.Fail(StatusCodes.Status404NotFound, "not_found", "That section does not exist.");
+
+        if (draft.Sections.Any(section => section.Type.Length == 0))
+            return Validation("sectionIds", "List every section of this item once.");
+
+        var errors = await CheckAsync(collection, id, draft, cancellationToken);
+        if (errors.Count > 0)
+            return Validation(errors);
+
+        if (loaded.Record.Status == ContentStatus.Published)
+        {
+            var copy = loaded.Copy ?? NewCopy(collection, id);
+            copy.Document = JsonSerializer.Serialize(draft, ContentJson.Options);
+            copy.SavedAt = DateTime.UtcNow;
+            if (loaded.Copy is null)
+                db.WorkingCopies.Add(copy);
+            loaded.Copy = copy;
+        }
+        else
+        {
+            var applyErrors = new Dictionary<string, List<string>>();
+            ContentFields.ApplyToRecord(collection, loaded.Record, draft, applyErrors);
+            if (applyErrors.Count > 0)
+                return Validation(applyErrors);
+            ReplaceSections(collection, loaded, draft);
+            loaded.Record.UpdatedAt = DateTime.UtcNow;
+        }
+
+        loaded.Record.Version += 1;
+        Audit(userId, action, collection, id);
+        return await CommitAsync(cancellationToken, () => ContentOutcome.Ok(Present(collection, loaded, draft)));
+    }
+
+    private async Task<Dictionary<string, List<string>>> CheckAsync(string collection, Guid id, DraftDocument draft, CancellationToken cancellationToken)
+    {
+        var errors = new Dictionary<string, List<string>>();
+        ContentFields.Validate(collection, draft, errors);
+        if (Kinds[collection].Sections)
+        {
+            for (var index = 0; index < draft.Sections.Count; index++)
+            {
+                var section = draft.Sections[index];
+                var key = "sections[" + index + "]";
+                if (!schemas.Knows(section.Type))
+                {
+                    Add(errors, key, "Unknown section type.");
+                    continue;
+                }
+
+                var json = section.Fields.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null
+                    ? "{}"
+                    : section.Fields.GetRawText();
+                foreach (var message in schemas.Validate(section.Type, json))
+                    Add(errors, key, message);
+            }
+        }
+        else if (draft.Sections.Count > 0)
+        {
+            Add(errors, "sections", "This item has no sections.");
+        }
+
+        if (await SlugTakenAsync(collection, id, draft.Slug, cancellationToken))
+            Add(errors, "slug", "That slug is already in use.");
+
+        var referenced = MediaUsage.ReferencedIds(JsonSerializer.Serialize(draft, ContentJson.Options));
+        if (referenced.Count > 0)
+        {
+            var existing = await db.Media.AsNoTracking()
+                .Where(asset => referenced.Contains(asset.Id))
+                .Select(asset => asset.Id)
+                .ToListAsync(cancellationToken);
+            var known = existing.ToHashSet();
+            foreach (var mediaId in referenced.Where(mediaId => !known.Contains(mediaId)))
+                Add(errors, "media", mediaId + " is not in the library.");
+        }
+
+        return errors;
+    }
+
+    private void ReplaceSections(string collection, Loaded loaded, DraftDocument draft)
+    {
+        if (!Kinds[collection].Sections)
+            return;
+
+        var keep = draft.Sections.Select(section => section.Id).ToHashSet();
+        foreach (var section in loaded.Sections.Where(section => !keep.Contains(section.Id)).ToList())
+        {
+            db.Sections.Remove(section);
+            loaded.Sections.Remove(section);
+        }
+
+        foreach (var draftSection in draft.Sections)
+        {
+            var row = loaded.Sections.FirstOrDefault(section => section.Id == draftSection.Id);
+            if (row is null)
+            {
+                row = new Section { Id = draftSection.Id };
+                Assign(row, collection, loaded.Record.Id);
+                db.Sections.Add(row);
+                loaded.Sections.Add(row);
+            }
+
+            row.Type = draftSection.Type;
+            row.SortOrder = draftSection.SortOrder;
+            row.Visible = draftSection.Visible;
+            row.Fields = draftSection.Fields.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null
+                ? "{}"
+                : draftSection.Fields.GetRawText();
+        }
+    }
+
+    private async Task<bool> SlugTakenAsync(string collection, Guid id, string slug, CancellationToken cancellationToken)
+    {
+        var live = collection switch
+        {
+            "pages" => await db.Pages.AnyAsync(item => item.Id != id && item.Slug == slug, cancellationToken),
+            "services" => await db.Services.AnyAsync(item => item.Id != id && item.Slug == slug, cancellationToken),
+            "partners" => await db.Partners.AnyAsync(item => item.Id != id && item.Slug == slug, cancellationToken),
+            "case-studies" => await db.CaseStudies.AnyAsync(item => item.Id != id && item.Slug == slug, cancellationToken),
+            "blog-posts" => await db.BlogPosts.AnyAsync(item => item.Id != id && item.Slug == slug, cancellationToken),
+            "vacancies" => await db.Vacancies.AnyAsync(item => item.Id != id && item.Slug == slug, cancellationToken),
+            "team-members" => await db.TeamMembers.AnyAsync(item => item.Id != id && item.Slug == slug, cancellationToken),
+            "news-items" => await db.NewsItems.AnyAsync(item => item.Id != id && item.Slug == slug, cancellationToken),
+            _ => false,
+        };
+        if (live)
+            return true;
+
+        var documents = await CopyRowsAsync(collection, cancellationToken);
+        var taken = documents.Any(copy => copy.OwnerId != id && JsonSerializer.Deserialize<DraftDocument>(copy.Document, ContentJson.Options) is { } draft
+            && string.Equals(draft.Slug, slug, StringComparison.Ordinal));
+        return taken;
+    }
+
+    private async Task<List<ContentRow>> RowsAsync(string collection, ContentStatus? status, string? term, List<Guid> copyIds, CancellationToken cancellationToken)
+    {
+        switch (collection)
+        {
+            case "pages": return await Project(Filter(db.Pages.AsNoTracking(), status, term, copyIds)).ToListAsync(cancellationToken);
+            case "services": return await Project(Filter(db.Services.AsNoTracking(), status, term, copyIds)).ToListAsync(cancellationToken);
+            case "partners": return await Project(Filter(db.Partners.AsNoTracking(), status, term, copyIds)).ToListAsync(cancellationToken);
+            case "case-studies": return await Project(Filter(db.CaseStudies.AsNoTracking(), status, term, copyIds)).ToListAsync(cancellationToken);
+            case "blog-posts": return await Project(Filter(db.BlogPosts.AsNoTracking(), status, term, copyIds)).ToListAsync(cancellationToken);
+            case "vacancies": return await Project(Filter(db.Vacancies.AsNoTracking(), status, term, copyIds)).ToListAsync(cancellationToken);
+            case "team-members": return await Project(Filter(db.TeamMembers.AsNoTracking(), status, term, copyIds)).ToListAsync(cancellationToken);
+            case "news-items": return await Project(Filter(db.NewsItems.AsNoTracking(), status, term, copyIds)).ToListAsync(cancellationToken);
+            default: return [];
+        }
+    }
+
+    private static IQueryable<ContentRow> Project<T>(IQueryable<T> query)
+        where T : ContentRecord =>
+        query.Select(item => new ContentRow(item.Id, item.Slug, item.Title, item.Status, item.Version, item.UpdatedAt));
+
+    private static IQueryable<T> Filter<T>(IQueryable<T> query, ContentStatus? status, string? term, List<Guid> copyIds)
+        where T : ContentRecord
+    {
+        if (status is not null)
+            query = query.Where(item => item.Status == status);
+        if (term is not null)
+            query = query.Where(item => item.Title.Contains(term) || item.Slug.Contains(term) || copyIds.Contains(item.Id));
+        return query;
+    }
+
+    private async Task<Loaded?> LoadAsync(string collection, Guid id, CancellationToken cancellationToken)
+    {
+        ContentRecord? record;
+        List<Section> sections;
+        switch (collection)
+        {
+            case "pages":
+                var page = await db.Pages.Include(item => item.Sections).FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+                record = page;
+                sections = page?.Sections.ToList() ?? [];
+                break;
+            case "services":
+                var service = await db.Services.Include(item => item.Sections).FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+                record = service;
+                sections = service?.Sections.ToList() ?? [];
+                break;
+            case "partners":
+                var partner = await db.Partners.Include(item => item.Sections).FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+                record = partner;
+                sections = partner?.Sections.ToList() ?? [];
+                break;
+            case "case-studies":
+                var study = await db.CaseStudies.Include(item => item.Sections).FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+                record = study;
+                sections = study?.Sections.ToList() ?? [];
+                break;
+            case "blog-posts":
+                record = await db.BlogPosts.FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+                sections = [];
+                break;
+            case "vacancies":
+                record = await db.Vacancies.FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+                sections = [];
+                break;
+            case "team-members":
+                record = await db.TeamMembers.FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+                sections = [];
+                break;
+            case "news-items":
+                record = await db.NewsItems.FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+                sections = [];
+                break;
+            default:
+                return null;
+        }
+
+        if (record is null)
+            return null;
+        var copy = await FindCopyAsync(collection, id, cancellationToken);
+        return new Loaded { Record = record, Sections = sections, Copy = copy };
+    }
+
+    private async Task<List<CopyRow>> CopyRowsAsync(string collection, CancellationToken cancellationToken)
+    {
+        switch (collection)
+        {
+            case "pages":
+                return await db.WorkingCopies.AsNoTracking().Where(copy => copy.PageId != null)
+                    .Select(copy => new CopyRow(copy.PageId!.Value, copy.Document)).ToListAsync(cancellationToken);
+            case "services":
+                return await db.WorkingCopies.AsNoTracking().Where(copy => copy.ServiceId != null)
+                    .Select(copy => new CopyRow(copy.ServiceId!.Value, copy.Document)).ToListAsync(cancellationToken);
+            case "partners":
+                return await db.WorkingCopies.AsNoTracking().Where(copy => copy.PartnerId != null)
+                    .Select(copy => new CopyRow(copy.PartnerId!.Value, copy.Document)).ToListAsync(cancellationToken);
+            case "case-studies":
+                return await db.WorkingCopies.AsNoTracking().Where(copy => copy.CaseStudyId != null)
+                    .Select(copy => new CopyRow(copy.CaseStudyId!.Value, copy.Document)).ToListAsync(cancellationToken);
+            case "blog-posts":
+                return await db.WorkingCopies.AsNoTracking().Where(copy => copy.BlogPostId != null)
+                    .Select(copy => new CopyRow(copy.BlogPostId!.Value, copy.Document)).ToListAsync(cancellationToken);
+            case "vacancies":
+                return await db.WorkingCopies.AsNoTracking().Where(copy => copy.VacancyId != null)
+                    .Select(copy => new CopyRow(copy.VacancyId!.Value, copy.Document)).ToListAsync(cancellationToken);
+            case "team-members":
+                return await db.WorkingCopies.AsNoTracking().Where(copy => copy.TeamMemberId != null)
+                    .Select(copy => new CopyRow(copy.TeamMemberId!.Value, copy.Document)).ToListAsync(cancellationToken);
+            case "news-items":
+                return await db.WorkingCopies.AsNoTracking().Where(copy => copy.NewsItemId != null)
+                    .Select(copy => new CopyRow(copy.NewsItemId!.Value, copy.Document)).ToListAsync(cancellationToken);
+            default:
+                return [];
+        }
+    }
+
+    private Task<WorkingCopy?> FindCopyAsync(string collection, Guid id, CancellationToken cancellationToken) => collection switch
+    {
+        "pages" => db.WorkingCopies.FirstOrDefaultAsync(copy => copy.PageId == id, cancellationToken),
+        "services" => db.WorkingCopies.FirstOrDefaultAsync(copy => copy.ServiceId == id, cancellationToken),
+        "partners" => db.WorkingCopies.FirstOrDefaultAsync(copy => copy.PartnerId == id, cancellationToken),
+        "case-studies" => db.WorkingCopies.FirstOrDefaultAsync(copy => copy.CaseStudyId == id, cancellationToken),
+        "blog-posts" => db.WorkingCopies.FirstOrDefaultAsync(copy => copy.BlogPostId == id, cancellationToken),
+        "vacancies" => db.WorkingCopies.FirstOrDefaultAsync(copy => copy.VacancyId == id, cancellationToken),
+        "team-members" => db.WorkingCopies.FirstOrDefaultAsync(copy => copy.TeamMemberId == id, cancellationToken),
+        "news-items" => db.WorkingCopies.FirstOrDefaultAsync(copy => copy.NewsItemId == id, cancellationToken),
+        _ => Task.FromResult<WorkingCopy?>(null),
+    };
+
+    private static WorkingCopy NewCopy(string collection, Guid id)
+    {
+        var copy = new WorkingCopy { Id = Guid.NewGuid() };
+        switch (collection)
+        {
+            case "pages": copy.PageId = id; break;
+            case "services": copy.ServiceId = id; break;
+            case "partners": copy.PartnerId = id; break;
+            case "case-studies": copy.CaseStudyId = id; break;
+            case "blog-posts": copy.BlogPostId = id; break;
+            case "vacancies": copy.VacancyId = id; break;
+            case "team-members": copy.TeamMemberId = id; break;
+            case "news-items": copy.NewsItemId = id; break;
+        }
+
+        return copy;
+    }
+
+    private static ContentRecord NewRecord(string collection) => collection switch
+    {
+        "pages" => new Page(),
+        "services" => new Service(),
+        "partners" => new Partner(),
+        "case-studies" => new CaseStudy(),
+        "blog-posts" => new BlogPost(),
+        "vacancies" => new Vacancy(),
+        "team-members" => new TeamMember(),
+        "news-items" => new NewsItem(),
+        _ => throw new InvalidOperationException("Unknown collection."),
+    };
+
+    private void Add(ContentRecord record)
+    {
+        switch (record)
+        {
+            case Page page: db.Pages.Add(page); break;
+            case Service service: db.Services.Add(service); break;
+            case Partner partner: db.Partners.Add(partner); break;
+            case CaseStudy study: db.CaseStudies.Add(study); break;
+            case BlogPost post: db.BlogPosts.Add(post); break;
+            case Vacancy vacancy: db.Vacancies.Add(vacancy); break;
+            case TeamMember member: db.TeamMembers.Add(member); break;
+            case NewsItem news: db.NewsItems.Add(news); break;
+        }
+    }
+
+    private static void Assign(Section section, string collection, Guid id)
+    {
+        section.PageId = collection == "pages" ? id : null;
+        section.ServiceId = collection == "services" ? id : null;
+        section.PartnerId = collection == "partners" ? id : null;
+        section.CaseStudyId = collection == "case-studies" ? id : null;
+    }
+
+    private object Present(string collection, Loaded loaded, DraftDocument? editing)
+    {
+        var live = ContentFields.FromRecord(collection, loaded.Record, loaded.Sections);
+        DraftDocument content;
+        if (editing is not null)
+            content = editing;
+        else if (loaded.Copy is not null)
+            content = JsonSerializer.Deserialize<DraftDocument>(loaded.Copy.Document, ContentJson.Options) ?? live;
+        else
+            content = live;
+
+        var published = loaded.Record.Status == ContentStatus.Published;
+        return new
+        {
+            id = loaded.Record.Id,
+            collection,
+            status = loaded.Record.Status.ToString().ToLowerInvariant(),
+            version = loaded.Record.Version,
+            updatedAt = loaded.Record.UpdatedAt,
+            hasWorkingCopy = published && loaded.Copy is not null,
+            content = Body(collection, content),
+            live = published ? Body(collection, live) : null,
+        };
+    }
+
+    private static object Body(string collection, DraftDocument draft) => new
+    {
+        draft.Slug,
+        draft.Title,
+        draft.SortOrder,
+        draft.MetaTitle,
+        draft.MetaDescription,
+        draft.ShareImageId,
+        draft.ShareImageAltOverride,
+        draft.CanonicalOverride,
+        draft.NoIndex,
+        draft.Fields,
+        sections = Kinds[collection].Sections ? draft.Sections.OrderBy(section => section.SortOrder).ToList() : null,
+    };
+
+    private void Audit(string? userId, string action, string collection, Guid id)
+    {
+        db.AuditLog.Add(new AuditLogEntry
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            Action = action,
+            EntityType = Kinds[collection].EntityType,
+            EntityId = id.ToString(),
+            At = DateTime.UtcNow,
+            Success = true,
+        });
+    }
+
+    private async Task<ContentOutcome> CommitAsync(CancellationToken cancellationToken, Func<ContentOutcome> success)
+    {
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+            return success();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Conflict();
+        }
+    }
+
+    private static bool SectionsOf(string collection) => Kinds.TryGetValue(collection, out var kind) && kind.Sections;
+
+    private static JsonElement Parse(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.Clone();
+    }
+
+    private static void Add(Dictionary<string, List<string>> errors, string key, string message)
+    {
+        if (!errors.TryGetValue(key, out var list))
+        {
+            list = [];
+            errors[key] = list;
+        }
+
+        list.Add(message);
+    }
+
+    private static ContentOutcome Unknown() =>
+        ContentOutcome.Fail(StatusCodes.Status404NotFound, "unknown_collection", "That collection does not exist.");
+
+    private static ContentOutcome Missing() =>
+        ContentOutcome.Fail(StatusCodes.Status404NotFound, "not_found", "That item does not exist.");
+
+    private static ContentOutcome Conflict() =>
+        ContentOutcome.Fail(StatusCodes.Status409Conflict, "concurrency_conflict", "This item was changed by someone else.");
+
+    private static ContentOutcome NoSections() =>
+        ContentOutcome.Fail(StatusCodes.Status404NotFound, "sections_not_supported", "This item has no sections.");
+
+    private static ContentOutcome Validation(string key, string message) =>
+        Validation(new Dictionary<string, List<string>> { [key] = [message] });
+
+    private static ContentOutcome Validation(Dictionary<string, List<string>> errors) =>
+        ContentOutcome.Fail(
+            StatusCodes.Status400BadRequest,
+            "validation_failed",
+            "One or more fields are invalid.",
+            errors.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray()));
+
+    private sealed record ContentRow(Guid Id, string Slug, string Title, ContentStatus Status, int Version, DateTime UpdatedAt);
+
+    private sealed record CopyRow(Guid OwnerId, string Document);
+
+    private sealed class Loaded
+    {
+        public required ContentRecord Record { get; init; }
+
+        public required List<Section> Sections { get; init; }
+
+        public WorkingCopy? Copy { get; set; }
+    }
+}
+
+public sealed class ContentOutcome
+{
+    public object? Body { get; init; }
+
+    public int Status { get; init; }
+
+    public string? Code { get; init; }
+
+    public string? Title { get; init; }
+
+    public IDictionary<string, string[]>? Errors { get; init; }
+
+    public static ContentOutcome Ok(object body, int status = StatusCodes.Status200OK) => new() { Body = body, Status = status };
+
+    public static ContentOutcome Fail(int status, string code, string title, IDictionary<string, string[]>? errors = null) =>
+        new() { Status = status, Code = code, Title = title, Errors = errors };
+}

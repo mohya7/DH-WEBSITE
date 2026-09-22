@@ -1624,6 +1624,94 @@ namespace DigitalHub.Api.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("DigitalHub.Api.Data.WorkingCopy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("BlogPostId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("blog_post_id");
+
+                    b.Property<Guid?>("CaseStudyId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("case_study_id");
+
+                    b.Property<string>("Document")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("document");
+
+                    b.Property<Guid?>("NewsItemId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("news_item_id");
+
+                    b.Property<Guid?>("PageId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("page_id");
+
+                    b.Property<Guid?>("PartnerId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("partner_id");
+
+                    b.Property<DateTime>("SavedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("saved_at");
+
+                    b.Property<Guid?>("ServiceId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("service_id");
+
+                    b.Property<Guid?>("TeamMemberId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("team_member_id");
+
+                    b.Property<Guid?>("VacancyId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("vacancy_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BlogPostId")
+                        .IsUnique()
+                        .HasFilter("[blog_post_id] IS NOT NULL");
+
+                    b.HasIndex("CaseStudyId")
+                        .IsUnique()
+                        .HasFilter("[case_study_id] IS NOT NULL");
+
+                    b.HasIndex("NewsItemId")
+                        .IsUnique()
+                        .HasFilter("[news_item_id] IS NOT NULL");
+
+                    b.HasIndex("PageId")
+                        .IsUnique()
+                        .HasFilter("[page_id] IS NOT NULL");
+
+                    b.HasIndex("PartnerId")
+                        .IsUnique()
+                        .HasFilter("[partner_id] IS NOT NULL");
+
+                    b.HasIndex("ServiceId")
+                        .IsUnique()
+                        .HasFilter("[service_id] IS NOT NULL");
+
+                    b.HasIndex("TeamMemberId")
+                        .IsUnique()
+                        .HasFilter("[team_member_id] IS NOT NULL");
+
+                    b.HasIndex("VacancyId")
+                        .IsUnique()
+                        .HasFilter("[vacancy_id] IS NOT NULL");
+
+                    b.ToTable("working_copies", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_working_copies_exactly_one_owner", "(CASE WHEN page_id IS NOT NULL THEN 1 ELSE 0 END + CASE WHEN service_id IS NOT NULL THEN 1 ELSE 0 END + CASE WHEN partner_id IS NOT NULL THEN 1 ELSE 0 END + CASE WHEN case_study_id IS NOT NULL THEN 1 ELSE 0 END + CASE WHEN blog_post_id IS NOT NULL THEN 1 ELSE 0 END + CASE WHEN vacancy_id IS NOT NULL THEN 1 ELSE 0 END + CASE WHEN team_member_id IS NOT NULL THEN 1 ELSE 0 END + CASE WHEN news_item_id IS NOT NULL THEN 1 ELSE 0 END) = 1");
+                        });
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
                 {
                     b.Property<string>("Id")
@@ -1929,6 +2017,65 @@ namespace DigitalHub.Api.Data.Migrations
                         .OnDelete(DeleteBehavior.NoAction);
 
                     b.Navigation("ShareImage");
+                });
+
+            modelBuilder.Entity("DigitalHub.Api.Data.WorkingCopy", b =>
+                {
+                    b.HasOne("DigitalHub.Api.Data.BlogPost", "BlogPost")
+                        .WithOne()
+                        .HasForeignKey("DigitalHub.Api.Data.WorkingCopy", "BlogPostId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("DigitalHub.Api.Data.CaseStudy", "CaseStudy")
+                        .WithOne()
+                        .HasForeignKey("DigitalHub.Api.Data.WorkingCopy", "CaseStudyId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("DigitalHub.Api.Data.NewsItem", "NewsItem")
+                        .WithOne()
+                        .HasForeignKey("DigitalHub.Api.Data.WorkingCopy", "NewsItemId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("DigitalHub.Api.Data.Page", "Page")
+                        .WithOne()
+                        .HasForeignKey("DigitalHub.Api.Data.WorkingCopy", "PageId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("DigitalHub.Api.Data.Partner", "Partner")
+                        .WithOne()
+                        .HasForeignKey("DigitalHub.Api.Data.WorkingCopy", "PartnerId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("DigitalHub.Api.Data.Service", "Service")
+                        .WithOne()
+                        .HasForeignKey("DigitalHub.Api.Data.WorkingCopy", "ServiceId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("DigitalHub.Api.Data.TeamMember", "TeamMember")
+                        .WithOne()
+                        .HasForeignKey("DigitalHub.Api.Data.WorkingCopy", "TeamMemberId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("DigitalHub.Api.Data.Vacancy", "Vacancy")
+                        .WithOne()
+                        .HasForeignKey("DigitalHub.Api.Data.WorkingCopy", "VacancyId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("BlogPost");
+
+                    b.Navigation("CaseStudy");
+
+                    b.Navigation("NewsItem");
+
+                    b.Navigation("Page");
+
+                    b.Navigation("Partner");
+
+                    b.Navigation("Service");
+
+                    b.Navigation("TeamMember");
+
+                    b.Navigation("Vacancy");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>

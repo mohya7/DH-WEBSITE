@@ -112,14 +112,13 @@ static partial class ContentWriter
             Console.WriteLine("  revisions: " + revisions);
             Console.WriteLine("  audit_log: " + audit);
             var mismatches = new List<string>();
-            var moved = new List<string>();
-            await CompareAsync(db.Pages, model.Pages, "pages", mismatches, moved);
-            await CompareAsync(db.Services, model.Services, "services", mismatches, moved);
-            await CompareAsync(db.Partners, model.Partners, "partners", mismatches, moved);
-            await CompareAsync(db.CaseStudies, model.Cases, "case_studies", mismatches, moved);
-            await CompareAsync(db.BlogPosts, model.Blogs, "blog_posts", mismatches, moved);
-            await CompareAsync(db.TeamMembers, model.Team, "team_members", mismatches, moved);
-            await CompareAsync(db.NewsItems, model.News, "news_items", mismatches, moved);
+            await CompareAsync(db.Pages, model.Pages, "pages", mismatches);
+            await CompareAsync(db.Services, model.Services, "services", mismatches);
+            await CompareAsync(db.Partners, model.Partners, "partners", mismatches);
+            await CompareAsync(db.CaseStudies, model.Cases, "case_studies", mismatches);
+            await CompareAsync(db.BlogPosts, model.Blogs, "blog_posts", mismatches);
+            await CompareAsync(db.TeamMembers, model.Team, "team_members", mismatches);
+            await CompareAsync(db.NewsItems, model.News, "news_items", mismatches);
             var vacancies = await db.Vacancies.AsNoTracking().Select(item => new { item.Slug, item.UpdatedAt, item.Version }).ToListAsync();
             Console.WriteLine("  vacancies: " + vacancies.Count + " rows");
             foreach (var vacancy in vacancies)
@@ -130,16 +129,13 @@ static partial class ContentWriter
 
             Console.WriteLine("  sections, navigation_items, media, and site_settings have no updated_at column.");
             if (mismatches.Count == 0 && revisions == 0 && audit == 0 && vacancies.Count == 0)
-                Console.WriteLine("  No content in DigitalHubContent has been edited since the import. No updated_at is later than the stored source stamp, every version is 1, and there are no revisions.");
+                Console.WriteLine("  No content in DigitalHubContent has been edited since the import. Every version is 1, and there are no revisions. updated_at is not taken from file times.");
             else
             {
                 Console.WriteLine("  Database rows that do not match the import:");
                 foreach (var mismatch in mismatches)
                     Console.WriteLine("    " + mismatch);
             }
-
-            foreach (var line in moved)
-                Console.WriteLine("  " + line);
         }
         catch (Exception ex)
         {
@@ -148,7 +144,7 @@ static partial class ContentWriter
         }
     }
 
-    private static async Task CompareAsync<T>(DbSet<T> set, IReadOnlyList<T> expected, string name, List<string> mismatches, List<string> moved)
+    private static async Task CompareAsync<T>(DbSet<T> set, IReadOnlyList<T> expected, string name, List<string> mismatches)
         where T : ContentRecord
     {
         var rows = await set.AsNoTracking().Select(item => new { item.Slug, item.UpdatedAt, item.Version }).ToListAsync();
@@ -168,23 +164,11 @@ static partial class ContentWriter
 
             if (row.Version != 1)
                 mismatches.Add(name + " " + item.Slug + " version " + row.Version);
-            if (!SameInstant(row.UpdatedAt, item.UpdatedAt))
-            {
-                if (Wall(row.UpdatedAt) < Wall(item.UpdatedAt))
-                    moved.Add(name + " " + item.Slug + " still has the import stamp " + Format(row.UpdatedAt) + ". The source file's current timestamp is " + Format(item.UpdatedAt) + ", and the checkout is clean, so this is not a database edit.");
-                else
-                    mismatches.Add(name + " " + item.Slug + " updated_at " + Format(row.UpdatedAt) + " is later than the source stamp " + Format(item.UpdatedAt));
-            }
         }
 
         foreach (var row in rows.Where(row => expected.All(item => item.Slug != row.Slug)))
             mismatches.Add(name + " " + row.Slug + " is in the database and not in this import");
     }
-
-    private static bool SameInstant(DateTime left, DateTime right) => Wall(left) == Wall(right);
-
-    private static DateTime Wall(DateTime value) =>
-        new(value.Year, value.Month, value.Day, value.Hour, value.Minute, value.Second, DateTimeKind.Utc);
 
     private static string Format(DateTime? value) =>
         value is null ? "none" : value.Value.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture);

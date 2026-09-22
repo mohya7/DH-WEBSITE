@@ -51,7 +51,7 @@ Work in `D:\work\DigitalHub\dh-platform`, branch `rebuild/dotnet-platform`. Work
 - Every write that changes content writes an **audit entry in the same transaction**. If the audit write fails, the action fails. This is deliberately stricter than the hiring notifications, which must never block an action — an audit trail with gaps is worse than a failed save.
 - Access tokens are never written to `localStorage` or `sessionStorage`.
 - `dangerouslySetInnerHTML` appears nowhere in the Studio.
-- Schema changes stop for approval and are applied with the elevated account, never by the application.
+- Schema changes are shown before they are applied, and applied with the elevated account, never by the application.
 - Verify by running it.
 
 ---
@@ -110,6 +110,14 @@ Under `/api/v1/`, following the Phase A conventions.
 **3.5** Vacancies are editable here like any collection. The bridge to Node is Phase D.
 
 **3.6** Integration tests for every endpoint: success, validation failure, 409, and each role — editor, admin, anonymous, unknown role.
+
+**Decided with the build.** One working copy per item. An item and its sections are one unit with one version on the owning item.
+
+- Discard draft: an editor can throw away the working copy of a published item and return to the live content. The action is audited. A draft that has never been published has no separate copy to discard.
+- A slug change in a working copy creates its redirect at publish, not when the draft is saved.
+- The Section 5 media in-use check covers working copies as well as live content. Revisions are not counted. Restoring a revision checks its media references and reports any that no longer exist.
+- Every save of a working copy validates its sections against their schemas, the same as a live write.
+- Delete refuses a published item. It must be unpublished first. Deleting a draft removes its working copy and sections by cascade, removes its revisions in the same transaction, and removes redirects whose destination is that item's public path. Each removed redirect is audited with the delete.
 
 ---
 
