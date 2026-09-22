@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://digitalhub.local/sections/related_items",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["heading", "items"],
+  "properties": {
+    "eyebrow": { "type": "string", "x-dh-kind": "text" },
+    "heading": { "type": "string", "x-dh-kind": "text" },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "slug", "title", "text"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["service", "partner", "case_study", "blog_post"]
+          },
+          "slug": { "type": "string", "x-dh-kind": "text" },
+          "label": { "type": "string", "x-dh-kind": "text" },
+          "title": { "type": "string", "x-dh-kind": "text" },
+          "text": { "type": "string", "x-dh-kind": "longText" },
+          "action": { "type": "string", "x-dh-kind": "text" },
+          "image": { "$ref": "https://digitalhub.local/sections/defs#/$defs/media" }
+        }
+      }
+    }
+  }
+}

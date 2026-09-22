@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://digitalhub.local/sections/hero",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["heading"],
+  "properties": {
+    "eyebrow": { "type": "string", "x-dh-kind": "text" },
+    "heading": { "type": "string", "x-dh-kind": "text" },
+    "lead": { "type": "string", "x-dh-kind": "longText" },
+    "kicker": { "type": "string", "x-dh-kind": "text" },
+    "client": { "type": "string", "x-dh-kind": "text" },
+    "back": { "$ref": "https://digitalhub.local/sections/defs#/$defs/link" },
+    "image": { "$ref": "https://digitalhub.local/sections/defs#/$defs/media" },
+    "tags": { "type": "array", "items": { "type": "string", "x-dh-kind": "text" } },
+    "actions": { "type": "array", "items": { "$ref": "https://digitalhub.local/sections/defs#/$defs/link" } },
+    "proof": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["value", "label"],
+        "properties": {
+          "value": { "type": "string", "x-dh-kind": "text" },
+          "label": { "type": "string", "x-dh-kind": "text" }
+        }
+      }
+    },
+    "logos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["image"],
+        "properties": {
+          "image": { "$ref": "https://digitalhub.local/sections/defs#/$defs/media" },
+          "href": { "type": "string", "x-dh-kind": "url" },
+          "reference": { "$ref": "https://digitalhub.local/sections/defs#/$defs/reference" }
+        }
+      }
+    }
+  }
+}

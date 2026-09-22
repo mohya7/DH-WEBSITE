@@ -1,6 +1,4 @@
-using DigitalHub.Api.Data;
 using DigitalHub.ContentImport;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 
 if (args.Contains("--apply") && args.Contains("--dry-run"))
@@ -49,10 +47,7 @@ if (connectionString.Error is not null)
 if (args.Contains("--apply"))
     return await ContentWriter.ApplyAsync(sourceRoot, connectionString.Value!);
 
-var plan = Catalog.Build(sourceRoot);
-var database = await ReadDatabaseAsync(connectionString.Value!);
-Report.Write(plan, database);
-return database.Connected ? 0 : 1;
+return await ContentWriter.PreviewAsync(sourceRoot, connectionString.Value!);
 
 static (string? Commit, string? Error) ReadSourceRevision(string root)
 {
@@ -107,34 +102,4 @@ static (string? Value, string? Error) ReadConnectionString()
     }
 
     return (connectionString, null);
-}
-
-static async Task<DatabaseSnapshot> ReadDatabaseAsync(string connectionString)
-{
-    var options = new DbContextOptionsBuilder<ContentDbContext>()
-        .UseSqlServer(connectionString)
-        .Options;
-    await using var db = new ContentDbContext(options);
-    try
-    {
-        var counts = new (string Table, int Count)[]
-        {
-            ("pages", await db.Pages.CountAsync()),
-            ("services", await db.Services.CountAsync()),
-            ("partners", await db.Partners.CountAsync()),
-            ("case_studies", await db.CaseStudies.CountAsync()),
-            ("blog_posts", await db.BlogPosts.CountAsync()),
-            ("vacancies", await db.Vacancies.CountAsync()),
-            ("team_members", await db.TeamMembers.CountAsync()),
-            ("news_items", await db.NewsItems.CountAsync()),
-            ("sections", await db.Sections.CountAsync()),
-            ("media", await db.Media.CountAsync()),
-        };
-        return new DatabaseSnapshot(true, null, counts);
-    }
-    catch (Exception ex)
-    {
-        var message = ex.Message.Replace(connectionString, "[connection]", StringComparison.Ordinal);
-        return new DatabaseSnapshot(false, ex.GetType().Name + ": " + message, []);
-    }
 }

@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://digitalhub.local/sections/service_cards",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["heading"],
+  "properties": {
+    "eyebrow": { "type": "string", "x-dh-kind": "text" },
+    "heading": { "type": "string", "x-dh-kind": "text" },
+    "lead": { "type": "string", "x-dh-kind": "longText" },
+    "diagramLabel": { "type": "string", "x-dh-kind": "text" },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["title"],
+        "properties": {
+          "title": { "type": "string", "x-dh-kind": "text" },
+          "text": { "type": "string", "x-dh-kind": "longText" },
+          "action": { "$ref": "https://digitalhub.local/sections/defs#/$defs/link" },
+          "reference": { "$ref": "https://digitalhub.local/sections/defs#/$defs/reference" },
+          "marks": { "type": "array", "items": { "type": "string", "x-dh-kind": "text" } }
+        }
+      }
+    }
+  }
+}

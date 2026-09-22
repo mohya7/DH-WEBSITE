@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://digitalhub.local/sections/logo_bar",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["logos"],
+  "properties": {
+    "label": { "type": "string", "x-dh-kind": "text" },
+    "logos": {
+      "type": "array",
+      "items": { "$ref": "https://digitalhub.local/sections/defs#/$defs/media" }
+    }
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://digitalhub.local/sections/defs",
+  "$defs": {
+    "media": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-dh-kind": "media",
+      "required": ["mediaId", "alt", "decorative"],
+      "properties": {
+        "mediaId": { "type": "string", "format": "uuid" },
+        "alt": { "type": "string", "x-dh-kind": "text" },
+        "decorative": { "type": "boolean", "x-dh-kind": "boolean" }
+      }
+    },
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-dh-kind": "reference",
+      "required": ["type", "slug"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["service", "partner", "case_study", "blog_post"]
+        },
+        "slug": { "type": "string", "x-dh-kind": "text" }
+      }
+    },
+    "link": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "href"],
+      "properties": {
+        "label": { "type": "string", "x-dh-kind": "text" },
+        "href": { "type": "string", "x-dh-kind": "url" }
+      }
+    },
+    "textPair": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "text"],
+      "properties": {
+        "title": { "type": "string", "x-dh-kind": "text" },
+        "text": { "type": "string", "x-dh-kind": "longText" }
+      }
+    },
+    "block": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "text"],
+          "properties": {
+            "kind": { "const": "paragraph" },
+            "text": { "type": "string", "x-dh-kind": "longText" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "items"],
+          "properties": {
+            "kind": { "const": "list" },
+            "items": {
+              "type": "array",
+              "items": { "type": "string", "x-dh-kind": "longText" }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

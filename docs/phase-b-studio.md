@@ -19,6 +19,7 @@ Work in `D:\work\DigitalHub\dh-platform`, branch `rebuild/dotnet-platform`. Work
 | Roles in the Studio | `admin` and `editor` only. The other three roles exist but are not assignable from the Studio until hiring moves |
 | Rich text | TipTap, structured JSON, allowed nodes only |
 | Preview | **Deferred to Phase C.** It renders the website's own section components, which are built there. Record this; do not build a separate preview renderer |
+| Unpublished references | **Phase C.** A reference to an unpublished item is never rendered as a link. The card is skipped at build |
 | Vacancy bridge to Node | **Phase D**, not this phase |
 | Website design | Untouched by this phase |
 

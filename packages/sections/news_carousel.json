@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://digitalhub.local/sections/news_carousel",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["heading", "items"],
+  "properties": {
+    "eyebrow": { "type": "string", "x-dh-kind": "text" },
+    "heading": { "type": "string", "x-dh-kind": "text" },
+    "lead": { "type": "string", "x-dh-kind": "longText" },
+    "action": { "$ref": "https://digitalhub.local/sections/defs#/$defs/link" },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["title"],
+        "properties": {
+          "image": { "$ref": "https://digitalhub.local/sections/defs#/$defs/media" },
+          "category": { "type": "string", "x-dh-kind": "text" },
+          "place": { "type": "string", "x-dh-kind": "text" },
+          "title": { "type": "string", "x-dh-kind": "text" },
+          "text": { "type": "string", "x-dh-kind": "longText" },
+          "details": { "type": "string", "x-dh-kind": "longText" },
+          "detailsLabel": { "type": "string", "x-dh-kind": "text" },
+          "year": { "type": "string", "x-dh-kind": "text" },
+          "month": { "type": "string", "x-dh-kind": "text" }
+        }
+      }
+    }
+  }
+}

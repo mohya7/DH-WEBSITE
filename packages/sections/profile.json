@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://digitalhub.local/sections/profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "quote"],
+  "properties": {
+    "image": { "$ref": "https://digitalhub.local/sections/defs#/$defs/media" },
+    "name": { "type": "string", "x-dh-kind": "text" },
+    "role": { "type": "string", "x-dh-kind": "text" },
+    "quote": { "type": "string", "x-dh-kind": "longText" },
+    "cite": { "type": "string", "x-dh-kind": "text" }
+  }
+}

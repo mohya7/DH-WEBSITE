@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://digitalhub.local/sections/team_grid",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["heading", "members"],
+  "properties": {
+    "eyebrow": { "type": "string", "x-dh-kind": "text" },
+    "heading": { "type": "string", "x-dh-kind": "text" },
+    "lead": { "type": "string", "x-dh-kind": "longText" },
+    "members": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "role"],
+        "properties": {
+          "image": { "$ref": "https://digitalhub.local/sections/defs#/$defs/media" },
+          "name": { "type": "string", "x-dh-kind": "text" },
+          "role": { "type": "string", "x-dh-kind": "text" }
+        }
+      }
+    }
+  }
+}

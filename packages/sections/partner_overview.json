@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://digitalhub.local/sections/partner_overview",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "eyebrow": { "type": "string", "x-dh-kind": "text" },
+    "index": { "type": "string", "x-dh-kind": "text" },
+    "lede": { "type": "string", "x-dh-kind": "longText" },
+    "paragraphs": { "type": "array", "items": { "type": "string", "x-dh-kind": "longText" } },
+    "deliverablesLabel": { "type": "string", "x-dh-kind": "text" },
+    "deliverablesHeading": { "type": "string", "x-dh-kind": "text" },
+    "chips": { "type": "array", "items": { "type": "string", "x-dh-kind": "text" } },
+    "action": { "$ref": "https://digitalhub.local/sections/defs#/$defs/link" }
+  }
+}

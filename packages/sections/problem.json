@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://digitalhub.local/sections/problem",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["heading"],
+  "properties": {
+    "eyebrow": { "type": "string", "x-dh-kind": "text" },
+    "heading": { "type": "string", "x-dh-kind": "text" },
+    "lead": { "type": "string", "x-dh-kind": "longText" },
+    "diagramTitle": { "type": "string", "x-dh-kind": "text" },
+    "diagramStatus": { "type": "string", "x-dh-kind": "text" },
+    "flow": { "type": "array", "items": { "type": "string", "x-dh-kind": "text" } },
+    "cards": { "type": "array", "items": { "$ref": "https://digitalhub.local/sections/defs#/$defs/textPair" } },
+    "outcomes": { "type": "array", "items": { "$ref": "https://digitalhub.local/sections/defs#/$defs/textPair" } },
+    "quote": { "type": "string", "x-dh-kind": "longText" },
+    "cite": { "type": "string", "x-dh-kind": "text" },
+    "blocks": { "type": "array", "items": { "$ref": "https://digitalhub.local/sections/defs#/$defs/block" } }
+  }
+}

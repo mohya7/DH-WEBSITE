@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://digitalhub.local/sections/contact_details",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["heading", "form"],
+  "properties": {
+    "eyebrow": { "type": "string", "x-dh-kind": "text" },
+    "heading": { "type": "string", "x-dh-kind": "text" },
+    "lead": { "type": "string", "x-dh-kind": "longText" },
+    "channels": {
+      "type": "array",
+      "items": { "$ref": "https://digitalhub.local/sections/defs#/$defs/link" }
+    },
+    "form": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["situationLabel", "buttonText", "successMessage"],
+      "properties": {
+        "situationLabel": { "type": "string", "x-dh-kind": "text" },
+        "situationPlaceholder": { "type": "string", "x-dh-kind": "text" },
+        "situations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["value", "label"],
+            "properties": {
+              "value": { "type": "string", "x-dh-kind": "text" },
+              "label": { "type": "string", "x-dh-kind": "text" }
+            }
+          }
+        },
+        "namePlaceholder": { "type": "string", "x-dh-kind": "text" },
+        "organizationPlaceholder": { "type": "string", "x-dh-kind": "text" },
+        "rolePlaceholder": { "type": "string", "x-dh-kind": "text" },
+        "emailPlaceholder": { "type": "string", "x-dh-kind": "text" },
+        "messagePlaceholder": { "type": "string", "x-dh-kind": "longText" },
+        "buttonText": { "type": "string", "x-dh-kind": "text" },
+        "buttonTexts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["value", "label"],
+            "properties": {
+              "value": { "type": "string", "x-dh-kind": "text" },
+              "label": { "type": "string", "x-dh-kind": "text" }
+            }
+          }
+        },
+        "sendingText": { "type": "string", "x-dh-kind": "text" },
+        "successMessage": { "type": "string", "x-dh-kind": "longText" },
+        "errorMessage": { "type": "string", "x-dh-kind": "longText" }
+      }
+    }
+  }
+}

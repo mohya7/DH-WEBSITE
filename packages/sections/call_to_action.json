@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://digitalhub.local/sections/call_to_action",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["heading"],
+  "properties": {
+    "heading": { "type": "string", "x-dh-kind": "text" },
+    "text": { "type": "string", "x-dh-kind": "longText" },
+    "action": { "$ref": "https://digitalhub.local/sections/defs#/$defs/link" }
+  }
+}

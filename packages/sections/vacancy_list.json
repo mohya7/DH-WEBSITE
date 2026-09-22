@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://digitalhub.local/sections/vacancy_list",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["heading", "lead", "actionLabel", "emptyMessage"],
+  "properties": {
+    "heading": { "type": "string", "x-dh-kind": "text" },
+    "lead": { "type": "string", "x-dh-kind": "longText" },
+    "actionLabel": { "type": "string", "x-dh-kind": "text" },
+    "emptyMessage": { "type": "string", "x-dh-kind": "longText" }
+  }
+}

@@ -231,7 +231,7 @@ The old site live on digitalhub.com.eg is out of scope. Nothing is carried over 
 
 Services, partners, team, news, pages, navigation, and site settings are real and are imported as they are. Case studies and blog posts are placeholder drafts: import every one, including `case-national-portal` and both HTML-only posts, with status `draft`. They stay in the Studio for editing and are not published. The vacancies table stays empty. Do not migrate the three career detail pages or the three JSON jobs as pages or vacancies. The careers hub and the apply page are migrated. The vacancy list shows no openings.
 
-For Phase C, listing sections — case cards, blog list, and vacancy list — hide themselves when nothing is published, rather than render empty.
+For Phase C, case cards and the blog list hide themselves when nothing is published. The vacancy list stays on the page and shows its empty-state message instead of hiding.
 
 An image usage may set its own decorative flag. When that flag is set, publish does not require alt text for that usage. The media asset still holds the default alt. Internal links in imported content are rewritten to the clean URLs. The three careers-hub links to the dummy vacancy pages are removed at import. The vacancy list is generated from the vacancies table.
 

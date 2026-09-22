@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://digitalhub.local/sections/values",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["items"],
+  "properties": {
+    "breadcrumb": { "type": "array", "items": { "type": "string", "x-dh-kind": "text" } },
+    "badge": { "type": "array", "items": { "type": "string", "x-dh-kind": "text" } },
+    "photos": {
+      "type": "array",
+      "items": { "$ref": "https://digitalhub.local/sections/defs#/$defs/media" }
+    },
+    "items": {
+      "type": "array",
+      "items": { "$ref": "https://digitalhub.local/sections/defs#/$defs/textPair" }
+    }
+  }
+}

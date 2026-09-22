@@ -12,17 +12,18 @@ using SkiaSharp;
 
 namespace DigitalHub.ContentImport;
 
-static class ContentWriter
+static partial class ContentWriter
 {
     public static Task<int> ApplyAsync(string sourceRoot, string connectionString) =>
         ApplyCore(sourceRoot, connectionString);
 
-    private static async Task PrintDatabaseAsync(string connectionString, ImportPlan plan, MediaWrite written, int changes)
+    private static async Task<int> PrintDatabaseAsync(string connectionString, ImportPlan plan, MediaWrite written, int changes, int sectionsReplaced)
     {
         var options = new DbContextOptionsBuilder<ContentDbContext>().UseSqlServer(connectionString).Options;
         await using var db = new ContentDbContext(options);
         Console.WriteLine();
         Console.WriteLine(changes == 0 ? "Database unchanged." : "Database rows inserted or updated: " + changes);
+        Console.WriteLine("Sections replaced: " + sectionsReplaced);
         Console.WriteLine("Media files written: " + written.FilesWritten + "; reused: " + written.FilesReused + "; sizes generated: " + written.Sizes + "; variant files written this run: " + written.Variants + "; metadata stripped: " + written.MetadataStripped);
         if (written.Failures.Count == 0)
             Console.WriteLine("Media failures: none");
@@ -78,6 +79,32 @@ static class ContentWriter
         var alternates = await db.Media.AsNoTracking().CountAsync(item => item.OriginalName.Contains("headsss"));
         var alternateUse = await db.TeamMembers.CountAsync(member => member.Image!.OriginalName.Contains("headsss"));
         Console.WriteLine("Taller uploads in the library: " + alternates + "; used as a team portrait: " + alternateUse);
+        return await ValidateStoredSectionsAsync(db);
+    }
+
+    private static async Task<int> ValidateStoredSectionsAsync(ContentDbContext db)
+    {
+        var schemas = SectionSchemas.Load();
+        var rows = await db.Sections.AsNoTracking().Select(section => new { section.Type, section.Fields }).ToListAsync();
+        var failures = 0;
+        foreach (var row in rows)
+        {
+            if (!schemas.ByType.TryGetValue(row.Type, out var schema))
+            {
+                failures++;
+                Console.WriteLine("Schema: no file for stored type " + row.Type);
+                continue;
+            }
+
+            using var document = JsonDocument.Parse(row.Fields);
+            if (schema.Evaluate(document.RootElement, schemas.Options).IsValid)
+                continue;
+            failures++;
+            Console.WriteLine("Schema: stored " + row.Type + " failed");
+        }
+
+        Console.WriteLine("Stored sections: " + rows.Count + ". Schema failures: " + failures + ".");
+        return failures;
     }
 
     private static string FindMediaRoot()
@@ -245,6 +272,7 @@ static class ContentWriter
     private static ImportModel Build(string sourceRoot, ImportPlan plan, Dictionary<string, MediaAsset> media)
     {
         _sourceRoot = sourceRoot;
+        Probes.Clear();
         using var json = JsonDocument.Parse(File.ReadAllText(Path.Combine(sourceRoot, "content", "admin-content.json")));
         var collections = json.RootElement.GetProperty("collections");
         var parser = new HtmlParser();
@@ -356,12 +384,17 @@ static class ContentWriter
                 if (mapped is null)
                     continue;
 
-                var fields = mapped switch
+                var notes = new List<string>();
+                var fields = Extract(mapped, section, page.Source, media, model, warnings, notes);
+                Probes.Add(new SectionProbe
                 {
-                    "related_items" => RelatedFields(section, page.Source),
-                    "vacancy_list" => VacancyFields(section),
-                    _ => BodyFields(section, page.Source, media, warnings),
-                };
+                    Owner = page.Owner,
+                    Type = mapped,
+                    Source = page.Source,
+                    Element = section,
+                    Fields = fields,
+                    Notes = notes,
+                });
                 var row = new Section
                 {
                     Id = IdFor("section:" + page.Owner + ":" + sort),
@@ -1087,7 +1120,7 @@ static class ContentWriter
             warnings.Add("Share image was not imported for " + source);
     }
 
-    private static async Task<int> SaveAsync(string connectionString, ImportModel model)
+    private static async Task<(int Changes, int Sections)> SaveAsync(string connectionString, ImportModel model)
     {
         var options = new DbContextOptionsBuilder<ContentDbContext>().UseSqlServer(connectionString).Options;
         await using var db = new ContentDbContext(options);
@@ -1100,11 +1133,12 @@ static class ContentWriter
         changes += Upsert(db, model.Team, await db.TeamMembers.AsNoTracking().ToDictionaryAsync(item => item.Id), SameTeam);
         changes += Upsert(db, model.News, await db.NewsItems.AsNoTracking().ToDictionaryAsync(item => item.Id), SameNews);
         changes += Upsert(db, model.Pages, await db.Pages.AsNoTracking().ToDictionaryAsync(item => item.Id), SamePage);
-        changes += Upsert(db, model.Sections, await db.Sections.AsNoTracking().ToDictionaryAsync(item => item.Id), SameSection);
+        var sections = Upsert(db, model.Sections, await db.Sections.AsNoTracking().ToDictionaryAsync(item => item.Id), SameSection);
+        changes += sections;
         changes += Upsert(db, model.Navigation, await db.NavigationItems.AsNoTracking().ToDictionaryAsync(item => item.Id), SameNav);
         changes += Upsert(db, [model.Settings], await db.SiteSettings.AsNoTracking().ToDictionaryAsync(item => item.Id), SameSettings);
         await db.SaveChangesAsync();
-        return changes;
+        return (changes, sections);
     }
 
     private static int Upsert<T>(ContentDbContext db, IReadOnlyList<T> desired, Dictionary<Guid, T> current, Func<T, T, bool> same)
@@ -1388,9 +1422,9 @@ static class ContentWriter
         var plan = Catalog.Build(sourceRoot);
         var written = WriteMedia(sourceRoot, FindMediaRoot(), plan);
         var model = Prepare(sourceRoot, plan, written);
-        var changes = await SaveAsync(connectionString, model);
-        await PrintDatabaseAsync(connectionString, plan, written, changes);
-        return written.Failures.Count == 0 ? 0 : 1;
+        var saved = await SaveAsync(connectionString, model);
+        var schemaFailures = await PrintDatabaseAsync(connectionString, plan, written, saved.Changes, saved.Sections);
+        return written.Failures.Count == 0 && schemaFailures == 0 ? 0 : 1;
     }
 }
 

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://digitalhub.local/sections/delivery_flow",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["heading"],
+  "properties": {
+    "eyebrow": { "type": "string", "x-dh-kind": "text" },
+    "heading": { "type": "string", "x-dh-kind": "text" },
+    "lead": { "type": "string", "x-dh-kind": "longText" },
+    "inputs": { "type": "array", "items": { "type": "string", "x-dh-kind": "text" } },
+    "hub": { "type": "array", "items": { "type": "string", "x-dh-kind": "text" } },
+    "outputs": { "type": "array", "items": { "type": "string", "x-dh-kind": "text" } }
+  }
+}
