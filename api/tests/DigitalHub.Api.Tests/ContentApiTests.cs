@@ -306,6 +306,57 @@ public sealed class ContentApiTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task List_status_filter_returns_only_that_status()
+    {
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var token = "filter-" + suffix;
+        var editor = await LoginAsync("content-editor@digitalhub.test", "editor");
+        var admin = await LoginAsync(ApiFactory.AdminEmail, "admin", ApiFactory.AdminPassword);
+        var draft = await SendAsync(editor, HttpMethod.Post, "/api/v1/pages", new { slug = token + "-draft", title = "Draft " + token });
+        var live = await SendAsync(editor, HttpMethod.Post, "/api/v1/pages", new
+        {
+            slug = token + "-live",
+            title = "Live " + token,
+            metaDescription = "A description for the status filter.",
+        });
+        Assert.Equal(HttpStatusCode.Created, draft.Status);
+        Assert.Equal(HttpStatusCode.Created, live.Status);
+        var draftId = JsonDocument.Parse(draft.Body).RootElement.GetProperty("id").GetGuid();
+        var liveJson = JsonDocument.Parse(live.Body).RootElement;
+        var liveId = liveJson.GetProperty("id").GetGuid();
+        var published = await SendAsync(editor, HttpMethod.Post, "/api/v1/pages/" + liveId + "/publish", new { version = liveJson.GetProperty("version").GetInt32() });
+        Assert.Equal(HttpStatusCode.OK, published.Status);
+
+        var draftList = await SendAsync(editor, HttpMethod.Get, "/api/v1/pages?search=" + token + "&status=draft");
+        var publishedList = await SendAsync(editor, HttpMethod.Get, "/api/v1/pages?search=" + token + "&status=published");
+        Assert.Equal(HttpStatusCode.OK, draftList.Status);
+        Assert.Equal(HttpStatusCode.OK, publishedList.Status);
+        var drafts = JsonDocument.Parse(draftList.Body).RootElement;
+        var publishedItems = JsonDocument.Parse(publishedList.Body).RootElement;
+
+        Assert.Equal(1, drafts.GetProperty("total").GetInt32());
+        Assert.Equal(draftId, drafts.GetProperty("items")[0].GetProperty("id").GetGuid());
+        Assert.All(drafts.GetProperty("items").EnumerateArray(), item => Assert.Equal("draft", item.GetProperty("status").GetString()));
+
+        Assert.Equal(1, publishedItems.GetProperty("total").GetInt32());
+        Assert.Equal(liveId, publishedItems.GetProperty("items")[0].GetProperty("id").GetGuid());
+        Assert.All(publishedItems.GetProperty("items").EnumerateArray(), item => Assert.Equal("published", item.GetProperty("status").GetString()));
+
+        int liveVersion;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ContentDbContext>();
+            var row = await database.Pages.SingleAsync(item => item.Id == liveId);
+            row.Status = ContentStatus.Draft;
+            liveVersion = row.Version;
+            await database.SaveChangesAsync();
+        }
+
+        Assert.Equal(HttpStatusCode.NoContent, (await SendAsync(admin, HttpMethod.Delete, "/api/v1/pages/" + liveId + "?version=" + liveVersion)).Status);
+        Assert.Equal(HttpStatusCode.NoContent, (await SendAsync(admin, HttpMethod.Delete, "/api/v1/pages/" + draftId + "?version=1")).Status);
+    }
+
+    [Fact]
     public async Task A_duplicate_slug_is_refused_within_its_type()
     {
         var suffix = Guid.NewGuid().ToString("N")[..8];
