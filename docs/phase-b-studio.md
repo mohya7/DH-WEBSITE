@@ -14,13 +14,19 @@ Work in `D:\work\DigitalHub\dh-platform`, branch `rebuild/dotnet-platform`. Work
 |---|---|
 | Studio stack | Vite + React + TypeScript, Ant Design, Tailwind, React Router, TanStack Query |
 | Studio design | Not locked. Ant Design, themed with the brand: primary `#1270A0`, accent `#F4970B`, font Poppins |
-| Hosting | Studio and API on the **same origin** in every environment — Vite proxy in development, IIS in production. No CORS |
+| Hosting | Studio and API on the **same origin**, on their own subdomain, never the website's domain. Vite proxy in development, IIS in production. No CORS. See Hosting below |
 | Tokens | Access token in memory only. Session restored after reload through `refresh`, echoing the `dh_csrf` cookie as the `X-CSRF-Token` header |
 | Roles in the Studio | `admin` and `editor` only. The other three roles exist but are not assignable from the Studio until hiring moves |
 | Rich text | TipTap, structured JSON, allowed nodes only |
 | Preview | **Deferred to Phase C.** It renders the website's own section components, which are built there. Record this; do not build a separate preview renderer |
 | Vacancy bridge to Node | **Phase D**, not this phase |
 | Website design | Untouched by this phase |
+
+### Hosting
+
+- The Studio and its API are served from their own subdomain, never the website's domain. Third-party scripts on the website (Tag Manager and the tags it loads) must never run in the Studio's origin.
+- Auth cookies are host-only: no Domain attribute, so they never reach the website's domain.
+- The website's contact form reaches the API through routing of `/api/v1/public/*` only. The auth endpoints are not reachable on the website's domain.
 
 ## Permissions
 

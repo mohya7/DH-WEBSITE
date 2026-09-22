@@ -23,8 +23,14 @@ This is a new project, separate from `DH-WEBSITE-main`. Read that repository for
 | Identity | ASP.NET Core Identity, local accounts, **five roles from day one** |
 | Tokens | Access token in memory; refresh token in an `HttpOnly` cookie |
 | Images | Filesystem under the API, metadata in the database |
-| Hosting | IIS on Windows Server |
+| Hosting | IIS on Windows Server. The Studio and its API are on their own subdomain, never the website's domain. See Hosting below |
 | Language | English only |
+
+### Hosting
+
+- The Studio and its API are served from their own subdomain, never the website's domain. Third-party scripts on the website (Tag Manager and the tags it loads) must never run in the Studio's origin.
+- Auth cookies are host-only: no Domain attribute, so they never reach the website's domain.
+- The website's contact form reaches the API through routing of `/api/v1/public/*` only. The auth endpoints are not reachable on the website's domain.
 
 ---
 
