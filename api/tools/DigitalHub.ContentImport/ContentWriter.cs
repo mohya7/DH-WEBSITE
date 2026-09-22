@@ -15,8 +15,8 @@ namespace DigitalHub.ContentImport;
 
 static partial class ContentWriter
 {
-    public static Task<int> ApplyAsync(string sourceRoot, string connectionString) =>
-        ApplyCore(sourceRoot, connectionString);
+    public static Task<int> ApplyAsync(string sourceRoot, string connectionString, string? mediaRoot = null) =>
+        ApplyCore(sourceRoot, connectionString, mediaRoot);
 
     private static async Task<int> PrintDatabaseAsync(string connectionString, ImportPlan plan, MediaWrite written, int changes, int sectionsReplaced)
     {
@@ -243,8 +243,9 @@ static partial class ContentWriter
 
         AddBlogs(model, collections.GetProperty("blogs"), documents, media, sourceRoot, warnings);
         AddPages(model, documents, media, warnings);
+        AddErrorPages(model);
         AddSections(model, documents, media, sourceRoot, warnings);
-        AddNavigation(model, documents["index.html"]);
+        AddNavigation(model, documents["index.html"], warnings);
         model.Settings = Settings(json.RootElement, documents);
         model.Warnings = warnings;
         foreach (var warning in warnings)
@@ -277,6 +278,111 @@ static partial class ContentWriter
             order += 10;
         }
     }
+
+    private static void AddErrorPages(ImportModel model)
+    {
+        var now = Stamp(DateTime.UtcNow);
+        AddErrorPage(model, "404", "Page not found", Error404Body(), now, sortOrder: 900);
+        AddErrorPage(model, "500", "Something went wrong", Error500Body(), now, sortOrder: 910);
+    }
+
+    private static void AddErrorPage(ImportModel model, string type, string title, string body, DateTime now, int sortOrder)
+    {
+        var slug = "error-" + type;
+        var page = new Page
+        {
+            Id = IdFor("page:" + slug),
+            Slug = slug,
+            Title = title,
+            Status = ContentStatus.Draft,
+            SortOrder = sortOrder,
+            Version = 1,
+            NoIndex = true,
+            CreatedAt = now,
+            UpdatedAt = now,
+        };
+        model.Pages.Add(page);
+        model.Sections.Add(new Section
+        {
+            Id = IdFor("section:page." + slug + ":0"),
+            PageId = page.Id,
+            Type = SectionTypes.RichText,
+            SortOrder = 0,
+            Visible = true,
+            Fields = JsonSerializer.Serialize(new { heading = title, body }, ContentJson.Options),
+        });
+    }
+
+    private static string Error404Body()
+    {
+        var links = new (string Label, string Slug)[]
+        {
+            ("Home", "home"),
+            ("About", "about"),
+            ("Partners", "partners"),
+            ("Cases", "cases"),
+            ("Blogs", "blogs"),
+            ("Careers", "careers"),
+            ("Contact", "contact"),
+        };
+        var nodes = new List<object>
+        {
+            new
+            {
+                type = "paragraph",
+                content = new object[]
+                {
+                    new { type = "text", text = "That page is not here. These main sections still are:" },
+                },
+            },
+        };
+        foreach (var (label, slug) in links)
+        {
+            nodes.Add(new
+            {
+                type = "paragraph",
+                content = new object[]
+                {
+                    new
+                    {
+                        type = "text",
+                        text = label,
+                        marks = new object[]
+                        {
+                            new
+                            {
+                                type = "link",
+                                attrs = new
+                                {
+                                    type = "page",
+                                    id = IdFor("page:" + slug).ToString("D"),
+                                },
+                            },
+                        },
+                    },
+                },
+            });
+        }
+
+        return JsonSerializer.Serialize(new { type = "doc", content = nodes }, ContentJson.Options);
+    }
+
+    private static string Error500Body() =>
+        JsonSerializer.Serialize(new
+        {
+            type = "doc",
+            content = new object[]
+            {
+                new
+                {
+                    type = "paragraph",
+                    content = new object[]
+                    {
+                        new { type = "text", text = "Something went wrong on our side. Try again in a moment." },
+                    },
+                },
+            },
+        }, ContentJson.Options);
 
     private static void AddSections(ImportModel model, Dictionary<string, AngleSharp.Html.Dom.IHtmlDocument> documents, Dictionary<string, MediaAsset> media, string sourceRoot, List<string> warnings)
     {
@@ -566,7 +672,7 @@ static partial class ContentWriter
         setAlt(row, !string.IsNullOrWhiteSpace(alt) && !string.Equals(alt.Trim(), asset.Alt, StringComparison.Ordinal) ? Cut(alt.Trim(), 300) : null);
     }
 
-    private static void AddNavigation(ImportModel model, AngleSharp.Html.Dom.IHtmlDocument index)
+    private static void AddNavigation(ImportModel model, AngleSharp.Html.Dom.IHtmlDocument index, List<string> warnings)
     {
         var sort = 0;
         var list = index.QuerySelector("ul.nav-links");
@@ -576,13 +682,18 @@ static partial class ContentWriter
             {
                 var anchor = item.Children.FirstOrDefault(child => child.LocalName is "a");
                 var label = Collapse(anchor?.TextContent) ?? "";
-                var parent = Nav("header", label, anchor?.GetAttribute("href"), "index.html", sort, null);
-                model.Navigation.Add(parent);
+                var parent = Nav("header", label, anchor?.GetAttribute("href"), "index.html", sort, null, warnings);
+                if (parent is not null)
+                    model.Navigation.Add(parent);
                 sort += 10;
+                if (parent is null)
+                    continue;
                 var childSort = 0;
                 foreach (var child in item.QuerySelectorAll(".dd a"))
                 {
-                    model.Navigation.Add(Nav("header", Collapse(child.TextContent) ?? "", child.GetAttribute("href"), "index.html", childSort, parent.Id));
+                    var link = Nav("header", Collapse(child.TextContent) ?? "", child.GetAttribute("href"), "index.html", childSort, parent.Id, warnings);
+                    if (link is not null)
+                        model.Navigation.Add(link);
                     childSort += 10;
                 }
             }
@@ -590,18 +701,27 @@ static partial class ContentWriter
 
         var cta = index.QuerySelector("a.nav-cta");
         if (cta is not null)
-            model.Navigation.Add(Nav("header", Collapse(cta.TextContent) ?? "", cta.GetAttribute("href"), "index.html", sort, null));
+        {
+            var link = Nav("header", Collapse(cta.TextContent) ?? "", cta.GetAttribute("href"), "index.html", sort, null, warnings);
+            if (link is not null)
+                model.Navigation.Add(link);
+        }
 
         sort = 0;
         foreach (var column in index.QuerySelectorAll("footer.footer .footer-col"))
         {
-            var parent = Nav("footer", Collapse(column.QuerySelector("h4")?.TextContent) ?? "Column", null, "index.html", sort, null);
-            model.Navigation.Add(parent);
+            var parent = Nav("footer", Collapse(column.QuerySelector("h4")?.TextContent) ?? "Column", null, "index.html", sort, null, warnings);
+            if (parent is not null)
+                model.Navigation.Add(parent);
             sort += 10;
+            if (parent is null)
+                continue;
             var childSort = 0;
             foreach (var anchor in column.QuerySelectorAll("a"))
             {
-                model.Navigation.Add(Nav("footer", Collapse(anchor.TextContent) ?? "", anchor.GetAttribute("href"), "index.html", childSort, parent.Id));
+                var link = Nav("footer", Collapse(anchor.TextContent) ?? "", anchor.GetAttribute("href"), "index.html", childSort, parent.Id, warnings);
+                if (link is not null)
+                    model.Navigation.Add(link);
                 childSort += 10;
             }
         }
@@ -609,7 +729,9 @@ static partial class ContentWriter
         var contact = index.QuerySelector("footer.footer .footer-contact");
         if (contact is not null)
         {
-            var parent = Nav("footer", Collapse(contact.QuerySelector("h4")?.TextContent) ?? "Contact", null, "index.html", sort, null);
+            var parent = Nav("footer", Collapse(contact.QuerySelector("h4")?.TextContent) ?? "Contact", null, "index.html", sort, null, warnings);
+            if (parent is null)
+                return;
             model.Navigation.Add(parent);
             var childSort = 0;
             foreach (var anchor in contact.QuerySelectorAll("a"))
@@ -617,26 +739,77 @@ static partial class ContentWriter
                 var label = Collapse(anchor.TextContent);
                 if (string.IsNullOrWhiteSpace(label))
                     label = anchor.GetAttribute("aria-label") ?? anchor.GetAttribute("href") ?? "";
-                model.Navigation.Add(Nav("footer", label, anchor.GetAttribute("href"), "index.html", childSort, parent.Id));
+                var link = Nav("footer", label, anchor.GetAttribute("href"), "index.html", childSort, parent.Id, warnings);
+                if (link is not null)
+                    model.Navigation.Add(link);
                 childSort += 10;
             }
         }
     }
 
-    private static NavigationItem Nav(string menu, string label, string? href, string fromPage, int sort, Guid? parentId)
+    private static NavigationItem? Nav(string menu, string label, string? href, string fromPage, int sort, Guid? parentId, List<string> warnings)
     {
-        var result = Links.Rewrite(href, fromPage);
-        var url = string.IsNullOrWhiteSpace(href) ? "" : result.Clean ?? href;
-        return new NavigationItem
+        var id = IdFor("nav:" + menu + ":" + (parentId?.ToString("D") ?? "root") + ":" + sort + ":" + label);
+        var text = Required(label, 160);
+        if (string.IsNullOrWhiteSpace(href))
         {
-            Id = IdFor("nav:" + menu + ":" + (parentId?.ToString("D") ?? "root") + ":" + sort + ":" + label),
+            return new NavigationItem
+            {
+                Id = id,
+                Menu = menu,
+                ParentId = parentId,
+                Label = text,
+                LinkKind = "group",
+                SortOrder = sort,
+            };
+        }
+
+        var result = Links.Rewrite(href, fromPage);
+        if (BelongsInSiteSettings(href, result))
+        {
+            warnings.Add("Navigation omits \"" + text + "\"; the footer reads it from site settings.");
+            return null;
+        }
+
+        var reference = Links.Reference(result.Clean);
+        if (reference is { } item)
+        {
+            return InternalNav(id, menu, parentId, text, sort, item.Type, ReferenceId(item.Type, item.Slug));
+        }
+
+        if (PageSlug(result.Clean) is string page)
+            return InternalNav(id, menu, parentId, text, sort, "page", ReferenceId("page", page));
+
+        warnings.Add("Navigation link \"" + text + "\" (" + href + ") is not an internal target and was not imported.");
+        return null;
+    }
+
+    private static bool BelongsInSiteSettings(string href, LinkResult result)
+    {
+        var raw = href.Trim();
+        if (raw.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase)
+            || raw.StartsWith("tel:", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return !result.Internal
+            && (raw.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                || raw.StartsWith("https://", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static NavigationItem InternalNav(Guid id, string menu, Guid? parentId, string label, int sort, string targetType, Guid targetId) =>
+        new()
+        {
+            Id = id,
             Menu = menu,
             ParentId = parentId,
-            Label = Required(label, 160),
-            Url = Required(url, 300),
+            Label = label,
+            LinkKind = "internal",
+            TargetType = targetType,
+            TargetId = targetId,
             SortOrder = sort,
         };
-    }
 
     private static SiteSettings Settings(JsonElement root, Dictionary<string, AngleSharp.Html.Dom.IHtmlDocument> documents)
     {
@@ -1214,7 +1387,9 @@ static partial class ContentWriter
         && left.Caption == right.Caption && left.UploaderId == right.UploaderId && T(left.CreatedAt) == T(right.CreatedAt);
 
     private static bool SameNav(NavigationItem left, NavigationItem right) =>
-        left.Menu == right.Menu && left.ParentId == right.ParentId && left.Label == right.Label && left.Url == right.Url && left.SortOrder == right.SortOrder;
+        left.Menu == right.Menu && left.ParentId == right.ParentId && left.Label == right.Label
+        && left.LinkKind == right.LinkKind && left.TargetType == right.TargetType && left.TargetId == right.TargetId
+        && left.Url == right.Url && left.SortOrder == right.SortOrder;
 
     private static bool SameSettings(SiteSettings left, SiteSettings right) =>
         left.Phone == right.Phone && left.WhatsApp == right.WhatsApp && left.Email == right.Email && left.LinkedIn == right.LinkedIn
@@ -1453,12 +1628,20 @@ static partial class ContentWriter
         return model;
     }
 
-    private static async Task<int> ApplyCore(string sourceRoot, string connectionString)
+    private static async Task<int> ApplyCore(string sourceRoot, string connectionString, string? mediaRoot)
     {
-        if (connectionString.Contains("DigitalHubContent_Test", StringComparison.OrdinalIgnoreCase)
-            || !connectionString.Contains("Database=DigitalHubContent", StringComparison.OrdinalIgnoreCase))
+        var catalog = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(connectionString).InitialCatalog;
+        if (!string.Equals(catalog, "DigitalHubContent", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(catalog, "DigitalHubNavImport", StringComparison.OrdinalIgnoreCase))
         {
             Console.Error.WriteLine("Refusing to write. The connection must target DigitalHubContent.");
+            return 2;
+        }
+
+        if (string.Equals(catalog, "DigitalHubNavImport", StringComparison.OrdinalIgnoreCase)
+            && string.IsNullOrWhiteSpace(mediaRoot))
+        {
+            Console.Error.WriteLine("Refusing to write media into the API folder for DigitalHubNavImport. Pass --media-root.");
             return 2;
         }
 
@@ -1474,7 +1657,7 @@ static partial class ContentWriter
 
         _sourceRoot = sourceRoot;
         var plan = Catalog.Build(sourceRoot);
-        var written = WriteMedia(sourceRoot, FindMediaRoot(), plan);
+        var written = WriteMedia(sourceRoot, mediaRoot ?? FindMediaRoot(), plan);
         var model = Prepare(sourceRoot, plan, written);
         var saved = await SaveAsync(connectionString, model);
         var schemaFailures = await PrintDatabaseAsync(connectionString, plan, written, saved.Changes, saved.Sections);

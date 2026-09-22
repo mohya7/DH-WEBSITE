@@ -98,11 +98,17 @@ public static class ContentModelBuilder
 
         builder.Entity<NavigationItem>(entity =>
         {
-            entity.ToTable("navigation_items");
+            entity.ToTable("navigation_items", table => table.HasCheckConstraint(
+                "ck_navigation_items_link_shape",
+                """
+                (link_kind = 'group' AND target_type IS NULL AND target_id IS NULL AND url IS NULL)
+                OR (link_kind = 'external' AND target_type IS NULL AND target_id IS NULL AND url IS NOT NULL AND url <> '')
+                OR (link_kind = 'internal' AND target_type IS NOT NULL AND target_id IS NOT NULL AND url IS NULL)
+                """));
             entity.HasKey(item => item.Id);
             entity.Property(item => item.Menu).IsRequired();
             entity.Property(item => item.Label).IsRequired();
-            entity.Property(item => item.Url).IsRequired();
+            entity.Property(item => item.LinkKind).IsRequired().HasMaxLength(16).HasDefaultValue("group");
             entity.HasOne(item => item.Parent)
                 .WithMany()
                 .HasForeignKey(item => item.ParentId)

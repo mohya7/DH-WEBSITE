@@ -47,6 +47,9 @@ namespace DigitalHub.Api.Data.Migrations
                     b.Property<DateTimeOffset?>("LockoutEnd")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<bool>("MustChangePassword")
+                        .HasColumnType("bit");
+
                     b.Property<string>("NormalizedEmail")
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
@@ -572,6 +575,14 @@ namespace DigitalHub.Api.Data.Migrations
                         .HasColumnType("nvarchar(160)")
                         .HasColumnName("label");
 
+                    b.Property<string>("LinkKind")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)")
+                        .HasDefaultValue("group")
+                        .HasColumnName("link_kind");
+
                     b.Property<string>("Menu")
                         .IsRequired()
                         .HasMaxLength(16)
@@ -586,8 +597,16 @@ namespace DigitalHub.Api.Data.Migrations
                         .HasColumnType("int")
                         .HasColumnName("sort_order");
 
+                    b.Property<Guid?>("TargetId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("target_id");
+
+                    b.Property<string>("TargetType")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)")
+                        .HasColumnName("target_type");
+
                     b.Property<string>("Url")
-                        .IsRequired()
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)")
                         .HasColumnName("url");
@@ -596,7 +615,10 @@ namespace DigitalHub.Api.Data.Migrations
 
                     b.HasIndex("ParentId");
 
-                    b.ToTable("navigation_items", (string)null);
+                    b.ToTable("navigation_items", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_navigation_items_link_shape", "(link_kind = 'group' AND target_type IS NULL AND target_id IS NULL AND url IS NULL)\nOR (link_kind = 'external' AND target_type IS NULL AND target_id IS NULL AND url IS NOT NULL AND url <> '')\nOR (link_kind = 'internal' AND target_type IS NOT NULL AND target_id IS NOT NULL AND url IS NULL)");
+                        });
                 });
 
             modelBuilder.Entity("DigitalHub.Api.Data.NewsItem", b =>

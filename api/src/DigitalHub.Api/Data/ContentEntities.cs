@@ -316,8 +316,19 @@ public sealed class NavigationItem
     [MaxLength(160)]
     public string Label { get; set; } = "";
 
+    /// <summary>group, internal, or external.</summary>
+    [MaxLength(16)]
+    public string LinkKind { get; set; } = "group";
+
+    /// <summary>page, service, partner, case_study, blog_post, or vacancy. Internal links only.</summary>
+    [MaxLength(32)]
+    public string? TargetType { get; set; }
+
+    public Guid? TargetId { get; set; }
+
+    /// <summary>External URL only. Null for groups and internal links.</summary>
     [MaxLength(300)]
-    public string Url { get; set; } = "";
+    public string? Url { get; set; }
 
     public int SortOrder { get; set; }
 }

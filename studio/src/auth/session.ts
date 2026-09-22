@@ -4,16 +4,19 @@ export type StudioUser = {
   id: string;
   email: string;
   role: string;
+  mustChangePassword: boolean;
 };
 
 type SessionResponse = {
   accessToken: string;
+  mustChangePassword?: boolean;
 };
 
 type MeResponse = {
   id: string;
   email: string | null;
   role: string;
+  mustChangePassword?: boolean;
 };
 
 const channel = new BroadcastChannel("dh-studio-auth");
@@ -171,6 +174,7 @@ async function readCurrentUser(): Promise<StudioUser | null> {
     id: body.id,
     email: body.email ?? "",
     role: body.role,
+    mustChangePassword: body.mustChangePassword === true,
   };
 }
 

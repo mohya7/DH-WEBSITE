@@ -59,6 +59,11 @@ public sealed class TokenService(ContentDbContext db, IConfiguration configurati
             return RefreshResult.Unauthorized();
         }
 
+        if (user.LockoutEnabled && user.LockoutEnd is not null && user.LockoutEnd > DateTimeOffset.UtcNow)
+        {
+            return RefreshResult.Unauthorized();
+        }
+
         var roleNames = await db.UserRoles
             .Where(link => link.UserId == user.Id)
             .Join(db.Roles, link => link.RoleId, role => role.Id, (_, role) => role.Name!)
@@ -71,6 +76,13 @@ public sealed class TokenService(ContentDbContext db, IConfiguration configurati
         await db.SaveChangesAsync(cancellationToken);
         var knownRoles = roleNames.Where(Roles.IsKnown);
         return RefreshResult.Success(CreateAccessToken(user.Id, knownRoles), rawNext, csrf, next.ExpiresAt);
+    }
+
+    public async Task<string?> FindUserIdAsync(string rawToken, CancellationToken cancellationToken)
+    {
+        var current = await db.RefreshTokens.AsNoTracking()
+            .SingleOrDefaultAsync(token => token.TokenHash == Hash(rawToken), cancellationToken);
+        return current?.UserId;
     }
 
     public async Task<bool> RevokeAsync(string rawToken, string csrfToken, CancellationToken cancellationToken)

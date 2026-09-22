@@ -8,6 +8,9 @@ public sealed class SensitiveDestructuringPolicy : IDestructuringPolicy
     private static readonly HashSet<string> Names = new(StringComparer.OrdinalIgnoreCase)
     {
         "password",
+        "temporaryPassword",
+        "currentPassword",
+        "newPassword",
         "token",
         "secret",
         "authorization",

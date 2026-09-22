@@ -55,7 +55,11 @@ public sealed class AuthTests : IClassFixture<ApiFactory>
         var json = JsonDocument.Parse(body).RootElement;
         Assert.Equal(ApiFactory.AdminEmail, json.GetProperty("email").GetString());
         Assert.Equal("admin", json.GetProperty("role").GetString());
-        Assert.DoesNotContain("password", body, StringComparison.OrdinalIgnoreCase);
+        Assert.True(json.TryGetProperty("mustChangePassword", out _));
+        Assert.False(json.TryGetProperty("password", out _));
+        Assert.False(json.TryGetProperty("passwordHash", out _));
+        Assert.DoesNotContain("\"password\":", body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("passwordHash", body, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

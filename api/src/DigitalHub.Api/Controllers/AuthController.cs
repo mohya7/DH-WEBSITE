@@ -1,4 +1,3 @@
-using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using DigitalHub.Api.Auth;
 using DigitalHub.Api.Data;
@@ -13,28 +12,70 @@ namespace DigitalHub.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/auth")]
-public sealed class AuthController(UserManager<ApplicationUser> users, TokenService tokens) : ControllerBase
+public sealed class AuthController(UserManager<ApplicationUser> users, TokenService tokens, ContentDbContext db) : ControllerBase
 {
     [AllowAnonymous]
     [EnableRateLimiting("login")]
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
     {
-        var user = await users.FindByEmailAsync(request.Email);
+        var email = (request.Email ?? "").Trim();
+        var user = await users.FindByEmailAsync(email);
         if (user is null || !await users.CheckPasswordAsync(user, request.Password))
         {
+            await AuditAsync(null, "sign_in_failed", "auth", null, email, success: false, cancellationToken);
+            return ProblemResults.Create(StatusCodes.Status401Unauthorized, "unauthorized", "The email or password is incorrect.");
+        }
+
+        if (user.LockoutEnabled && user.LockoutEnd is not null && user.LockoutEnd > DateTimeOffset.UtcNow)
+        {
+            await AuditAsync(user.Id, "sign_in_failed", "auth", user.Id, email, success: false, cancellationToken);
             return ProblemResults.Create(StatusCodes.Status401Unauthorized, "unauthorized", "The email or password is incorrect.");
         }
 
         var roles = await users.GetRolesAsync(user);
         var session = await tokens.IssueAsync(user.Id, roles, cancellationToken);
         AppendSessionCookies(session.RefreshToken, session.CsrfToken, session.ExpiresAt);
+        await AuditAsync(user.Id, "sign_in", "auth", user.Id, email, success: true, cancellationToken);
         return Ok(new
         {
             accessToken = session.AccessToken,
             expiresIn = tokens.AccessTokenSeconds,
             csrfToken = session.CsrfToken,
+            mustChangePassword = user.MustChangePassword,
         });
+    }
+
+    [HttpPost("change-password")]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request, CancellationToken cancellationToken)
+    {
+        var userId = User.FindFirstValue("sub");
+        if (string.IsNullOrEmpty(userId))
+        {
+            return ProblemResults.Create(StatusCodes.Status401Unauthorized, "unauthorized", "Authentication is required.");
+        }
+
+        var user = await users.FindByIdAsync(userId);
+        if (user is null)
+        {
+            return ProblemResults.Create(StatusCodes.Status401Unauthorized, "unauthorized", "Authentication is required.");
+        }
+
+        if (string.IsNullOrEmpty(request.NewPassword) || request.NewPassword.Length < 12)
+        {
+            return ProblemResults.Create(StatusCodes.Status400BadRequest, "validation_failed", "Password must be at least 12 characters.");
+        }
+
+        var changed = await users.ChangePasswordAsync(user, request.CurrentPassword, request.NewPassword);
+        if (!changed.Succeeded)
+        {
+            return ProblemResults.Create(StatusCodes.Status400BadRequest, "validation_failed", "The password could not be changed.");
+        }
+
+        user.MustChangePassword = false;
+        await users.UpdateAsync(user);
+        await AuditAsync(user.Id, "change_password", "auth", user.Id, null, success: true, cancellationToken);
+        return NoContent();
     }
 
     [AllowAnonymous]
@@ -76,6 +117,7 @@ public sealed class AuthController(UserManager<ApplicationUser> users, TokenServ
     [HttpPost("logout")]
     public async Task<IActionResult> Logout(CancellationToken cancellationToken)
     {
+        string? userId = null;
         if (Request.Cookies.TryGetValue(TokenService.RefreshCookieName, out var refreshToken))
         {
             if (!CsrfHeaderMatchesCookie(out var csrf))
@@ -83,6 +125,7 @@ public sealed class AuthController(UserManager<ApplicationUser> users, TokenServ
                 return ProblemResults.Create(StatusCodes.Status403Forbidden, "csrf_failed", "The request could not be verified.");
             }
 
+            userId = await tokens.FindUserIdAsync(refreshToken, cancellationToken);
             var revoked = await tokens.RevokeAsync(refreshToken, csrf, cancellationToken);
             if (!revoked)
             {
@@ -91,6 +134,7 @@ public sealed class AuthController(UserManager<ApplicationUser> users, TokenServ
         }
 
         ClearSessionCookies();
+        await AuditAsync(userId, "sign_out", "auth", userId, null, success: true, cancellationToken);
         return NoContent();
     }
 
@@ -111,6 +155,29 @@ public sealed class AuthController(UserManager<ApplicationUser> users, TokenServ
         Request.Cookies.TryGetValue(TokenService.CsrfCookieName, out var cookie);
         csrf = cookie ?? "";
         return TokenService.HeaderMatchesCookie(Request.Headers[TokenService.CsrfHeaderName].ToString(), cookie);
+    }
+
+    private async Task AuditAsync(
+        string? userId,
+        string action,
+        string entityType,
+        string? entityId,
+        string? detail,
+        bool success,
+        CancellationToken cancellationToken)
+    {
+        db.AuditLog.Add(new AuditLogEntry
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            Action = action,
+            EntityType = entityType,
+            EntityId = entityId,
+            At = DateTime.UtcNow,
+            Success = success,
+            Detail = detail,
+        });
+        await db.SaveChangesAsync(cancellationToken);
     }
 
     [HttpGet("me")]
@@ -135,16 +202,25 @@ public sealed class AuthController(UserManager<ApplicationUser> users, TokenServ
             return ProblemResults.Create(StatusCodes.Status403Forbidden, "forbidden", "You do not have access to this resource.");
         }
 
-        return Ok(new { id = user.Id, email = user.Email, role });
+        return Ok(new { id = user.Id, email = user.Email, role, mustChangePassword = user.MustChangePassword });
     }
 
     public sealed class LoginRequest
     {
-        [Required]
-        [EmailAddress]
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.EmailAddress]
         public string Email { get; set; } = "";
 
-        [Required]
+        [System.ComponentModel.DataAnnotations.Required]
         public string Password { get; set; } = "";
+    }
+
+    public sealed class ChangePasswordRequest
+    {
+        [System.ComponentModel.DataAnnotations.Required]
+        public string CurrentPassword { get; set; } = "";
+
+        [System.ComponentModel.DataAnnotations.Required]
+        public string NewPassword { get; set; } = "";
     }
 }

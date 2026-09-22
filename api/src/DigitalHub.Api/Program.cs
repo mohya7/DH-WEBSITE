@@ -54,6 +54,7 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
 {
     options.User.RequireUniqueEmail = true;
     options.Lockout.AllowedForNewUsers = false;
+    options.Password.RequiredLength = 12;
 })
 .AddRoles<IdentityRole>()
 .AddEntityFrameworkStores<ContentDbContext>();
@@ -62,6 +63,7 @@ builder.Services.AddSingleton<SectionSchemaSet>();
 builder.Services.AddSingleton<CollectionSchemaSet>();
 builder.Services.AddScoped<ContentStore>();
 builder.Services.AddScoped<MediaLibrary>();
+builder.Services.AddScoped<AdminStore>();
 builder.Services.AddHostedService<IdentitySeeder>();
 
 var loginPermitLimit = builder.Configuration.GetValue("Auth:LoginPermitLimit", 8);

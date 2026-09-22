@@ -62,8 +62,28 @@ if (connectionString.Error is not null)
     return 2;
 }
 
+var databaseFlag = Array.IndexOf(args, "--database");
+var database = databaseFlag >= 0 && databaseFlag + 1 < args.Length ? args[databaseFlag + 1] : null;
+if (database is not null && !string.Equals(database, "DigitalHubNavImport", StringComparison.Ordinal))
+{
+    Console.Error.WriteLine("--database may only name the throwaway DigitalHubNavImport. DigitalHubContent is the default.");
+    return 2;
+}
+
+var mediaFlag = Array.IndexOf(args, "--media-root");
+var mediaRoot = mediaFlag >= 0 && mediaFlag + 1 < args.Length ? Path.GetFullPath(args[mediaFlag + 1]) : null;
+var applyConnection = connectionString.Value!;
+if (database is not null)
+{
+    var builder = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(applyConnection)
+    {
+        InitialCatalog = database,
+    };
+    applyConnection = builder.ConnectionString;
+}
+
 if (args.Contains("--apply"))
-    return await ContentWriter.ApplyAsync(sourceRoot, connectionString.Value!);
+    return await ContentWriter.ApplyAsync(sourceRoot, applyConnection, mediaRoot);
 
 return await ContentWriter.PreviewAsync(sourceRoot, connectionString.Value!);
 

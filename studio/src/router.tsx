@@ -2,14 +2,17 @@ import { Navigate, createBrowserRouter } from "react-router-dom";
 import { RequireAuth } from "./auth/RequireAuth";
 import { SignInPage } from "./auth/SignInPage";
 import { collectionRoutes } from "./content/model";
-import { AreaPage } from "./pages/AreaPage";
+import { AuditPage } from "./pages/AuditPage";
 import { CollectionListPage } from "./pages/CollectionListPage";
+import { ContactInboxPage } from "./pages/ContactInboxPage";
+import { ErrorPagesPage } from "./pages/ErrorPagesPage";
 import { ItemEditorPage } from "./pages/ItemEditorPage";
 import { MediaLibraryPage } from "./pages/MediaLibraryPage";
-import { areas } from "./shell/areas";
+import { NavigationPage } from "./pages/NavigationPage";
+import { RedirectsPage } from "./pages/RedirectsPage";
+import { SettingsPage } from "./pages/SettingsPage";
+import { UsersPage } from "./pages/UsersPage";
 import { AppShell } from "./shell/AppShell";
-
-const editingPaths = new Set([...collectionRoutes.map((route) => route.path), "media"]);
 
 export const router = createBrowserRouter([
   { path: "/sign-in", element: <SignInPage /> },
@@ -25,9 +28,13 @@ export const router = createBrowserRouter([
             { path: route.path, element: <CollectionListPage collection={route.collection} /> },
             { path: `${route.path}/:id`, element: <ItemEditorPage collection={route.collection} /> },
           ]),
-          ...areas
-            .filter((area) => !editingPaths.has(area.path.slice(1)))
-            .map((area) => ({ path: area.path.slice(1), element: <AreaPage /> })),
+          { path: "navigation", element: <NavigationPage /> },
+          { path: "redirects", element: <RedirectsPage /> },
+          { path: "contact", element: <ContactInboxPage /> },
+          { path: "settings", element: <SettingsPage /> },
+          { path: "error-pages", element: <ErrorPagesPage /> },
+          { path: "users", element: <UsersPage /> },
+          { path: "audit", element: <AuditPage /> },
         ],
       },
     ],

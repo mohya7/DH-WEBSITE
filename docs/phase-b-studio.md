@@ -54,6 +54,7 @@ Work in `D:\work\DigitalHub\dh-platform`, branch `rebuild/dotnet-platform`. Work
 - Schema changes are shown before they are applied, and applied with the elevated account, never by the application.
 - The content importer refuses to write once a revision, a working copy, or an audit entry exists. After editing starts it must not overwrite editors' work or recreate a renamed item under its old slug.
 - Verify by running it.
+- **`DigitalHubContent` is the imported content database.** Browser checks and end-to-end tests must never write to it. They use a separate database (integration tests already use `DigitalHubContent_Test`). After a Studio browser session that touched `DigitalHubContent`, drop it, re-apply migrations with the elevated account, re-import from `feature/interviewer-portal`, and recreate the development editor account.
 
 ---
 
