@@ -173,6 +173,14 @@ Publish returns every failure at once, not the first one.
 
 **5.7** Report: the upload pipeline and the importer produce identical output for the same file.
 
+**5.8** Accepted formats: JPEG, PNG, and WebP only, judged by content, not by extension or declared type. Refuse SVG outright — it can carry script, and /media is served from the Studio's own origin, so an uploaded SVG would be stored cross-site scripting inside the Studio. Refuse everything else too.
+
+**5.9** Read the dimensions from the image header and refuse anything over a pixel-count cap before decoding it. A small compressed file can expand into gigabytes of memory. The cap is 25,000,000 pixels.
+
+**5.10** The stored filename comes from the content hash. The uploaded filename is kept only as metadata and never used in any path.
+
+**5.11** /media responses carry `X-Content-Type-Options: nosniff` and `Content-Security-Policy: default-src 'none'; script-src 'none'; style-src 'none'; sandbox`, so a file cannot be interpreted as anything but an image.
+
 ---
 
 ## Section 6 — Rich text

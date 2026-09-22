@@ -7,8 +7,8 @@ using System.Text.RegularExpressions;
 using AngleSharp.Dom;
 using AngleSharp.Html.Parser;
 using DigitalHub.Api.Data;
+using DigitalHub.Images;
 using Microsoft.EntityFrameworkCore;
-using SkiaSharp;
 
 namespace DigitalHub.ContentImport;
 
@@ -134,65 +134,24 @@ static partial class ContentWriter
             var source = Path.Combine(sourceRoot, image.Path.Replace('/', Path.DirectorySeparatorChar));
             try
             {
-                using var bitmap = SKBitmap.Decode(source);
-                if (bitmap is null)
+                var processed = ImagePipeline.Process(File.ReadAllBytes(source));
+                if (!processed.Succeeded)
                 {
-                    result.Failures.Add(image.Path + ": SkiaSharp could not decode the file");
+                    result.Failures.Add(image.Path + ": " + Describe(processed.Code));
                     continue;
                 }
 
-                using var full = SKImage.FromBitmap(bitmap);
-                using var encoded = full.Encode(SKEncodedImageFormat.Webp, 80);
-                if (encoded is null)
-                {
-                    result.Failures.Add(image.Path + ": WebP encode failed");
-                    continue;
-                }
-
-                var bytes = encoded.ToArray();
-                var hash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
-                var stripped = !ContainsMetadata(bytes);
-                if (!stripped)
-                    result.Failures.Add(image.Path + ": encoded WebP still contains metadata");
-                else
-                    result.MetadataStripped++;
-
-                var mainName = hash + ".webp";
-                if (WriteIfChanged(Path.Combine(mediaRoot, mainName), bytes))
+                result.MetadataStripped++;
+                if (ImageFiles.WriteIfChanged(mediaRoot, processed.MainFileName, processed.Webp))
                     result.FilesWritten++;
                 else
                     result.FilesReused++;
 
-                var generated = new JsonArray();
-                foreach (var width in new[] { 640, 1024, 1600 })
+                foreach (var variant in processed.Variants)
                 {
-                    if (bitmap.Width <= width)
-                        continue;
-                    var height = Math.Max(1, (int)Math.Round(bitmap.Height * (width / (double)bitmap.Width)));
-                    var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
-                    using var resized = bitmap.Resize(info, new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.None));
-                    if (resized is null)
-                    {
-                        result.Failures.Add(image.Path + ": could not resize to " + width);
-                        continue;
-                    }
-
-                    using var variantImage = SKImage.FromBitmap(resized);
-                    using var variantData = variantImage.Encode(SKEncodedImageFormat.Webp, 80);
-                    if (variantData is null)
-                        continue;
-                    var variantBytes = variantData.ToArray();
-                    var variantName = hash + "-w" + width + ".webp";
                     result.Sizes++;
-                    if (WriteIfChanged(Path.Combine(mediaRoot, variantName), variantBytes))
+                    if (ImageFiles.WriteIfChanged(mediaRoot, variant.FileName, variant.Webp))
                         result.Variants++;
-                    generated.Add(new JsonObject
-                    {
-                        ["width"] = width,
-                        ["height"] = height,
-                        ["path"] = "/media/" + variantName,
-                        ["bytes"] = variantBytes.Length,
-                    });
                 }
 
                 var alt = image.Alts.FirstOrDefault() ?? "";
@@ -201,14 +160,14 @@ static partial class ContentWriter
                 result.Assets[image.Path] = new MediaAsset
                 {
                     Id = IdFor("media:" + image.Path),
-                    Path = "/media/" + mainName,
+                    Path = "/media/" + processed.MainFileName,
                     OriginalName = Path.GetFileName(image.Path),
                     ContentType = "image/webp",
-                    Width = bitmap.Width,
-                    Height = bitmap.Height,
-                    Size = bytes.Length,
-                    GeneratedSizes = generated.ToJsonString(),
-                    ContentHash = hash,
+                    Width = processed.Width,
+                    Height = processed.Height,
+                    Size = processed.Webp.Length,
+                    GeneratedSizes = processed.GeneratedSizesJson(),
+                    ContentHash = processed.Hash,
                     Alt = alt,
                     Decorative = image.Usages > 0 && image.DecorativeUsages == image.Usages,
                     CreatedAt = default,
@@ -223,51 +182,15 @@ static partial class ContentWriter
         return result;
     }
 
-    private static bool ContainsMetadata(byte[] bytes)
+    private static string Describe(string? code) => code switch
     {
-        var markers = new[] { "Exif"u8.ToArray(), "EXIF"u8.ToArray(), "http://ns.adobe.com/xap/1.0/"u8.ToArray() };
-        foreach (var marker in markers)
-        {
-            if (IndexOf(bytes, marker) >= 0)
-                return true;
-        }
-
-        return false;
-    }
-
-    private static int IndexOf(byte[] haystack, byte[] needle)
-    {
-        for (var i = 0; i <= haystack.Length - needle.Length; i++)
-        {
-            var match = true;
-            for (var j = 0; j < needle.Length; j++)
-            {
-                if (haystack[i + j] != needle[j])
-                {
-                    match = false;
-                    break;
-                }
-            }
-
-            if (match)
-                return i;
-        }
-
-        return -1;
-    }
-
-    private static bool WriteIfChanged(string path, byte[] bytes)
-    {
-        if (File.Exists(path))
-        {
-            var existing = File.ReadAllBytes(path);
-            if (existing.AsSpan().SequenceEqual(bytes))
-                return false;
-        }
-
-        File.WriteAllBytes(path, bytes);
-        return true;
-    }
+        "too_large" => "file is over 5 MB",
+        "svg_refused" => "SVG is not allowed",
+        "unsupported_type" => "file is not a JPEG, PNG, or WebP",
+        "too_many_pixels" => "image is over the pixel cap",
+        "metadata" => "encoded WebP still contains metadata",
+        _ => "SkiaSharp could not decode the file",
+    };
 
     private static ImportModel Build(string sourceRoot, ImportPlan plan, Dictionary<string, MediaAsset> media)
     {

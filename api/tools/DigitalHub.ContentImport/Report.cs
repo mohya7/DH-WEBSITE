@@ -5,7 +5,7 @@ static class Report
     public static void Write(ImportPlan plan, DatabaseSnapshot database)
     {
         Console.WriteLine("Dry run. Nothing was written.");
-        Console.WriteLine("Images are measured with SkiaSharp.");
+        Console.WriteLine("Images are measured from the file header.");
         Console.WriteLine("The redirects table stays empty. The old live site is out of scope.");
         Console.WriteLine();
         if (database.Connected)

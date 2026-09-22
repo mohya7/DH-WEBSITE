@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using AngleSharp.Html.Parser;
+using DigitalHub.Images;
 
 namespace DigitalHub.ContentImport;
 
@@ -545,15 +546,15 @@ static class Catalog
 
         try
         {
-            using var codec = SkiaSharp.SKCodec.Create(full);
-            if (codec is null)
+            ImagePipeline.MeasureFile(full, out var width, out var height, out var error);
+            if (error is not null)
             {
-                image.ReadError = "SkiaSharp could not decode the file";
+                image.ReadError = error;
                 return;
             }
 
-            image.Width = codec.Info.Width;
-            image.Height = codec.Info.Height;
+            image.Width = width;
+            image.Height = height;
         }
         catch (Exception ex)
         {

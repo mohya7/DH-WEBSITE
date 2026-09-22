@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
@@ -59,21 +60,25 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddSingleton<SectionSchemaSet>();
 builder.Services.AddScoped<ContentStore>();
+builder.Services.AddScoped<MediaLibrary>();
 builder.Services.AddHostedService<IdentitySeeder>();
 
 var loginPermitLimit = builder.Configuration.GetValue("Auth:LoginPermitLimit", 8);
 var loginWindowHours = builder.Configuration.GetValue("Auth:LoginWindowHours", 1);
+var uploadPermitLimit = builder.Configuration.GetValue("Media:UploadPermitLimit", 20);
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.OnRejected = (context, token) =>
     {
+        var policy = context.HttpContext.GetEndpoint()?.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName;
+        var title = policy == "media-upload" ? "Too many uploads." : "Too many login attempts.";
         context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
         return new ValueTask(ProblemResults.WriteAsync(
             context.HttpContext.Response,
             StatusCodes.Status429TooManyRequests,
             "rate_limited",
-            "Too many login attempts.",
+            title,
             token));
     };
     options.AddPolicy("login", httpContext =>
@@ -84,6 +89,16 @@ builder.Services.AddRateLimiter(options =>
         {
             PermitLimit = loginPermitLimit,
             Window = TimeSpan.FromHours(loginWindowHours),
+            QueueLimit = 0,
+        });
+    });
+    options.AddPolicy("media-upload", httpContext =>
+    {
+        var userId = httpContext.User.FindFirst("sub")?.Value ?? "anonymous";
+        return RateLimitPartition.GetFixedWindowLimiter("media\n" + userId, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = uploadPermitLimit,
+            Window = TimeSpan.FromHours(1),
             QueueLimit = 0,
         });
     });
@@ -181,17 +196,28 @@ app.UseSerilogRequestLogging(options =>
 });
 app.UseMiddleware<ExceptionShieldMiddleware>();
 app.UseMiddleware<LoginRateLimitKeyMiddleware>();
+app.UseAuthentication();
 app.UseRateLimiter();
 
-var mediaRoot = Path.Combine(app.Environment.ContentRootPath, "media");
+var mediaRoot = app.Configuration["Media:Root"];
+if (string.IsNullOrWhiteSpace(mediaRoot))
+    mediaRoot = Path.Combine(app.Environment.ContentRootPath, "media");
 Directory.CreateDirectory(mediaRoot);
+var mediaTypes = new FileExtensionContentTypeProvider();
+mediaTypes.Mappings[".webp"] = "image/webp";
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(mediaRoot),
     RequestPath = "/media",
+    ContentTypeProvider = mediaTypes,
+    OnPrepareResponse = context =>
+    {
+        var headers = context.Context.Response.Headers;
+        headers["X-Content-Type-Options"] = "nosniff";
+        headers["Content-Security-Policy"] = MediaLibrary.ContentSecurityPolicy;
+    },
 });
 
-app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();

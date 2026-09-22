@@ -43,6 +43,11 @@ public sealed class ContentEndpointCoverageTests : IClassFixture<ApiFactory>
     [InlineData("GET", "/api/v1/pages/11111111-1111-4111-8111-111111111111/revisions")]
     [InlineData("GET", "/api/v1/pages/11111111-1111-4111-8111-111111111111/revisions/33333333-3333-4333-8333-333333333333")]
     [InlineData("POST", "/api/v1/pages/11111111-1111-4111-8111-111111111111/revisions/33333333-3333-4333-8333-333333333333/restore")]
+    [InlineData("GET", "/api/v1/media")]
+    [InlineData("GET", "/api/v1/media/44444444-4444-4444-8444-444444444444")]
+    [InlineData("POST", "/api/v1/media")]
+    [InlineData("PUT", "/api/v1/media/44444444-4444-4444-8444-444444444444")]
+    [InlineData("DELETE", "/api/v1/media/44444444-4444-4444-8444-444444444444")]
     public async Task Anonymous_request_is_unauthorized(string method, string url)
     {
         var response = await _client.SendAsync(new HttpRequestMessage(new HttpMethod(method), url));
@@ -66,6 +71,11 @@ public sealed class ContentEndpointCoverageTests : IClassFixture<ApiFactory>
     [InlineData("GET", "/api/v1/pages/11111111-1111-4111-8111-111111111111/revisions")]
     [InlineData("GET", "/api/v1/pages/11111111-1111-4111-8111-111111111111/revisions/33333333-3333-4333-8333-333333333333")]
     [InlineData("POST", "/api/v1/pages/11111111-1111-4111-8111-111111111111/revisions/33333333-3333-4333-8333-333333333333/restore")]
+    [InlineData("GET", "/api/v1/media")]
+    [InlineData("GET", "/api/v1/media/44444444-4444-4444-8444-444444444444")]
+    [InlineData("POST", "/api/v1/media")]
+    [InlineData("PUT", "/api/v1/media/44444444-4444-4444-8444-444444444444")]
+    [InlineData("DELETE", "/api/v1/media/44444444-4444-4444-8444-444444444444")]
     public async Task Unknown_role_is_forbidden(string method, string url)
     {
         var guest = await Unknown();

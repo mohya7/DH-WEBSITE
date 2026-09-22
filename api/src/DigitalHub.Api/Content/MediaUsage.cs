@@ -21,25 +21,92 @@ public static class MediaUsage
         return ids.Distinct().ToList();
     }
 
-    public static async Task<bool> IsInUseAsync(ContentDbContext db, Guid mediaId, CancellationToken cancellationToken)
+    public static async Task<bool> IsInUseAsync(ContentDbContext db, Guid mediaId, CancellationToken cancellationToken) =>
+        (await FindPlacesAsync(db, mediaId, cancellationToken)).Count > 0;
+
+    public static async Task<IReadOnlyList<string>> FindPlacesAsync(ContentDbContext db, Guid mediaId, CancellationToken cancellationToken)
     {
-        if (await db.Pages.AsNoTracking().AnyAsync(item => item.ShareImageId == mediaId, cancellationToken)
-            || await db.Services.AsNoTracking().AnyAsync(item => item.ShareImageId == mediaId, cancellationToken)
-            || await db.Partners.AsNoTracking().AnyAsync(item => item.ShareImageId == mediaId || item.ImageId == mediaId, cancellationToken)
-            || await db.CaseStudies.AsNoTracking().AnyAsync(item => item.ShareImageId == mediaId || item.ImageId == mediaId, cancellationToken)
-            || await db.BlogPosts.AsNoTracking().AnyAsync(item => item.ShareImageId == mediaId || item.ImageId == mediaId, cancellationToken)
-            || await db.Vacancies.AsNoTracking().AnyAsync(item => item.ShareImageId == mediaId, cancellationToken)
-            || await db.TeamMembers.AsNoTracking().AnyAsync(item => item.ShareImageId == mediaId || item.ImageId == mediaId, cancellationToken)
-            || await db.NewsItems.AsNoTracking().AnyAsync(item => item.ShareImageId == mediaId || item.ImageId == mediaId, cancellationToken)
-            || await db.SiteSettings.AsNoTracking().AnyAsync(item => item.DefaultShareImageId == mediaId, cancellationToken))
+        var places = new List<string>();
+        var text = mediaId.ToString();
+        await AddSharesAsync(db.Pages, "pages", mediaId, places, cancellationToken);
+        await AddSharesAsync(db.Services, "services", mediaId, places, cancellationToken);
+        await AddSharesAsync(db.Partners, "partners", mediaId, places, cancellationToken);
+        await AddSharesAsync(db.CaseStudies, "case-studies", mediaId, places, cancellationToken);
+        await AddSharesAsync(db.BlogPosts, "blog-posts", mediaId, places, cancellationToken);
+        await AddSharesAsync(db.Vacancies, "vacancies", mediaId, places, cancellationToken);
+        await AddSharesAsync(db.TeamMembers, "team-members", mediaId, places, cancellationToken);
+        await AddSharesAsync(db.NewsItems, "news-items", mediaId, places, cancellationToken);
+        await AddImagesAsync(db.Partners, "partners", mediaId, places, cancellationToken);
+        await AddImagesAsync(db.CaseStudies, "case-studies", mediaId, places, cancellationToken);
+        await AddImagesAsync(db.BlogPosts, "blog-posts", mediaId, places, cancellationToken);
+        await AddImagesAsync(db.TeamMembers, "team-members", mediaId, places, cancellationToken);
+        await AddImagesAsync(db.NewsItems, "news-items", mediaId, places, cancellationToken);
+
+        foreach (var id in await db.SiteSettings.AsNoTracking().Where(item => item.DefaultShareImageId == mediaId).Select(item => item.Id).ToListAsync(cancellationToken))
+            places.Add("site-settings " + id.ToString("D") + " default share image");
+
+        foreach (var id in await db.BlogPosts.AsNoTracking().Where(item => item.Body.Contains(text)).Select(item => item.Id).ToListAsync(cancellationToken))
+            places.Add("blog-posts " + id.ToString("D") + " body");
+
+        var sections = await db.Sections.AsNoTracking()
+            .Where(section => section.Fields.Contains(text))
+            .Select(section => new { section.Id, section.PageId, section.ServiceId, section.PartnerId, section.CaseStudyId })
+            .ToListAsync(cancellationToken);
+        foreach (var section in sections)
         {
-            return true;
+            var owner = section.PageId ?? section.ServiceId ?? section.PartnerId ?? section.CaseStudyId;
+            var collection = section.PageId is not null ? "pages"
+                : section.ServiceId is not null ? "services"
+                : section.PartnerId is not null ? "partners"
+                : "case-studies";
+            if (owner is Guid ownerId)
+                places.Add(collection + " " + ownerId.ToString("D") + " section " + section.Id.ToString("D"));
         }
 
-        var text = mediaId.ToString();
-        if (await db.Sections.AsNoTracking().AnyAsync(section => section.Fields.Contains(text), cancellationToken))
-            return true;
-        return await db.WorkingCopies.AsNoTracking().AnyAsync(copy => copy.Document.Contains(text), cancellationToken);
+        var copies = await db.WorkingCopies.AsNoTracking()
+            .Where(copy => copy.Document.Contains(text))
+            .Select(copy => new
+            {
+                copy.PageId,
+                copy.ServiceId,
+                copy.PartnerId,
+                copy.CaseStudyId,
+                copy.BlogPostId,
+                copy.VacancyId,
+                copy.TeamMemberId,
+                copy.NewsItemId,
+            })
+            .ToListAsync(cancellationToken);
+        foreach (var copy in copies)
+        {
+            var (collection, owner) = copy.PageId is Guid page ? ("pages", page)
+                : copy.ServiceId is Guid service ? ("services", service)
+                : copy.PartnerId is Guid partner ? ("partners", partner)
+                : copy.CaseStudyId is Guid study ? ("case-studies", study)
+                : copy.BlogPostId is Guid blog ? ("blog-posts", blog)
+                : copy.VacancyId is Guid vacancy ? ("vacancies", vacancy)
+                : copy.TeamMemberId is Guid member ? ("team-members", member)
+                : copy.NewsItemId is Guid news ? ("news-items", news)
+                : ("", Guid.Empty);
+            if (collection.Length > 0)
+                places.Add(collection + " " + owner.ToString("D") + " working copy");
+        }
+
+        return places;
+    }
+
+    private static async Task AddSharesAsync<T>(DbSet<T> set, string collection, Guid mediaId, List<string> places, CancellationToken cancellationToken)
+        where T : ContentRecord
+    {
+        foreach (var id in await set.AsNoTracking().Where(item => item.ShareImageId == mediaId).Select(item => item.Id).ToListAsync(cancellationToken))
+            places.Add(collection + " " + id.ToString("D") + " share image");
+    }
+
+    private static async Task AddImagesAsync<T>(DbSet<T> set, string collection, Guid mediaId, List<string> places, CancellationToken cancellationToken)
+        where T : ContentRecord
+    {
+        foreach (var id in await set.AsNoTracking().Where(item => EF.Property<Guid?>(item, "ImageId") == mediaId).Select(item => item.Id).ToListAsync(cancellationToken))
+            places.Add(collection + " " + id.ToString("D") + " image");
     }
 
     public static async Task<IReadOnlyList<Guid>> MissingAsync(ContentDbContext db, string snapshot, CancellationToken cancellationToken)

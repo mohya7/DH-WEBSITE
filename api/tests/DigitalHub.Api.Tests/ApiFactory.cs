@@ -16,12 +16,16 @@ public class ApiFactory : WebApplicationFactory<Program>
     public const string AdminPassword = "Test-Only-Passw0rd!";
     public const string SecretsId = "41335d15-4f42-410a-bf90-41068117e45a";
 
+    public string MediaRoot { get; } = Path.Combine(Path.GetTempPath(), "dh-platform-media-tests");
+
     private readonly string _connectionString = TestConnectionString();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        Directory.CreateDirectory(MediaRoot);
         builder.UseEnvironment("Testing");
         builder.UseSetting("ConnectionStrings:Content", _connectionString);
+        builder.UseSetting("Media:Root", MediaRoot);
         builder.UseSetting("Auth:SigningKey", SigningKey);
         builder.UseSetting("Auth:Issuer", "digitalhub");
         builder.UseSetting("Auth:Audience", "digitalhub-api");

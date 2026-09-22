@@ -14,12 +14,11 @@
   <ItemGroup>
     <PackageReference Include="AngleSharp" Version="1.5.0" />
     <PackageReference Include="JsonSchema.Net" Version="8.0.5" />
-    <PackageReference Include="SkiaSharp" Version="3.116.1" />
-    <PackageReference Include="SkiaSharp.NativeAssets.Win32" Version="3.116.1" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\DigitalHub.Api\DigitalHub.Api.csproj" />
+    <ProjectReference Include="..\..\src\DigitalHub.Images\DigitalHub.Images.csproj" />
   </ItemGroup>
 
 </Project>
