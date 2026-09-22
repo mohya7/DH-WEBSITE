@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://digitalhub.local/collections/vacancies",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "summary": { "type": ["string", "null"], "x-dh-kind": "longText", "x-dh-label": "Summary" },
+    "department": { "type": ["string", "null"], "x-dh-kind": "text", "x-dh-label": "Department" },
+    "location": { "type": ["string", "null"], "x-dh-kind": "text", "x-dh-label": "Location" },
+    "employmentType": { "type": ["string", "null"], "x-dh-kind": "text", "x-dh-label": "Employment type" },
+    "aboutRole": { "type": ["string", "null"], "x-dh-kind": "longText", "x-dh-label": "About the role" },
+    "keyResponsibilities": { "type": ["string", "null"], "x-dh-kind": "longText", "x-dh-label": "Key responsibilities" },
+    "requiredSkills": { "type": ["string", "null"], "x-dh-kind": "longText", "x-dh-label": "Required skills" },
+    "niceToHave": { "type": ["string", "null"], "x-dh-kind": "longText", "x-dh-label": "Nice to have" },
+    "roleOffers": { "type": ["string", "null"], "x-dh-kind": "longText", "x-dh-label": "What the role offers" },
+    "interviewStages": { "type": ["array", "null"], "items": { "type": "string", "x-dh-kind": "text" }, "x-dh-label": "Interview stages" },
+    "featured": { "type": ["boolean", "null"], "x-dh-kind": "boolean", "x-dh-label": "Featured" }
+  }
+}

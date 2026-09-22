@@ -95,6 +95,13 @@ public static class RichText
         };
     }
 
+    public static (string Document, bool ImagesDropped) FilterPaste(string? json)
+    {
+        var before = CountKind(json, "image");
+        var document = Paste(json);
+        return (document, before > CountKind(document, "image"));
+    }
+
     public static string Paste(string? json)
     {
         const string empty = "{\"type\":\"doc\",\"content\":[]}";
@@ -683,6 +690,41 @@ public static class RichText
             if (!allowed.Contains(property.Name, StringComparer.Ordinal))
                 Add(errors, path + " cannot include " + property.Name + ".");
         }
+    }
+
+    private static int CountKind(string? json, string kind)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return 0;
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            return CountKind(document.RootElement, kind);
+        }
+        catch (JsonException)
+        {
+            return 0;
+        }
+    }
+
+    private static int CountKind(JsonElement node, string kind)
+    {
+        var count = 0;
+        switch (node.ValueKind)
+        {
+            case JsonValueKind.Object:
+                if (Kind(node) == kind)
+                    count++;
+                foreach (var property in node.EnumerateObject())
+                    count += CountKind(property.Value, kind);
+                break;
+            case JsonValueKind.Array:
+                foreach (var item in node.EnumerateArray())
+                    count += CountKind(item, kind);
+                break;
+        }
+
+        return count;
     }
 
     private static string Kind(JsonElement node) =>

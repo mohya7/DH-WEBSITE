@@ -29,6 +29,18 @@ public sealed class ContentController(ContentStore store) : ControllerBase
     public async Task<IActionResult> Update(string collection, Guid id, [FromBody] ContentUpdate request, CancellationToken cancellationToken) =>
         Respond(await store.UpdateAsync(collection, id, request.Version, request, UserId(), cancellationToken));
 
+    [HttpPut("{id:guid}/save")]
+    public async Task<IActionResult> Save(string collection, Guid id, [FromBody] ContentSave request, CancellationToken cancellationToken) =>
+        Respond(await store.SaveAsync(collection, id, request, UserId(), cancellationToken));
+
+    [HttpPost("order")]
+    public async Task<IActionResult> Order(string collection, [FromBody] CollectionOrderRequest request, CancellationToken cancellationToken) =>
+        Respond(await store.OrderAsync(collection, request.Items, UserId(), cancellationToken));
+
+    [HttpPost("{id:guid}/end")]
+    public async Task<IActionResult> End(string collection, Guid id, [FromBody] VersionBody request, CancellationToken cancellationToken) =>
+        Respond(await store.EndAsync(collection, id, request.Version, UserId(), cancellationToken));
+
     [HttpDelete("{id:guid}")]
     [Authorize(Policy = "studio-admin")]
     public async Task<IActionResult> Delete(string collection, Guid id, [FromQuery][Range(1, int.MaxValue)] int version, CancellationToken cancellationToken)
@@ -112,12 +124,6 @@ public sealed class ContentController(ContentStore store) : ControllerBase
 
         return ProblemResults.Create(outcome.Status, outcome.Code, outcome.Title ?? "The request failed.");
     }
-}
-
-public sealed class ContentUpdate : ContentWrite
-{
-    [Range(1, int.MaxValue)]
-    public int Version { get; set; }
 }
 
 public sealed class VersionBody

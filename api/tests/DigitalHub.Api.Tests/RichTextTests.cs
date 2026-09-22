@@ -86,6 +86,19 @@ public sealed class RichTextTests
     }
 
     [Fact]
+    public void A_pasted_image_without_a_media_id_is_reported_instead_of_kept()
+    {
+        var dropped = RichText.FilterPaste("{\"type\":\"doc\",\"content\":[{\"type\":\"image\",\"attrs\":{\"src\":\"https://digitalhub.example/a.png\"}}]}");
+        Assert.True(dropped.ImagesDropped);
+        Assert.DoesNotContain("image", dropped.Document, StringComparison.Ordinal);
+
+        var id = Guid.NewGuid().ToString("D");
+        var kept = RichText.FilterPaste("{\"type\":\"doc\",\"content\":[{\"type\":\"image\",\"attrs\":{\"mediaId\":\"" + id + "\",\"alt\":\"Diagram\"}}]}");
+        Assert.False(kept.ImagesDropped);
+        Assert.Contains(id, kept.Document, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void An_empty_document_is_a_valid_draft_body()
     {
         Assert.Empty(RichText.Validate(null));

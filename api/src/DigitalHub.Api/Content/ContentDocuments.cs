@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
 using DigitalHub.Api.Data;
 
@@ -39,6 +40,40 @@ public sealed class DraftSection
     public bool Visible { get; set; } = true;
 
     public JsonElement Fields { get; set; }
+}
+
+public class ContentUpdate : ContentWrite
+{
+    [Range(1, int.MaxValue)]
+    public int Version { get; set; }
+}
+
+public sealed class ContentSave : ContentUpdate
+{
+    public List<SectionInput>? Sections { get; set; }
+}
+
+public sealed class SectionInput
+{
+    public Guid Id { get; set; }
+
+    public string Type { get; set; } = "";
+
+    public bool Visible { get; set; } = true;
+
+    public JsonElement Fields { get; set; }
+}
+
+public sealed class CollectionOrderRequest
+{
+    public List<OrderEntry> Items { get; set; } = [];
+}
+
+public sealed class OrderEntry
+{
+    public Guid Id { get; set; }
+
+    public int Version { get; set; }
 }
 
 public class ContentWrite

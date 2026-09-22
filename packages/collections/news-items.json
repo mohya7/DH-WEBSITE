@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://digitalhub.local/collections/news-items",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "summary": { "type": ["string", "null"], "x-dh-kind": "longText", "x-dh-label": "Summary" },
+    "details": { "type": ["string", "null"], "x-dh-kind": "longText", "x-dh-label": "Details" },
+    "imageId": { "type": ["string", "null"], "x-dh-kind": "mediaId", "x-dh-label": "Image" },
+    "imageAltOverride": { "type": ["string", "null"], "x-dh-kind": "text", "x-dh-label": "Image alt text" },
+    "category": { "type": ["string", "null"], "x-dh-kind": "text", "x-dh-label": "Category" },
+    "location": { "type": ["string", "null"], "x-dh-kind": "text", "x-dh-label": "Location" },
+    "year": { "type": ["string", "null"], "x-dh-kind": "text", "x-dh-label": "Year" },
+    "month": { "type": ["string", "null"], "x-dh-kind": "text", "x-dh-label": "Month" },
+    "featured": { "type": ["boolean", "null"], "x-dh-kind": "boolean", "x-dh-label": "Featured" }
+  }
+}

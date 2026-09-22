@@ -59,6 +59,7 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
 .AddEntityFrameworkStores<ContentDbContext>();
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddSingleton<SectionSchemaSet>();
+builder.Services.AddSingleton<CollectionSchemaSet>();
 builder.Services.AddScoped<ContentStore>();
 builder.Services.AddScoped<MediaLibrary>();
 builder.Services.AddHostedService<IdentitySeeder>();

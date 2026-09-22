@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://digitalhub.local/collections/team-members",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "role": { "type": ["string", "null"], "x-dh-kind": "text", "x-dh-label": "Role" },
+    "imageId": { "type": ["string", "null"], "x-dh-kind": "mediaId", "x-dh-label": "Portrait" },
+    "imageAltOverride": { "type": ["string", "null"], "x-dh-kind": "text", "x-dh-label": "Portrait alt text" },
+    "email": { "type": ["string", "null"], "x-dh-kind": "text", "x-dh-label": "Email" },
+    "linkedIn": { "type": ["string", "null"], "x-dh-kind": "url", "x-dh-label": "LinkedIn" },
+    "featured": { "type": ["boolean", "null"], "x-dh-kind": "boolean", "x-dh-label": "Featured" }
+  }
+}

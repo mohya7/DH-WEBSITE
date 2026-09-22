@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://digitalhub.local/collections/partners",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "summary": { "type": ["string", "null"], "x-dh-kind": "longText", "x-dh-label": "Summary" },
+    "imageId": { "type": ["string", "null"], "x-dh-kind": "mediaId", "x-dh-label": "Image" },
+    "imageAltOverride": { "type": ["string", "null"], "x-dh-kind": "text", "x-dh-label": "Image alt text" },
+    "variant": { "type": ["string", "null"], "x-dh-kind": "text", "x-dh-label": "Variant" },
+    "featured": { "type": ["boolean", "null"], "x-dh-kind": "boolean", "x-dh-label": "Featured" }
+  }
+}

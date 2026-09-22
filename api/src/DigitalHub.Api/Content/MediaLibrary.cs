@@ -45,9 +45,10 @@ public sealed class MediaLibrary(ContentDbContext db, IConfiguration configurati
     public async Task<MediaOutcome> GetAsync(Guid id, CancellationToken cancellationToken)
     {
         var asset = await db.Media.AsNoTracking().FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
-        return asset is null
-            ? MediaOutcome.Fail(StatusCodes.Status404NotFound, "not_found", "That image does not exist.")
-            : MediaOutcome.Ok(Present(asset));
+        if (asset is null)
+            return MediaOutcome.Fail(StatusCodes.Status404NotFound, "not_found", "That image does not exist.");
+        var usages = await MediaUsage.FindPlacesAsync(db, id, cancellationToken);
+        return MediaOutcome.Ok(new { image = Present(asset), usages });
     }
 
     public async Task<MediaOutcome> UploadAsync(Stream content, long length, string? uploadedName, string? alt, bool decorative, string? caption, string? userId, CancellationToken cancellationToken)

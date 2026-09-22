@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://digitalhub.local/collections/blog-posts",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "summary": { "type": ["string", "null"], "x-dh-kind": "longText", "x-dh-label": "Summary" },
+    "imageId": { "type": ["string", "null"], "x-dh-kind": "mediaId", "x-dh-label": "Image" },
+    "imageAltOverride": { "type": ["string", "null"], "x-dh-kind": "text", "x-dh-label": "Image alt text" },
+    "category": { "type": ["string", "null"], "x-dh-kind": "text", "x-dh-label": "Category" },
+    "categoryLabel": { "type": ["string", "null"], "x-dh-kind": "text", "x-dh-label": "Category label" },
+    "readTime": { "type": ["integer", "null"], "x-dh-kind": "number", "x-dh-label": "Read time" },
+    "accent": { "type": ["string", "null"], "x-dh-kind": "text", "x-dh-label": "Accent" },
+    "cluster": { "type": ["string", "null"], "x-dh-kind": "text", "x-dh-label": "Cluster" },
+    "body": { "type": ["string", "null"], "x-dh-kind": "richText", "x-dh-label": "Article" },
+    "answerBlock": { "type": ["string", "null"], "x-dh-kind": "longText", "x-dh-label": "Answer" },
+    "faq": { "type": ["string", "null"], "x-dh-kind": "longText", "x-dh-label": "FAQ" },
+    "dateModified": { "type": ["string", "null"], "x-dh-kind": "text", "x-dh-label": "Date modified" },
+    "featured": { "type": ["boolean", "null"], "x-dh-kind": "boolean", "x-dh-label": "Featured" }
+  }
+}

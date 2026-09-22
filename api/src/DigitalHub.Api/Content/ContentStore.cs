@@ -5,8 +5,17 @@ using Microsoft.EntityFrameworkCore;
 
 namespace DigitalHub.Api.Content;
 
-public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas)
+public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas, CollectionSchemaSet collectionSchemas)
 {
+    public static readonly HashSet<string> OrderedCollections = new(StringComparer.Ordinal)
+    {
+        "services",
+        "partners",
+        "case-studies",
+        "team-members",
+        "news-items",
+    };
+
     private static readonly Dictionary<string, (string EntityType, bool Sections)> Kinds = new(StringComparer.Ordinal)
     {
         ["pages"] = ("page", true),
@@ -43,9 +52,10 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas)
 
         var rows = await RowsAsync(collection, parsed, term, copyIds, cancellationToken);
         var total = rows.Count;
-        var items = rows
-            .OrderBy(row => row.Title, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(row => row.Slug, StringComparer.OrdinalIgnoreCase)
+        IEnumerable<ContentRow> sorted = OrderedCollections.Contains(collection)
+            ? rows.OrderBy(row => row.SortOrder).ThenBy(row => row.Title, StringComparer.OrdinalIgnoreCase).ThenBy(row => row.Slug, StringComparer.OrdinalIgnoreCase)
+            : rows.OrderBy(row => row.Title, StringComparer.OrdinalIgnoreCase).ThenBy(row => row.Slug, StringComparer.OrdinalIgnoreCase);
+        var items = sorted
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(row =>
@@ -71,6 +81,7 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas)
                     status = row.Status.ToString().ToLowerInvariant(),
                     state = StateOf(row.Status, hasCopy),
                     row.Version,
+                    sortOrder = row.SortOrder,
                     updatedAt = row.UpdatedAt,
                     hasWorkingCopy = hasCopy,
                 };
@@ -100,6 +111,94 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas)
         if (!Knows(collection))
             return Task.FromResult(Unknown());
         return MutateAsync(collection, id, version, userId, "update", draft => ContentFields.ApplyWrite(draft, write), cancellationToken);
+    }
+
+    public Task<ContentOutcome> SaveAsync(string collection, Guid id, ContentSave save, string? userId, CancellationToken cancellationToken)
+    {
+        if (!Knows(collection))
+            return Task.FromResult(Unknown());
+        if (SectionsOf(collection) && save.Sections is null)
+            return Task.FromResult(Validation("sections", "Include every section in the save."));
+        return MutateAsync(collection, id, save.Version, userId, "save", draft =>
+        {
+            ContentFields.ApplyWrite(draft, save);
+            if (!SectionsOf(collection))
+                return;
+            draft.Sections = (save.Sections ?? []).Select((section, index) => new DraftSection
+            {
+                Id = section.Id == Guid.Empty ? Guid.NewGuid() : section.Id,
+                Type = section.Type.Trim(),
+                SortOrder = (index + 1) * 10,
+                Visible = section.Visible,
+                Fields = section.Fields.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null
+                    ? Parse("{}")
+                    : section.Fields.Clone(),
+            }).ToList();
+        }, cancellationToken);
+    }
+
+    public async Task<ContentOutcome> OrderAsync(string collection, IReadOnlyList<OrderEntry> items, string? userId, CancellationToken cancellationToken)
+    {
+        if (!Knows(collection))
+            return Unknown();
+        if (!OrderedCollections.Contains(collection))
+            return Validation("collection", "This collection is not shown in a set order.");
+
+        var records = await LoadRecordsAsync(collection, cancellationToken);
+        var byId = records.ToDictionary(record => record.Id);
+        if (items.Count != records.Count || items.Select(item => item.Id).Distinct().Count() != items.Count || items.Any(item => !byId.ContainsKey(item.Id)))
+            return Validation("items", "Include every item in this collection once.");
+        if (items.Any(item => byId[item.Id].Version != item.Version))
+            return Conflict();
+        if (items.Count == 0)
+            return ContentOutcome.Ok(new { items = Array.Empty<object>() });
+
+        for (var index = 0; index < items.Count; index++)
+        {
+            var record = byId[items[index].Id];
+            record.SortOrder = (index + 1) * 10;
+            record.Version += 1;
+            record.UpdatedAt = DateTime.UtcNow;
+            var copy = await FindCopyAsync(collection, record.Id, cancellationToken);
+            if (copy is null)
+                continue;
+            var draft = JsonSerializer.Deserialize<DraftDocument>(copy.Document, ContentJson.Options);
+            if (draft is null)
+                continue;
+            draft.SortOrder = record.SortOrder;
+            copy.Document = JsonSerializer.Serialize(draft, ContentJson.Options);
+            copy.SavedAt = DateTime.UtcNow;
+        }
+
+        Audit(userId, "order", collection, items[0].Id);
+        return await CommitAsync(cancellationToken, () => ContentOutcome.Ok(new
+        {
+            items = items.Select(item => new { id = item.Id, version = byId[item.Id].Version, sortOrder = byId[item.Id].SortOrder }).ToList(),
+        }));
+    }
+
+    public async Task<ContentOutcome> EndAsync(string collection, Guid id, int version, string? userId, CancellationToken cancellationToken)
+    {
+        if (collection != "vacancies")
+            return Validation("collection", "Only a vacancy can be ended.");
+        var loaded = await LoadAsync(collection, id, cancellationToken);
+        if (loaded is null)
+            return Missing();
+        if (loaded.Record.Version != version)
+            return Conflict();
+        if (loaded.Record is not Vacancy vacancy)
+            return Validation("collection", "Only a vacancy can be ended.");
+        if (vacancy.Status == ContentStatus.Ended)
+            return ContentOutcome.Fail(StatusCodes.Status409Conflict, "already_ended", "This vacancy has already ended.");
+        if (vacancy.Status != ContentStatus.Published)
+            return ContentOutcome.Fail(StatusCodes.Status409Conflict, "not_published", "Publish the vacancy before ending it.");
+
+        vacancy.Status = ContentStatus.Ended;
+        vacancy.EndedAt = DateTime.UtcNow;
+        vacancy.UpdatedAt = vacancy.EndedAt.Value;
+        vacancy.Version += 1;
+        Audit(userId, "end", collection, id);
+        return await CommitAsync(cancellationToken, () => ContentOutcome.Ok(Present(collection, loaded, null)));
     }
 
     public async Task<ContentOutcome> DeleteAsync(string collection, Guid id, int version, string? userId, CancellationToken cancellationToken)
@@ -199,6 +298,8 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas)
 
         var now = DateTime.UtcNow;
         loaded.Record.Status = ContentStatus.Published;
+        if (loaded.Record is Vacancy reopened)
+            reopened.EndedAt = null;
         loaded.Record.PublishedAt = now;
         loaded.Record.UpdatedAt = now;
         loaded.Record.Version += 1;
@@ -531,6 +632,8 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas)
     {
         var errors = new Dictionary<string, List<string>>();
         ContentFields.Validate(collection, draft, errors);
+        foreach (var message in collectionSchemas.Validate(collection, JsonSerializer.Serialize(draft.Fields, ContentJson.Options)))
+            Add(errors, "fields", message);
         if (draft.Fields.TryGetValue("body", out var body) && body.ValueKind == JsonValueKind.String)
         {
             foreach (var message in RichText.Validate(body.GetString()))
@@ -667,7 +770,7 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas)
 
     private static IQueryable<ContentRow> Project<T>(IQueryable<T> query)
         where T : ContentRecord =>
-        query.Select(item => new ContentRow(item.Id, item.Slug, item.Title, item.Status, item.Version, item.UpdatedAt));
+        query.Select(item => new ContentRow(item.Id, item.Slug, item.Title, item.Status, item.Version, item.UpdatedAt, item.SortOrder));
 
     private static IQueryable<T> Filter<T>(IQueryable<T> query, ContentStatus? status, string? term, List<Guid> copyIds)
         where T : ContentRecord
@@ -869,6 +972,7 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas)
             publishedAt = loaded.Record.PublishedAt,
             hasWorkingCopy,
             notice = published ? "Published changes appear on the website at the next build." : null,
+            endedAt = (loaded.Record as Vacancy)?.EndedAt,
             warnings = warnings ?? new Dictionary<string, string[]>(),
             content = Body(collection, content),
             live = published ? Body(collection, live) : null,
@@ -1062,7 +1166,20 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas)
             "One or more fields are invalid.",
             errors.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray()));
 
-    private sealed record ContentRow(Guid Id, string Slug, string Title, ContentStatus Status, int Version, DateTime UpdatedAt);
+    private sealed record ContentRow(Guid Id, string Slug, string Title, ContentStatus Status, int Version, DateTime UpdatedAt, int SortOrder);
+
+    private async Task<List<ContentRecord>> LoadRecordsAsync(string collection, CancellationToken cancellationToken) => collection switch
+    {
+        "pages" => (await db.Pages.ToListAsync(cancellationToken)).Cast<ContentRecord>().ToList(),
+        "services" => (await db.Services.ToListAsync(cancellationToken)).Cast<ContentRecord>().ToList(),
+        "partners" => (await db.Partners.ToListAsync(cancellationToken)).Cast<ContentRecord>().ToList(),
+        "case-studies" => (await db.CaseStudies.ToListAsync(cancellationToken)).Cast<ContentRecord>().ToList(),
+        "blog-posts" => (await db.BlogPosts.ToListAsync(cancellationToken)).Cast<ContentRecord>().ToList(),
+        "vacancies" => (await db.Vacancies.ToListAsync(cancellationToken)).Cast<ContentRecord>().ToList(),
+        "team-members" => (await db.TeamMembers.ToListAsync(cancellationToken)).Cast<ContentRecord>().ToList(),
+        "news-items" => (await db.NewsItems.ToListAsync(cancellationToken)).Cast<ContentRecord>().ToList(),
+        _ => [],
+    };
 
     private sealed record CopyRow(Guid OwnerId, string Document);
 

@@ -14,6 +14,12 @@ export default defineConfig({
       },
       "/media": {
         target: "http://127.0.0.1:5088",
+        bypass(request) {
+          const path = request.url?.split("?")[0] ?? "";
+          if (path === "/media" || path === "/media/") {
+            return "/index.html";
+          }
+        },
       },
     },
   },

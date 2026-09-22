@@ -381,6 +381,198 @@ public sealed class ContentApiTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task Save_writes_the_item_and_its_sections_together_or_not_at_all()
+    {
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var slug = "save-" + suffix;
+        var editor = await LoginAsync("content-editor@digitalhub.test", "editor");
+        var admin = await LoginAsync(ApiFactory.AdminEmail, "admin", ApiFactory.AdminPassword);
+        var created = await SendAsync(editor, HttpMethod.Post, "/api/v1/pages", new { slug, title = "Before", metaDescription = "A description for the save." });
+        Assert.Equal(HttpStatusCode.Created, created.Status);
+        var createdJson = JsonDocument.Parse(created.Body).RootElement;
+        var id = createdJson.GetProperty("id").GetGuid();
+
+        var saved = await SendAsync(editor, HttpMethod.Put, "/api/v1/pages/" + id + "/save", new
+        {
+            version = 1,
+            slug,
+            title = "After",
+            metaDescription = "A description for the save.",
+            sections = new object[]
+            {
+                new { type = "rich_text", visible = true, fields = new { heading = "First" } },
+                new { type = "rich_text", visible = true, fields = new { heading = "Second" } },
+            },
+        });
+        Assert.Equal(HttpStatusCode.OK, saved.Status);
+        var savedJson = JsonDocument.Parse(saved.Body).RootElement;
+        var sections = savedJson.GetProperty("content").GetProperty("sections");
+        Assert.Equal(2, sections.GetArrayLength());
+        var firstId = sections[0].GetProperty("id").GetGuid();
+        var secondId = sections[1].GetProperty("id").GetGuid();
+
+        var revised = await SendAsync(editor, HttpMethod.Put, "/api/v1/pages/" + id + "/save", new
+        {
+            version = savedJson.GetProperty("version").GetInt32(),
+            slug,
+            title = "Reordered",
+            metaDescription = "A description for the save.",
+            sections = new object[]
+            {
+                new { type = "call_to_action", visible = true, fields = new { heading = "Next" } },
+                new { id = secondId, type = "rich_text", visible = false, fields = new { heading = "Second edited" } },
+            },
+        });
+        Assert.Equal(HttpStatusCode.OK, revised.Status);
+        var revisedJson = JsonDocument.Parse(revised.Body).RootElement;
+        var revisedSections = revisedJson.GetProperty("content").GetProperty("sections");
+        Assert.Equal(2, revisedSections.GetArrayLength());
+        Assert.Equal("Next", revisedSections[0].GetProperty("fields").GetProperty("heading").GetString());
+        Assert.Equal(secondId, revisedSections[1].GetProperty("id").GetGuid());
+        Assert.False(revisedSections[1].GetProperty("visible").GetBoolean());
+        Assert.Equal("Second edited", revisedSections[1].GetProperty("fields").GetProperty("heading").GetString());
+        Assert.DoesNotContain(revisedSections.EnumerateArray(), section => section.GetProperty("id").GetGuid() == firstId);
+
+        var rejected = await SendAsync(editor, HttpMethod.Put, "/api/v1/pages/" + id + "/save", new
+        {
+            version = revisedJson.GetProperty("version").GetInt32(),
+            slug = "Not A Slug",
+            title = "Should not stick",
+            metaDescription = "A description for the save.",
+            sections = new object[]
+            {
+                new { id = secondId, type = "rich_text", visible = true, fields = new { heading = "Nope" } },
+            },
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, rejected.Status);
+
+        var conflict = await SendAsync(editor, HttpMethod.Put, "/api/v1/pages/" + id + "/save", new
+        {
+            version = 1,
+            slug,
+            title = "Lost",
+            metaDescription = "A description for the save.",
+            sections = new object[]
+            {
+                new { id = secondId, type = "rich_text", visible = true, fields = new { heading = "Lost" } },
+            },
+        });
+        Assert.Equal(HttpStatusCode.Conflict, conflict.Status);
+        Assert.Equal("concurrency_conflict", Code(conflict.Body));
+
+        var stored = JsonDocument.Parse((await SendAsync(editor, HttpMethod.Get, "/api/v1/pages/" + id)).Body).RootElement;
+        Assert.Equal("Reordered", stored.GetProperty("content").GetProperty("title").GetString());
+        Assert.Equal(revisedJson.GetProperty("version").GetInt32(), stored.GetProperty("version").GetInt32());
+        var storedSections = stored.GetProperty("content").GetProperty("sections");
+        Assert.Equal(2, storedSections.GetArrayLength());
+        Assert.Equal("Second edited", storedSections[1].GetProperty("fields").GetProperty("heading").GetString());
+        Assert.Equal(HttpStatusCode.NoContent, (await SendAsync(admin, HttpMethod.Delete, "/api/v1/pages/" + id + "?version=" + stored.GetProperty("version").GetInt32())).Status);
+    }
+
+    [Fact]
+    public async Task Order_moves_a_collection_in_one_step_or_not_at_all()
+    {
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var editor = await LoginAsync("content-editor@digitalhub.test", "editor");
+        var admin = await LoginAsync(ApiFactory.AdminEmail, "admin", ApiFactory.AdminPassword);
+        var created = await SendAsync(editor, HttpMethod.Post, "/api/v1/services", new { slug = "order-" + suffix, title = "Order " + suffix });
+        Assert.Equal(HttpStatusCode.Created, created.Status);
+        var id = JsonDocument.Parse(created.Body).RootElement.GetProperty("id").GetGuid();
+        var listed = JsonDocument.Parse((await SendAsync(editor, HttpMethod.Get, "/api/v1/services?pageSize=100")).Body).RootElement;
+        var rows = listed.GetProperty("items").EnumerateArray().Select(item => new
+        {
+            Id = item.GetProperty("id").GetGuid(),
+            Version = item.GetProperty("version").GetInt32(),
+        }).ToList();
+        Assert.Contains(rows, row => row.Id == id);
+        var ordered = rows.OrderBy(row => row.Id == id ? 0 : 1).ThenBy(row => row.Id).ToList();
+        var moved = await SendAsync(editor, HttpMethod.Post, "/api/v1/services/order", new
+        {
+            items = ordered.Select(row => new { id = row.Id, version = row.Version }),
+        });
+        Assert.Equal(HttpStatusCode.OK, moved.Status);
+        var after = JsonDocument.Parse((await SendAsync(editor, HttpMethod.Get, "/api/v1/services?pageSize=100")).Body).RootElement;
+        Assert.Equal(id, after.GetProperty("items")[0].GetProperty("id").GetGuid());
+
+        var stale = await SendAsync(editor, HttpMethod.Post, "/api/v1/services/order", new
+        {
+            items = ordered.Select(row => new { id = row.Id, version = row.Version }),
+        });
+        Assert.Equal(HttpStatusCode.Conflict, stale.Status);
+        var unchanged = JsonDocument.Parse((await SendAsync(editor, HttpMethod.Get, "/api/v1/services?pageSize=100")).Body).RootElement;
+        Assert.Equal(id, unchanged.GetProperty("items")[0].GetProperty("id").GetGuid());
+        var version = unchanged.GetProperty("items").EnumerateArray().Single(item => item.GetProperty("id").GetGuid() == id).GetProperty("version").GetInt32();
+        Assert.Equal(HttpStatusCode.NoContent, (await SendAsync(admin, HttpMethod.Delete, "/api/v1/services/" + id + "?version=" + version)).Status);
+    }
+
+    [Fact]
+    public async Task End_marks_a_vacancy_ended_without_deleting_it()
+    {
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var editor = await LoginAsync("content-editor@digitalhub.test", "editor");
+        var admin = await LoginAsync(ApiFactory.AdminEmail, "admin", ApiFactory.AdminPassword);
+        var created = await SendAsync(editor, HttpMethod.Post, "/api/v1/vacancies", new { slug = "end-" + suffix, title = "End " + suffix, fields = new { summary = "A published role." } });
+        Assert.Equal(HttpStatusCode.Created, created.Status);
+        var createdJson = JsonDocument.Parse(created.Body).RootElement;
+        var id = createdJson.GetProperty("id").GetGuid();
+        var refused = await SendAsync(editor, HttpMethod.Post, "/api/v1/vacancies/" + id + "/end", new { version = createdJson.GetProperty("version").GetInt32() });
+        Assert.Equal(HttpStatusCode.Conflict, refused.Status);
+        Assert.Equal("not_published", Code(refused.Body));
+        var stillDraft = JsonDocument.Parse((await SendAsync(editor, HttpMethod.Get, "/api/v1/vacancies/" + id)).Body).RootElement;
+        Assert.Equal("draft", stillDraft.GetProperty("status").GetString());
+        Assert.True(stillDraft.GetProperty("endedAt").ValueKind == JsonValueKind.Null);
+
+        var published = await SendAsync(editor, HttpMethod.Post, "/api/v1/vacancies/" + id + "/publish", new { version = stillDraft.GetProperty("version").GetInt32() });
+        Assert.Equal(HttpStatusCode.OK, published.Status);
+        var publishedJson = JsonDocument.Parse(published.Body).RootElement;
+        Assert.Equal("published", publishedJson.GetProperty("status").GetString());
+        var ended = await SendAsync(editor, HttpMethod.Post, "/api/v1/vacancies/" + id + "/end", new { version = publishedJson.GetProperty("version").GetInt32() });
+        Assert.Equal(HttpStatusCode.OK, ended.Status);
+        var endedJson = JsonDocument.Parse(ended.Body).RootElement;
+        Assert.Equal("ended", endedJson.GetProperty("status").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(endedJson.GetProperty("endedAt").GetString()));
+        var stored = await SendAsync(editor, HttpMethod.Get, "/api/v1/vacancies/" + id);
+        Assert.Equal(HttpStatusCode.OK, stored.Status);
+        Assert.Equal(id, JsonDocument.Parse(stored.Body).RootElement.GetProperty("id").GetGuid());
+        var repeat = await SendAsync(editor, HttpMethod.Post, "/api/v1/vacancies/" + id + "/end", new { version = endedJson.GetProperty("version").GetInt32() });
+        Assert.Equal(HttpStatusCode.Conflict, repeat.Status);
+        Assert.Equal("already_ended", Code(repeat.Body));
+
+        var reopened = await SendAsync(editor, HttpMethod.Post, "/api/v1/vacancies/" + id + "/publish", new { version = endedJson.GetProperty("version").GetInt32() });
+        Assert.Equal(HttpStatusCode.OK, reopened.Status);
+        var reopenedJson = JsonDocument.Parse(reopened.Body).RootElement;
+        Assert.Equal("published", reopenedJson.GetProperty("status").GetString());
+        Assert.True(reopenedJson.GetProperty("endedAt").ValueKind == JsonValueKind.Null);
+        var unpublished = await SendAsync(editor, HttpMethod.Post, "/api/v1/vacancies/" + id + "/unpublish", new { version = reopenedJson.GetProperty("version").GetInt32() });
+        Assert.Equal(HttpStatusCode.OK, unpublished.Status);
+        var unpublishedVersion = JsonDocument.Parse(unpublished.Body).RootElement.GetProperty("version").GetInt32();
+
+        var other = await SendAsync(editor, HttpMethod.Post, "/api/v1/vacancies", new { slug = "end-stale-" + suffix, title = "Stale " + suffix });
+        var otherJson = JsonDocument.Parse(other.Body).RootElement;
+        var otherId = otherJson.GetProperty("id").GetGuid();
+        var renamed = await SendAsync(editor, HttpMethod.Put, "/api/v1/vacancies/" + otherId, new
+        {
+            version = otherJson.GetProperty("version").GetInt32(),
+            slug = "end-stale-" + suffix,
+            title = "Stale renamed",
+        });
+        Assert.Equal(HttpStatusCode.OK, renamed.Status);
+        var blocked = await SendAsync(editor, HttpMethod.Post, "/api/v1/vacancies/" + otherId + "/end", new { version = 1 });
+        Assert.Equal(HttpStatusCode.Conflict, blocked.Status);
+        Assert.Equal("concurrency_conflict", Code(blocked.Body));
+        var current = JsonDocument.Parse(renamed.Body).RootElement;
+        var draftEnd = await SendAsync(editor, HttpMethod.Post, "/api/v1/vacancies/" + otherId + "/end", new { version = current.GetProperty("version").GetInt32() });
+        Assert.Equal(HttpStatusCode.Conflict, draftEnd.Status);
+        Assert.Equal("not_published", Code(draftEnd.Body));
+        var otherDraft = JsonDocument.Parse((await SendAsync(editor, HttpMethod.Get, "/api/v1/vacancies/" + otherId)).Body).RootElement;
+        Assert.Equal("draft", otherDraft.GetProperty("status").GetString());
+        Assert.True(otherDraft.GetProperty("endedAt").ValueKind == JsonValueKind.Null);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await SendAsync(admin, HttpMethod.Delete, "/api/v1/vacancies/" + id + "?version=" + unpublishedVersion)).Status);
+        Assert.Equal(HttpStatusCode.NoContent, (await SendAsync(admin, HttpMethod.Delete, "/api/v1/vacancies/" + otherId + "?version=" + otherDraft.GetProperty("version").GetInt32())).Status);
+    }
+
+    [Fact]
     public async Task An_import_is_refused_once_studio_editing_has_started()
     {
         using var scope = _factory.Services.CreateScope();

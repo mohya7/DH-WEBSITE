@@ -58,7 +58,7 @@ export function AppShell() {
         </div>
         <Menu
           mode="inline"
-          selectedKeys={[location.pathname]}
+          selectedKeys={[visible.find((area) => location.pathname === area.path || location.pathname.startsWith(`${area.path}/`))?.path ?? location.pathname]}
           items={items}
           onClick={({ key }) => navigate(String(key))}
         />
