@@ -164,7 +164,7 @@ Every collection table carries: `id`, `slug`, `title`, `status` (draft / publish
 
 **Sections:** an ordered list per page **and** per collection detail item. Each has a type, a sort order, a visible flag, and typed fields. Report how section fields are stored — a JSON column validated per section type is the likely answer — and the trade-off before choosing.
 
-**Rich text** fields store TipTap JSON, validated against the allowed node types: paragraph, headings h2–h4, bold, italic, link, bullet and ordered lists, blockquote, image from the media library, table, code.
+**Rich text** fields store TipTap JSON, validated against the allowed node types: paragraph, headings h2–h4, bold, italic, link, bullet and ordered lists, blockquote, image from the media library, table, code. Phase C renders that document. The page title is the only h1. An internal link is `{ type, id }`, resolved to a path at build, and a missing or unpublished target is not a link. An image is loaded from its media id. Alt text is the node's own alt, unless the image is decorative. An empty body renders no article content.
 
 **Media library:** file path, original name, content type, width, height, size, generated sizes, content hash, alt text, decorative flag, caption, uploader, created date.
 

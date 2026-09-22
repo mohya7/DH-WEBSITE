@@ -271,7 +271,7 @@ public sealed class MediaLibraryTests : IClassFixture<ApiFactory>
         var pageVersion = sectionJson.GetProperty("version").GetInt32();
 
         var blogSlug = "media-blog-" + Guid.NewGuid().ToString("N")[..8];
-        var body = "{\"type\":\"doc\",\"content\":[{\"type\":\"image\",\"attrs\":{\"mediaId\":\"" + mediaId + "\"}}]}";
+        var body = "{\"type\":\"doc\",\"content\":[{\"type\":\"image\",\"attrs\":{\"mediaId\":\"" + mediaId + "\",\"alt\":\"Diagram\"}}]}";
         var blog = await SendAsync(editor, HttpMethod.Post, "/api/v1/blog-posts", new
         {
             slug = blogSlug,
@@ -603,8 +603,16 @@ public sealed class MediaLibraryTests : IClassFixture<ApiFactory>
         using var scope = _factory.Services.CreateScope();
         var database = scope.ServiceProvider.GetRequiredService<ContentDbContext>();
         var asset = await database.Media.FirstOrDefaultAsync(item => item.ContentHash == processed.Hash);
-        if (asset is not null)
-            await DeleteMediaAsync(asset.Id);
+        if (asset is null)
+            return;
+        var text = asset.Id.ToString();
+        foreach (var page in await database.Pages.Where(item => item.ShareImageId == asset.Id).ToListAsync())
+            page.ShareImageId = null;
+        database.Sections.RemoveRange(await database.Sections.Where(item => item.Fields.Contains(text)).ToListAsync());
+        database.BlogPosts.RemoveRange(await database.BlogPosts.Where(item => item.Body.Contains(text) || item.ImageId == asset.Id).ToListAsync());
+        await database.SaveChangesAsync();
+        database.Media.Remove(asset);
+        await database.SaveChangesAsync();
     }
 
     private async Task DeleteMediaAsync(Guid id)

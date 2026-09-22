@@ -60,6 +60,22 @@ public static class RichText
         return errors;
     }
 
+    public static bool HasContent(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return false;
+
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            return NodeHasContent(document.RootElement);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
     public static bool IsAllowedExternal(string href)
     {
         var trimmed = href.Trim();
@@ -293,9 +309,18 @@ public static class RichText
             || !Guid.TryParse(mediaId.GetString(), out var parsed))
             return null;
 
+        var decorative = attrs.TryGetProperty("decorative", out var flag) && flag.ValueKind == JsonValueKind.True;
+        var alt = attrs.TryGetProperty("alt", out var altValue) && altValue.ValueKind == JsonValueKind.String
+            ? altValue.GetString()
+            : null;
+        if (!decorative && string.IsNullOrWhiteSpace(alt))
+            return null;
+
         var imageAttrs = new JsonObject { ["mediaId"] = parsed.ToString("D") };
-        if (attrs.TryGetProperty("alt", out var alt) && alt.ValueKind == JsonValueKind.String)
-            imageAttrs["alt"] = alt.GetString();
+        if (!string.IsNullOrWhiteSpace(alt))
+            imageAttrs["alt"] = alt.Trim();
+        if (decorative)
+            imageAttrs["decorative"] = true;
         return new JsonObject
         {
             ["type"] = "image",
@@ -559,14 +584,60 @@ public static class RichText
         {
             if (property.Name is "src" or "url" or "href")
                 Add(errors, "Images carry a media id, not a URL.");
-            else if (property.Name is not ("mediaId" or "alt"))
+            else if (property.Name is not ("mediaId" or "alt" or "decorative"))
                 Add(errors, path + " cannot include " + property.Name + ".");
         }
 
         if (!attrs.TryGetProperty("mediaId", out var mediaId) || mediaId.ValueKind != JsonValueKind.String || !Guid.TryParse(mediaId.GetString(), out _))
             Add(errors, path + " must carry a media id.");
-        if (attrs.TryGetProperty("alt", out var alt) && alt.ValueKind != JsonValueKind.String)
-            Add(errors, path + " alt text must be text.");
+        var decorative = false;
+        if (attrs.TryGetProperty("decorative", out var flag))
+        {
+            if (flag.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                Add(errors, path + " decorative must be true or false.");
+            decorative = flag.ValueKind == JsonValueKind.True;
+        }
+
+        if (attrs.TryGetProperty("alt", out var alt))
+        {
+            if (alt.ValueKind != JsonValueKind.String)
+                Add(errors, path + " alt text must be text.");
+            else if (!decorative && string.IsNullOrWhiteSpace(alt.GetString()))
+                Add(errors, path + " needs alt text, or the image must be marked decorative.");
+        }
+        else if (!decorative)
+        {
+            Add(errors, path + " needs alt text, or the image must be marked decorative.");
+        }
+    }
+
+    private static bool NodeHasContent(JsonElement node)
+    {
+        switch (node.ValueKind)
+        {
+            case JsonValueKind.Array:
+                foreach (var item in node.EnumerateArray())
+                {
+                    if (NodeHasContent(item))
+                        return true;
+                }
+
+                return false;
+            case JsonValueKind.Object:
+                var kind = Kind(node);
+                if (kind == "text")
+                {
+                    return node.TryGetProperty("text", out var text)
+                        && text.ValueKind == JsonValueKind.String
+                        && !string.IsNullOrWhiteSpace(text.GetString());
+                }
+
+                if (kind == "image")
+                    return true;
+                return node.TryGetProperty("content", out var content) && NodeHasContent(content);
+            default:
+                return false;
+        }
     }
 
     private static void Language(JsonElement node, List<string> errors, string path)

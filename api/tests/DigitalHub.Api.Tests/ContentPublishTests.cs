@@ -677,6 +677,76 @@ public sealed class ContentPublishTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task Publish_blocks_a_blog_when_a_body_image_has_no_alt_text()
+    {
+        var editor = await Editor();
+        var slug = Slug();
+        var created = await SendAsync(editor, HttpMethod.Post, "/api/v1/blog-posts", new
+        {
+            slug,
+            title = "Image without alt",
+            metaDescription = Description,
+            fields = new { body = "{\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"Intro\"}]}]}" },
+        });
+        Assert.Equal(HttpStatusCode.Created, created.Status);
+        var draft = ReadPage(created.Body, slug);
+        var mediaId = Guid.NewGuid();
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ContentDbContext>();
+            database.Media.Add(BareImage(mediaId));
+            var post = await database.BlogPosts.SingleAsync(item => item.Id == draft.Id);
+            post.Body = "{\"type\":\"doc\",\"content\":[{\"type\":\"image\",\"attrs\":{\"mediaId\":\"" + mediaId.ToString("D") + "\"}}]}";
+            await database.SaveChangesAsync();
+        }
+
+        var blocked = await SendAsync(editor, HttpMethod.Post, "/api/v1/blog-posts/" + draft.Id + "/publish", new { version = draft.Version });
+        Assert.Equal(HttpStatusCode.BadRequest, blocked.Status);
+        Assert.Equal("publish_blocked", Code(blocked.Body));
+        Assert.Contains("Add alt text or mark this image as decorative.", blocked.Body, StringComparison.Ordinal);
+        var stored = await SendAsync(editor, HttpMethod.Get, "/api/v1/blog-posts/" + draft.Id);
+        Assert.Equal("draft", Text(stored.Body, "status"));
+
+        await RemoveItemAsync("blog-posts", draft.Id);
+        await RemoveMediaAsync(mediaId);
+    }
+
+    [Fact]
+    public async Task Publish_blocks_a_section_when_its_rich_text_image_has_no_alt_text()
+    {
+        var editor = await Editor();
+        var page = await CreatePageAsync(editor);
+        var section = await SendAsync(editor, HttpMethod.Post, "/api/v1/pages/" + page.Id + "/sections", new
+        {
+            version = page.Version,
+            type = "rich_text",
+            fields = new { heading = "Notes" },
+        });
+        Assert.Equal(HttpStatusCode.OK, section.Status);
+        var ready = ReadPage(section.Body, page.Slug);
+        var mediaId = Guid.NewGuid();
+        var body = "{\"type\":\"doc\",\"content\":[{\"type\":\"image\",\"attrs\":{\"mediaId\":\"" + mediaId.ToString("D") + "\"}}]}";
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<ContentDbContext>();
+            database.Media.Add(BareImage(mediaId));
+            var row = await database.Sections.SingleAsync(item => item.PageId == page.Id);
+            row.Fields = "{\"heading\":\"Notes\",\"body\":" + JsonSerializer.Serialize(body) + "}";
+            await database.SaveChangesAsync();
+        }
+
+        var blocked = await SendAsync(editor, HttpMethod.Post, PublishUrl(ready), new { version = ready.Version });
+        Assert.Equal(HttpStatusCode.BadRequest, blocked.Status);
+        Assert.Equal("publish_blocked", Code(blocked.Body));
+        Assert.Contains("Add alt text or mark this image as decorative.", blocked.Body, StringComparison.Ordinal);
+        var stored = await SendAsync(editor, HttpMethod.Get, "/api/v1/pages/" + page.Id);
+        Assert.Equal("draft", Text(stored.Body, "status"));
+
+        await RemoveAsync(ready);
+        await RemoveMediaAsync(mediaId);
+    }
+
+    [Fact]
     public async Task Publish_warns_for_an_unpublished_reference_and_still_publishes()
     {
         var editor = await Editor();
@@ -732,7 +802,7 @@ public sealed class ContentPublishTests : IClassFixture<ApiFactory>
         var links = warnings.GetProperty("links").EnumerateArray().Select(item => item.GetString()).ToList();
         Assert.Contains("/cases/" + caseSlug + " is not published, so it will not show.", links);
 
-        var body = "{\"type\":\"doc\",\"content\":[],\"relatedItems\":[{\"type\":\"case_study\",\"id\":\"" + caseId.ToString("D") + "\"}]}";
+        var body = "{\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"Related.\"}]}],\"relatedItems\":[{\"type\":\"case_study\",\"id\":\"" + caseId.ToString("D") + "\"}]}";
         var article = await SendAsync(editor, HttpMethod.Post, "/api/v1/blog-posts", new
         {
             slug = Slug(),
@@ -846,6 +916,39 @@ public sealed class ContentPublishTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task Publish_blocks_a_blog_until_it_has_a_body()
+    {
+        var editor = await Editor();
+        var slug = Slug();
+        var created = await SendAsync(editor, HttpMethod.Post, "/api/v1/blog-posts", new
+        {
+            slug,
+            title = "Empty article",
+            metaDescription = Description,
+            fields = new { body = "{\"type\":\"doc\",\"content\":[]}" },
+        });
+        Assert.Equal(HttpStatusCode.Created, created.Status);
+        var draft = ReadPage(created.Body, slug);
+        var blocked = await SendAsync(editor, HttpMethod.Post, "/api/v1/blog-posts/" + draft.Id + "/publish", new { version = draft.Version });
+        Assert.Equal(HttpStatusCode.BadRequest, blocked.Status);
+        Assert.Contains("Add the article body.", blocked.Body, StringComparison.Ordinal);
+
+        var filled = await SendAsync(editor, HttpMethod.Put, "/api/v1/blog-posts/" + draft.Id, new
+        {
+            version = draft.Version,
+            slug,
+            title = "Empty article",
+            metaDescription = Description,
+            fields = new { body = "{\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"Now it has a body.\"}]}]}" },
+        });
+        Assert.Equal(HttpStatusCode.OK, filled.Status);
+        var ready = ReadPage(filled.Body, slug);
+        var published = await SendAsync(editor, HttpMethod.Post, "/api/v1/blog-posts/" + draft.Id + "/publish", new { version = ready.Version });
+        Assert.Equal(HttpStatusCode.OK, published.Status);
+        await RemoveItemAsync("blog-posts", draft.Id);
+    }
+
+    [Fact]
     public async Task A_rich_text_body_is_rejected_when_it_breaks_the_rules()
     {
         var editor = await Editor();
@@ -904,6 +1007,30 @@ public sealed class ContentPublishTests : IClassFixture<ApiFactory>
         var list = await SendAsync(session, HttpMethod.Get, "/api/v1/pages/" + page.Id + "/revisions");
         Assert.Equal(HttpStatusCode.OK, list.Status);
         return JsonDocument.Parse(list.Body).RootElement.GetProperty("items")[0].GetProperty("id").GetGuid();
+    }
+
+    private static MediaAsset BareImage(Guid id) => new()
+    {
+        Id = id,
+        Path = "/media/" + id.ToString("N") + ".webp",
+        OriginalName = "diagram.webp",
+        ContentType = "image/webp",
+        GeneratedSizes = "[]",
+        ContentHash = id.ToString("N"),
+        Alt = "",
+        Decorative = false,
+        CreatedAt = DateTime.UtcNow,
+    };
+
+    private async Task RemoveMediaAsync(Guid id)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var database = scope.ServiceProvider.GetRequiredService<ContentDbContext>();
+        var asset = await database.Media.SingleOrDefaultAsync(item => item.Id == id);
+        if (asset is null)
+            return;
+        database.Media.Remove(asset);
+        await database.SaveChangesAsync();
     }
 
     private async Task RemoveAsync(PageRef page) => await RemoveAsync(page.Id, page.Version);

@@ -59,6 +59,46 @@ public sealed class RichTextTests
         Assert.Contains(errors, error => error.Contains("h1", StringComparison.Ordinal));
     }
 
+    [Theory]
+    [InlineData("{\"type\":\"doc\",\"content\":[{\"type\":\"heading\",\"attrs\":{\"level\":2,\"dataId\":\"x\"},\"content\":[{\"type\":\"text\",\"text\":\"A\"}]}]}", "dataId")]
+    [InlineData("{\"type\":\"doc\",\"content\":[{\"type\":\"heading\",\"attrs\":{\"level\":2,\"style\":\"color:red\"},\"content\":[{\"type\":\"text\",\"text\":\"A\"}]}]}", "style")]
+    [InlineData("{\"type\":\"doc\",\"content\":[{\"type\":\"heading\",\"attrs\":{\"level\":2,\"onclick\":\"alert(1)\"},\"content\":[{\"type\":\"text\",\"text\":\"A\"}]}]}", "onclick")]
+    [InlineData("{\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"attrs\":{\"textAlign\":\"center\"},\"content\":[{\"type\":\"text\",\"text\":\"A\"}]}]}", "attrs")]
+    [InlineData("{\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"A\",\"marks\":[{\"type\":\"link\",\"attrs\":{\"href\":\"https://digitalhub.example/a\",\"target\":\"_blank\"}}]}]}]}", "target")]
+    public void An_attribute_outside_the_allow_list_is_rejected(string json, string name)
+    {
+        var errors = RichText.Validate(json);
+        Assert.Contains(errors, error => error.Contains(name, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void An_image_needs_alt_text_unless_it_is_decorative()
+    {
+        var id = Guid.NewGuid().ToString("D");
+        var missing = RichText.Validate(Doc("{\"type\":\"image\",\"attrs\":{\"mediaId\":\"" + id + "\"}}"));
+        Assert.Contains(missing, error => error.Contains("alt text", StringComparison.Ordinal));
+
+        var blank = RichText.Validate(Doc("{\"type\":\"image\",\"attrs\":{\"mediaId\":\"" + id + "\",\"alt\":\"  \"}}"));
+        Assert.Contains(blank, error => error.Contains("alt text", StringComparison.Ordinal));
+
+        Assert.Empty(RichText.Validate(Doc(Image(id))));
+        Assert.Empty(RichText.Validate(Doc("{\"type\":\"image\",\"attrs\":{\"mediaId\":\"" + id + "\",\"decorative\":true}}")));
+    }
+
+    [Fact]
+    public void An_empty_document_is_a_valid_draft_body()
+    {
+        Assert.Empty(RichText.Validate(null));
+        Assert.Empty(RichText.Validate(""));
+        Assert.Empty(RichText.Validate("   "));
+        Assert.Empty(RichText.Validate("{\"type\":\"doc\",\"content\":[]}"));
+        Assert.False(RichText.HasContent(null));
+        Assert.False(RichText.HasContent(""));
+        Assert.False(RichText.HasContent("{\"type\":\"doc\",\"content\":[]}"));
+        Assert.False(RichText.HasContent(Doc(Paragraph(Text("   ")))));
+        Assert.True(RichText.HasContent(Doc(Paragraph(Text("Hello")))));
+    }
+
     [Fact]
     public void An_image_url_is_rejected()
     {

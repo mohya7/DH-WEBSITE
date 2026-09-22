@@ -12,6 +12,9 @@ namespace DigitalHub.Api.Tests;
 [Collection("SqlServer")]
 public sealed class ContentApiTests : IClassFixture<ApiFactory>
 {
+    private static AuthSession? _editor;
+    private static AuthSession? _admin;
+
     private readonly ApiFactory _factory;
     private readonly HttpClient _client;
 
@@ -275,6 +278,58 @@ public sealed class ContentApiTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task List_search_returns_only_the_matching_item()
+    {
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var editor = await LoginAsync("content-editor@digitalhub.test", "editor");
+        var matchTitle = "Searchable " + suffix;
+        var match = await SendAsync(editor, HttpMethod.Post, "/api/v1/pages", new { slug = "search-match-" + suffix, title = matchTitle });
+        var other = await SendAsync(editor, HttpMethod.Post, "/api/v1/pages", new { slug = "search-other-" + suffix, title = "Ordinary " + suffix });
+        Assert.Equal(HttpStatusCode.Created, match.Status);
+        Assert.Equal(HttpStatusCode.Created, other.Status);
+        var matchId = JsonDocument.Parse(match.Body).RootElement.GetProperty("id").GetGuid();
+        var otherId = JsonDocument.Parse(other.Body).RootElement.GetProperty("id").GetGuid();
+
+        var found = await SendAsync(editor, HttpMethod.Get, "/api/v1/pages?search=" + Uri.EscapeDataString(matchTitle));
+        Assert.Equal(HttpStatusCode.OK, found.Status);
+        var foundJson = JsonDocument.Parse(found.Body).RootElement;
+        Assert.Equal(1, foundJson.GetProperty("total").GetInt32());
+        Assert.Equal(matchTitle, foundJson.GetProperty("items")[0].GetProperty("title").GetString());
+
+        var missed = await SendAsync(editor, HttpMethod.Get, "/api/v1/pages?search=no-such-" + suffix);
+        Assert.Equal(0, JsonDocument.Parse(missed.Body).RootElement.GetProperty("total").GetInt32());
+
+        using var scope = _factory.Services.CreateScope();
+        var database = scope.ServiceProvider.GetRequiredService<ContentDbContext>();
+        database.Pages.RemoveRange(database.Pages.Where(item => item.Id == matchId || item.Id == otherId));
+        await database.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task A_duplicate_slug_is_refused_within_its_type()
+    {
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var slug = "shared-" + suffix;
+        var editor = await LoginAsync("content-editor@digitalhub.test", "editor");
+        var first = await SendAsync(editor, HttpMethod.Post, "/api/v1/pages", new { slug, title = "First" });
+        Assert.Equal(HttpStatusCode.Created, first.Status);
+        var second = await SendAsync(editor, HttpMethod.Post, "/api/v1/pages", new { slug, title = "Second" });
+        Assert.Equal(HttpStatusCode.BadRequest, second.Status);
+        Assert.Contains("That slug is already in use.", second.Body, StringComparison.Ordinal);
+
+        var service = await SendAsync(editor, HttpMethod.Post, "/api/v1/services", new { slug, title = "Same slug, other type" });
+        Assert.Equal(HttpStatusCode.Created, service.Status);
+
+        using var scope = _factory.Services.CreateScope();
+        var database = scope.ServiceProvider.GetRequiredService<ContentDbContext>();
+        var pageId = JsonDocument.Parse(first.Body).RootElement.GetProperty("id").GetGuid();
+        var serviceId = JsonDocument.Parse(service.Body).RootElement.GetProperty("id").GetGuid();
+        database.Pages.RemoveRange(database.Pages.Where(item => item.Id == pageId));
+        database.Services.RemoveRange(database.Services.Where(item => item.Id == serviceId));
+        await database.SaveChangesAsync();
+    }
+
+    [Fact]
     public async Task An_import_is_refused_once_studio_editing_has_started()
     {
         using var scope = _factory.Services.CreateScope();
@@ -304,9 +359,20 @@ public sealed class ContentApiTests : IClassFixture<ApiFactory>
 
     private async Task<AuthSession> LoginAsync(string email, string role, string? password = null)
     {
+        if (role == "editor" && _editor is not null)
+            return _editor;
+        if (role == "admin" && _admin is not null)
+            return _admin;
         if (role != "admin")
             await CreateUserAsync(email, role);
-        return await AuthSession.LoginAsync(_client, email, password ?? ApiFactory.AdminPassword);
+        var session = await AuthSession.LoginAsync(_client, email, password ?? ApiFactory.AdminPassword);
+        if (session.AccessToken is null)
+            return session;
+        if (role == "editor")
+            _editor = session;
+        else if (role == "admin")
+            _admin = session;
+        return session;
     }
 
     private async Task CreateUserAsync(string email, string role)

@@ -7,6 +7,7 @@
   "properties": {
     "eyebrow": { "type": "string", "x-dh-kind": "text" },
     "heading": { "type": "string", "x-dh-kind": "text" },
+    "body": { "type": "string", "x-dh-kind": "richText" },
     "blocks": { "type": "array", "items": { "$ref": "https://digitalhub.local/sections/defs#/$defs/block" } }
   }
 }

@@ -4,7 +4,7 @@ Build brief for Cursor. The Content Studio: the application editors use to manag
 
 **Read first:** `docs/business-analysis.md` (version 1.1) and `docs/phase-a-foundation.md`. Phase A built the API, identity, schema, and imported content. This phase builds the editing application on top of it.
 
-Work in `D:\work\DigitalHub\dh-platform`, branch `rebuild/dotnet-platform`. Work through the sections in order. **Stop after each section, show the result, and wait for confirmation.** Sections 2 and 7 stop for an approach review before any code.
+Work in `D:\work\DigitalHub\dh-platform`, branch `rebuild/dotnet-platform`. Work through the sections in order. **Stop after each section, show the result, and wait for confirmation.** No section starts until the previous one is verified complete. End every section with a coverage table: Item, Source, Status, Evidence. Nothing is done without evidence. Anything moved names the section it moved to, and that section's table includes it. Sections 2 and 7 stop for an approach review before any code.
 
 ---
 
@@ -93,6 +93,8 @@ There are 28 section types — the 27 from Phase A plus `faq`. Each type's field
 **2.4** Every one of the 103 imported sections must validate against its schema. Report any that fail.
 
 **Stop.** I will confirm the approach before you build it.
+
+The Ant Design form walker approved with this section is not built here. It is the section form in Section 7 (7.1). This section delivers the schemas and the API validation.
 
 ---
 
@@ -192,6 +194,8 @@ EXIF orientation is applied before metadata is stripped, so a portrait phone pho
 
 **6.4** Server-side validator in .NET rejects any document containing a node, mark, or attribute outside the allowed list. The Studio's editor is a convenience — **the server is the guard.**
 
+Allowed attributes, and nothing else: heading `level`; image `mediaId`, `alt`, and `decorative`; link `href`, or `type` and `id`; code block `language`; table cell and header `colspan` and `rowspan`. Bold, italic, and code marks have no attributes. Every other node has none.
+
 **6.5** Tests: a document with a disallowed node, a `javascript:` link, and an image not from the media library are each rejected. A paste from Word and a paste from a web page each keep only allowed nodes.
 
 **6.6** Internal links in rich text use the same `{ type, id }` reference, turned into a path at build, so a rename never breaks a link inside an article. A rich-text link may name a service, partner, case study, blog post, page, or vacancy.
@@ -200,9 +204,13 @@ EXIF orientation is applied before metadata is stripped, so a portrait phone pho
 
 **6.8** Headings h2 to h4 only. h1 is the page title, one per page.
 
-**6.9** Images inside rich text carry a media id only, never a URL.
+**6.9** Images inside rich text carry a media id only, never a URL. They also carry alt text, unless the image is marked decorative.
 
 **6.10** Cap document size at 1,048,576 UTF-8 bytes (1 MB) and nesting depth at 32. Reject anything over either cap. The largest stored article body is `digital-transformation-signs` at 9,244 UTF-8 bytes. Long articles with tables grow much larger as TipTap JSON, and 1 MB still leaves headroom on an authenticated endpoint.
+
+An empty blog body is a valid draft. Publish is refused until the body has text or an image, because the article page would otherwise be blank.
+
+**Phase C.** The website renders the TipTap document. The page title is the only h1. An internal link is `{ type, id }`, resolved to a path at build; a missing or unpublished target is not rendered as a link. An image is loaded from its media id, never from a URL stored in the document. Alt text is the node's own alt, unless the image is decorative. An empty body renders no article content. Only the attributes in 6.4 are rendered.
 
 ---
 
@@ -211,7 +219,7 @@ EXIF orientation is applied before metadata is stripped, so a portrait phone pho
 **7.1** Propose the layout for:
 - Collection list and item editor
 - Page editor: the ordered list of sections with add, reorder by drag, show or hide, and edit
-- The section form generated from the registry
+- The section form generated from the registry. This is the Ant Design form walker approved in Section 2; it was not built there
 - The SEO panel
 - The media picker
 

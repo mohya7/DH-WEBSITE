@@ -27,6 +27,8 @@ public static class PublishChecks
     {
         if (ContentPaths.PublicPath(collection, draft.Slug) is not null)
             AddDescription(draft, errors);
+        if (collection == "blog-posts")
+            AddBlogBody(draft, errors);
         await AddImagesAsync(db, draft, errors, cancellationToken);
         await AddLinksAndReferencesAsync(db, collection, id, draft, errors, warnings, cancellationToken);
     }
@@ -37,6 +39,15 @@ public static class PublishChecks
         if (draft.Fields.TryGetValue("summary", out var value) && value.ValueKind == JsonValueKind.String)
             summary = value.GetString();
         return First(draft.MetaDescription, summary);
+    }
+
+    private static void AddBlogBody(DraftDocument draft, Dictionary<string, List<string>> errors)
+    {
+        string? body = null;
+        if (draft.Fields.TryGetValue("body", out var value) && value.ValueKind == JsonValueKind.String)
+            body = value.GetString();
+        if (!RichText.HasContent(body))
+            Add(errors, "body", "Add the article body.");
     }
 
     private static void AddDescription(DraftDocument draft, Dictionary<string, List<string>> errors)

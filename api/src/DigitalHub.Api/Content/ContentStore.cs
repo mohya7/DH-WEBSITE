@@ -553,6 +553,18 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas)
                     : section.Fields.GetRawText();
                 foreach (var message in schemas.Validate(section.Type, json))
                     Add(errors, key, message);
+                if (section.Fields.ValueKind == JsonValueKind.Object)
+                {
+                    foreach (var property in section.Fields.EnumerateObject())
+                    {
+                        if (property.Value.ValueKind != JsonValueKind.String || property.Value.GetString() is not { } text)
+                            continue;
+                        if (!text.Contains("\"type\":\"doc\"", StringComparison.Ordinal) && !text.Contains("\"type\": \"doc\"", StringComparison.Ordinal))
+                            continue;
+                        foreach (var message in RichText.Validate(text))
+                            Add(errors, key + "." + property.Name, message);
+                    }
+                }
             }
         }
         else if (draft.Sections.Count > 0)
