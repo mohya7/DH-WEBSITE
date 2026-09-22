@@ -531,6 +531,11 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas)
     {
         var errors = new Dictionary<string, List<string>>();
         ContentFields.Validate(collection, draft, errors);
+        if (draft.Fields.TryGetValue("body", out var body) && body.ValueKind == JsonValueKind.String)
+        {
+            foreach (var message in RichText.Validate(body.GetString()))
+                Add(errors, "body", message);
+        }
         if (Kinds[collection].Sections)
         {
             for (var index = 0; index < draft.Sections.Count; index++)

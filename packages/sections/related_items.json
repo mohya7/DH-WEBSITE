@@ -12,13 +12,13 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["type", "slug", "title", "text"],
+        "required": ["type", "id", "title", "text"],
         "properties": {
           "type": {
             "type": "string",
             "enum": ["service", "partner", "case_study", "blog_post"]
           },
-          "slug": { "type": "string", "x-dh-kind": "text" },
+          "id": { "type": "string", "format": "uuid", "x-dh-kind": "text" },
           "label": { "type": "string", "x-dh-kind": "text" },
           "title": { "type": "string", "x-dh-kind": "text" },
           "text": { "type": "string", "x-dh-kind": "longText" },

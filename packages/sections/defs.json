@@ -17,13 +17,13 @@
       "type": "object",
       "additionalProperties": false,
       "x-dh-kind": "reference",
-      "required": ["type", "slug"],
+      "required": ["type", "id"],
       "properties": {
         "type": {
           "type": "string",
           "enum": ["service", "partner", "case_study", "blog_post"]
         },
-        "slug": { "type": "string", "x-dh-kind": "text" }
+        "id": { "type": "string", "format": "uuid", "x-dh-kind": "text" }
       }
     },
     "link": {

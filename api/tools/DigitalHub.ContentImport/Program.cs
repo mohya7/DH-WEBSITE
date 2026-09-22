@@ -1,6 +1,24 @@
 using DigitalHub.ContentImport;
 using Microsoft.Extensions.Configuration;
 
+if (args.Contains("--convert-references"))
+{
+    if (args.Contains("--dry-run") || args.Contains("--apply") || args.Contains("--source"))
+    {
+        Console.Error.WriteLine("--convert-references rewrites stored references only. Do not combine it with --source, --dry-run, or --apply.");
+        return 2;
+    }
+
+    var convertConnection = ReadConnectionString();
+    if (convertConnection.Error is not null)
+    {
+        Console.Error.WriteLine(convertConnection.Error);
+        return 2;
+    }
+
+    return await ReferenceConverter.ApplyAsync(convertConnection.Value!);
+}
+
 if (args.Contains("--apply") && args.Contains("--dry-run"))
 {
     Console.Error.WriteLine("Pass either --dry-run or --apply, not both.");

@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using AngleSharp.Dom;
 using AngleSharp.Html.Parser;
+using DigitalHub.Api.Content;
 using DigitalHub.Api.Data;
 using DigitalHub.Images;
 using Microsoft.EntityFrameworkCore;
@@ -432,7 +433,7 @@ static partial class ContentWriter
         {
             body["relatedItems"] = new JsonArray
             {
-                new JsonObject { ["type"] = item.Type, ["slug"] = item.Slug },
+                new JsonObject { ["type"] = item.Type, ["id"] = ReferenceId(item.Type, item.Slug).ToString("D") },
             };
         }
 
@@ -738,7 +739,7 @@ static partial class ContentWriter
             items.Add(new JsonObject
             {
                 ["type"] = reference.Value.Type,
-                ["slug"] = reference.Value.Slug,
+                ["id"] = ReferenceId(reference.Value.Type, reference.Value.Slug).ToString("D"),
                 ["title"] = title,
                 ["text"] = text,
             });
@@ -957,8 +958,11 @@ static partial class ContentWriter
                         break;
                     var rewritten = Links.Rewrite(element.GetAttribute("href"), fromPage);
                     var href = rewritten.Clean ?? element.GetAttribute("href") ?? "";
-                    var link = new JsonObject { ["type"] = "link", ["attrs"] = new JsonObject { ["href"] = href } };
-                    AppendInline(element, output, fromPage, [.. marks, link]);
+                    var link = LinkMark(href);
+                    if (link is null)
+                        AppendInline(element, output, fromPage, marks);
+                    else
+                        AppendInline(element, output, fromPage, [.. marks, link]);
                     break;
                 default:
                     AppendInline(element, output, fromPage, marks);
@@ -1266,6 +1270,73 @@ static partial class ContentWriter
         return anchor;
     }
 
+    internal static Guid ReferenceId(string type, string slug) => type switch
+    {
+        "service" => IdFor("service:" + slug),
+        "partner" => IdFor("partner:" + slug),
+        "case_study" => IdFor("case:" + slug),
+        "blog_post" => IdFor("blog:" + slug),
+        "page" => IdFor("page:" + slug),
+        "vacancy" => IdFor("vacancy:" + slug),
+        _ => IdFor(type + ":" + slug),
+    };
+
+    private static JsonObject? LinkMark(string href)
+    {
+        var reference = Links.Reference(href);
+        if (reference is { } item)
+        {
+            return new JsonObject
+            {
+                ["type"] = "link",
+                ["attrs"] = new JsonObject
+                {
+                    ["type"] = item.Type,
+                    ["id"] = ReferenceId(item.Type, item.Slug).ToString("D"),
+                },
+            };
+        }
+
+        if (PageSlug(href) is string page)
+        {
+            return new JsonObject
+            {
+                ["type"] = "link",
+                ["attrs"] = new JsonObject
+                {
+                    ["type"] = "page",
+                    ["id"] = IdFor("page:" + page).ToString("D"),
+                },
+            };
+        }
+
+        if (!RichText.IsAllowedExternal(href))
+            return null;
+        return new JsonObject
+        {
+            ["type"] = "link",
+            ["attrs"] = new JsonObject { ["href"] = href.Trim() },
+        };
+    }
+
+    private static string? PageSlug(string? clean)
+    {
+        if (string.IsNullOrWhiteSpace(clean) || !clean.StartsWith('/'))
+            return null;
+        var path = clean.Split('?', '#')[0].TrimEnd('/');
+        return path switch
+        {
+            "" => "home",
+            "/about" => "about",
+            "/contact" => "contact",
+            "/news" => "news",
+            "/careers" => "careers",
+            "/careers/apply" => "apply",
+            _ when path.Count(character => character == '/') == 1 => path[1..],
+            _ => null,
+        };
+    }
+
     private static Guid IdFor(string key)
     {
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes("dh-import\u001f" + key));
@@ -1389,6 +1460,16 @@ static partial class ContentWriter
         {
             Console.Error.WriteLine("Refusing to write. The connection must target DigitalHubContent.");
             return 2;
+        }
+
+        var options = new DbContextOptionsBuilder<ContentDbContext>().UseSqlServer(connectionString).Options;
+        await using (var database = new ContentDbContext(options))
+        {
+            if (await StudioEdits.HasStartedAsync(database, CancellationToken.None))
+            {
+                Console.Error.WriteLine("Refusing to write. Content has been edited in the Studio, so the import will not overwrite it or recreate a renamed item under its old slug.");
+                return 2;
+            }
         }
 
         _sourceRoot = sourceRoot;

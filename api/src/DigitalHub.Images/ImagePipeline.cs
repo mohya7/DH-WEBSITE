@@ -86,17 +86,15 @@ public static class ImagePipeline
         if (Over(codec.Info.Width, codec.Info.Height))
             return ImageResult.Fail("too_many_pixels");
 
-        using var bitmap = SKBitmap.Decode(codec);
+        using var bitmap = DecodeOriented(codec);
         if (bitmap is null)
             return ImageResult.Fail("undecodable");
         if (Over(bitmap.Width, bitmap.Height))
             return ImageResult.Fail("too_many_pixels");
 
-        using var full = SKImage.FromBitmap(bitmap);
-        using var encoded = full.Encode(SKEncodedImageFormat.Webp, Quality);
-        if (encoded is null)
+        var webp = Encode(bitmap);
+        if (webp is null)
             return ImageResult.Fail("undecodable");
-        var webp = encoded.ToArray();
         if (ContainsMetadata(webp))
             return ImageResult.Fail("metadata");
 
@@ -111,11 +109,9 @@ public static class ImagePipeline
             using var resized = bitmap.Resize(info, new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.None));
             if (resized is null)
                 return ImageResult.Fail("undecodable");
-            using var variantImage = SKImage.FromBitmap(resized);
-            using var variantData = variantImage.Encode(SKEncodedImageFormat.Webp, Quality);
-            if (variantData is null)
+            var variantBytes = Encode(resized);
+            if (variantBytes is null)
                 return ImageResult.Fail("undecodable");
-            var variantBytes = variantData.ToArray();
             if (ContainsMetadata(variantBytes))
                 return ImageResult.Fail("metadata");
             variants.Add(new ImageVariant
@@ -159,6 +155,8 @@ public static class ImagePipeline
 
             width = codec.Info.Width;
             height = codec.Info.Height;
+            if (SwapsAxes(codec.EncodedOrigin))
+                (width, height) = (height, width);
         }
         catch (Exception ex)
         {
@@ -169,11 +167,81 @@ public static class ImagePipeline
     private static bool Over(int width, int height) =>
         width <= 0 || height <= 0 || width > MaxPixels || height > MaxPixels || (long)width * height > MaxPixels;
 
+    /// <summary>
+    /// Decode into sRGB so an embedded profile is applied, then rotate to the EXIF
+    /// orientation, then hand back pixels the WebP encode can store without a profile.
+    /// </summary>
+    private static SKBitmap? DecodeOriented(SKCodec codec)
+    {
+        using var srgb = SKColorSpace.CreateSrgb();
+        var info = new SKImageInfo(codec.Info.Width, codec.Info.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul, srgb);
+        using var decoded = new SKBitmap(info);
+        if (codec.GetPixels(info, decoded.GetPixels()) != SKCodecResult.Success)
+            return null;
+        return Orient(decoded, codec.EncodedOrigin);
+    }
+
+    private static SKBitmap Orient(SKBitmap source, SKEncodedOrigin origin)
+    {
+        var swapped = SwapsAxes(origin);
+        var width = swapped ? source.Height : source.Width;
+        var height = swapped ? source.Width : source.Height;
+        var oriented = new SKBitmap(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul));
+        using var canvas = new SKCanvas(oriented);
+        switch (origin)
+        {
+            case SKEncodedOrigin.TopRight:
+                canvas.Scale(-1, 1, width / 2f, height / 2f);
+                break;
+            case SKEncodedOrigin.BottomRight:
+                canvas.RotateDegrees(180, width / 2f, height / 2f);
+                break;
+            case SKEncodedOrigin.BottomLeft:
+                canvas.Scale(1, -1, width / 2f, height / 2f);
+                break;
+            case SKEncodedOrigin.LeftTop:
+                canvas.Translate(width, 0);
+                canvas.RotateDegrees(90);
+                canvas.Scale(-1, 1);
+                break;
+            case SKEncodedOrigin.RightTop:
+                canvas.Translate(width, 0);
+                canvas.RotateDegrees(90);
+                break;
+            case SKEncodedOrigin.RightBottom:
+                canvas.Translate(0, height);
+                canvas.RotateDegrees(270);
+                canvas.Scale(-1, 1);
+                break;
+            case SKEncodedOrigin.LeftBottom:
+                canvas.Translate(0, height);
+                canvas.RotateDegrees(270);
+                break;
+        }
+
+        canvas.DrawBitmap(source, 0, 0);
+        canvas.Flush();
+        return oriented;
+    }
+
+    private static bool SwapsAxes(SKEncodedOrigin origin) => origin is
+        SKEncodedOrigin.LeftTop or SKEncodedOrigin.RightTop or SKEncodedOrigin.RightBottom or SKEncodedOrigin.LeftBottom;
+
+    private static byte[]? Encode(SKBitmap bitmap)
+    {
+        var info = new SKImageInfo(bitmap.Width, bitmap.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
+        using var pixmap = new SKPixmap(info, bitmap.GetPixels(), bitmap.RowBytes);
+        using var data = pixmap.Encode(SKEncodedImageFormat.Webp, Quality);
+        return data?.ToArray();
+    }
+
     private static bool ContainsMetadata(byte[] bytes)
     {
         ReadOnlySpan<byte> data = bytes;
         return data.IndexOf("Exif"u8) >= 0
             || data.IndexOf("EXIF"u8) >= 0
-            || data.IndexOf("http://ns.adobe.com/xap/1.0/"u8) >= 0;
+            || data.IndexOf("http://ns.adobe.com/xap/1.0/"u8) >= 0
+            || data.IndexOf("ICC_PROFILE"u8) >= 0
+            || data.IndexOf("ICCP"u8) >= 0;
     }
 }

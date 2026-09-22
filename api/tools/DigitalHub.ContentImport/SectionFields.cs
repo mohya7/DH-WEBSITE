@@ -716,8 +716,11 @@ static partial class ContentWriter
             var reference = ReferenceOf(card, fromPage);
             if (reference is null)
                 continue;
-            var type = reference["type"]!.GetValue<string>();
-            var slug = reference["slug"]!.GetValue<string>();
+            var linkedReference = Links.Reference(Links.Rewrite(card.GetAttribute("href"), fromPage).Clean);
+            if (linkedReference is null)
+                continue;
+            var type = linkedReference.Value.Type;
+            var slug = linkedReference.Value.Slug;
             var linked = Linked(model, type, slug);
             var shownTitle = Text(card.QuerySelector(".cs-related__title, h3") ?? card);
             var shownText = Text(card.QuerySelector(".partner-card-hub__desc, p"));
@@ -726,7 +729,7 @@ static partial class ContentWriter
             var item = new JsonObject
             {
                 ["type"] = type,
-                ["slug"] = slug,
+                ["id"] = reference["id"]!.GetValue<string>(),
                 ["title"] = title,
                 ["text"] = text,
             };
@@ -863,7 +866,7 @@ static partial class ContentWriter
         return new JsonObject
         {
             ["type"] = reference.Value.Type,
-            ["slug"] = reference.Value.Slug,
+            ["id"] = ReferenceId(reference.Value.Type, reference.Value.Slug).ToString("D"),
         };
     }
 

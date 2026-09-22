@@ -214,9 +214,9 @@ static partial class ContentWriter
             case JsonObject obj:
                 foreach (var property in obj)
                     AppendCorpus(property.Value, builder, model);
-                if (obj.ContainsKey("slug") && obj["type"]?.GetValue<string>() is string type && obj["slug"]?.GetValue<string>() is string slug)
+                if (obj.ContainsKey("id") && obj["type"]?.GetValue<string>() is string type && Guid.TryParse(obj["id"]?.GetValue<string>(), out var id))
                 {
-                    var linked = Linked(model, type, slug);
+                    var linked = Linked(model, type, id);
                     if (string.IsNullOrEmpty(obj["title"]?.GetValue<string>()))
                         builder.Append(' ').Append(linked.Title);
                     if (string.IsNullOrEmpty(obj["text"]?.GetValue<string>()))
@@ -228,6 +228,27 @@ static partial class ContentWriter
                 foreach (var item in array)
                     AppendCorpus(item, builder, model);
                 break;
+        }
+    }
+
+    private static (string Title, string Summary) Linked(ImportModel model, string type, Guid id)
+    {
+        switch (type)
+        {
+            case "service":
+                var service = model.Services.FirstOrDefault(item => item.Id == id);
+                return service is null ? ("", "") : (service.Title, service.Summary ?? "");
+            case "partner":
+                var partner = model.Partners.FirstOrDefault(item => item.Id == id);
+                return partner is null ? ("", "") : (partner.Title, partner.Summary ?? "");
+            case "case_study":
+                var study = model.Cases.FirstOrDefault(item => item.Id == id);
+                return study is null ? ("", "") : (study.Title, study.Summary ?? "");
+            case "blog_post":
+                var blog = model.Blogs.FirstOrDefault(item => item.Id == id);
+                return blog is null ? ("", "") : (blog.Title, blog.Summary ?? "");
+            default:
+                return ("", "");
         }
     }
 }

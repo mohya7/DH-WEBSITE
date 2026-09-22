@@ -337,6 +337,51 @@ public sealed class MediaLibraryTests : IClassFixture<ApiFactory>
         await RemoveAsync(bytes);
     }
 
+    [Fact]
+    public void Orientation_6_is_applied_before_metadata_is_stripped()
+    {
+        var painted = Jpeg(4, 2, bitmap =>
+        {
+            for (var y = 0; y < bitmap.Height; y++)
+            {
+                for (var x = 0; x < bitmap.Width; x++)
+                    bitmap.SetPixel(x, y, x < 2 ? SKColors.Red : SKColors.Blue);
+            }
+        });
+        var jpeg = Insert(painted, ExifOrientation(6));
+        var result = ImagePipeline.Process(jpeg);
+        Assert.True(result.Succeeded, result.Code);
+        Assert.Equal(2, result.Width);
+        Assert.Equal(4, result.Height);
+        using var stored = SKBitmap.Decode(result.Webp);
+        Assert.NotNull(stored);
+        var top = stored.GetPixel(0, 0);
+        var bottom = stored.GetPixel(0, stored.Height - 1);
+        Assert.True(top.Red > 200 && top.Blue < 40, top.ToString());
+        Assert.True(bottom.Blue > 200 && bottom.Red < 40, bottom.ToString());
+        Assert.True(result.Webp.AsSpan().IndexOf("Exif"u8) < 0);
+    }
+
+    [Fact]
+    public void A_Display_P3_profile_is_converted_to_sRGB_before_it_is_stripped()
+    {
+        var painted = Jpeg(8, 8, bitmap => bitmap.Erase(new SKColor(40, 200, 80)));
+        var jpeg = Insert(painted, IccSegment(DisplayP3Profile()));
+        var converted = Pixel(jpeg, srgb: true);
+        var raw = Pixel(jpeg, srgb: false);
+        Assert.True(Distance(converted, raw) > 15, converted + " vs " + raw);
+
+        var result = ImagePipeline.Process(jpeg);
+        Assert.True(result.Succeeded, result.Code);
+        using var stored = SKBitmap.Decode(result.Webp);
+        Assert.NotNull(stored);
+        var actual = stored.GetPixel(4, 4);
+        Assert.True(Distance(actual, converted) < 20, actual + " vs " + converted);
+        Assert.True(Distance(actual, raw) > 15, actual + " vs " + raw);
+        Assert.True(result.Webp.AsSpan().IndexOf("ICC_PROFILE"u8) < 0);
+        Assert.True(result.Webp.AsSpan().IndexOf("ICCP"u8) < 0);
+    }
+
     private static byte[] Encode(SKEncodedImageFormat format, int width, int height, byte red)
     {
         var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Opaque);
@@ -346,6 +391,182 @@ public sealed class MediaLibraryTests : IClassFixture<ApiFactory>
         using var data = image.Encode(format, format == SKEncodedImageFormat.Jpeg ? 90 : 100);
         return data.ToArray();
     }
+
+    private static byte[] Jpeg(int width, int height, Action<SKBitmap> paint)
+    {
+        var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Opaque);
+        using var bitmap = new SKBitmap(info);
+        paint(bitmap);
+        using var image = SKImage.FromBitmap(bitmap);
+        using var data = image.Encode(SKEncodedImageFormat.Jpeg, 95);
+        return data.ToArray();
+    }
+
+    private static byte[] Insert(byte[] jpeg, byte[] segment)
+    {
+        var output = new byte[jpeg.Length + segment.Length];
+        output[0] = jpeg[0];
+        output[1] = jpeg[1];
+        Buffer.BlockCopy(segment, 0, output, 2, segment.Length);
+        Buffer.BlockCopy(jpeg, 2, output, 2 + segment.Length, jpeg.Length - 2);
+        return output;
+    }
+
+    private static byte[] ExifOrientation(ushort orientation)
+    {
+        var payload = new byte[]
+        {
+            (byte)'E', (byte)'x', (byte)'i', (byte)'f', 0, 0,
+            (byte)'I', (byte)'I', 42, 0,
+            8, 0, 0, 0,
+            1, 0,
+            0x12, 0x01, 3, 0,
+            1, 0, 0, 0,
+            (byte)orientation, (byte)(orientation >> 8), 0, 0,
+            0, 0, 0, 0,
+        };
+        return AppSegment(0xE1, payload);
+    }
+
+    private static byte[] DisplayP3Profile()
+    {
+        var description = Description("Display P3");
+        var white = XyzTag(0.95047, 1.0, 1.08883);
+        var red = XyzTag(0.4865709486482162, 0.2289745640697488, 0.0);
+        var green = XyzTag(0.26566769316909306, 0.6917385218365064, 0.04511338185890264);
+        var blue = XyzTag(0.1982172852343625, 0.079286914093745, 1.043944368900976);
+        var curve = Gamma(2.2);
+        var pieces = new (byte[] Signature, byte[] Data)[]
+        {
+            ("desc"u8.ToArray(), description),
+            ("wtpt"u8.ToArray(), white),
+            ("rXYZ"u8.ToArray(), red),
+            ("gXYZ"u8.ToArray(), green),
+            ("bXYZ"u8.ToArray(), blue),
+            ("rTRC"u8.ToArray(), curve),
+            ("gTRC"u8.ToArray(), curve),
+            ("bTRC"u8.ToArray(), curve),
+        };
+        var table = 128 + 4 + pieces.Length * 12;
+        var unique = new List<byte[]>();
+        foreach (var piece in pieces)
+        {
+            if (!unique.Contains(piece.Data))
+                unique.Add(piece.Data);
+        }
+
+        var offsets = new Dictionary<byte[], int>();
+        var cursor = table;
+        foreach (var data in unique)
+        {
+            offsets[data] = cursor;
+            cursor += data.Length;
+        }
+
+        var profile = new byte[cursor];
+        WriteBe(profile, 0, profile.Length);
+        profile[8] = 2;
+        profile[9] = 0x10;
+        "mntr"u8.CopyTo(profile.AsSpan(12));
+        "RGB "u8.CopyTo(profile.AsSpan(16));
+        "XYZ "u8.CopyTo(profile.AsSpan(20));
+        "acsp"u8.CopyTo(profile.AsSpan(36));
+        WriteFixed(profile, 68, 0.9642);
+        WriteFixed(profile, 72, 1.0);
+        WriteFixed(profile, 76, 0.8249);
+        WriteBe(profile, 128, pieces.Length);
+        for (var index = 0; index < pieces.Length; index++)
+        {
+            var entry = 132 + index * 12;
+            pieces[index].Signature.CopyTo(profile.AsSpan(entry));
+            WriteBe(profile, entry + 4, offsets[pieces[index].Data]);
+            WriteBe(profile, entry + 8, pieces[index].Data.Length);
+        }
+
+        foreach (var data in unique)
+            data.CopyTo(profile.AsSpan(offsets[data]));
+        return profile;
+    }
+
+    private static byte[] Description(string name)
+    {
+        var ascii = Encoding.ASCII.GetBytes(name + "\0");
+        var padded = (ascii.Length + 3) & ~3;
+        var data = new byte[(12 + padded + 8 + 70 + 3) & ~3];
+        "desc"u8.CopyTo(data);
+        WriteBe(data, 8, ascii.Length);
+        ascii.CopyTo(data.AsSpan(12));
+        return data;
+    }
+
+    private static byte[] XyzTag(double x, double y, double z)
+    {
+        var data = new byte[20];
+        "XYZ "u8.CopyTo(data);
+        WriteFixed(data, 8, x);
+        WriteFixed(data, 12, y);
+        WriteFixed(data, 16, z);
+        return data;
+    }
+
+    private static byte[] Gamma(double gamma)
+    {
+        var data = new byte[16];
+        "curv"u8.CopyTo(data);
+        WriteBe(data, 8, 1);
+        var encoded = (ushort)Math.Round(gamma * 256.0);
+        data[12] = (byte)(encoded >> 8);
+        data[13] = (byte)encoded;
+        return data;
+    }
+
+    private static void WriteBe(byte[] data, int offset, int value)
+    {
+        data[offset] = (byte)(value >> 24);
+        data[offset + 1] = (byte)(value >> 16);
+        data[offset + 2] = (byte)(value >> 8);
+        data[offset + 3] = (byte)value;
+    }
+
+    private static void WriteFixed(byte[] data, int offset, double value) =>
+        WriteBe(data, offset, (int)Math.Round(value * 65536.0));
+
+    private static byte[] IccSegment(byte[] profile)
+    {
+        var payload = new byte[14 + profile.Length];
+        "ICC_PROFILE\0"u8.CopyTo(payload);
+        payload[12] = 1;
+        payload[13] = 1;
+        Buffer.BlockCopy(profile, 0, payload, 14, profile.Length);
+        return AppSegment(0xE2, payload);
+    }
+
+    private static byte[] AppSegment(byte marker, byte[] payload)
+    {
+        var length = payload.Length + 2;
+        var segment = new byte[payload.Length + 4];
+        segment[0] = 0xFF;
+        segment[1] = marker;
+        segment[2] = (byte)(length >> 8);
+        segment[3] = (byte)length;
+        Buffer.BlockCopy(payload, 0, segment, 4, payload.Length);
+        return segment;
+    }
+
+    private static SKColor Pixel(byte[] jpeg, bool srgb)
+    {
+        using var stream = new MemoryStream(jpeg, writable: false);
+        using var codec = SKCodec.Create(stream);
+        Assert.NotNull(codec);
+        using var owned = srgb ? SKColorSpace.CreateSrgb() : null;
+        var info = new SKImageInfo(codec.Info.Width, codec.Info.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul, srgb ? owned : codec.Info.ColorSpace);
+        using var bitmap = new SKBitmap(info);
+        Assert.Equal(SKCodecResult.Success, codec.GetPixels(info, bitmap.GetPixels()));
+        return bitmap.GetPixel(0, 0);
+    }
+
+    private static int Distance(SKColor left, SKColor right) =>
+        Math.Abs(left.Red - right.Red) + Math.Abs(left.Green - right.Green) + Math.Abs(left.Blue - right.Blue);
 
     private static byte[] PngHeader(int width, int height)
     {

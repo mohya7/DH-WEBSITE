@@ -52,6 +52,7 @@ Work in `D:\work\DigitalHub\dh-platform`, branch `rebuild/dotnet-platform`. Work
 - Access tokens are never written to `localStorage` or `sessionStorage`.
 - `dangerouslySetInnerHTML` appears nowhere in the Studio.
 - Schema changes are shown before they are applied, and applied with the elevated account, never by the application.
+- The content importer refuses to write once a revision, a working copy, or an audit entry exists. After editing starts it must not overwrite editors' work or recreate a renamed item under its old slug.
 - Verify by running it.
 
 ---
@@ -85,7 +86,7 @@ There are 28 section types — the 27 from Phase A plus `faq`. Each type's field
 
 **2.1** Propose how. The likely answer is one JSON Schema file per section type in a shared folder, validated in .NET with a JSON Schema library and turned into Ant Design forms in the Studio. Report the trade-offs and the libraries before choosing.
 
-**2.2** Field kinds the registry must express: text, long text, rich text, number, boolean, URL, a media reference with its per-usage alt override and decorative flag, a reference to another item (`{ type, slug }`), and lists of any of these.
+**2.2** Field kinds the registry must express: text, long text, rich text, number, boolean, URL, a media reference with its per-usage alt override and decorative flag, a reference to another item (`{ type, id }`), and lists of any of these. The slug is resolved at build.
 
 **2.3** Adding a section type later must mean: one schema file, one website component — nothing else.
 
@@ -128,7 +129,7 @@ Under `/api/v1/`, following the Phase A conventions.
 - Meta title — falls back to the title when empty
 - Meta description — falls back to the summary where the item has one; **publish is blocked if the effective description is empty**
 - Every section validates against the registry
-- Every internal link and every `{ type, slug }` reference points at something that exists
+- Every internal link and every `{ type, id }` reference points at something that exists
 
 Publish returns every failure at once, not the first one.
 
@@ -149,7 +150,7 @@ Publish returns every failure at once, not the first one.
 **Decided with the build.** No new table. Revisions, the audit log, and redirects already store this.
 
 - Publish checks the working copy when there is one, otherwise the row, and writes nothing until every check has been collected. Meta title falls back to the title and is not stored over the empty field. Meta description is required only for an item with its own page, and then falls back to the summary. Team members and news items have no public URL, so publish does not require one. An image usage is acceptable when its own alt text is set, or the library alt is set, or that usage is marked decorative. A media id that is not in the library blocks publish.
-- An internal link is a path beginning with `/`. `http`, `https`, `mailto`, `tel`, and `#` links are not looked up. A `{ type, slug }` reference, including `relatedItems` on a blog body, must name an item that exists. A target that exists but is not published does not block publish. It comes back as a warning, because the card is skipped at build. Warnings travel with the failures when publish is blocked, and on the item when it succeeds.
+- An internal link is a path beginning with `/`. `http`, `https`, `mailto`, `tel`, and `#` links are not looked up. A `{ type, id }` reference, including `relatedItems` on a blog body, must name an item that exists. A target that exists but is not published does not block publish. It comes back as a warning, because the card is skipped at build. Warnings travel with the failures when publish is blocked, and on the item when it succeeds. Renaming the target's slug does not change the stored id, so the reference still resolves.
 - Publishing copies the working copy onto the row, deletes that copy, sets `published_at`, stores a revision snapshot, and audits `publish`. The redirect compares the new path with the path stored in the latest revision. Chains that pointed at that path are retargeted. A new path that is already a redirect source is refused on save and on publish.
 - Unpublish sets the item back to draft, keeps `published_at`, and audits `unpublish`. A pending working copy is folded onto the row. The redirect is written on the next publish when the path differs from that revision.
 - Restore writes a working copy when the item is published, and writes the row when it is a draft. It never changes `status`. Media that the snapshot names and the library no longer has are returned as `missingMedia`; the draft is still saved.
@@ -181,19 +182,27 @@ Publish returns every failure at once, not the first one.
 
 **5.11** /media responses carry `X-Content-Type-Options: nosniff` and `Content-Security-Policy: default-src 'none'; script-src 'none'; style-src 'none'; sandbox`, so a file cannot be interpreted as anything but an image.
 
+EXIF orientation is applied before metadata is stripped, so a portrait phone photo is stored upright. An embedded colour profile is converted to sRGB before the profile is stripped, so a wide-gamut photo keeps its colours. The stored file keeps neither the orientation tag nor the profile.
+
 ---
 
 ## Section 6 — Rich text
 
-**6.1** A TipTap editor in the Studio with only the allowed extensions: paragraph, headings h2 to h4, bold, italic, link, bullet list, ordered list, blockquote, image from the media library, table, code. Nothing else can be inserted, including by paste.
-
-**6.2** Pasting from Word or a web page keeps only allowed nodes and drops everything else.
-
-**6.3** Links: internal links chosen from a picker of existing content; external links validated as `http` or `https`.
+**6.1–6.3** The TipTap editor, paste handling in the Studio, and the internal link picker are editing screens. They move to Section 7 and are built with the other screens. The server paste filter is in place now: a paste from Word or a web page keeps only allowed nodes.
 
 **6.4** Server-side validator in .NET rejects any document containing a node, mark, or attribute outside the allowed list. The Studio's editor is a convenience — **the server is the guard.**
 
-**6.5** Tests: a document with a disallowed node, a `javascript:` link, and an image not from the media library are each rejected.
+**6.5** Tests: a document with a disallowed node, a `javascript:` link, and an image not from the media library are each rejected. A paste from Word and a paste from a web page each keep only allowed nodes.
+
+**6.6** Internal links in rich text use the same `{ type, id }` reference, turned into a path at build, so a rename never breaks a link inside an article. A rich-text link may name a service, partner, case study, blog post, page, or vacancy.
+
+**6.7** External links: parse the URL and allow only `http`, `https`, `mailto`, and `tel`. Reject `javascript:`, `data:`, `vbscript:`, and protocol-relative `//host` links, including case and whitespace variations. A test for each.
+
+**6.8** Headings h2 to h4 only. h1 is the page title, one per page.
+
+**6.9** Images inside rich text carry a media id only, never a URL.
+
+**6.10** Cap document size at 1,048,576 UTF-8 bytes (1 MB) and nesting depth at 32. Reject anything over either cap. The largest stored article body is `digital-transformation-signs` at 9,244 UTF-8 bytes. Long articles with tables grow much larger as TipTap JSON, and 1 MB still leaves headroom on an authenticated endpoint.
 
 ---
 
@@ -215,6 +224,12 @@ Stop and report before building.
 **7.4** A 409 shows a clear message that someone else changed the item, and offers to reload it. Unsaved work is not silently discarded.
 
 **7.5** Leaving a screen with unsaved changes asks first.
+
+**7.6** The TipTap editor, moved from 6.1. Only paragraph, headings h2 to h4, bold, italic, link, bullet list, ordered list, blockquote, image from the media library, table, and code. Nothing else can be inserted.
+
+**7.7** Paste handling, moved from 6.2. Pasting from Word or a web page keeps only allowed nodes and drops everything else. The editor calls the same filter the server uses.
+
+**7.8** The internal link picker, moved from 6.3. Internal links are chosen from existing content. External links follow 6.7.
 
 ---
 

@@ -12,6 +12,8 @@ public static class PublishChecks
         ["partner"] = "partners",
         ["case_study"] = "case-studies",
         ["blog_post"] = "blog-posts",
+        ["page"] = "pages",
+        ["vacancy"] = "vacancies",
     };
 
     public static async Task AddAsync(
@@ -94,13 +96,13 @@ public static class PublishChecks
         CancellationToken cancellationToken)
     {
         var paths = await PublicPathsAsync(db, collection, id, draft.Slug, cancellationToken);
-        var slugs = await SlugsAsync(db, cancellationToken);
+        var ids = await IdsAsync(db, cancellationToken);
         if (ReferenceCollections.ContainsValue(collection))
-            slugs[collection][draft.Slug] = ContentStatus.Published;
+            ids[collection][id] = ContentStatus.Published;
 
         var json = JsonSerializer.Serialize(draft, ContentJson.Options);
         using var document = JsonDocument.Parse(json);
-        WalkLinks(document.RootElement, paths, slugs, errors, warnings);
+        WalkLinks(document.RootElement, paths, ids, errors, warnings);
     }
 
     private static async Task<Dictionary<string, ContentStatus>> PublicPathsAsync(
@@ -136,20 +138,22 @@ public static class PublishChecks
         }
     }
 
-    private static async Task<Dictionary<string, Dictionary<string, ContentStatus>>> SlugsAsync(ContentDbContext db, CancellationToken cancellationToken)
+    private static async Task<Dictionary<string, Dictionary<Guid, ContentStatus>>> IdsAsync(ContentDbContext db, CancellationToken cancellationToken)
     {
-        return new Dictionary<string, Dictionary<string, ContentStatus>>(StringComparer.Ordinal)
+        return new Dictionary<string, Dictionary<Guid, ContentStatus>>(StringComparer.Ordinal)
         {
-            ["services"] = await Set(db.Services.AsNoTracking().Select(item => new SlugStatus(item.Slug, item.Status))),
-            ["partners"] = await Set(db.Partners.AsNoTracking().Select(item => new SlugStatus(item.Slug, item.Status))),
-            ["case-studies"] = await Set(db.CaseStudies.AsNoTracking().Select(item => new SlugStatus(item.Slug, item.Status))),
-            ["blog-posts"] = await Set(db.BlogPosts.AsNoTracking().Select(item => new SlugStatus(item.Slug, item.Status))),
+            ["services"] = await Set(db.Services.AsNoTracking().Select(item => new IdStatus(item.Id, item.Status))),
+            ["partners"] = await Set(db.Partners.AsNoTracking().Select(item => new IdStatus(item.Id, item.Status))),
+            ["case-studies"] = await Set(db.CaseStudies.AsNoTracking().Select(item => new IdStatus(item.Id, item.Status))),
+            ["blog-posts"] = await Set(db.BlogPosts.AsNoTracking().Select(item => new IdStatus(item.Id, item.Status))),
+            ["pages"] = await Set(db.Pages.AsNoTracking().Select(item => new IdStatus(item.Id, item.Status))),
+            ["vacancies"] = await Set(db.Vacancies.AsNoTracking().Select(item => new IdStatus(item.Id, item.Status))),
         };
 
-        async Task<Dictionary<string, ContentStatus>> Set(IQueryable<SlugStatus> query)
+        async Task<Dictionary<Guid, ContentStatus>> Set(IQueryable<IdStatus> query)
         {
             var rows = await query.ToListAsync(cancellationToken);
-            return rows.ToDictionary(row => row.Slug, row => row.Status, StringComparer.Ordinal);
+            return rows.ToDictionary(row => row.Id, row => row.Status);
         }
     }
 
@@ -197,7 +201,7 @@ public static class PublishChecks
     private static void WalkLinks(
         JsonElement element,
         Dictionary<string, ContentStatus> paths,
-        Dictionary<string, Dictionary<string, ContentStatus>> slugs,
+        Dictionary<string, Dictionary<Guid, ContentStatus>> ids,
         Dictionary<string, List<string>> errors,
         Dictionary<string, List<string>> warnings)
     {
@@ -214,30 +218,31 @@ public static class PublishChecks
 
                 if (element.TryGetProperty("type", out var type)
                     && type.ValueKind == JsonValueKind.String
-                    && element.TryGetProperty("slug", out var slug)
-                    && slug.ValueKind == JsonValueKind.String
+                    && element.TryGetProperty("id", out var referencedId)
+                    && referencedId.ValueKind == JsonValueKind.String
+                    && Guid.TryParse(referencedId.GetString(), out var target)
                     && ReferenceCollections.TryGetValue(type.GetString() ?? "", out var referenced))
                 {
                     var name = type.GetString() ?? "";
-                    var value = slug.GetString() ?? "";
-                    if (!slugs[referenced].TryGetValue(value, out var status))
-                        Add(errors, "references", name + " " + value + " does not exist.");
+                    var label = target.ToString("D");
+                    if (!ids[referenced].TryGetValue(target, out var status))
+                        Add(errors, "references", name + " " + label + " does not exist.");
                     else if (status != ContentStatus.Published)
-                        Add(warnings, "references", name + " " + value + " is not published, so it will not show.");
+                        Add(warnings, "references", name + " " + label + " is not published, so it will not show.");
                 }
 
                 foreach (var property in element.EnumerateObject())
-                    WalkLinks(property.Value, paths, slugs, errors, warnings);
+                    WalkLinks(property.Value, paths, ids, errors, warnings);
                 break;
             case JsonValueKind.Array:
                 foreach (var item in element.EnumerateArray())
-                    WalkLinks(item, paths, slugs, errors, warnings);
+                    WalkLinks(item, paths, ids, errors, warnings);
                 break;
             case JsonValueKind.String:
                 if (TryParse(element.GetString(), out var nested))
                 {
                     using (nested)
-                        WalkLinks(nested.RootElement, paths, slugs, errors, warnings);
+                        WalkLinks(nested.RootElement, paths, ids, errors, warnings);
                 }
 
                 break;
@@ -314,5 +319,5 @@ public static class PublishChecks
 
     private sealed record ItemRef(Guid Id, string Slug, ContentStatus Status);
 
-    private sealed record SlugStatus(string Slug, ContentStatus Status);
+    private sealed record IdStatus(Guid Id, ContentStatus Status);
 }

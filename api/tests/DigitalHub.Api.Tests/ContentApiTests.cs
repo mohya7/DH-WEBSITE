@@ -274,6 +274,34 @@ public sealed class ContentApiTests : IClassFixture<ApiFactory>
         await database.SaveChangesAsync();
     }
 
+    [Fact]
+    public async Task An_import_is_refused_once_studio_editing_has_started()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var database = scope.ServiceProvider.GetRequiredService<ContentDbContext>();
+        var id = Guid.NewGuid();
+        database.AuditLog.Add(new AuditLogEntry
+        {
+            Id = id,
+            Action = "update",
+            EntityType = "page",
+            EntityId = id.ToString("D"),
+            At = DateTime.UtcNow,
+            Success = true,
+        });
+        await database.SaveChangesAsync();
+        try
+        {
+            Assert.True(await StudioEdits.HasStartedAsync(database, CancellationToken.None));
+        }
+        finally
+        {
+            var entry = await database.AuditLog.SingleAsync(item => item.Id == id);
+            database.AuditLog.Remove(entry);
+            await database.SaveChangesAsync();
+        }
+    }
+
     private async Task<AuthSession> LoginAsync(string email, string role, string? password = null)
     {
         if (role != "admin")

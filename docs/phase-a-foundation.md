@@ -217,7 +217,7 @@ After my confirmation:
 
 The largest part of this phase. The designed pages keep their content in HTML, not in the JSON file, so it has to be extracted.
 
-The importer is a separate console tool, `api/tools/DigitalHub.ContentImport`. The API never reads the old repository and never runs this import at startup. The tool takes the path to `DH-WEBSITE-main`, connects with the restricted login, and is idempotent. `--dry-run` extracts and reports without writing. Images are read with SkiaSharp. The media folder under the API is content: it is gitignored except `.gitkeep`.
+The importer is a separate console tool, `api/tools/DigitalHub.ContentImport`. The API never reads the old repository and never runs this import at startup. The tool takes the path to `DH-WEBSITE-main`, connects with the restricted login, and is idempotent. `--dry-run` extracts and reports without writing. Images are read with SkiaSharp. The media folder under the API is content: it is gitignored except `.gitkeep`. Once a revision, a working copy, or an audit entry exists, the importer refuses to write. After editing starts it must not overwrite editors' work or recreate a renamed item under its old slug.
 
 The source folder must be a clean checkout of `feature/interviewer-portal`. The importer refuses any other branch, and it records the commit it read. This import read `eb05f0647c3458cc612f8a9ed8625fbb0ebc7752`.
 
@@ -235,7 +235,7 @@ For Phase C, case cards and the blog list hide themselves when nothing is publis
 
 An image usage may set its own decorative flag. When that flag is set, publish does not require alt text for that usage. The media asset still holds the default alt. Internal links in imported content are rewritten to the clean URLs. The three careers-hub links to the dummy vacancy pages are removed at import. The vacancy list is generated from the vacancies table.
 
-A `related_items` section stores each target as `{ "type", "slug" }` — `service`, `partner`, `case_study`, or `blog_post` — not as a URL path, so renaming a slug does not break the reference. Blog posts do not own sections. The related block on a post is the same shape, stored on the body document as `relatedItems`, separate from the TipTap `content`.
+A `related_items` section stores each target as `{ "type", "id" }` — `service`, `partner`, `case_study`, or `blog_post` — not as a URL path. The slug is resolved at build. Renaming a slug does not break the reference, because the id does not change. Blog posts do not own sections. The related block on a post is the same shape, stored on the body document as `relatedItems`, separate from the TipTap `content`.
 
 Team members use the `assets/team/` portraits the About page shows. The taller uploaded portraits are imported into the media library as unused alternates.
 

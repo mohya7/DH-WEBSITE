@@ -101,7 +101,7 @@ public sealed class ContentPublishTests : IClassFixture<ApiFactory>
                     new
                     {
                         image = new { mediaId, alt = "", decorative = true },
-                        reference = new { type = "service", slug = "no-such-service" },
+                        reference = new { type = "service", id = Guid.NewGuid() },
                     },
                 },
             },
@@ -690,6 +690,8 @@ public sealed class ContentPublishTests : IClassFixture<ApiFactory>
         Assert.Equal(HttpStatusCode.Created, blog.Status);
         Assert.Equal(HttpStatusCode.Created, service.Status);
         var serviceRef = ReadPage(service.Body, serviceSlug);
+        var caseId = ReadPage(study.Body, caseSlug).Id;
+        var blogId = ReadPage(blog.Body, blogSlug).Id;
         var servicePublish = await SendAsync(editor, HttpMethod.Post, "/api/v1/services/" + serviceRef.Id + "/publish", new { version = serviceRef.Version });
         Assert.Equal(HttpStatusCode.OK, servicePublish.Status);
 
@@ -703,9 +705,9 @@ public sealed class ContentPublishTests : IClassFixture<ApiFactory>
                 heading = "Work",
                 items = new object[]
                 {
-                    new { type = "case_study", slug = caseSlug, title = "", text = "" },
-                    new { type = "blog_post", slug = blogSlug, title = "", text = "" },
-                    new { type = "service", slug = serviceSlug, title = "", text = "" },
+                    new { type = "case_study", id = caseId, title = "", text = "" },
+                    new { type = "blog_post", id = blogId, title = "", text = "" },
+                    new { type = "service", id = serviceRef.Id, title = "", text = "" },
                 },
             },
         });
@@ -724,13 +726,13 @@ public sealed class ContentPublishTests : IClassFixture<ApiFactory>
         Assert.Equal("published", Text(response.Body, "state"));
         var warnings = JsonDocument.Parse(response.Body).RootElement.GetProperty("warnings");
         var references = warnings.GetProperty("references").EnumerateArray().Select(item => item.GetString()).ToList();
-        Assert.Contains("case_study " + caseSlug + " is not published, so it will not show.", references);
-        Assert.Contains("blog_post " + blogSlug + " is not published, so it will not show.", references);
-        Assert.DoesNotContain(references, item => item != null && item.Contains(serviceSlug, StringComparison.Ordinal));
+        Assert.Contains("case_study " + caseId.ToString("D") + " is not published, so it will not show.", references);
+        Assert.Contains("blog_post " + blogId.ToString("D") + " is not published, so it will not show.", references);
+        Assert.DoesNotContain(references, item => item != null && item.Contains(serviceRef.Id.ToString(), StringComparison.OrdinalIgnoreCase));
         var links = warnings.GetProperty("links").EnumerateArray().Select(item => item.GetString()).ToList();
         Assert.Contains("/cases/" + caseSlug + " is not published, so it will not show.", links);
 
-        var body = "{\"type\":\"doc\",\"content\":[],\"relatedItems\":[{\"type\":\"case_study\",\"slug\":\"" + caseSlug + "\"}]}";
+        var body = "{\"type\":\"doc\",\"content\":[],\"relatedItems\":[{\"type\":\"case_study\",\"id\":\"" + caseId.ToString("D") + "\"}]}";
         var article = await SendAsync(editor, HttpMethod.Post, "/api/v1/blog-posts", new
         {
             slug = Slug(),
@@ -743,7 +745,7 @@ public sealed class ContentPublishTests : IClassFixture<ApiFactory>
         var articlePublish = await SendAsync(editor, HttpMethod.Post, "/api/v1/blog-posts/" + articleRef.Id + "/publish", new { version = articleRef.Version });
         Assert.Equal(HttpStatusCode.OK, articlePublish.Status);
         var articleWarnings = JsonDocument.Parse(articlePublish.Body).RootElement.GetProperty("warnings").GetProperty("references").EnumerateArray().Select(item => item.GetString());
-        Assert.Contains("case_study " + caseSlug + " is not published, so it will not show.", articleWarnings);
+        Assert.Contains("case_study " + caseId.ToString("D") + " is not published, so it will not show.", articleWarnings);
 
         await RemoveItemAsync("pages", page.Id);
         await RemoveItemAsync("services", serviceRef.Id);
@@ -759,6 +761,7 @@ public sealed class ContentPublishTests : IClassFixture<ApiFactory>
         var caseSlug = Slug();
         var study = await SendAsync(editor, HttpMethod.Post, "/api/v1/case-studies", new { slug = caseSlug, title = "Draft case" });
         Assert.Equal(HttpStatusCode.Created, study.Status);
+        var caseId = ReadPage(study.Body, caseSlug).Id;
         var created = await SendAsync(editor, HttpMethod.Post, "/api/v1/pages", new { slug = Slug(), title = "Blocked with a warning" });
         var page = ReadPage(created.Body, "");
         var related = await SendAsync(editor, HttpMethod.Post, "/api/v1/pages/" + page.Id + "/sections", new
@@ -768,7 +771,7 @@ public sealed class ContentPublishTests : IClassFixture<ApiFactory>
             fields = new
             {
                 heading = "Work",
-                items = new[] { new { type = "case_study", slug = caseSlug, title = "", text = "" } },
+                items = new[] { new { type = "case_study", id = caseId, title = "", text = "" } },
             },
         });
         Assert.Equal(HttpStatusCode.OK, related.Status);
@@ -779,11 +782,105 @@ public sealed class ContentPublishTests : IClassFixture<ApiFactory>
         var body = JsonDocument.Parse(response.Body).RootElement;
         Assert.True(body.GetProperty("errors").TryGetProperty("metaDescription", out _));
         var references = body.GetProperty("warnings").GetProperty("references").EnumerateArray().Select(item => item.GetString());
-        Assert.Contains("case_study " + caseSlug + " is not published, so it will not show.", references);
+        Assert.Contains("case_study " + caseId.ToString("D") + " is not published, so it will not show.", references);
         var unchanged = await SendAsync(editor, HttpMethod.Get, "/api/v1/pages/" + page.Id);
         Assert.Equal("draft", Text(unchanged.Body, "status"));
         await RemoveItemAsync("pages", page.Id);
         await RemoveItemAsync("case-studies", ReadPage(study.Body, caseSlug).Id);
+    }
+
+    [Fact]
+    public async Task Publish_still_resolves_a_reference_after_the_target_slug_changes()
+    {
+        var editor = await Editor();
+        var serviceSlug = Slug();
+        var service = await SendAsync(editor, HttpMethod.Post, "/api/v1/services", new { slug = serviceSlug, title = "Referenced", metaDescription = Description });
+        Assert.Equal(HttpStatusCode.Created, service.Status);
+        var serviceRef = ReadPage(service.Body, serviceSlug);
+        var servicePublish = await SendAsync(editor, HttpMethod.Post, "/api/v1/services/" + serviceRef.Id + "/publish", new { version = serviceRef.Version });
+        Assert.Equal(HttpStatusCode.OK, servicePublish.Status);
+        var liveService = ReadPage(servicePublish.Body, serviceSlug);
+
+        var page = await CreatePageAsync(editor);
+        var related = await SendAsync(editor, HttpMethod.Post, "/api/v1/pages/" + page.Id + "/sections", new
+        {
+            version = page.Version,
+            type = "related_items",
+            fields = new
+            {
+                heading = "Services",
+                items = new[] { new { type = "service", id = serviceRef.Id, title = "", text = "" } },
+            },
+        });
+        Assert.Equal(HttpStatusCode.OK, related.Status);
+        var ready = ReadPage(related.Body, page.Slug);
+        var first = await SendAsync(editor, HttpMethod.Post, PublishUrl(ready), new { version = ready.Version });
+        Assert.Equal(HttpStatusCode.OK, first.Status);
+        Assert.False(JsonDocument.Parse(first.Body).RootElement.GetProperty("warnings").TryGetProperty("references", out _));
+
+        var renamed = "renamed-" + serviceSlug;
+        var edited = await SendAsync(editor, HttpMethod.Put, "/api/v1/services/" + serviceRef.Id, new
+        {
+            version = liveService.Version,
+            slug = renamed,
+            title = "Referenced",
+            metaDescription = Description,
+        });
+        Assert.Equal(HttpStatusCode.OK, edited.Status);
+        var draft = ReadPage(edited.Body, renamed);
+        var republish = await SendAsync(editor, HttpMethod.Post, "/api/v1/services/" + serviceRef.Id + "/publish", new { version = draft.Version });
+        Assert.Equal(HttpStatusCode.OK, republish.Status);
+        Assert.Equal(renamed, Text(republish.Body, "live", "slug"));
+
+        var publishedPage = ReadPage(first.Body, page.Slug);
+        var again = await SendAsync(editor, HttpMethod.Post, PublishUrl(publishedPage), new { version = publishedPage.Version });
+        Assert.Equal(HttpStatusCode.OK, again.Status);
+        Assert.Equal("published", Text(again.Body, "state"));
+        Assert.DoesNotContain("does not exist", again.Body, StringComparison.Ordinal);
+        var stored = await SendAsync(editor, HttpMethod.Get, "/api/v1/pages/" + page.Id);
+        Assert.Contains(serviceRef.Id.ToString(), stored.Body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(renamed, stored.Body, StringComparison.Ordinal);
+
+        await RemoveItemAsync("pages", page.Id);
+        await RemoveItemAsync("services", serviceRef.Id);
+    }
+
+    [Fact]
+    public async Task A_rich_text_body_is_rejected_when_it_breaks_the_rules()
+    {
+        var editor = await Editor();
+        var missing = Guid.NewGuid();
+        var blocked = await SendAsync(editor, HttpMethod.Post, "/api/v1/blog-posts", new
+        {
+            slug = Slug(),
+            title = "Script",
+            metaDescription = Description,
+            fields = new { body = "{\"type\":\"doc\",\"content\":[{\"type\":\"iframe\"}]}" },
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, blocked.Status);
+        Assert.Equal("validation_failed", Code(blocked.Body));
+        Assert.Contains("iframe", blocked.Body, StringComparison.Ordinal);
+
+        var script = await SendAsync(editor, HttpMethod.Post, "/api/v1/blog-posts", new
+        {
+            slug = Slug(),
+            title = "Script link",
+            metaDescription = Description,
+            fields = new { body = "{\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"Go\",\"marks\":[{\"type\":\"link\",\"attrs\":{\"href\":\"javascript:alert(1)\"}}]}]}]}" },
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, script.Status);
+        Assert.Contains("javascript:alert(1)", script.Body, StringComparison.Ordinal);
+
+        var image = await SendAsync(editor, HttpMethod.Post, "/api/v1/blog-posts", new
+        {
+            slug = Slug(),
+            title = "Missing image",
+            metaDescription = Description,
+            fields = new { body = "{\"type\":\"doc\",\"content\":[{\"type\":\"image\",\"attrs\":{\"mediaId\":\"" + missing.ToString("D") + "\"}}]}" },
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, image.Status);
+        Assert.Contains(missing.ToString(), image.Body, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("is not in the library", image.Body, StringComparison.Ordinal);
     }
 
     private async Task<PageRef> CreatePageAsync(AuthSession session)
