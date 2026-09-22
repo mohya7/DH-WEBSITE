@@ -1,0 +1,14 @@
+@layer theme, base, components, utilities;
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+:root {
+  --dh-primary: #1270a0;
+  --dh-accent: #f4970b;
+}
+
+body {
+  margin: 0;
+  font-family: Poppins, sans-serif;
+}

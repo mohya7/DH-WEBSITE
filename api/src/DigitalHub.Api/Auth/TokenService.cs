@@ -14,6 +14,7 @@ public sealed class TokenService(ContentDbContext db, IConfiguration configurati
     public const string RefreshCookieName = "dh_refresh";
     public const string CsrfCookieName = "dh_csrf";
     public const string RefreshCookiePath = "/api/v1/auth";
+    public const string CsrfCookiePath = "/";
     public const string CsrfHeaderName = "X-CSRF-Token";
 
     public int AccessTokenSeconds => configuration.GetValue("Auth:AccessTokenMinutes", 10) * 60;
@@ -115,7 +116,11 @@ public sealed class TokenService(ContentDbContext db, IConfiguration configurati
             HttpOnly = false,
             Secure = true,
             SameSite = SameSiteMode.Strict,
-            Path = RefreshCookiePath,
+            // The Studio document is at the site root. document.cookie cannot
+            // see a cookie whose path is /api/v1/auth, so this cookie is
+            // readable there and echoed as X-CSRF-Token. The refresh cookie
+            // stays limited to the auth path.
+            Path = CsrfCookiePath,
             Expires = expires,
             IsEssential = true,
         };

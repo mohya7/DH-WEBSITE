@@ -120,7 +120,7 @@ All five exist now so the hiring rebuild joins this identity instead of merging 
 | Endpoint | Behaviour |
 |---|---|
 | `login` | Returns a short-lived access token in the body; sets the refresh token in an `HttpOnly`, `Secure`, `SameSite=Strict` cookie |
-| `refresh` | Issues a new access token and rotates the refresh token. Protected against cross-site request forgery |
+| `refresh` | Issues a new access token and rotates the refresh token. The CSRF cookie `dh_csrf` is readable by the Studio (`Secure`, `SameSite=Strict`, path `/`) and must be echoed as `X-CSRF-Token`. The refresh cookie stays `HttpOnly` on `/api/v1/auth` |
 | `logout` | Revokes the refresh token and clears the cookie |
 | `me` | Returns the current user and role |
 

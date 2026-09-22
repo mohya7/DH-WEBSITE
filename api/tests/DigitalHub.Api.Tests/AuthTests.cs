@@ -119,7 +119,9 @@ public sealed class AuthTests : IClassFixture<ApiFactory>
 
         Assert.Equal(HttpStatusCode.OK, session.Status);
         Assert.Contains("samesite=strict", session.CsrfSetCookie, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("path=/api/v1/auth", session.CsrfSetCookie, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("path=/", session.CsrfSetCookie, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("path=/api/v1/auth", session.CsrfSetCookie, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("path=/api/v1/auth", session.SetCookie, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("httponly", session.CsrfSetCookie, StringComparison.OrdinalIgnoreCase);
 
         var fresh = _factory.CreateClient();
