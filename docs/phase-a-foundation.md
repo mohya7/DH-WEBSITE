@@ -188,10 +188,10 @@ Every collection table carries: `id`, `slug`, `title`, `status` (draft / publish
 
 - `blog_posts.faq` is a JSON column with the same document as an `faq` section: `{ "items": [ { "question", "answer" } ] }`. Answers are plain text so an article can emit FAQPage structured data. `blogs[].faq` maps here. Empty source arrays become `{ "items": [] }`.
 - `blog_posts.date_modified` is the editorial date. `blogs[].dateModified` maps to it. `updated_at` stays the row timestamp.
-- `blogs[].answerBlock` maps to `blog_posts.answer_block`. `blogs[].relatedPosts` maps to `blog_posts.related_slugs`. `blogs[].dataCallouts` and `blogs[].comparisonTable` are dropped: every value is empty or null, and a table inside an article is a TipTap table in `body`.
+- `blogs[].answerBlock` maps to `blog_posts.answer_block`. Related posts are `relatedItems` on the body document, not a column. `blogs[].dataCallouts` and `blogs[].comparisonTable` are dropped: every value is empty or null, and a table inside an article is a TipTap table in `body`.
 - Every foreign key to `media` (`image_id`, `share_image_id`, `default_share_image_id`) and `contact_requests.handled_by_id` to `AspNetUsers` is `ON DELETE NO ACTION`. Section ownership stays four nullable foreign keys with `ON DELETE CASCADE` and a check that exactly one is set.
 - **Phase B must refuse to delete a media asset that is referenced by any column or by any section JSON.** The database will not clear those references.
-- String arrays (`case_studies.categories`, `blog_posts.related_slugs`, `vacancies.interview_stages`) are JSON arrays in `nvarchar(max)`.
+- String arrays (`case_studies.categories`, `vacancies.interview_stages`) are JSON arrays in `nvarchar(max)`. `blog_posts.related_slugs` was dropped in Phase B; the column was empty, and related posts live on the body as `relatedItems`.
 - `contact_requests.status` is `new` or `handled`, with `handled_by_id` and `handled_at`.
 - Alt text defaults on `media.alt`. A usage may set an override. Publish checks the effective value.
 
@@ -235,7 +235,7 @@ For Phase C, case cards and the blog list hide themselves when nothing is publis
 
 An image usage may set its own decorative flag. When that flag is set, publish does not require alt text for that usage. The media asset still holds the default alt. Internal links in imported content are rewritten to the clean URLs. The three careers-hub links to the dummy vacancy pages are removed at import. The vacancy list is generated from the vacancies table.
 
-A `related_items` section stores each target as `{ "type", "slug" }` — `service`, `partner`, `case_study`, or `blog_post` — not as a URL path, so renaming a slug does not break the reference. Blog posts do not own sections. The related block on a post is the same shape, stored on the body document as `relatedItems`, separate from the TipTap `content`. `related_slugs` stays empty.
+A `related_items` section stores each target as `{ "type", "slug" }` — `service`, `partner`, `case_study`, or `blog_post` — not as a URL path, so renaming a slug does not break the reference. Blog posts do not own sections. The related block on a post is the same shape, stored on the body document as `relatedItems`, separate from the TipTap `content`.
 
 Team members use the `assets/team/` portraits the About page shows. The taller uploaded portraits are imported into the media library as unused alternates.
 

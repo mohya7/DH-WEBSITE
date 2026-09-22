@@ -78,6 +78,33 @@ public static class MediaUsage
                 foreach (var item in element.EnumerateArray())
                     Walk(item, ids);
                 break;
+            case JsonValueKind.String:
+                if (TryParse(element.GetString(), out var nested))
+                {
+                    using (nested)
+                        Walk(nested.RootElement, ids);
+                }
+
+                break;
+        }
+    }
+
+    private static bool TryParse(string? json, out JsonDocument document)
+    {
+        document = null!;
+        if (string.IsNullOrWhiteSpace(json))
+            return false;
+        var text = json.Trim();
+        if (text.Length < 2 || text[0] is not ('{' or '['))
+            return false;
+        try
+        {
+            document = JsonDocument.Parse(text);
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
         }
     }
 }

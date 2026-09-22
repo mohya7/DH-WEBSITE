@@ -38,6 +38,11 @@ public sealed class ContentEndpointCoverageTests : IClassFixture<ApiFactory>
     [InlineData("POST", "/api/v1/pages/11111111-1111-4111-8111-111111111111/sections/reorder")]
     [InlineData("POST", "/api/v1/pages/11111111-1111-4111-8111-111111111111/sections/22222222-2222-4222-8222-222222222222/visibility")]
     [InlineData("DELETE", "/api/v1/pages/11111111-1111-4111-8111-111111111111/sections/22222222-2222-4222-8222-222222222222?version=1")]
+    [InlineData("POST", "/api/v1/pages/11111111-1111-4111-8111-111111111111/publish")]
+    [InlineData("POST", "/api/v1/pages/11111111-1111-4111-8111-111111111111/unpublish")]
+    [InlineData("GET", "/api/v1/pages/11111111-1111-4111-8111-111111111111/revisions")]
+    [InlineData("GET", "/api/v1/pages/11111111-1111-4111-8111-111111111111/revisions/33333333-3333-4333-8333-333333333333")]
+    [InlineData("POST", "/api/v1/pages/11111111-1111-4111-8111-111111111111/revisions/33333333-3333-4333-8333-333333333333/restore")]
     public async Task Anonymous_request_is_unauthorized(string method, string url)
     {
         var response = await _client.SendAsync(new HttpRequestMessage(new HttpMethod(method), url));
@@ -56,6 +61,11 @@ public sealed class ContentEndpointCoverageTests : IClassFixture<ApiFactory>
     [InlineData("POST", "/api/v1/pages/11111111-1111-4111-8111-111111111111/sections/reorder")]
     [InlineData("POST", "/api/v1/pages/11111111-1111-4111-8111-111111111111/sections/22222222-2222-4222-8222-222222222222/visibility")]
     [InlineData("DELETE", "/api/v1/pages/11111111-1111-4111-8111-111111111111/sections/22222222-2222-4222-8222-222222222222?version=1")]
+    [InlineData("POST", "/api/v1/pages/11111111-1111-4111-8111-111111111111/publish")]
+    [InlineData("POST", "/api/v1/pages/11111111-1111-4111-8111-111111111111/unpublish")]
+    [InlineData("GET", "/api/v1/pages/11111111-1111-4111-8111-111111111111/revisions")]
+    [InlineData("GET", "/api/v1/pages/11111111-1111-4111-8111-111111111111/revisions/33333333-3333-4333-8333-333333333333")]
+    [InlineData("POST", "/api/v1/pages/11111111-1111-4111-8111-111111111111/revisions/33333333-3333-4333-8333-333333333333/restore")]
     public async Task Unknown_role_is_forbidden(string method, string url)
     {
         var guest = await Unknown();

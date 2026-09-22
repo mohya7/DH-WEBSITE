@@ -104,6 +104,7 @@ public sealed class TokenService(ContentDbContext db, IConfiguration configurati
             Secure = true,
             SameSite = SameSiteMode.Strict,
             Path = RefreshCookiePath,
+            // Host-only. Do not set Domain: the cookie must not be sent to the website's domain.
             Expires = expires,
             IsEssential = true,
         };

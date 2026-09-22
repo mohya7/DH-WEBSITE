@@ -146,6 +146,15 @@ Publish returns every failure at once, not the first one.
 
 **4.8** Report every imported published item whose effective meta description is empty. They will be blocked the next time an editor publishes them, and editors need that list.
 
+**Decided with the build.** No new table. Revisions, the audit log, and redirects already store this.
+
+- Publish checks the working copy when there is one, otherwise the row, and writes nothing until every check has been collected. Meta title falls back to the title and is not stored over the empty field. Meta description is required only for an item with its own page, and then falls back to the summary. Team members and news items have no public URL, so publish does not require one. An image usage is acceptable when its own alt text is set, or the library alt is set, or that usage is marked decorative. A media id that is not in the library blocks publish.
+- An internal link is a path beginning with `/`. `http`, `https`, `mailto`, `tel`, and `#` links are not looked up. A `{ type, slug }` reference, including `relatedItems` on a blog body, must name an item that exists. A target that exists but is not published does not block publish. It comes back as a warning, because the card is skipped at build. Warnings travel with the failures when publish is blocked, and on the item when it succeeds.
+- Publishing copies the working copy onto the row, deletes that copy, sets `published_at`, stores a revision snapshot, and audits `publish`. The redirect compares the new path with the path stored in the latest revision. Chains that pointed at that path are retargeted. A new path that is already a redirect source is refused on save and on publish.
+- Unpublish sets the item back to draft, keeps `published_at`, and audits `unpublish`. A pending working copy is folded onto the row. The redirect is written on the next publish when the path differs from that revision.
+- Restore writes a working copy when the item is published, and writes the row when it is a draft. It never changes `status`. Media that the snapshot names and the library no longer has are returned as `missingMedia`; the draft is still saved.
+- Each item's `state` is `draft`, `published`, or `changed`. A published item includes the notice that published changes appear on the website at the next build. The Studio screen that shows this is Section 7.
+
 ---
 
 ## Section 5 — Media library

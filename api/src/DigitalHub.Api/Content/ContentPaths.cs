@@ -17,7 +17,7 @@ public static class ContentPaths
         "case-studies" => "/cases/" + slug,
         "blog-posts" => "/blogs/" + slug,
         "vacancies" => "/careers/" + slug,
-        "news-items" => "/news/" + slug,
+        "news-items" => null,
         "team-members" => null,
         _ => null,
     };

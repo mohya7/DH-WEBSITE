@@ -69,6 +69,7 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas)
                     slug,
                     title,
                     status = row.Status.ToString().ToLowerInvariant(),
+                    state = StateOf(row.Status, hasCopy),
                     row.Version,
                     updatedAt = row.UpdatedAt,
                     hasWorkingCopy = hasCopy,
@@ -162,6 +163,195 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas)
         loaded.Record.Version += 1;
         Audit(userId, "discard_draft", collection, id);
         return await CommitAsync(cancellationToken, () => ContentOutcome.Ok(Present(collection, loaded, null)));
+    }
+
+    public async Task<ContentOutcome> PublishAsync(string collection, Guid id, int version, string? userId, CancellationToken cancellationToken)
+    {
+        if (!Knows(collection))
+            return Unknown();
+        var loaded = await LoadAsync(collection, id, cancellationToken);
+        if (loaded is null)
+            return Missing();
+        if (loaded.Record.Version != version)
+            return Conflict();
+
+        var draft = DocumentOf(collection, loaded);
+        var errors = new Dictionary<string, List<string>>();
+        var warnings = new Dictionary<string, List<string>>();
+        foreach (var pair in await CheckAsync(collection, id, draft, cancellationToken))
+            errors[pair.Key] = pair.Value;
+        await PublishChecks.AddAsync(db, collection, id, draft, errors, warnings, cancellationToken);
+        if (errors.Count > 0)
+            return PublishBlocked(errors, warnings);
+
+        var previousSlug = await LastPublishedSlugAsync(collection, id, cancellationToken);
+        var applyErrors = new Dictionary<string, List<string>>();
+        ContentFields.ApplyToRecord(collection, loaded.Record, draft, applyErrors);
+        if (applyErrors.Count > 0)
+            return PublishBlocked(applyErrors, warnings);
+
+        ReplaceSections(collection, loaded, draft);
+        if (loaded.Copy is not null)
+        {
+            db.WorkingCopies.Remove(loaded.Copy);
+            loaded.Copy = null;
+        }
+
+        var now = DateTime.UtcNow;
+        loaded.Record.Status = ContentStatus.Published;
+        loaded.Record.PublishedAt = now;
+        loaded.Record.UpdatedAt = now;
+        loaded.Record.Version += 1;
+        db.Revisions.Add(new Revision
+        {
+            Id = Guid.NewGuid(),
+            EntityType = Kinds[collection].EntityType,
+            EntityId = id,
+            Version = loaded.Record.Version,
+            Snapshot = JsonSerializer.Serialize(draft, ContentJson.Options),
+            PublishedAt = now,
+            PublishedById = userId,
+        });
+        if (previousSlug is not null)
+            await RetargetAsync(collection, previousSlug, draft.Slug, userId, cancellationToken);
+        Audit(userId, "publish", collection, id);
+        var warningBody = warnings.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray());
+        return await CommitAsync(cancellationToken, () => ContentOutcome.Ok(Present(collection, loaded, draft, warningBody)));
+    }
+
+    public async Task<ContentOutcome> UnpublishAsync(string collection, Guid id, int version, string? userId, CancellationToken cancellationToken)
+    {
+        if (!Knows(collection))
+            return Unknown();
+        var loaded = await LoadAsync(collection, id, cancellationToken);
+        if (loaded is null)
+            return Missing();
+        if (loaded.Record.Version != version)
+            return Conflict();
+        if (loaded.Record.Status != ContentStatus.Published)
+            return ContentOutcome.Fail(StatusCodes.Status409Conflict, "not_published", "This item is not published.");
+
+        var draft = DocumentOf(collection, loaded);
+        var errors = await CheckAsync(collection, id, draft, cancellationToken);
+        if (errors.Count > 0)
+            return Validation(errors);
+
+        var applyErrors = new Dictionary<string, List<string>>();
+        ContentFields.ApplyToRecord(collection, loaded.Record, draft, applyErrors);
+        if (applyErrors.Count > 0)
+            return Validation(applyErrors);
+
+        ReplaceSections(collection, loaded, draft);
+        if (loaded.Copy is not null)
+        {
+            db.WorkingCopies.Remove(loaded.Copy);
+            loaded.Copy = null;
+        }
+
+        loaded.Record.Status = ContentStatus.Draft;
+        loaded.Record.UpdatedAt = DateTime.UtcNow;
+        loaded.Record.Version += 1;
+        Audit(userId, "unpublish", collection, id);
+        return await CommitAsync(cancellationToken, () => ContentOutcome.Ok(Present(collection, loaded, draft)));
+    }
+
+    public async Task<ContentOutcome> ListRevisionsAsync(string collection, Guid id, CancellationToken cancellationToken)
+    {
+        if (!Knows(collection))
+            return Unknown();
+        if (!await ExistsAsync(collection, id, cancellationToken))
+            return Missing();
+
+        var entityType = Kinds[collection].EntityType;
+        var items = await db.Revisions.AsNoTracking()
+            .Where(revision => revision.EntityType == entityType && revision.EntityId == id)
+            .OrderByDescending(revision => revision.PublishedAt)
+            .Select(revision => new
+            {
+                revision.Id,
+                revision.Version,
+                publishedAt = revision.PublishedAt,
+                publishedById = revision.PublishedById,
+            })
+            .ToListAsync(cancellationToken);
+        return ContentOutcome.Ok(new { items });
+    }
+
+    public async Task<ContentOutcome> GetRevisionAsync(string collection, Guid id, Guid revisionId, CancellationToken cancellationToken)
+    {
+        if (!Knows(collection))
+            return Unknown();
+        var revision = await FindRevisionAsync(collection, id, revisionId, cancellationToken);
+        if (revision is null)
+            return MissingRevision();
+
+        var missing = await MediaUsage.MissingAsync(db, revision.Snapshot, cancellationToken);
+        return ContentOutcome.Ok(new
+        {
+            revision.Id,
+            revision.Version,
+            publishedAt = revision.PublishedAt,
+            publishedById = revision.PublishedById,
+            snapshot = Parse(revision.Snapshot),
+            missingMedia = missing,
+        });
+    }
+
+    public async Task<ContentOutcome> RestoreAsync(string collection, Guid id, Guid revisionId, int version, string? userId, CancellationToken cancellationToken)
+    {
+        if (!Knows(collection))
+            return Unknown();
+        var loaded = await LoadAsync(collection, id, cancellationToken);
+        if (loaded is null)
+            return Missing();
+        if (loaded.Record.Version != version)
+            return Conflict();
+
+        var revision = await FindRevisionAsync(collection, id, revisionId, cancellationToken);
+        if (revision is null)
+            return MissingRevision();
+
+        var draft = JsonSerializer.Deserialize<DraftDocument>(revision.Snapshot, ContentJson.Options);
+        if (draft is null)
+            return Validation("snapshot", "This revision cannot be read.");
+
+        var errors = await CheckAsync(collection, id, draft, cancellationToken, requireMedia: false);
+        if (errors.Count > 0)
+            return Validation(errors);
+
+        var missing = await MediaUsage.MissingAsync(db, revision.Snapshot, cancellationToken);
+        if (loaded.Record.Status == ContentStatus.Published)
+        {
+            var copy = loaded.Copy ?? NewCopy(collection, id);
+            copy.Document = JsonSerializer.Serialize(draft, ContentJson.Options);
+            copy.SavedAt = DateTime.UtcNow;
+            if (loaded.Copy is null)
+                db.WorkingCopies.Add(copy);
+            loaded.Copy = copy;
+        }
+        else
+        {
+            var applyErrors = new Dictionary<string, List<string>>();
+            ContentFields.ApplyToRecord(collection, loaded.Record, draft, applyErrors);
+            if (applyErrors.Count > 0)
+                return Validation(applyErrors);
+            ReplaceSections(collection, loaded, draft);
+            if (loaded.Copy is not null)
+            {
+                db.WorkingCopies.Remove(loaded.Copy);
+                loaded.Copy = null;
+            }
+
+            loaded.Record.UpdatedAt = DateTime.UtcNow;
+        }
+
+        loaded.Record.Version += 1;
+        Audit(userId, "restore", collection, id);
+        return await CommitAsync(cancellationToken, () => ContentOutcome.Ok(new
+        {
+            item = Present(collection, loaded, draft),
+            missingMedia = missing,
+        }));
     }
 
     public Task<ContentOutcome> AddSectionAsync(string collection, Guid id, int version, string type, bool visible, JsonElement fields, string? userId, CancellationToken cancellationToken)
@@ -301,10 +491,7 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas)
         if (loaded.Record.Version != version)
             return Conflict();
 
-        var draft = loaded.Copy is null
-            ? ContentFields.FromRecord(collection, loaded.Record, loaded.Sections)
-            : JsonSerializer.Deserialize<DraftDocument>(loaded.Copy.Document, ContentJson.Options)
-                ?? ContentFields.FromRecord(collection, loaded.Record, loaded.Sections);
+        var draft = DocumentOf(collection, loaded);
         change(draft);
         if (missing?.Invoke() == true)
             return ContentOutcome.Fail(StatusCodes.Status404NotFound, "not_found", "That section does not exist.");
@@ -340,7 +527,7 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas)
         return await CommitAsync(cancellationToken, () => ContentOutcome.Ok(Present(collection, loaded, draft)));
     }
 
-    private async Task<Dictionary<string, List<string>>> CheckAsync(string collection, Guid id, DraftDocument draft, CancellationToken cancellationToken)
+    private async Task<Dictionary<string, List<string>>> CheckAsync(string collection, Guid id, DraftDocument draft, CancellationToken cancellationToken, bool requireMedia = true)
     {
         var errors = new Dictionary<string, List<string>>();
         ContentFields.Validate(collection, draft, errors);
@@ -371,8 +558,12 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas)
         if (await SlugTakenAsync(collection, id, draft.Slug, cancellationToken))
             Add(errors, "slug", "That slug is already in use.");
 
+        var path = ContentPaths.PublicPath(collection, draft.Slug);
+        if (path is not null && await db.Redirects.AsNoTracking().AnyAsync(redirect => redirect.FromPath == path, cancellationToken))
+            Add(errors, "slug", "That address is the source of a redirect.");
+
         var referenced = MediaUsage.ReferencedIds(JsonSerializer.Serialize(draft, ContentJson.Options));
-        if (referenced.Count > 0)
+        if (requireMedia && referenced.Count > 0)
         {
             var existing = await db.Media.AsNoTracking()
                 .Where(asset => referenced.Contains(asset.Id))
@@ -623,7 +814,21 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas)
         section.CaseStudyId = collection == "case-studies" ? id : null;
     }
 
-    private object Present(string collection, Loaded loaded, DraftDocument? editing)
+    private async Task<string?> LastPublishedSlugAsync(string collection, Guid id, CancellationToken cancellationToken)
+    {
+        var entityType = Kinds[collection].EntityType;
+        var snapshot = await db.Revisions.AsNoTracking()
+            .Where(revision => revision.EntityType == entityType && revision.EntityId == id)
+            .OrderByDescending(revision => revision.PublishedAt)
+            .ThenByDescending(revision => revision.Version)
+            .Select(revision => revision.Snapshot)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (snapshot is null)
+            return null;
+        return JsonSerializer.Deserialize<DraftDocument>(snapshot, ContentJson.Options)?.Slug;
+    }
+
+    private object Present(string collection, Loaded loaded, DraftDocument? editing, IReadOnlyDictionary<string, string[]>? warnings = null)
     {
         var live = ContentFields.FromRecord(collection, loaded.Record, loaded.Sections);
         DraftDocument content;
@@ -635,18 +840,116 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas)
             content = live;
 
         var published = loaded.Record.Status == ContentStatus.Published;
+        var hasWorkingCopy = published && loaded.Copy is not null;
         return new
         {
             id = loaded.Record.Id,
             collection,
             status = loaded.Record.Status.ToString().ToLowerInvariant(),
+            state = StateOf(loaded.Record.Status, hasWorkingCopy),
             version = loaded.Record.Version,
             updatedAt = loaded.Record.UpdatedAt,
-            hasWorkingCopy = published && loaded.Copy is not null,
+            publishedAt = loaded.Record.PublishedAt,
+            hasWorkingCopy,
+            notice = published ? "Published changes appear on the website at the next build." : null,
+            warnings = warnings ?? new Dictionary<string, string[]>(),
             content = Body(collection, content),
             live = published ? Body(collection, live) : null,
         };
     }
+
+    private static DraftDocument DocumentOf(string collection, Loaded loaded) =>
+        loaded.Copy is null
+            ? ContentFields.FromRecord(collection, loaded.Record, loaded.Sections)
+            : JsonSerializer.Deserialize<DraftDocument>(loaded.Copy.Document, ContentJson.Options)
+                ?? ContentFields.FromRecord(collection, loaded.Record, loaded.Sections);
+
+    private async Task RetargetAsync(string collection, string oldSlug, string newSlug, string? userId, CancellationToken cancellationToken)
+    {
+        var oldPath = ContentPaths.PublicPath(collection, oldSlug);
+        var newPath = ContentPaths.PublicPath(collection, newSlug);
+        if (oldPath is null || newPath is null || oldPath == newPath)
+            return;
+
+        var redirects = await db.Redirects
+            .Where(redirect => redirect.ToPath == oldPath || redirect.FromPath == oldPath)
+            .ToListAsync(cancellationToken);
+        foreach (var redirect in redirects.Where(redirect => redirect.ToPath == oldPath && redirect.FromPath != oldPath).ToList())
+        {
+            redirect.ToPath = newPath;
+            if (redirect.FromPath == redirect.ToPath)
+            {
+                AuditRedirect(userId, "delete_redirect", redirect.Id, redirect.FromPath + " -> " + oldPath);
+                db.Redirects.Remove(redirect);
+            }
+            else
+            {
+                AuditRedirect(userId, "update_redirect", redirect.Id, redirect.FromPath + " -> " + newPath);
+            }
+        }
+
+        var own = redirects.FirstOrDefault(redirect => redirect.FromPath == oldPath);
+        if (own is not null)
+        {
+            own.ToPath = newPath;
+            AuditRedirect(userId, "update_redirect", own.Id, oldPath + " -> " + newPath);
+            return;
+        }
+
+        var created = new Redirect
+        {
+            Id = Guid.NewGuid(),
+            FromPath = oldPath,
+            ToPath = newPath,
+            StatusCode = 301,
+            Source = "slug",
+            CreatedById = userId,
+            CreatedAt = DateTime.UtcNow,
+        };
+        db.Redirects.Add(created);
+        AuditRedirect(userId, "create_redirect", created.Id, oldPath + " -> " + newPath);
+    }
+
+    private async Task<bool> ExistsAsync(string collection, Guid id, CancellationToken cancellationToken) => collection switch
+    {
+        "pages" => await db.Pages.AnyAsync(item => item.Id == id, cancellationToken),
+        "services" => await db.Services.AnyAsync(item => item.Id == id, cancellationToken),
+        "partners" => await db.Partners.AnyAsync(item => item.Id == id, cancellationToken),
+        "case-studies" => await db.CaseStudies.AnyAsync(item => item.Id == id, cancellationToken),
+        "blog-posts" => await db.BlogPosts.AnyAsync(item => item.Id == id, cancellationToken),
+        "vacancies" => await db.Vacancies.AnyAsync(item => item.Id == id, cancellationToken),
+        "team-members" => await db.TeamMembers.AnyAsync(item => item.Id == id, cancellationToken),
+        "news-items" => await db.NewsItems.AnyAsync(item => item.Id == id, cancellationToken),
+        _ => false,
+    };
+
+    private Task<Revision?> FindRevisionAsync(string collection, Guid id, Guid revisionId, CancellationToken cancellationToken)
+    {
+        var entityType = Kinds[collection].EntityType;
+        return db.Revisions.FirstOrDefaultAsync(
+            revision => revision.Id == revisionId && revision.EntityType == entityType && revision.EntityId == id,
+            cancellationToken);
+    }
+
+    private void AuditRedirect(string? userId, string action, Guid id, string detail)
+    {
+        db.AuditLog.Add(new AuditLogEntry
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            Action = action,
+            EntityType = "redirect",
+            EntityId = id.ToString(),
+            At = DateTime.UtcNow,
+            Success = true,
+            Detail = detail,
+        });
+    }
+
+    private static string StateOf(ContentStatus status, bool hasWorkingCopy) =>
+        status == ContentStatus.Published
+            ? hasWorkingCopy ? "changed" : "published"
+            : status.ToString().ToLowerInvariant();
 
     private static object Body(string collection, DraftDocument draft) => new
     {
@@ -721,6 +1024,17 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas)
     private static ContentOutcome NoSections() =>
         ContentOutcome.Fail(StatusCodes.Status404NotFound, "sections_not_supported", "This item has no sections.");
 
+    private static ContentOutcome MissingRevision() =>
+        ContentOutcome.Fail(StatusCodes.Status404NotFound, "not_found", "That revision does not exist.");
+
+    private static ContentOutcome PublishBlocked(Dictionary<string, List<string>> errors, Dictionary<string, List<string>> warnings) =>
+        ContentOutcome.Fail(
+            StatusCodes.Status400BadRequest,
+            "publish_blocked",
+            "Publishing is blocked until every check passes.",
+            errors.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray()),
+            warnings.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray()));
+
     private static ContentOutcome Validation(string key, string message) =>
         Validation(new Dictionary<string, List<string>> { [key] = [message] });
 
@@ -757,8 +1071,10 @@ public sealed class ContentOutcome
 
     public IDictionary<string, string[]>? Errors { get; init; }
 
+    public IDictionary<string, string[]>? Warnings { get; init; }
+
     public static ContentOutcome Ok(object body, int status = StatusCodes.Status200OK) => new() { Body = body, Status = status };
 
-    public static ContentOutcome Fail(int status, string code, string title, IDictionary<string, string[]>? errors = null) =>
-        new() { Status = status, Code = code, Title = title, Errors = errors };
+    public static ContentOutcome Fail(int status, string code, string title, IDictionary<string, string[]>? errors = null, IDictionary<string, string[]>? warnings = null) =>
+        new() { Status = status, Code = code, Title = title, Errors = errors, Warnings = warnings };
 }

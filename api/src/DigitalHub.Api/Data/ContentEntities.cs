@@ -159,8 +159,6 @@ public sealed class BlogPost : ContentRecord
     /// </summary>
     public string Faq { get; set; } = """{"items":[]}""";
 
-    public List<string> RelatedSlugs { get; set; } = [];
-
     public DateTime? DateModified { get; set; }
 
     public bool Featured { get; set; }

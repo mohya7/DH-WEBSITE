@@ -43,6 +43,26 @@ public sealed class ContentController(ContentStore store) : ControllerBase
     public async Task<IActionResult> Discard(string collection, Guid id, [FromBody] VersionBody request, CancellationToken cancellationToken) =>
         Respond(await store.DiscardAsync(collection, id, request.Version, UserId(), cancellationToken));
 
+    [HttpPost("{id:guid}/publish")]
+    public async Task<IActionResult> Publish(string collection, Guid id, [FromBody] VersionBody request, CancellationToken cancellationToken) =>
+        Respond(await store.PublishAsync(collection, id, request.Version, UserId(), cancellationToken));
+
+    [HttpPost("{id:guid}/unpublish")]
+    public async Task<IActionResult> Unpublish(string collection, Guid id, [FromBody] VersionBody request, CancellationToken cancellationToken) =>
+        Respond(await store.UnpublishAsync(collection, id, request.Version, UserId(), cancellationToken));
+
+    [HttpGet("{id:guid}/revisions")]
+    public async Task<IActionResult> Revisions(string collection, Guid id, CancellationToken cancellationToken) =>
+        Respond(await store.ListRevisionsAsync(collection, id, cancellationToken));
+
+    [HttpGet("{id:guid}/revisions/{revisionId:guid}")]
+    public async Task<IActionResult> Revision(string collection, Guid id, Guid revisionId, CancellationToken cancellationToken) =>
+        Respond(await store.GetRevisionAsync(collection, id, revisionId, cancellationToken));
+
+    [HttpPost("{id:guid}/revisions/{revisionId:guid}/restore")]
+    public async Task<IActionResult> Restore(string collection, Guid id, Guid revisionId, [FromBody] VersionBody request, CancellationToken cancellationToken) =>
+        Respond(await store.RestoreAsync(collection, id, revisionId, request.Version, UserId(), cancellationToken));
+
     [HttpPost("{id:guid}/sections")]
     public async Task<IActionResult> AddSection(string collection, Guid id, [FromBody] SectionCreate request, CancellationToken cancellationToken) =>
         Respond(await store.AddSectionAsync(collection, id, request.Version, request.Type, request.Visible, request.Fields, UserId(), cancellationToken));
@@ -81,6 +101,8 @@ public sealed class ContentController(ContentStore store) : ControllerBase
                 Type = "https://tools.ietf.org/html/rfc7807",
             };
             problem.Extensions["code"] = outcome.Code;
+            if (outcome.Warnings is { Count: > 0 })
+                problem.Extensions["warnings"] = outcome.Warnings;
             return new ObjectResult(problem)
             {
                 StatusCode = outcome.Status,

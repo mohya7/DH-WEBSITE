@@ -230,11 +230,6 @@ namespace DigitalHub.Api.Data.Migrations
                         .HasColumnType("int")
                         .HasColumnName("read_time");
 
-                    b.PrimitiveCollection<string>("RelatedSlugs")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)")
-                        .HasColumnName("related_slugs");
-
                     b.Property<string>("ShareImageAltOverride")
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)")

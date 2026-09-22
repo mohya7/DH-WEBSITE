@@ -72,7 +72,7 @@ public static class ContentFields
         ["services"] = ["summary", "icon", "visual", "featured"],
         ["partners"] = ["summary", "imageId", "imageAltOverride", "variant", "featured"],
         ["case-studies"] = ["summary", "imageId", "imageAltOverride", "metric", "categories", "featured"],
-        ["blog-posts"] = ["summary", "imageId", "imageAltOverride", "category", "categoryLabel", "readTime", "accent", "cluster", "body", "answerBlock", "faq", "relatedSlugs", "dateModified", "featured"],
+        ["blog-posts"] = ["summary", "imageId", "imageAltOverride", "category", "categoryLabel", "readTime", "accent", "cluster", "body", "answerBlock", "faq", "dateModified", "featured"],
         ["vacancies"] = ["summary", "department", "location", "employmentType", "aboutRole", "keyResponsibilities", "requiredSkills", "niceToHave", "roleOffers", "interviewStages", "featured"],
         ["team-members"] = ["role", "imageId", "imageAltOverride", "email", "linkedIn", "featured"],
         ["news-items"] = ["summary", "details", "imageId", "imageAltOverride", "category", "location", "year", "month", "featured"],
@@ -190,7 +190,6 @@ public static class ContentFields
                 OptionalLong(draft, errors, "body");
                 OptionalLong(draft, errors, "answerBlock");
                 OptionalLong(draft, errors, "faq");
-                OptionalStrings(draft, errors, "relatedSlugs");
                 OptionalDate(draft, errors, "dateModified");
                 OptionalBool(draft, errors, "featured");
                 break;
@@ -266,7 +265,6 @@ public static class ContentFields
                 post.Body = Long(fields, "body", post.Body);
                 post.AnswerBlock = LongNull(fields, "answerBlock", post.AnswerBlock);
                 post.Faq = Long(fields, "faq", post.Faq);
-                post.RelatedSlugs = Strings(fields, "relatedSlugs", post.RelatedSlugs);
                 post.DateModified = Date(fields, "dateModified", post.DateModified);
                 post.Featured = Bool(fields, "featured", post.Featured);
                 break;
@@ -332,7 +330,6 @@ public static class ContentFields
                 post.Body,
                 post.AnswerBlock,
                 post.Faq,
-                post.RelatedSlugs,
                 post.DateModified,
                 post.Featured,
             },

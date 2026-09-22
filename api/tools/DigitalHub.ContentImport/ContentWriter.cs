@@ -466,7 +466,6 @@ static partial class ContentWriter
             Body = ArticleBody(document, source, media, warnings),
             AnswerBlock = Blank(Text(item, "answerBlock")),
             Faq = """{"items":[]}""",
-            RelatedSlugs = [],
             Featured = !htmlOnly && Bool(item, "featured"),
         };
         if (imagePath is not null && media.TryGetValue(imagePath, out var asset))
@@ -1264,8 +1263,7 @@ static partial class ContentWriter
         SameRecord(left, right) && left.Summary == right.Summary && left.ImageId == right.ImageId && left.ImageAltOverride == right.ImageAltOverride
         && left.Category == right.Category && left.CategoryLabel == right.CategoryLabel && left.ReadTime == right.ReadTime
         && left.Accent == right.Accent && left.Cluster == right.Cluster && left.Body == right.Body && left.AnswerBlock == right.AnswerBlock
-        && left.Faq == right.Faq && left.Featured == right.Featured && T(left.DateModified) == T(right.DateModified)
-        && left.RelatedSlugs.SequenceEqual(right.RelatedSlugs);
+        && left.Faq == right.Faq && left.Featured == right.Featured && T(left.DateModified) == T(right.DateModified);
 
     private static bool SameTeam(TeamMember left, TeamMember right) =>
         SameRecord(left, right) && left.Role == right.Role && left.ImageId == right.ImageId && left.ImageAltOverride == right.ImageAltOverride
