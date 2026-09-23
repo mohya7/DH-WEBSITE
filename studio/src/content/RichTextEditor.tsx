@@ -102,7 +102,7 @@ export function RichTextEditor({
     ],
     content: parseDocument(value),
     editorProps: {
-      attributes: { "data-field": fieldPath, class: "min-h-40 rounded border border-slate-200 p-3" },
+      attributes: { "data-field": fieldPath, class: "min-h-40" },
       handlePaste(_view, event) {
         const files = Array.from(event.clipboardData?.files ?? []);
         if (files.some((file) => file.type.startsWith("image/"))) {
@@ -142,7 +142,7 @@ export function RichTextEditor({
   }
 
   return (
-    <div data-field={fieldPath}>
+    <div className="rich-text-editor" data-field={fieldPath}>
       <Space wrap className="mb-2">
         <Button size="small" onClick={() => editor?.chain().focus().toggleBold().run()}>Bold</Button>
         <Button size="small" onClick={() => editor?.chain().focus().toggleItalic().run()}>Italic</Button>
@@ -159,7 +159,7 @@ export function RichTextEditor({
         <Button size="small" onClick={() => setPicker(true)}>Image</Button>
       </Space>
       <EditorContent editor={editor} />
-      {notice !== null ? <p className="mt-2 text-sm text-amber-700">{notice}</p> : null}
+      {notice !== null ? <p className="mt-2 text-sm" style={{ color: "var(--dh-warning)" }}>{notice}</p> : null}
       <MediaPicker open={picker} onClose={() => setPicker(false)} onSelect={insertImage} />
       <LinkDialog
         open={linkOpen}
@@ -231,8 +231,8 @@ function LinkDialog({
       </Space>
       {mode === "external" ? (
         <div>
-          <input className="mb-2 w-full rounded border border-slate-300 px-2 py-1" value={href} onChange={(event) => setHref(event.target.value)} />
-          {error !== null ? <p className="text-sm text-red-700">{error}</p> : null}
+          <input className="native-control mb-2" value={href} onChange={(event) => setHref(event.target.value)} />
+          {error !== null ? <p className="text-sm" style={{ color: "var(--dh-error)" }}>{error}</p> : null}
           <Button
             type="primary"
             onClick={() => {
@@ -250,13 +250,13 @@ function LinkDialog({
         </div>
       ) : (
         <div>
-          <select className="mb-2 w-full rounded border border-slate-300 px-2 py-1" value={type} onChange={(event) => setType(event.target.value)}>
+          <select className="native-control mb-2" value={type} onChange={(event) => setType(event.target.value)}>
             {Object.keys(referenceCollections).map((name) => (
               <option key={name} value={name}>{name}</option>
             ))}
           </select>
           <input
-            className="mb-2 w-full rounded border border-slate-300 px-2 py-1"
+            className="native-control mb-2"
             placeholder="Search items"
             value={search}
             onChange={(event) => {
@@ -267,13 +267,13 @@ function LinkDialog({
           <ul>
             {items.map((item) => (
               <li key={item.id}>
-                <button type="button" className="py-1 text-left" onClick={() => onInternal(type, item.id)}>
+                <button type="button" className="reference-hit py-1 text-left" onClick={() => onInternal(type, item.id)}>
                   {item.title}
                 </button>
               </li>
             ))}
           </ul>
-          <p className="text-xs text-slate-500">The address is resolved when the site is built.</p>
+          <p className="text-xs" style={{ color: "var(--dh-text-muted)" }}>The address is resolved when the site is built.</p>
         </div>
       )}
     </Modal>

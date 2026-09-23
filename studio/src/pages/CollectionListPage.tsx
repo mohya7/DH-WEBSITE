@@ -1,8 +1,10 @@
-import { Button, Input, Select, Space, Table, Tag, Typography } from "antd";
+import { Button, Input, Segmented, Space, Table, Typography } from "antd";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { jsonInit, request } from "../api/http";
 import { routeFor, type CollectionName } from "../content/model";
+import { PageHeader } from "../ui/PageHeader";
+import { StatusChip } from "../ui/StatusChip";
 
 type ListItem = {
   id: string;
@@ -17,13 +19,6 @@ type ListItem = {
 type ListPage = {
   items: ListItem[];
   total: number;
-};
-
-const stateColor: Record<string, string> = {
-  draft: "default",
-  published: "green",
-  changed: "gold",
-  ended: "red",
 };
 
 export function CollectionListPage({ collection }: { collection: CollectionName }) {
@@ -88,11 +83,12 @@ export function CollectionListPage({ collection }: { collection: CollectionName 
   }
 
   return (
-    <section>
-      <div className="mb-4 flex items-center justify-between">
-        <Typography.Title level={2} className="!mb-0">{route.label}</Typography.Title>
-        <Button type="primary" onClick={() => void createItem()}>New</Button>
-      </div>
+    <section className="surface-card">
+      <PageHeader
+        title={route.label}
+        subtitle={`${page.total} item${page.total === 1 ? "" : "s"}`}
+        extra={<Button type="primary" onClick={() => void createItem()}>New</Button>}
+      />
       <Space className="mb-4" wrap>
         <Input.Search
           placeholder="Search title or address"
@@ -101,16 +97,15 @@ export function CollectionListPage({ collection }: { collection: CollectionName 
           onChange={(event) => setSearch(event.target.value)}
           onSearch={(value) => void load(value, status)}
         />
-        <Select
-          allowClear
-          placeholder="Status"
-          style={{ width: 160 }}
-          value={status}
+        <Segmented
+          value={status ?? "all"}
           onChange={(value) => {
-            setStatus(value);
-            void load(search, value);
+            const next = value === "all" ? undefined : String(value);
+            setStatus(next);
+            void load(search, next);
           }}
           options={[
+            { value: "all", label: "All" },
             { value: "draft", label: "Draft" },
             { value: "published", label: "Published" },
             { value: "ended", label: "Ended" },
@@ -130,6 +125,7 @@ export function CollectionListPage({ collection }: { collection: CollectionName 
         pagination={false}
         dataSource={page.items}
         onRow={(_, index) => ({
+          tabIndex: 0,
           draggable: canReorder,
           onDragStart: () => setDragIndex(index ?? null),
           onDragOver: (event) => event.preventDefault(),
@@ -146,7 +142,7 @@ export function CollectionListPage({ collection }: { collection: CollectionName 
         columns={[
           { title: "Title", dataIndex: "title", render: (title: string, row: ListItem) => <Button type="link" onClick={() => navigate(`/${route.path}/${row.id}`)}>{title}</Button> },
           { title: "Address", dataIndex: "slug" },
-          { title: "State", dataIndex: "state", render: (state: string) => <Tag color={stateColor[state] ?? "default"}>{state}</Tag> },
+          { title: "State", dataIndex: "state", render: (state: string) => <StatusChip state={state} /> },
           {
             title: "",
             render: (_value: unknown, _row: ListItem, index: number) => canReorder ? (

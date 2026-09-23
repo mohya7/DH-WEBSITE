@@ -2,6 +2,7 @@ import { Alert, Button, Form, Input, Typography, message } from "antd";
 import { useEffect, useState } from "react";
 import { useAuth } from "../auth/AuthProvider";
 import { jsonInit, request } from "../api/http";
+import { PageHeader } from "../ui/PageHeader";
 
 type Settings = {
   phone?: string | null;
@@ -56,8 +57,8 @@ export function SettingsPage() {
   }
 
   return (
-    <section className="max-w-3xl">
-      <Typography.Title level={2}>Site settings</Typography.Title>
+    <section className="surface-card max-w-3xl">
+      <PageHeader title="Site settings" />
       {!canEdit ? <Alert className="!mb-4" type="info" showIcon message="Editors can view settings. Only admins can save changes." /> : null}
       {error !== null ? <Typography.Paragraph type="danger">{error}</Typography.Paragraph> : null}
       <Form form={form} layout="vertical" disabled={!canEdit} onFinish={(values) => void save(values)}>

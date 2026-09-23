@@ -1,14 +1,31 @@
-import { Alert, Badge, Button, Form, Input, Layout, Menu, Modal, Result, Spin, Tag, Typography, message } from "antd";
+import { Alert, Button, Form, Input, Modal, Result, Spin, message } from "antd";
 import { useEffect, useState } from "react";
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { jsonInit, request } from "../api/http";
 import { useAuth } from "../auth/AuthProvider";
 import type { StudioUser } from "../auth/session";
 import { queryClient, sessionQueryKey } from "../queryClient";
-import { brand } from "../theme";
-import { areasForRole, isStudioRole } from "./areas";
+import { StatusChip } from "../ui/StatusChip";
+import { areasForRole, isStudioRole, type StudioArea } from "./areas";
+import logo from "@digitalhub/theme/assets/digital-hub-logo.png";
 
-const { Header, Sider, Content } = Layout;
+const groups = ["Content", "Library", "Site", "Administration"] as const;
+
+const groupIcons: Record<(typeof groups)[number], string> = {
+  Content:
+    "M3 3.5h10v3H3zM3 8h6v2H3zM3 11.5h8v1.5H3z",
+  Library:
+    "M2.5 3h3v10h-3zM6.5 3h3v10h-3zM10.5 3H13.5v10H10.5z",
+  Site:
+    "M8 2.5 13.5 6v7.5h-11V6z",
+  Administration:
+    "M8 3.2a2.3 2.3 0 1 1 0 4.6 2.3 2.3 0 0 1 0-4.6zM3.5 13.2c.4-2.2 2.2-3.4 4.5-3.4s4.1 1.2 4.5 3.4",
+};
+
+function groupOf(pathname: string, visible: StudioArea[]): (typeof groups)[number] {
+  const match = visible.find((area) => pathname === area.path || pathname.startsWith(`${area.path}/`));
+  return match?.group ?? "Content";
+}
 
 export function AppShell() {
   const auth = useAuth();
@@ -60,27 +77,9 @@ export function AppShell() {
   }
 
   const visible = areasForRole(user.role);
-  const groups = ["Content", "Library", "Site", "Administration"] as const;
-  const items = groups
-    .map((group) => ({
-      type: "group" as const,
-      label: group,
-      children: visible
-        .filter((area) => area.group === group)
-        .map((area) => ({
-          key: area.path,
-          label:
-            area.path === "/contact" && newContacts > 0 ? (
-              <span className="flex items-center justify-between gap-2">
-                <span>{area.label}</span>
-                <Badge count={newContacts} overflowCount={99} />
-              </span>
-            ) : (
-              area.label
-            ),
-        })),
-    }))
-    .filter((group) => group.children.length > 0);
+  const availableGroups = groups.filter((group) => visible.some((area) => area.group === group));
+  const currentGroup = groupOf(location.pathname, visible);
+  const pills = visible.filter((area) => area.group === currentGroup);
 
   async function changePassword() {
     if (user === null) return;
@@ -104,31 +103,57 @@ export function AppShell() {
   }
 
   return (
-    <Layout className="min-h-svh">
-      <Sider width={240} theme="light" className="border-r border-slate-200">
-        <div className="flex items-center gap-3 px-4 py-5">
-          <span aria-hidden="true" className="inline-block h-7 w-7 rounded-md" style={{ backgroundColor: brand.accent }} />
-          <Typography.Text strong style={{ color: brand.primary }}>
-            Content Studio
-          </Typography.Text>
-        </div>
-        <Menu
-          mode="inline"
-          selectedKeys={[visible.find((area) => location.pathname === area.path || location.pathname.startsWith(`${area.path}/`))?.path ?? location.pathname]}
-          items={items}
-          onClick={({ key }) => navigate(String(key))}
-        />
-      </Sider>
-      <Layout>
-        <Header
-          className="flex items-center justify-end gap-3 px-6"
-          style={{ background: "#fff", borderBottom: "1px solid #e2e8f0" }}
-        >
-          <Typography.Text>{user.email}</Typography.Text>
-          <Tag color="blue">{user.role}</Tag>
-          <Button onClick={() => void auth.signOut()}>Sign out</Button>
-        </Header>
-        <Content className="p-6">
+    <div className="studio-shell">
+      <nav className="studio-rail" aria-label="Studio">
+        <img className="studio-rail-logo" src={logo} alt="Digital Hub" />
+        {availableGroups.map((group) => {
+          const first = visible.find((area) => area.group === group);
+          if (first === undefined) return null;
+          const active = currentGroup === group;
+          return (
+            <button
+              key={group}
+              type="button"
+              className="studio-rail-item"
+              aria-current={active ? "true" : undefined}
+              onClick={() => navigate(first.path)}
+            >
+              <span className="studio-rail-disk" aria-hidden="true">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                  <path d={groupIcons[group]} stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+                </svg>
+              </span>
+              {group}
+            </button>
+          );
+        })}
+      </nav>
+      <div className="studio-main">
+        <header className="studio-top">
+          <nav className="studio-pills" aria-label={currentGroup}>
+            {pills.map((area) => (
+              <NavLink
+                key={area.path}
+                to={area.path}
+                role="menuitem"
+                aria-label={area.label}
+                className="studio-pill"
+                aria-current={location.pathname === area.path || location.pathname.startsWith(`${area.path}/`) ? "page" : undefined}
+              >
+                {area.label}
+                {area.path === "/contact" && newContacts > 0 ? (
+                  <span className="studio-pill-dot" aria-hidden="true" />
+                ) : null}
+              </NavLink>
+            ))}
+          </nav>
+          <div className="studio-user">
+            <span>{user.email}</span>
+            <StatusChip state={user.role} />
+            <Button onClick={() => void auth.signOut()}>Sign out</Button>
+          </div>
+        </header>
+        <main>
           {user.mustChangePassword ? (
             <Alert
               className="!mb-4"
@@ -138,8 +163,8 @@ export function AppShell() {
             />
           ) : null}
           <Outlet />
-        </Content>
-      </Layout>
+        </main>
+      </div>
       <Modal title="Change password" open={user.mustChangePassword} closable={false} maskClosable={false} footer={null}>
         <Form layout="vertical" onFinish={() => void changePassword()}>
           <Form.Item label="Current password" required>
@@ -153,6 +178,6 @@ export function AppShell() {
           </Button>
         </Form>
       </Modal>
-    </Layout>
+    </div>
   );
 }

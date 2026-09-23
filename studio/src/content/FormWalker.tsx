@@ -79,7 +79,7 @@ function Field({
   if (schema.properties !== undefined) {
     const objectValue = isRecord(value) ? value : {};
     return (
-      <fieldset data-field={fieldPath} className="rounded border border-slate-200 p-3">
+      <fieldset data-field={fieldPath} className="section-card">
         <legend className="px-1 text-sm">{label}</legend>
         <FormWalker schema={schema} catalog={catalog} value={objectValue} onChange={onChange} fieldPath={fieldPath} />
       </fieldset>
@@ -171,7 +171,7 @@ function Control({
   }
   if (schema.enum !== undefined) {
     return (
-      <select className="w-full rounded border border-slate-300 px-2 py-1" value={text(value)} onChange={(event) => onChange(event.target.value)}>
+      <select className="native-control" value={text(value)} onChange={(event) => onChange(event.target.value)}>
         <option value="">Choose</option>
         {schema.enum.map((option) => (
           <option key={option} value={option}>{option}</option>
@@ -207,7 +207,7 @@ function ReferenceField({
 
   return (
     <div className="flex flex-col gap-2" data-check="references">
-      <select className="rounded border border-slate-300 px-2 py-1" value={type} onChange={(event) => onChange({ type: event.target.value, id: "" })}>
+      <select className="native-control" value={type} onChange={(event) => onChange({ type: event.target.value, id: "" })}>
         {options.map((option) => (
           <option key={option} value={option}>{labelFromKey(option)}</option>
         ))}
@@ -223,13 +223,13 @@ function ReferenceField({
       <ul>
         {items.map((item) => (
           <li key={item.id}>
-            <button type="button" className="py-1" onClick={() => onChange({ type, id: item.id })}>
+            <button type="button" className="reference-hit py-1" onClick={() => onChange({ type, id: item.id })}>
               {item.title}
             </button>
           </li>
         ))}
       </ul>
-      <span className="text-xs text-slate-500">{text(current.id).length > 0 ? `Linked item ${text(current.id)}` : "No item chosen. An empty title uses the linked item."}</span>
+      <span className="text-xs" style={{ color: "var(--dh-text-muted)" }}>{text(current.id).length > 0 ? `Linked item ${text(current.id)}` : "No item chosen. An empty title uses the linked item."}</span>
     </div>
   );
 }
@@ -257,7 +257,7 @@ function ArrayField({
       <div className="mb-2 text-sm">{label}</div>
       <div className="flex flex-col gap-3">
         {items.map((item, index) => (
-          <div key={index} className="rounded border border-slate-200 p-3">
+          <div key={index} className="section-card">
             {objectItem ? (
               <FormWalker
                 schema={itemSchema.oneOf !== undefined ? branchFor(itemSchema, item) : itemSchema}
@@ -310,7 +310,7 @@ function OneOfField({
     <div data-field={fieldPath}>
       <div className="mb-2 text-sm">{label}</div>
       <select
-        className="mb-2 rounded border border-slate-300 px-2 py-1"
+        className="native-control mb-2"
         value={kind}
         onChange={(event) => {
           const next = branches.find((branch) => branch.properties?.kind?.const === event.target.value);

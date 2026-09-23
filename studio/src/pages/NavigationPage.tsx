@@ -1,4 +1,5 @@
-import { Button, Form, Input, Select, Space, Typography, message } from "antd";
+import { Button, Form, Input, Segmented, Select, Space, Typography, message } from "antd";
+import { PageHeader } from "../ui/PageHeader";
 import { useEffect, useState } from "react";
 import { jsonInit, request } from "../api/http";
 import { labelFromKey, referenceCollections } from "../content/model";
@@ -61,19 +62,27 @@ export function NavigationPage() {
   }
 
   return (
-    <section>
-      <div className="mb-4 flex items-center justify-between">
-        <Typography.Title level={2} className="!mb-0">Navigation</Typography.Title>
-        <Space>
-          <Button type={menu === "header" ? "primary" : "default"} onClick={() => setMenu("header")}>Header</Button>
-          <Button type={menu === "footer" ? "primary" : "default"} onClick={() => setMenu("footer")}>Footer</Button>
-          <Button type="primary" onClick={() => void save()}>Save</Button>
-        </Space>
-      </div>
+    <section className="surface-card">
+      <PageHeader
+        title="Navigation"
+        extra={
+          <Space>
+            <Segmented
+              value={menu}
+              onChange={(value) => setMenu(value as "header" | "footer")}
+              options={[
+                { value: "header", label: "Header" },
+                { value: "footer", label: "Footer" },
+              ]}
+            />
+            <Button type="primary" onClick={() => void save()}>Save</Button>
+          </Space>
+        }
+      />
       {error !== null ? <Typography.Paragraph type="danger">{error}</Typography.Paragraph> : null}
       <Space direction="vertical" className="w-full" size="large">
         {items.map((item, index) => (
-          <div key={item.id ?? index} className="rounded border border-slate-200 p-4">
+          <div key={item.id ?? index} className="section-card">
             <Form layout="vertical">
               <Form.Item label="Label">
                 <Input value={item.label} onChange={(event) => updateRoot(index, { label: event.target.value })} />
@@ -87,9 +96,9 @@ export function NavigationPage() {
                 />
               )}
             </Form>
-            <div className="ml-4 space-y-3 border-l border-slate-200 pl-4">
+            <div className="ml-4 space-y-3 border-l pl-4" style={{ borderColor: "var(--dh-border)" }}>
               {(item.children ?? []).map((child, childIndex) => (
-                <div key={child.id ?? childIndex} className="space-y-2 rounded bg-slate-50 p-3">
+                <div key={child.id ?? childIndex} className="section-card space-y-2">
                   <Input placeholder="Label" value={child.label} onChange={(event) => updateChild(index, childIndex, { label: event.target.value })} />
                   <LinkFields node={child} onChange={(patch) => updateChild(index, childIndex, patch)} />
                 </div>
@@ -174,7 +183,7 @@ function LinkFields({ node, onChange }: { node: NavNode; onChange: (patch: Parti
               <li key={hit.id}>
                 <button
                   type="button"
-                  className="py-1 text-left text-[#1270A0]"
+                  className="reference-hit py-1 text-left"
                   onClick={() => onChange({ linkKind: "internal", targetType: type, targetId: hit.id, url: null })}
                 >
                   {hit.title}

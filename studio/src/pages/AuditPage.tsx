@@ -1,4 +1,5 @@
-import { DatePicker, Input, Space, Table, Typography, Result } from "antd";
+import { Button, DatePicker, Input, Space, Table, Typography, Result } from "antd";
+import { PageHeader } from "../ui/PageHeader";
 import type { Dayjs } from "dayjs";
 import { useEffect, useState } from "react";
 import { useAuth } from "../auth/AuthProvider";
@@ -57,14 +58,14 @@ export function AuditPage() {
   }
 
   return (
-    <section>
-      <Typography.Title level={2}>Audit log</Typography.Title>
+    <section className="surface-card">
+      <PageHeader title="Audit log" />
       <Space wrap className="mb-4">
         <Input placeholder="User id" value={userId} onChange={(event) => setUserId(event.target.value)} allowClear style={{ width: 220 }} />
         <Input placeholder="Action" value={action} onChange={(event) => setAction(event.target.value)} allowClear style={{ width: 160 }} />
         <Input placeholder="Entity type" value={entityType} onChange={(event) => setEntityType(event.target.value)} allowClear style={{ width: 160 }} />
         <DatePicker.RangePicker value={range as [Dayjs, Dayjs] | null} onChange={(value) => setRange(value)} />
-        <ButtonFilter onClick={() => void load()} />
+        <Button onClick={() => void load()}>Filter</Button>
       </Space>
       {error !== null ? <Typography.Paragraph type="danger">{error}</Typography.Paragraph> : null}
       <Table
@@ -81,13 +82,5 @@ export function AuditPage() {
         ]}
       />
     </section>
-  );
-}
-
-function ButtonFilter({ onClick }: { onClick: () => void }) {
-  return (
-    <button type="button" className="rounded border border-slate-300 px-3 py-1" onClick={onClick}>
-      Filter
-    </button>
   );
 }

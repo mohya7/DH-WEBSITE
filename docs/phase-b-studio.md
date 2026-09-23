@@ -13,7 +13,7 @@ Work in `D:\work\DigitalHub\dh-platform`, branch `rebuild/dotnet-platform`. Work
 | Area | Decision |
 |---|---|
 | Studio stack | Vite + React + TypeScript, Ant Design, Tailwind, React Router, TanStack Query |
-| Studio design | Not locked. Ant Design, themed with the brand: primary `#1270A0`, accent `#F4970B`, font Poppins |
+| Studio design | Dark content system, approved in Section 12. Tokens live in `packages/theme` for Phase G. Website brand `#1270A0` is untouched. |
 | Hosting | Studio and API on the **same origin**, on their own subdomain, never the website's domain. Vite proxy in development, IIS in production. No CORS. See Hosting below |
 | Tokens | Access token in memory only. Session restored after reload through `refresh`, echoing the `dh_csrf` cookie as the `X-CSRF-Token` header |
 | Roles in the Studio | `admin` and `editor` only. The other three roles exist but are not assignable from the Studio until hiring moves |
@@ -327,3 +327,228 @@ Report each result. If any step fails, stop and show it.
 **11.6** What Phase C needs from this phase — in particular what the preview will plug into.
 
 **11.7** Confirm no secret is committed.
+
+---
+
+## Section 12 — Studio appearance
+
+The Studio is **not** a port of the old admin panel and **not** a clone of the task-dashboard reference. It is a modern content-system interface, **dark**. The reference supplies a visual language only: cards, rail, pills, quiet chips, card headers, type, and spacing. It does not supply a layout, a feature set, or a colour scheme.
+
+Do not take the kanban board, avatar stacks, the AI banner, gradient buttons, or any of that product's own features.
+
+**12.6 stands.** The website's design is untouched by this section. `#1270A0` remains the website's primary. The Studio uses a lighter derivative, named below, and never writes tokens into the website.
+
+### 12.1 Written proposal
+
+#### Brand blue, and why it cannot be the Studio primary
+
+`#1270A0` on the proposed card `#22272D` is **2.76:1**. On the page `#17191C` it is **3.23:1**. Both fail WCAG AA for text (4.5:1) and for UI components (3:1). It reads as a dark stain, not an accent.
+
+Off-white `#E6E9ED` on `#1270A0` is **4.48:1** — a hair under AA for small text. The website can keep using it because its surfaces are light. The Studio cannot.
+
+**Proposed Studio accent:** `#45A8D4` — the same hue as `#1270A0` (~199°), lifted in lightness, slightly eased in saturation so it does not fluoresce on dark grey.
+
+| Colour | Use | On card `#22272D` | On page `#17191C` |
+|---|---|---|---|
+| `#1270A0` website brand | Website only. Not a Studio button, link, or selection | **2.76:1 — fail** | **3.23:1 — fail** |
+| `#45A8D4` Studio accent | Links, selection, focus ring, active rail disk. **Not** the primary button fill | **5.59:1 — AA** | **6.55:1 — AA** |
+
+**Primary button (approved):** near-black `#0E1114` with off-white `#E6E9ED` text, matching the reference — the primary action is quiet; colour is reserved for status.
+
+| Pair | Contrast | Notes |
+|---|---|---|
+| `#E6E9ED` on `#0E1114` | **15.55:1** | Label. AAA |
+| `#0E1114` on card `#22272D` | **1.26:1** | Fill vs card. The same quiet step as the reference. Going darker than this card cannot reach 3:1 — the card is already too dark. The control is identified by the label and the focus ring, not by a coloured slab. |
+| `#45A8D4` on `#0E1114` | **7.04:1** | Focus ring on the button |
+
+`#45A8D4` still appears as: text links, the selected collection title, the 2px focus ring, the filled disk of the active rail item (icon `#0C1A22`, **6.58:1**), table-row and pill selection, and the input caret/active border. It is never a button fill, never a banner, never a chip.
+
+Ghost and default buttons are `surface.raised` with primary text. Destructive stays `#E06B6B` as text, not a red fill.
+
+Orange `#F4970B` is **6.65:1** on the card as text or a small icon. It is never a background, never a button fill, never a banner wash.
+
+#### Type
+
+Poppins is a geometric display face. At 20px and above — page titles, card titles — it holds: the bold weight is tight, the shapes are calm, it matches the website's heading voice. At 12–14px it does not. The bowls of `a`, `e`, and `g` fill in, the wide proportions loosen tables and chips, and hinting on Windows is weaker than a UI face.
+
+**Headings stay Poppins.** Body, labels, chips, tables, form controls, and the rich-text chrome use **Inter**. Inter is also geometric, so the pair does not clash, and it is drawn for 13px UI. Load `@fontsource/inter` the same way Poppins is loaded today. Do not introduce a third family.
+
+#### Full palette
+
+Surfaces, lightest last. Depth comes from these steps, not from drop shadows. Shadows, if any, are a 4% black at 8px blur and are not required for the hierarchy to read.
+
+| Token | Hex | Role |
+|---|---|---|
+| `surface.page` | `#17191C` | Application canvas. In the `#15171a`–`#1a1d21` band. Never `#000`. |
+| `surface.card` | `#22272D` | Lists, editor, sign-in card, drawers. Lighter than the page. |
+| `surface.raised` | `#2B3138` | Icon-rail active disk, dropdowns, popovers, hover rows, sticky toolbars. |
+| `surface.input` | `#1C2025` | Fields inset on a card — a fourth step so inputs read as wells, not as second cards. |
+| `text.primary` | `#E6E9ED` | Titles, body, input value. Soft off-white, never `#fff`. |
+| `text.secondary` | `#A4ADB6` | Subtitles, helper text, timestamps, column headers. |
+| `text.muted` | `#8B949E` | Placeholders, disabled, legal asides. Still AA on the card. |
+| `border.subtle` | `#343B43` | 1px at ~1.3:1 on the card — present, not a frame. |
+| `accent` | `#45A8D4` | Links, selection, focus, primary fill. |
+| `accent.on` | `#0C1A22` | Text on a primary fill. |
+| `warning` | `#F4970B` | Attention text and icon only. |
+| `error` | `#E06B6B` | Destructive text, error icon, validation. |
+
+Contrast of text against surfaces:
+
+| Foreground | Page `#17191C` | Card `#22272D` | Raised `#2B3138` |
+|---|---|---|---|
+| `#E6E9ED` | 14.46 | 12.35 | 10.78 |
+| `#A4ADB6` | 7.74 | 6.61 | — |
+| `#8B949E` | — | 4.89 | — |
+| `#45A8D4` | 6.55 | 5.59 | — |
+| `#F4970B` | — | 6.65 | — |
+| `#E06B6B` | — | 4.64 | — |
+
+Semantic chips (small tinted pills, 12px Inter, a 14px icon, never Ant `Tag` colours):
+
+| State | Background | Foreground | Contrast | Icon |
+|---|---|---|---|---|
+| Draft | `#2A3036` | `#C8D0D8` | 8.55 | empty circle |
+| Published | `#1E3A2C` | `#7DCEA0` | 6.61 | check |
+| Changed | `#3A3118` | `#E8C36A` | 7.62 | pencil |
+| Ended | `#3A3118` | `#F4970B` | 5.68 | minus |
+| Warning (inline) | none | `#F4970B` on card | 6.65 | alert |
+| Error | `#3A2224` | `#E06B6B` | 4.52 | x |
+
+Chip foregrounds also pass on the card if the fill is omitted: draft 9.65, published 8.03, changed 8.91.
+
+#### Radius, spacing, type scale
+
+| Token | Value |
+|---|---|
+| Radius card | 20px |
+| Radius raised / modal / drawer | 16px |
+| Radius control (input, button, select) | 12px |
+| Radius chip / pill / segmented | 999px |
+| Radius icon disk | 999px |
+| Space base | 8px |
+| Page padding | 24px (32px on wide) |
+| Card padding | 20px |
+| Stack between cards | 16px |
+| Rail inset from the viewport | 12px |
+
+Type:
+
+| Role | Face | Size / line / weight |
+|---|---|---|
+| Page title | Poppins | 22 / 28 / 600 |
+| Card title | Poppins | 16 / 22 / 600 |
+| Section title | Poppins | 14 / 20 / 600 |
+| Body, form value | Inter | 14 / 22 / 400 |
+| Secondary, table cell | Inter | 13 / 20 / 400 |
+| Chip, overline, column header | Inter | 12 / 16 / 500 |
+
+Card header, every time it appears: a 32px muted circle (`surface.raised`) holding a 16px icon in `text.secondary`; Poppins title; Inter subtitle in `text.secondary`. No orange block as a logo.
+
+#### How each area changes
+
+**Sign-in.** Page surface, one centred card. The orange square used as a mark today goes. Header: muted icon disk, “Content Studio”, subtitle “Digital Hub”. Inter fields, primary pill button. Error is the error chip colour as an inline message, not a pastel Ant Alert.
+
+**Shell and icon rail.** Replace the 240px labelled `Sider` and the grouped `Menu`. A floating rail sits on the page surface, 12px from the left, radius 24px, `surface.card`, hairline border. It holds the four groups (Content, Library, Site, Administration) with **icon and label** on each row — icon-only would make editors hover to find things. The labels make the rail **176px** wide, not 72px. That width is reported; the labels stay. The active group is a filled `#45A8D4` disk for the icon (navy glyph) plus primary text, not a highlighted row. The current group’s screens are a **pill nav** in the top bar. The top bar is a quiet strip on the page: user email in secondary text, role as a chip, sign-out as a ghost control. The contact new-count is a small accent dot or a quiet numeric chip on the inbox pill — not Ant `Badge`.
+
+**Collection lists.** One card. Title row is a card header (icon, collection name, secondary count). Filters are pill segmented controls (All / Draft / Published / Ended) plus a search field, not a default `Select`. Rows are a quiet table: no vertical rules, row hover is `surface.raised`, title is accent-as-link, state is a chip. “New” is the primary pill. Reorder controls stay; they become compact ghosts, not default Ant buttons.
+
+**Item editor.** The item sits in a card. Header: type icon, title, slug as the grey subtitle, state chip. Publish / Unpublish / Discard / Delete become a tight cluster of pills on the right — primary for Publish, ghost for the rest, error text for Delete. The “not on the website yet” line is secondary text, not a gold Tag. Fields and the SEO panel are a single calm column with 16px gaps; the SEO preview is a raised inset, not a second visual language. The slug-redirect warning uses the warning colour as text and icon only.
+
+**Section list and form.** The section list is a stack of small cards on the page, not a raw list. Each row: grip, type icon in a muted circle, type name, visibility as a quiet chip, no loud switches. The open section is a drawer or a raised card using the same header pattern. The form walker keeps Ant Form for behaviour; labels, spacing, and controls take the tokens. Media fields show a thumbnail on `surface.raised`, not a dashed Ant Upload well.
+
+**Rich text editor.** TipTap’s chrome is the part that will look like a leftover unless it is restyled. Toolbar: raised pill group, 12px icons, accent for the active mark. The document surface is `surface.input` inside the card. Paragraphs are Inter 14; headings inside the document are Poppins so the editor hints at the website’s heading voice without pretending to be a preview (preview stays Phase C). The link and image modals use the same card language.
+
+**Media library.** A card wrapping a grid, not a list that feels like a file manager. Tiles sit on `surface.raised`, 16px radius, alt as secondary text under the image. The detail pane is a drawer: header (image icon, original name, dimensions as subtitle), fields, usage list as secondary lines. Delete-in-use is an error-coloured message listing places — same words as today, quieter clothes.
+
+**Administration screens.** Users, audit, redirects, navigation, settings, error pages, and the contact inbox keep their information density. They move onto cards, use chips instead of Tags, and use the pill primary for the one forward action on the screen. Tables follow the collection-list treatment. The inbox drawer renders the enquiry as Inter on the card — still escaped text, still the 10.19 answer to XSS. Settings stays a long form; group each block as a card header plus fields, not one undifferentiated Ant Form.
+
+#### How Ant Design is themed, and what will fight it
+
+Use `theme.darkAlgorithm` plus an explicit token map, not “dark class + hope”. Map every colour above onto Ant tokens (`colorBgBase`, `colorBgContainer`, `colorBgElevated`, `colorText`, `colorTextSecondary`, `colorBorder`, `colorPrimary`, `colorPrimaryHover`, `colorWarning`, `colorError`, `borderRadius`, `borderRadiusLG`, `fontFamily`, `fontFamilyCode`). Set `colorPrimary` to the accent so links, selection, and the focus ring stay blue. Override `Button` so `type="primary"` is `#0E1114` with `#E6E9ED` (`colorTextLightSolid`). Put the same values on CSS custom properties so Tailwind utilities and TipTap see one source.
+
+These components will fight the language and need `components` overrides or a thin wrapper. They are the reason a token dump alone will not get us there:
+
+| Component | Why it fights |
+|---|---|
+| `Layout` / `Layout.Sider` / `Layout.Header` | Built as a docked app frame. The rail is floating; the header is not a 64px white bar. Likely replaced by plain elements. |
+| `Menu` | Selected row, group labels, indent. Cannot become circular icon disks. The rail is not a `Menu`. |
+| `Badge` | Default is a loud red count. Contact count must be a chip or a 6px accent dot. |
+| `Tag` | Saturated presets (green / gold / blue). Every status `Tag` is replaced by the chips above. |
+| `Table` | Header wash, grid lines, white hover, dense row height. Override header/row colours and drop vertical borders. |
+| `Card` | Default radius, border, and optional shadow. Set radius 20, border `border.subtle`, no shadow, `colorBgContainer`. |
+| `Button` | Primary assumes the accent fill. Override to near-black `#0E1114` with off-white text; keep `colorPrimary` blue for links and focus. |
+| `Tabs` | Ink-bar underline. Collection filters and editor panes should be `Segmented` pills, not `Tabs`. |
+| `Segmented` | The right primitive; its default track is too light. Recolour track to `surface.input`, active thumb to `surface.raised`. |
+| `Input` / `Input.Password` / `Input.Search` / `Input.TextArea` | Light fill, 6px radius, strong hover border. Map to `surface.input`, 12px radius, accent focus ring only. |
+| `Select` / `DatePicker` | Same as Input, plus a light dropdown. Dropdown is `surface.raised`. |
+| `Modal` / `Drawer` | White body, sharp corners, heavy mask. Radius 16, card surface, mask at 50% page colour. |
+| `Alert` | Pastel fills. Prefer inline text + icon in warning/error colour. If `Alert` stays, restyle to chip colours. |
+| `message` / `notification` | Light toasts. Elevated surface, primary text, no coloured slab. |
+| `Typography.Title` | Default size/weight and near-white (too bright) in dark algorithm. Cap at the scale above; never `#fff`. |
+| `Form` | Label colour and required-mark red. Labels are secondary 12px Inter; required mark uses error, not orange. |
+| `Upload` | Dashed well, light drag state. Media fields should not look like Ant Upload. |
+| `Pagination` / `Empty` / `Result` / `Spin` | Default illustrations and light wells. Recolour or replace `Result` (the 403 screen). |
+| `Tooltip` / `Dropdown` / `Popover` | Light balloons. Raised surface, 12px radius. |
+| `Checkbox` / `Radio` / `Switch` | Primary fill is fine if `colorPrimary` is the accent; unchecked borders must not go light-grey. |
+| TipTap / ProseMirror | Not Ant. Needs its own stylesheet against the same tokens or it will stay a white box. |
+
+Hard-coded `#1270A0`, `#fff`, `bg-slate-50`, and `border-slate-200` in `SignInPage`, `AppShell`, and `NavigationPage` are removed as part of the restyle. They are the present leak of the light default.
+
+#### Closest CMS reference
+
+**Payload** is the closest. Dark-first, quiet chrome, editorial rather than dashboard, icon-led navigation, status as small labels. It is the thing an editor of a headless site already expects.
+
+Sanity is the second closest in temperament (calm desk, few colours) but its default is light and pane-heavy, and the desk metaphor is a layout we would be copying if we leaned on it. Contentful is a light enterprise table product. Storyblok is a visual, colourful editor — the opposite of this.
+
+The Studio should feel like a dark Payload, wearing Digital Hub’s type and the dashboard’s *surface language*, not like Sanity, Contentful, or Storyblok.
+
+#### Room for a light mode later
+
+Yes, if every colour above is a semantic token (`surface.page`, `text.secondary`, `chip.published.bg`, …) held in one map and fed to both `ConfigProvider` and CSS variables. No hex in page components. A later light map inverts the surface stack (page lightest, cards still a step away from the page) and keeps the same accent, chips, and radii. Do not build the light map now. Do not put a theme switch in the shell. The token names are the only work this section does for that future.
+
+#### Focus ring
+
+A **2px solid `#45A8D4`** ring with **2px offset**. No glow, no white halo. On dark it reads as a bright cyan-blue line sitting just outside the control.
+
+| Adjacent surface | Contrast of `#45A8D4` | AA 3:1 for non-text |
+|---|---|---|
+| Page `#17191C` | **6.55:1** | Pass |
+| Card `#22272D` | **5.59:1** | Pass |
+| Raised `#2B3138` | **4.88:1** | Pass |
+| Input `#1C2025` | **6.08:1** | Pass |
+| Primary button `#0E1114` | **7.04:1** | Pass |
+
+Applied through `:focus-visible` on buttons, inputs (including search, textarea, password), native and Ant selects, chips, rail items, pill items, and keyboard-focusable table rows. Mouse click does not leave a stuck ring (`:focus-visible` only).
+
+#### 12.2 Apply across every screen
+
+Sign-in, the shell, every collection list, the item editor, section list and form, rich text, media library, navigation, redirects, contact inbox, settings, error pages, users, and the audit log. Same tokens, no leftover `bg-slate-50` / `#fff` / `#1270A0` in Studio chrome.
+
+#### 12.3 Real logo
+
+The website wordmark `digital-hub-logo.png` (white mark, the file the site already uses). Sign-in and the rail. No orange square.
+
+#### 12.4 Shared package for Phase G
+
+Tokens, CSS variables, type faces, and the logo live in `packages/theme` (`@digitalhub/theme`). Studio consumes that package. Phase G (hiring) can import the same tokens without taking Studio chrome. The website is not wired to it.
+
+#### 12.5 Re-check
+
+Every screen as admin and as editor, against `DigitalHubContent_E2e`, never `DigitalHubContent`.
+
+#### 12.6 Website
+
+No Studio token, font load, or Ant theme is shared with the website. The website keeps `#1270A0`, `#F4970B`, and Poppins as it has them. Phase C preview renders website components, not Studio chrome.
+
+---
+
+### Coverage
+
+| Item | Source | Status | Evidence |
+|---|---|---|---|
+| 12.1 Written proposal, with the approved button, labelled rail, and focus ring | This section | Approved | Primary `#0E1114` / `#E6E9ED` 15.55:1; fill vs card 1.26:1; rail 176px with labels; focus `#45A8D4` ≥4.88:1 on every surface. |
+| 12.2 Apply across every Studio screen | Build | Pass | Dark shell, cards, chips, pills, near-black primary. Existing 10.12–10.19 still pass. |
+| 12.3 Real logo | Build | Pass | `packages/theme/assets/digital-hub-logo.png` on sign-in and the rail. |
+| 12.4 Tokens in a shared package for Phase G | Build | Pass | `@digitalhub/theme` (`packages/theme`). Website not imported. |
+| 12.5 Re-check every screen as admin and editor on `DigitalHubContent_E2e` | `studio/e2e/appearance.spec.ts` | Pass | Admin walks 16 screens plus the item editor; editor walks 14 and has no Administration rail. 10 e2e passed. |
+| 12.6 Website design untouched | Settled decisions | Stands | Studio tokens are not shared with the website. |

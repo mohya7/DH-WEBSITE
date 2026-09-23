@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../auth/AuthProvider";
 import { jsonInit, request } from "../api/http";
 import { MediaPicker } from "../content/MediaPicker";
+import { PageHeader } from "../ui/PageHeader";
 
 type MediaRow = {
   id: string;
@@ -80,16 +81,16 @@ export function MediaLibraryPage() {
   }
 
   return (
-    <section>
-      <div className="mb-4 flex items-center justify-between">
-        <Typography.Title level={2} className="!mb-0">Media library</Typography.Title>
-        <Button type="primary" onClick={() => setUpload(true)}>Upload</Button>
-      </div>
+    <section className="surface-card">
+      <PageHeader
+        title="Media library"
+        extra={<Button type="primary" onClick={() => setUpload(true)}>Upload</Button>}
+      />
       <Input.Search className="mb-4 max-w-md" placeholder="Search alt text, caption, or file name" value={search} onChange={(event) => setSearch(event.target.value)} onSearch={(value) => void load(value)} allowClear />
       {message !== null && selected === null ? <Typography.Paragraph>{message}</Typography.Paragraph> : null}
       <div className="grid grid-cols-4 gap-4">
         {items.map((item) => (
-          <button key={item.id} type="button" className="rounded border border-slate-200 p-3 text-left" onClick={() => void open(item)}>
+          <button key={item.id} type="button" className="media-tile" onClick={() => void open(item)}>
             <img src={item.path} alt={item.alt} className="mb-2 h-28 w-full object-contain" />
             <span className="line-clamp-2 text-sm">{item.alt || item.originalName}</span>
           </button>

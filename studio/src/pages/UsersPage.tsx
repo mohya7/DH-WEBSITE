@@ -1,4 +1,6 @@
 import { Button, Form, Input, Modal, Select, Space, Table, Typography, message, Result } from "antd";
+import { PageHeader } from "../ui/PageHeader";
+import { StatusChip } from "../ui/StatusChip";
 import { useEffect, useState } from "react";
 import { useAuth } from "../auth/AuthProvider";
 import { jsonInit, request } from "../api/http";
@@ -72,11 +74,11 @@ export function UsersPage() {
   }
 
   return (
-    <section>
-      <div className="mb-4 flex items-center justify-between">
-        <Typography.Title level={2} className="!mb-0">Users</Typography.Title>
-        <Button type="primary" onClick={() => setCreateOpen(true)}>Create user</Button>
-      </div>
+    <section className="surface-card">
+      <PageHeader
+        title="Users"
+        extra={<Button type="primary" onClick={() => setCreateOpen(true)}>Create user</Button>}
+      />
       {error !== null ? <Typography.Paragraph type="danger">{error}</Typography.Paragraph> : null}
       <Table
         rowKey="id"
@@ -84,7 +86,7 @@ export function UsersPage() {
         pagination={false}
         columns={[
           { title: "Email", dataIndex: "email" },
-          { title: "Role", dataIndex: "role", width: 100 },
+          { title: "Role", dataIndex: "role", width: 100, render: (role: string) => <StatusChip state={role} /> },
           {
             title: "Status",
             width: 140,

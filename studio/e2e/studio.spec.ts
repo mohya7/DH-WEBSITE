@@ -2,7 +2,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import { e2eApiOrigin, e2eCatalog, e2eEditorEmail, e2eEnv, e2ePassword, productionCatalog } from "./env";
-import { expectNoStoredToken, signIn } from "./helpers";
+import { expectNoStoredToken, openArea, signIn } from "./helpers";
 
 const pixel = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures", "pixel.png");
 const scriptMessage = "<script>alert(1)</script> Please call about a programme.";
@@ -69,7 +69,7 @@ test("10.14 the second save shows the conflict message", async ({ browser }) => 
 test("10.15 upload an image with alt text and use it in a section", async ({ page }) => {
   imageAlt = "E2E pixel " + Date.now();
   await signIn(page);
-  await page.getByRole("menuitem", { name: "Media library" }).click();
+  await openArea(page, "Media library");
   await page.getByRole("button", { name: "Upload" }).click();
   const uploadModal = page.locator(".ant-modal").filter({ hasText: "Choose an image" });
   await expect(uploadModal).toBeVisible();
@@ -78,7 +78,7 @@ test("10.15 upload an image with alt text and use it in a section", async ({ pag
   await uploadModal.getByRole("button", { name: "Upload and use" }).click();
   await expect(page.getByText(imageAlt)).toBeVisible();
 
-  await page.getByRole("menuitem", { name: "Pages", exact: true }).click();
+  await openArea(page, "Pages");
   await page.getByRole("button", { name: "New" }).click();
   await fillItemField(page, "title", "E2E media page");
   await fillItemField(page, "slug", "e2e-media-page");
@@ -95,7 +95,7 @@ test("10.15 upload an image with alt text and use it in a section", async ({ pag
 
 test("10.16 deleting the used image lists every place", async ({ page }) => {
   await signIn(page);
-  await page.getByRole("menuitem", { name: "Media library" }).click();
+  await openArea(page, "Media library");
   await page.getByRole("button", { name: imageAlt }).click();
   await page.getByRole("button", { name: "Delete" }).click();
   await expect(page.getByText("This image is used, so it was not deleted.")).toBeVisible();
@@ -145,7 +145,7 @@ test("10.19 a script in a contact message is stored and shown as text", async ({
   expect(created.status()).toBe(201);
 
   await signIn(page);
-  await page.getByRole("menuitem", { name: "Contact inbox" }).click();
+  await openArea(page, "Contact inbox");
   await page.getByRole("row", { name: new RegExp(name) }).click();
   const drawer = page.locator(".ant-drawer");
   await expect(drawer.getByText(scriptMessage)).toBeVisible();

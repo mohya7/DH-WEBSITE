@@ -1,4 +1,6 @@
-import { Button, Drawer, Space, Table, Tag, Typography, message } from "antd";
+import { Button, Drawer, Input, Space, Table, Typography, message } from "antd";
+import { PageHeader } from "../ui/PageHeader";
+import { StatusChip } from "../ui/StatusChip";
 import { useEffect, useState } from "react";
 import { jsonInit, request } from "../api/http";
 
@@ -65,23 +67,28 @@ export function ContactInboxPage() {
   }
 
   return (
-    <section>
-      <Typography.Title level={2}>Contact inbox</Typography.Title>
-      <input
-        className="mb-4 w-full max-w-md rounded border border-slate-300 px-3 py-2"
+    <section className="surface-card">
+      <PageHeader title="Contact inbox" />
+      <Input.Search
+        className="mb-4 max-w-md"
         placeholder="Search"
         value={search}
         onChange={(event) => setSearch(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") void load();
-        }}
+        onSearch={() => void load()}
+        allowClear
       />
       {error !== null ? <Typography.Paragraph type="danger">{error}</Typography.Paragraph> : null}
       <Table
         rowKey="id"
         dataSource={page.items}
         pagination={false}
-        onRow={(row) => ({ onClick: () => void open(row.id) })}
+        onRow={(row) => ({
+          tabIndex: 0,
+          onClick: () => void open(row.id),
+          onKeyDown: (event) => {
+            if (event.key === "Enter" || event.key === " ") void open(row.id);
+          },
+        })}
         columns={[
           { title: "Name", dataIndex: "name" },
           { title: "Organisation", dataIndex: "organization" },
@@ -90,7 +97,7 @@ export function ContactInboxPage() {
             title: "Status",
             dataIndex: "status",
             width: 120,
-            render: (value: string) => <Tag color={value === "handled" ? "green" : "blue"}>{value}</Tag>,
+            render: (value: string) => <StatusChip state={value} />,
           },
           { title: "Received", dataIndex: "createdAt", width: 200 },
         ]}

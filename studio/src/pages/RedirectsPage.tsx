@@ -1,6 +1,7 @@
 import { Button, Form, Input, Modal, Table, Typography, message } from "antd";
 import { useEffect, useState } from "react";
 import { jsonInit, request } from "../api/http";
+import { PageHeader } from "../ui/PageHeader";
 
 type RedirectRow = {
   id: string;
@@ -60,11 +61,11 @@ export function RedirectsPage() {
   }
 
   return (
-    <section>
-      <div className="mb-4 flex items-center justify-between">
-        <Typography.Title level={2} className="!mb-0">Redirects</Typography.Title>
-        <Button type="primary" onClick={() => setOpen(true)}>Add redirect</Button>
-      </div>
+    <section className="surface-card">
+      <PageHeader
+        title="Redirects"
+        extra={<Button type="primary" onClick={() => setOpen(true)}>Add redirect</Button>}
+      />
       <Input.Search className="mb-4 max-w-md" value={search} onChange={(event) => setSearch(event.target.value)} onSearch={(value) => void load(value)} allowClear placeholder="Search paths" />
       {error !== null ? <Typography.Paragraph type="danger">{error}</Typography.Paragraph> : null}
       <Table

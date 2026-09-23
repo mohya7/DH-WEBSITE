@@ -1,6 +1,33 @@
 import { expect, type Page } from "@playwright/test";
 import { e2eAdminEmail, e2eEditorEmail, e2ePassword } from "./env";
 
+const areaGroup: Record<string, string> = {
+  Pages: "Content",
+  Services: "Content",
+  Partners: "Content",
+  "Case studies": "Content",
+  "Blog posts": "Content",
+  Vacancies: "Content",
+  Team: "Content",
+  News: "Content",
+  "Media library": "Library",
+  Navigation: "Site",
+  Redirects: "Site",
+  "Contact inbox": "Site",
+  "Site settings": "Site",
+  "Error pages": "Site",
+  Users: "Administration",
+  "Audit log": "Administration",
+};
+
+export async function openArea(page: Page, name: string) {
+  const group = areaGroup[name];
+  if (group !== undefined) {
+    await page.getByRole("navigation", { name: "Studio" }).getByRole("button", { name: group, exact: true }).click();
+  }
+  await page.getByRole("menuitem", { name, exact: true }).click();
+}
+
 export async function signIn(page: Page, role: "admin" | "editor" = "admin") {
   await page.goto("/");
   await page.getByLabel("Email").fill(role === "admin" ? e2eAdminEmail : e2eEditorEmail);

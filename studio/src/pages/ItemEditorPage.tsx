@@ -1,4 +1,4 @@
-import { Button, Checkbox, Drawer, Input, Modal, Select, Space, Tag, Typography } from "antd";
+import { Button, Checkbox, Drawer, Input, Modal, Select, Space, Typography } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import { useBlocker, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
@@ -7,6 +7,7 @@ import { FormWalker } from "../content/FormWalker";
 import { MediaPicker, type MediaChoice } from "../content/MediaPicker";
 import { labelFromKey, publicPath, routeFor, type CollectionName } from "../content/model";
 import { useSchemas } from "../content/schemas";
+import { StatusChip } from "../ui/StatusChip";
 
 type SectionDraft = {
   id?: string;
@@ -41,8 +42,6 @@ type ItemBody = {
 };
 
 type Revision = { id: string; version: number; publishedAt: string };
-
-const stateColor: Record<string, string> = { draft: "default", published: "green", changed: "gold", ended: "red" };
 
 export function ItemEditorPage({ collection }: { collection: CollectionName }) {
   const { id = "" } = useParams();
@@ -253,12 +252,12 @@ export function ItemEditorPage({ collection }: { collection: CollectionName }) {
   const collectionSchema = schemas.data?.collections[collection];
 
   return (
-    <section>
+    <section className="surface-card">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <Button type="link" className="!px-0" onClick={() => navigate(`/${route.path}`)}>Back</Button>
           <Typography.Title level={2} className="!mb-1">{title || route.label}</Typography.Title>
-          {item !== null ? <Tag color={stateColor[item.state] ?? "default"}>{item.state}</Tag> : null}
+          {item !== null ? <StatusChip state={item.state} /> : null}
           {item?.notice !== null && item?.notice !== undefined ? <Typography.Paragraph className="!mb-0">{item.notice}</Typography.Paragraph> : null}
           {item?.state === "changed" ? <Typography.Paragraph className="!mb-0">These edits are not on the website yet.</Typography.Paragraph> : null}
           {item?.endedAt !== null && item?.endedAt !== undefined ? <Typography.Paragraph>Ended {item.endedAt}. Publish brings this vacancy back and clears the end date.</Typography.Paragraph> : null}
@@ -320,7 +319,7 @@ export function ItemEditorPage({ collection }: { collection: CollectionName }) {
                       moveSection(dragIndex, index);
                       setDragIndex(null);
                     }}
-                    className="rounded border border-slate-200 p-3"
+                    className="section-card"
                   >
                     <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                       <strong>{labelFromKey(section.type)}{section.visible ? "" : " · Hidden"}</strong>
@@ -347,13 +346,13 @@ export function ItemEditorPage({ collection }: { collection: CollectionName }) {
             </section>
           ) : null}
         </div>
-        <aside className="rounded border border-slate-200 p-4">
+        <aside className="section-card">
           <Typography.Title level={4}>Search result</Typography.Title>
           {nextPath === null ? <Typography.Paragraph>This item has no public page.</Typography.Paragraph> : (
-            <div className="mb-4 rounded bg-slate-50 p-3">
+            <div className="seo-preview mb-4">
               <div className="text-lg text-[#1a0dab]">{shown(metaTitle, title) || "Untitled"}</div>
               <div className="text-sm text-[#006621]">{nextPath}</div>
-              <div className="text-sm text-slate-700">{shown(metaDescription, textField(fields.summary))}</div>
+              <div className="text-sm" style={{ color: "var(--dh-text-secondary)" }}>{shown(metaDescription, textField(fields.summary))}</div>
             </div>
           )}
           <label className="mb-3 block" data-field="metaTitle">
@@ -405,7 +404,7 @@ export function ItemEditorPage({ collection }: { collection: CollectionName }) {
       </Modal>
       <Drawer title="Revisions" open={revisionsOpen} onClose={() => { setRevisionsOpen(false); setSnapshotText(null); }}>
         <Typography.Paragraph>Restore writes a draft. It does not publish.</Typography.Paragraph>
-        {snapshotText !== null ? <pre className="mb-4 max-h-48 overflow-auto rounded bg-slate-50 p-2 text-xs">{snapshotText}</pre> : null}
+        {snapshotText !== null ? <pre className="seo-preview mb-4 max-h-48 overflow-auto text-xs">{snapshotText}</pre> : null}
         {revisions.map((revision) => (
           <div key={revision.id} className="mb-3 flex items-center justify-between gap-2">
             <span>Version {revision.version}</span>
@@ -492,7 +491,7 @@ function Findings({ problem, onJump }: { problem: Problem | null; onJump: (key: 
 }
 
 function Count({ value, guide, limit }: { value: string; guide: number; limit: number }) {
-  return <span className="text-xs text-slate-500">{value.length} / {guide} shown, {limit} maximum</span>;
+  return <span className="text-xs" style={{ color: "var(--dh-text-muted)" }}>{value.length} / {guide} shown, {limit} maximum</span>;
 }
 
 function shown(primary: string, fallback: string): string {

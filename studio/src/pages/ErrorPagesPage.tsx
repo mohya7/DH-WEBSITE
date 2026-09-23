@@ -2,6 +2,7 @@ import { Button, Form, Input, Typography, message } from "antd";
 import { useEffect, useState } from "react";
 import { jsonInit, request } from "../api/http";
 import { RichTextEditor } from "../content/RichTextEditor";
+import { PageHeader } from "../ui/PageHeader";
 
 type ErrorPage = {
   type: string;
@@ -49,15 +50,15 @@ export function ErrorPagesPage() {
   }
 
   return (
-    <section className="max-w-3xl">
-      <Typography.Title level={2}>Error pages</Typography.Title>
+    <section className="surface-card max-w-3xl">
+      <PageHeader title="Error pages" />
       <Typography.Paragraph type="secondary">
         These pages use reserved slugs <code>error-404</code> and <code>error-500</code>.
       </Typography.Paragraph>
       {error !== null ? <Typography.Paragraph type="danger">{error}</Typography.Paragraph> : null}
       <div className="space-y-8">
         {items.map((page) => (
-          <div key={page.type} className="rounded border border-slate-200 p-4">
+          <div key={page.type} className="section-card">
             <Typography.Title level={4}>{page.type} page</Typography.Title>
             <Form layout="vertical">
               <Form.Item label="Title">

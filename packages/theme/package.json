@@ -1,0 +1,11 @@
+{
+  "name": "@digitalhub/theme",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    "./tokens.ts": "./tokens.ts",
+    "./tokens.css": "./tokens.css",
+    "./assets/digital-hub-logo.png": "./assets/digital-hub-logo.png"
+  }
+}

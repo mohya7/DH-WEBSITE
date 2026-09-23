@@ -16,7 +16,10 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "composite": true
+    "composite": true,
+    "paths": {
+      "@digitalhub/theme/*": ["../packages/theme/*"]
+    }
   },
-  "include": ["src"]
+  "include": ["src", "../packages/theme/tokens.ts"]
 }

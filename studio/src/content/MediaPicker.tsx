@@ -110,7 +110,7 @@ export function MediaPicker({
           <button
             key={item.id}
             type="button"
-            className="rounded border border-slate-200 p-2 text-left"
+            className="media-tile"
             onClick={() => onSelect({ id: item.id, path: item.path, alt: item.alt })}
           >
             <img src={item.path} alt={item.alt} className="mb-2 h-20 w-full object-contain" />

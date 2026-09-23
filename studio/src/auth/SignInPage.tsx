@@ -1,8 +1,8 @@
-import { Alert, Button, Card, Form, Input, Typography } from "antd";
+import { Button, Form, Input, Typography } from "antd";
 import { useState } from "react";
 import { Navigate } from "react-router-dom";
-import { brand } from "../theme";
 import { useAuth } from "./AuthProvider";
+import logo from "@digitalhub/theme/assets/digital-hub-logo.png";
 
 type SignInValues = {
   email: string;
@@ -31,22 +31,16 @@ export function SignInPage() {
   }
 
   return (
-    <main className="grid min-h-svh place-items-center bg-slate-50 p-6">
-      <Card className="w-full max-w-md" variant="outlined">
-        <div className="mb-6 flex items-center gap-3">
-          <span
-            aria-hidden="true"
-            className="inline-block h-8 w-8 rounded-md"
-            style={{ backgroundColor: brand.accent }}
-          />
-          <div>
-            <Typography.Title level={3} className="!mb-0">
-              Content Studio
-            </Typography.Title>
-            <Typography.Text type="secondary">Digital Hub</Typography.Text>
-          </div>
+    <main className="sign-in">
+      <div className="surface-card sign-in-card">
+        <div className="mb-6">
+          <img className="sign-in-logo mb-4" src={logo} alt="Digital Hub" />
+          <Typography.Title level={3} className="!mb-1">
+            Content Studio
+          </Typography.Title>
+          <Typography.Text type="secondary">Sign in to edit the website.</Typography.Text>
         </div>
-        {error !== null ? <Alert className="!mb-4" type="error" showIcon message={error} /> : null}
+        {error !== null ? <p className="mb-4 text-sm" style={{ color: "var(--dh-error)" }}>{error}</p> : null}
         <Form<SignInValues> layout="vertical" requiredMark={false} onFinish={(values) => void onFinish(values)}>
           <Form.Item
             label="Email"
@@ -62,7 +56,7 @@ export function SignInPage() {
             Sign in
           </Button>
         </Form>
-      </Card>
+      </div>
     </main>
   );
 }
