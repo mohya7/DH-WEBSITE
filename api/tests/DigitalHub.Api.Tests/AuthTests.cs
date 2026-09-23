@@ -55,6 +55,8 @@ public sealed class AuthTests : IClassFixture<ApiFactory>
         var json = JsonDocument.Parse(body).RootElement;
         Assert.Equal(ApiFactory.AdminEmail, json.GetProperty("email").GetString());
         Assert.Equal("admin", json.GetProperty("role").GetString());
+        // mustChangePassword is a flag name, not a secret. The old substring
+        // check for "password" failed on that field; /me still does not return a password.
         Assert.True(json.TryGetProperty("mustChangePassword", out _));
         Assert.False(json.TryGetProperty("password", out _));
         Assert.False(json.TryGetProperty("passwordHash", out _));

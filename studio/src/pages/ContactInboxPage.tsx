@@ -100,7 +100,10 @@ export function ContactInboxPage() {
           <Space direction="vertical" className="w-full">
             <Typography.Text>{selected.email}</Typography.Text>
             <Typography.Text type="secondary">{selected.organization}{selected.role ? ` · ${selected.role}` : ""}</Typography.Text>
-            <Typography.Paragraph>{selected.message}</Typography.Paragraph>
+            <Typography.Text type="secondary">{selected.situation}</Typography.Text>
+            <Typography.Paragraph className="whitespace-pre-wrap break-words">
+              {selected.message}
+            </Typography.Paragraph>
             {selected.status === "new" ? (
               <Button type="primary" onClick={() => void handle()}>Mark handled</Button>
             ) : (

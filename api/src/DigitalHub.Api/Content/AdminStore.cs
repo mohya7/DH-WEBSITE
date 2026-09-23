@@ -438,6 +438,12 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         return ContentOutcome.Ok(new PageResult<object>(rows.Cast<object>().ToList(), page, pageSize, total));
     }
 
+    public async Task<ContentOutcome> CountNewContactRequestsAsync(CancellationToken cancellationToken)
+    {
+        var count = await db.ContactRequests.AsNoTracking().CountAsync(request => request.Status == "new", cancellationToken);
+        return ContentOutcome.Ok(new { count });
+    }
+
     public async Task<ContentOutcome> GetContactRequestAsync(Guid id, CancellationToken cancellationToken)
     {
         var request = await db.ContactRequests.AsNoTracking().FirstOrDefaultAsync(item => item.Id == id, cancellationToken);

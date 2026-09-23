@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text;
 using System.Threading.RateLimiting;
 using DigitalHub.Api.Auth;
@@ -9,6 +10,7 @@ using DigitalHub.Api.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -64,18 +66,38 @@ builder.Services.AddSingleton<CollectionSchemaSet>();
 builder.Services.AddScoped<ContentStore>();
 builder.Services.AddScoped<MediaLibrary>();
 builder.Services.AddScoped<AdminStore>();
+builder.Services.AddScoped<PublicContactStore>();
 builder.Services.AddHostedService<IdentitySeeder>();
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+    foreach (var value in builder.Configuration.GetSection("ForwardedHeaders:KnownProxies").GetChildren())
+    {
+        if (IPAddress.TryParse(value.Value, out var address))
+            options.KnownProxies.Add(address);
+    }
+});
 
 var loginPermitLimit = builder.Configuration.GetValue("Auth:LoginPermitLimit", 8);
 var loginWindowHours = builder.Configuration.GetValue("Auth:LoginWindowHours", 1);
 var uploadPermitLimit = builder.Configuration.GetValue("Media:UploadPermitLimit", 20);
+var contactPermitLimit = builder.Configuration.GetValue("Contact:PermitLimit", 10);
+var contactWindowHours = builder.Configuration.GetValue("Contact:WindowHours", 1);
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.OnRejected = (context, token) =>
     {
         var policy = context.HttpContext.GetEndpoint()?.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName;
-        var title = policy == "media-upload" ? "Too many uploads." : "Too many login attempts.";
+        var title = policy switch
+        {
+            "media-upload" => "Too many uploads.",
+            "public-contact" => "Too many contact submissions.",
+            _ => "Too many login attempts.",
+        };
         context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
         return new ValueTask(ProblemResults.WriteAsync(
             context.HttpContext.Response,
@@ -102,6 +124,16 @@ builder.Services.AddRateLimiter(options =>
         {
             PermitLimit = uploadPermitLimit,
             Window = TimeSpan.FromHours(1),
+            QueueLimit = 0,
+        });
+    });
+    options.AddPolicy("public-contact", httpContext =>
+    {
+        var ip = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return RateLimitPartition.GetFixedWindowLimiter("contact\n" + ip, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = contactPermitLimit,
+            Window = TimeSpan.FromHours(contactWindowHours),
             QueueLimit = 0,
         });
     });
@@ -190,6 +222,7 @@ builder.Services.AddHealthChecks()
 
 var app = builder.Build();
 
+app.UseForwardedHeaders();
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseExceptionHandler();

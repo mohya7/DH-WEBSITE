@@ -20,7 +20,9 @@ Work in `D:\work\DigitalHub\dh-platform`, branch `rebuild/dotnet-platform`. Work
 | Rich text | TipTap, structured JSON, allowed nodes only |
 | Preview | **Deferred to Phase C.** It renders the website's own section components, which are built there. Record this; do not build a separate preview renderer |
 | Unpublished references | **Phase C.** A reference to an unpublished item is never rendered as a link. The card is skipped at build |
+| Error pages | **Phase C.** The current site has no 404 or 500 pages. Build them as new pages from existing design components — header, footer, hub hero, and call to action — with no new styles. Content is edited in the Studio (`error-404` / `error-500`) |
 | Vacancy bridge to Node | **Phase D**, not this phase |
+| ForwardedHeaders:KnownProxies | **Phase D deployment.** Set this to the production IIS proxy address. If it is empty, `X-Forwarded-For` is ignored and the contact rate limit counts every visitor as one |
 | Website design | Untouched by this phase |
 
 ### Hosting
@@ -269,6 +271,14 @@ Stop and report before building.
 **9.3** Server-side validation of every field. Rate limit 10 per hour per IP.
 
 **9.4** Stores to `contact_requests` with status `new`. The website form is wired to it in Phase C.
+
+**9.5** The website reaches this endpoint through IIS, so the API sees the proxy's address, not the visitor's. Forwarded headers trust only the known proxy: `X-Forwarded-For` from that address is used; from any other address it is ignored. The rate limit uses the resulting visitor address.
+
+**9.6** Every field has a length cap, including the message. Everything is stored and shown as plain text — the Studio inbox renders it escaped.
+
+**9.7** The visitor's IP address is not stored with the enquiry. It is used only for the rate limit.
+
+**9.8** New enquiries show a count on the contact inbox in the Studio menu. Email notification waits until SES is configured.
 
 ---
 

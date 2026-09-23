@@ -1,5 +1,5 @@
-import { Alert, Button, Form, Input, Layout, Menu, Modal, Result, Spin, Tag, Typography, message } from "antd";
-import { useState } from "react";
+import { Alert, Badge, Button, Form, Input, Layout, Menu, Modal, Result, Spin, Tag, Typography, message } from "antd";
+import { useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { jsonInit, request } from "../api/http";
 import { useAuth } from "../auth/AuthProvider";
@@ -18,6 +18,23 @@ export function AppShell() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [changing, setChanging] = useState(false);
+  const [newContacts, setNewContacts] = useState(0);
+
+  useEffect(() => {
+    if (user === null || !isStudioRole(user.role)) return;
+    let cancelled = false;
+    async function loadCount() {
+      const result = await request("/api/v1/contact-requests/new-count");
+      if (cancelled || !result.ok || result.body === null) return;
+      setNewContacts((result.body as { count: number }).count);
+    }
+    void loadCount();
+    const timer = window.setInterval(() => void loadCount(), 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [user, location.pathname]);
 
   if (!auth.ready || user === null) {
     return (
@@ -50,7 +67,18 @@ export function AppShell() {
       label: group,
       children: visible
         .filter((area) => area.group === group)
-        .map((area) => ({ key: area.path, label: area.label })),
+        .map((area) => ({
+          key: area.path,
+          label:
+            area.path === "/contact" && newContacts > 0 ? (
+              <span className="flex items-center justify-between gap-2">
+                <span>{area.label}</span>
+                <Badge count={newContacts} overflowCount={99} />
+              </span>
+            ) : (
+              area.label
+            ),
+        })),
     }))
     .filter((group) => group.children.length > 0);
 

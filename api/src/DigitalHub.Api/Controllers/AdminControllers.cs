@@ -124,6 +124,10 @@ public sealed class ContactRequestsController(AdminStore store) : ControllerBase
     public async Task<IActionResult> List([FromQuery] PageQuery page, [FromQuery] string? search, CancellationToken cancellationToken) =>
         Respond(await store.ListContactRequestsAsync(page.Page, page.PageSize, search, cancellationToken));
 
+    [HttpGet("new-count")]
+    public async Task<IActionResult> NewCount(CancellationToken cancellationToken) =>
+        Respond(await store.CountNewContactRequestsAsync(cancellationToken));
+
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> Get(Guid id, CancellationToken cancellationToken) =>
         Respond(await store.GetContactRequestAsync(id, cancellationToken));
