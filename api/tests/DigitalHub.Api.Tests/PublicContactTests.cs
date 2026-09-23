@@ -145,6 +145,35 @@ public sealed class PublicContactTests : IClassFixture<PublicContactFactory>
         Assert.Equal(beforeCount + 1, JsonDocument.Parse(await after.Content.ReadAsStringAsync()).RootElement.GetProperty("count").GetInt32());
     }
 
+    [Fact]
+    public async Task Script_in_a_contact_message_is_stored_unchanged()
+    {
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        const string script = "<script>alert(1)</script>";
+        var payload = ValidBody("xss-" + suffix);
+        payload["message"] = script + " Please call about a programme.";
+        var created = await _client.PostAsJsonAsync("/api/v1/public/contact", payload);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ContentDbContext>();
+            var stored = await db.ContactRequests.AsNoTracking()
+                .SingleAsync(item => item.Email == "xss-" + suffix + "@example.com");
+            Assert.Equal(script + " Please call about a programme.", stored.Message);
+        }
+
+        var admin = await AuthSession.LoginAsync(_client, ApiFactory.AdminEmail, ApiFactory.AdminPassword);
+        Assert.Equal(HttpStatusCode.OK, admin.Status);
+        var list = await _client.SendAsync(admin.Authorized(HttpMethod.Get, "/api/v1/contact-requests?search=xss-" + suffix));
+        Assert.Equal(HttpStatusCode.OK, list.StatusCode);
+        var id = JsonDocument.Parse(await list.Content.ReadAsStringAsync()).RootElement.GetProperty("items")[0].GetProperty("id").GetGuid();
+        var detail = await _client.SendAsync(admin.Authorized(HttpMethod.Get, "/api/v1/contact-requests/" + id));
+        Assert.Equal(HttpStatusCode.OK, detail.StatusCode);
+        var body = JsonDocument.Parse(await detail.Content.ReadAsStringAsync()).RootElement;
+        Assert.Equal(script + " Please call about a programme.", body.GetProperty("message").GetString());
+    }
+
     private async Task<int> CountAsync()
     {
         using var scope = _factory.Services.CreateScope();

@@ -52,37 +52,55 @@ public sealed class IdentitySeeder(IServiceProvider services, IConfiguration con
         }
 
         var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-        var email = configuration["Auth:InitialAdminEmail"]!;
-        var password = configuration["Auth:InitialAdminPassword"]!;
-        var admin = await users.FindByEmailAsync(email);
-        if (admin is null)
+        await EnsureUserInRoleAsync(
+            users,
+            configuration["Auth:InitialAdminEmail"]!,
+            configuration["Auth:InitialAdminPassword"]!,
+            Roles.Admin);
+
+        var editorEmail = configuration["Auth:InitialEditorEmail"];
+        var editorPassword = configuration["Auth:InitialEditorPassword"];
+        if (!string.IsNullOrWhiteSpace(editorEmail) && !string.IsNullOrWhiteSpace(editorPassword))
         {
-            admin = new ApplicationUser
+            await EnsureUserInRoleAsync(users, editorEmail, editorPassword, Roles.Editor);
+        }
+    }
+
+    private static async Task EnsureUserInRoleAsync(
+        UserManager<ApplicationUser> users,
+        string email,
+        string password,
+        string role)
+    {
+        var user = await users.FindByEmailAsync(email);
+        if (user is null)
+        {
+            user = new ApplicationUser
             {
                 UserName = email,
                 Email = email,
                 EmailConfirmed = true,
             };
-            var created = await users.CreateAsync(admin, password);
+            var created = await users.CreateAsync(user, password);
             if (!created.Succeeded)
             {
                 var duplicate = created.Errors.All(error =>
                     error.Code is "DuplicateUserName" or "DuplicateEmail");
-                admin = await users.FindByEmailAsync(email);
-                if (!duplicate || admin is null)
+                user = await users.FindByEmailAsync(email);
+                if (!duplicate || user is null)
                 {
                     var codes = string.Join(", ", created.Errors.Select(error => error.Code));
-                    throw new InvalidOperationException($"Could not create the initial admin user: {codes}.");
+                    throw new InvalidOperationException($"Could not create the {role} user: {codes}.");
                 }
             }
         }
 
-        if (!await users.IsInRoleAsync(admin, Roles.Admin))
+        if (!await users.IsInRoleAsync(user, role))
         {
-            var added = await users.AddToRoleAsync(admin, Roles.Admin);
+            var added = await users.AddToRoleAsync(user, role);
             if (!added.Succeeded)
             {
-                throw new InvalidOperationException("Could not assign the admin role.");
+                throw new InvalidOperationException($"Could not assign the {role} role.");
             }
         }
     }

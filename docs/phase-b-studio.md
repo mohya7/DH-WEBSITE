@@ -306,6 +306,9 @@ Report each result. If any step fails, stop and show it.
 - 10.15 Upload an image with alt text and use it in a section
 - 10.16 Try to delete that image; the refusal lists where it is used
 - 10.17 An editor does not see admin screens, and calling an admin endpoint directly returns 403
+- 10.18 End-to-end runs use `DigitalHubContent_E2e`, reset before every run, never `DigitalHubContent`
+- 10.19 A contact enquiry whose message contains `<script>alert(1)</script>` is stored unchanged and shows as plain text in the inbox
+- 10.20 `dangerouslySetInnerHTML` appears nowhere in the Studio source; after sign-in neither `localStorage` nor `sessionStorage` holds a token
 
 ---
 

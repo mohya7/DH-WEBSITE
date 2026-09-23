@@ -2,18 +2,21 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
+const api = process.env.DH_API_URL ?? "http://127.0.0.1:5088";
+const port = Number(process.env.DH_STUDIO_PORT ?? 5173);
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     host: "127.0.0.1",
-    port: 5173,
+    port,
     strictPort: true,
     proxy: {
       "/api": {
-        target: "http://127.0.0.1:5088",
+        target: api,
       },
       "/media": {
-        target: "http://127.0.0.1:5088",
+        target: api,
         bypass(request) {
           const path = request.url?.split("?")[0] ?? "";
           if (path === "/media" || path === "/media/") {

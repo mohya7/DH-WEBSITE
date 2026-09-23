@@ -14,6 +14,9 @@ artifacts/
 # Node
 node_modules/
 dist/
+studio/playwright-report/
+studio/test-results/
+studio/e2e/.generated/
 .next/
 out/
 .turbo/
