@@ -14,7 +14,7 @@ export const studioTheme: ThemeConfig = {
     colorTextQuaternary: text.muted,
     colorBorder: border.subtle,
     colorBorderSecondary: border.subtle,
-    colorPrimary: accent.studio,
+    colorPrimary: action.primary,
     colorInfo: accent.studio,
     colorWarning: semantic.warning,
     colorError: semantic.error,
@@ -33,13 +33,13 @@ export const studioTheme: ThemeConfig = {
   components: {
     Button: {
       colorPrimary: action.primary,
-      colorPrimaryHover: "#161a1e",
-      colorPrimaryActive: "#0a0c0e",
+      colorPrimaryHover: "#2BACEF",
+      colorPrimaryActive: "#1676BA",
       colorTextLightSolid: action.onPrimary,
       primaryShadow: "none",
       defaultShadow: "none",
-      borderRadius: radii.pill,
-      controlHeight: 36,
+      borderRadius: radii.control,
+      controlHeight: 41,
     },
     Input: {
       colorBgContainer: surfaces.input,
@@ -70,9 +70,10 @@ export const studioTheme: ThemeConfig = {
       colorBgElevated: surfaces.card,
     },
     Segmented: {
-      itemActiveBg: surfaces.raised,
-      itemSelectedBg: surfaces.raised,
-      trackBg: surfaces.input,
+      itemActiveBg: "rgba(31, 158, 233, 0.12)",
+      itemSelectedBg: "rgba(31, 158, 233, 0.12)",
+      itemSelectedColor: "#50B8EF",
+      trackBg: "rgba(11, 24, 40, 0.82)",
     },
     Tag: {
       defaultBg: surfaces.raised,

@@ -12,19 +12,23 @@ export type CollectionRoute = {
   path: string;
   collection: CollectionName;
   label: string;
+  singular: string;
+  description: string;
   sections: boolean;
   ordered: boolean;
+  icon: string;
+  media: "image" | "logo" | "portrait";
 };
 
 export const collectionRoutes: CollectionRoute[] = [
-  { path: "pages", collection: "pages", label: "Pages", sections: true, ordered: false },
-  { path: "services", collection: "services", label: "Services", sections: true, ordered: true },
-  { path: "partners", collection: "partners", label: "Partners", sections: true, ordered: true },
-  { path: "case-studies", collection: "case-studies", label: "Case studies", sections: true, ordered: true },
-  { path: "blog-posts", collection: "blog-posts", label: "Blog posts", sections: false, ordered: false },
-  { path: "vacancies", collection: "vacancies", label: "Vacancies", sections: false, ordered: false },
-  { path: "team", collection: "team-members", label: "Team", sections: false, ordered: true },
-  { path: "news", collection: "news-items", label: "News", sections: false, ordered: true },
+  { path: "pages", collection: "pages", label: "Pages", singular: "page", description: "Edit page documents, sections, and SEO.", sections: true, ordered: false, icon: "Pg", media: "image" },
+  { path: "services", collection: "services", label: "Services", singular: "service", description: "Homepage service cards and full service pages.", sections: true, ordered: true, icon: "Sv", media: "image" },
+  { path: "partners", collection: "partners", label: "Partners", singular: "partner", description: "Technology partners, logos, and summaries.", sections: true, ordered: true, icon: "Pt", media: "logo" },
+  { path: "case-studies", collection: "case-studies", label: "Case Studies", singular: "case study", description: "Project outcomes shown on the work pages.", sections: true, ordered: true, icon: "Cs", media: "image" },
+  { path: "blog-posts", collection: "blog-posts", label: "Blog", singular: "article", description: "Articles, clusters, and related posts.", sections: false, ordered: false, icon: "Bl", media: "image" },
+  { path: "vacancies", collection: "vacancies", label: "Vacancies", singular: "vacancy", description: "Open roles, locations, and contract types.", sections: false, ordered: false, icon: "Vc", media: "image" },
+  { path: "team", collection: "team-members", label: "Leadership Team", singular: "team member", description: "Leadership profiles and display order.", sections: false, ordered: true, icon: "Tm", media: "portrait" },
+  { path: "news", collection: "news-items", label: "News", singular: "news item", description: "News cards and expandable details.", sections: false, ordered: true, icon: "Nw", media: "image" },
 ];
 
 export function routeFor(collection: CollectionName): CollectionRoute {
@@ -66,3 +70,5 @@ export function labelFromKey(key: string): string {
   const spaced = key.replaceAll("_", " ").replace(/([a-z])([A-Z])/g, "$1 $2");
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
+
+export const websiteOrigin = import.meta.env.VITE_PUBLIC_SITE_URL ?? "http://127.0.0.1:8765";

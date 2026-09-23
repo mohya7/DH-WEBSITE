@@ -16,22 +16,24 @@ test("10.12 sign-in reload and sign-out, 10.20 no token in storage", async ({ pa
   await signIn(page);
   await expectNoStoredToken(page);
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Pages" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
   await expect(page.getByText("e2e-admin@digitalhub.test")).toBeVisible();
   await expectNoStoredToken(page);
+  await page.getByRole("button", { name: "e2e-admin@digitalhub.test account menu" }).click();
   await page.getByRole("button", { name: "Sign out" }).click();
-  await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sign in to Content Studio" })).toBeVisible();
 });
 
 test("10.13 edit a section on a page and publish", async ({ page }) => {
   await signIn(page);
-  await page.getByRole("button", { name: "New" }).click();
+  await openArea(page, "Pages");
+  await page.getByRole("button", { name: "Add page" }).click();
   await fillItemField(page, "title", "E2E published page");
   await fillItemField(page, "slug", "e2e-published-page");
   await fillItemField(page, "metaDescription", "A page used to prove Studio publish from an edited section.");
   await addSection(page, "Call to action");
   await page.locator("[data-field='sections[0].heading'] input").fill("Talk to the team");
-  await page.getByRole("button", { name: "Save" }).click();
+  await page.getByRole("button", { name: "Save content" }).click();
   await expect(page.getByText("Saved.")).toBeVisible();
   await page.getByRole("button", { name: "Publish" }).click();
   await expect(page.getByText("Published. Changes appear on the website at the next build.")).toBeVisible();
@@ -55,10 +57,10 @@ test("10.14 the second save shows the conflict message", async ({ browser }) => 
     await expect(pageA.locator("[data-field='title'] input")).toHaveValue("E2E published page");
     await expect(pageB.locator("[data-field='title'] input")).toHaveValue("E2E published page");
     await fillItemField(pageA, "title", "First session title");
-    await pageA.getByRole("button", { name: "Save" }).click();
+    await pageA.getByRole("button", { name: "Save content" }).click();
     await expect(pageA.getByText("Saved.")).toBeVisible();
     await fillItemField(pageB, "title", "Second session title");
-    await pageB.getByRole("button", { name: "Save" }).click();
+    await pageB.getByRole("button", { name: "Save content" }).click();
     await expect(pageB.getByRole("dialog", { name: "Someone else changed this item." })).toBeVisible();
   } finally {
     await first.close();
@@ -79,7 +81,7 @@ test("10.15 upload an image with alt text and use it in a section", async ({ pag
   await expect(page.getByText(imageAlt)).toBeVisible();
 
   await openArea(page, "Pages");
-  await page.getByRole("button", { name: "New" }).click();
+  await page.getByRole("button", { name: "Add page" }).click();
   await fillItemField(page, "title", "E2E media page");
   await fillItemField(page, "slug", "e2e-media-page");
   await fillItemField(page, "metaDescription", "A page that uses the uploaded e2e image in a profile section.");
@@ -89,7 +91,7 @@ test("10.15 upload an image with alt text and use it in a section", async ({ pag
   await page.locator(".ant-modal").filter({ hasText: "Choose an image" }).getByRole("button", { name: imageAlt }).click();
   await profile.getByRole("textbox", { name: "Name *" }).fill("Ada");
   await profile.getByRole("textbox", { name: "Quote *" }).fill("The image is in this section.");
-  await page.getByRole("button", { name: "Save" }).click();
+  await page.getByRole("button", { name: "Save content" }).click();
   await expect(page.getByText("Saved.")).toBeVisible();
 });
 
@@ -104,8 +106,8 @@ test("10.16 deleting the used image lists every place", async ({ page }) => {
 
 test("10.17 an editor does not see admin screens and admin APIs return 403", async ({ page, request }) => {
   await signIn(page, "editor");
-  await expect(page.getByRole("menuitem", { name: "Users" })).toHaveCount(0);
-  await expect(page.getByRole("menuitem", { name: "Audit log" })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Studio" }).getByRole("link", { name: "User Management" })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Studio" }).getByRole("link", { name: "Audit log" })).toHaveCount(0);
   await page.goto("/users");
   await expect(page.getByText("You do not have access to this area.")).toBeVisible();
 
@@ -145,8 +147,8 @@ test("10.19 a script in a contact message is stored and shown as text", async ({
   expect(created.status()).toBe(201);
 
   await signIn(page);
-  await openArea(page, "Contact inbox");
-  await page.getByRole("row", { name: new RegExp(name) }).click();
+  await openArea(page, "Inbox");
+  await page.getByRole("heading", { name }).click();
   const drawer = page.locator(".ant-drawer");
   await expect(drawer.getByText(scriptMessage)).toBeVisible();
   expect(await drawer.locator("script").count()).toBe(0);

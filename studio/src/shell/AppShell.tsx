@@ -1,57 +1,65 @@
-import { Alert, Button, Form, Input, Modal, Result, Spin, message } from "antd";
-import { useEffect, useState } from "react";
+import { Button, Form, Input, Modal, Result, Spin, message } from "antd";
+import { useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { jsonInit, request } from "../api/http";
 import { useAuth } from "../auth/AuthProvider";
+import { collectionRoutes, websiteOrigin } from "../content/model";
 import type { StudioUser } from "../auth/session";
 import { queryClient, sessionQueryKey } from "../queryClient";
-import { StatusChip } from "../ui/StatusChip";
 import { areasForRole, isStudioRole, type StudioArea } from "./areas";
 import logo from "@digitalhub/theme/assets/digital-hub-logo.png";
 
-const groups = ["Content", "Library", "Site", "Administration"] as const;
-
-const groupIcons: Record<(typeof groups)[number], string> = {
-  Content:
-    "M3 3.5h10v3H3zM3 8h6v2H3zM3 11.5h8v1.5H3z",
-  Library:
-    "M2.5 3h3v10h-3zM6.5 3h3v10h-3zM10.5 3H13.5v10H10.5z",
-  Site:
-    "M8 2.5 13.5 6v7.5h-11V6z",
-  Administration:
-    "M8 3.2a2.3 2.3 0 1 1 0 4.6 2.3 2.3 0 0 1 0-4.6zM3.5 13.2c.4-2.2 2.2-3.4 4.5-3.4s4.1 1.2 4.5 3.4",
-};
-
-function groupOf(pathname: string, visible: StudioArea[]): (typeof groups)[number] {
-  const match = visible.find((area) => pathname === area.path || pathname.startsWith(`${area.path}/`));
-  return match?.group ?? "Content";
-}
+const groups = ["Website content", "Website & system"] as const;
 
 export function AppShell() {
   const auth = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const user = auth.user;
+  const [collapsed, setCollapsed] = useState(false);
+  const [search, setSearch] = useState("");
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [changing, setChanging] = useState(false);
-  const [newContacts, setNewContacts] = useState(0);
 
   useEffect(() => {
     if (user === null || !isStudioRole(user.role)) return;
     let cancelled = false;
-    async function loadCount() {
-      const result = await request("/api/v1/contact-requests/new-count");
-      if (cancelled || !result.ok || result.body === null) return;
-      setNewContacts((result.body as { count: number }).count);
+    async function loadCounts() {
+      const next: Record<string, number> = {};
+      const contact = await request("/api/v1/contact-requests/new-count");
+      if (!cancelled && contact.ok && contact.body !== null) {
+        next["/contact"] = (contact.body as { count: number }).count;
+      }
+      await Promise.all(collectionRoutes.map(async (route) => {
+        const result = await request(`/api/v1/${route.collection}?pageSize=1`);
+        if (!cancelled && result.ok && result.body !== null) {
+          next[`/${route.path}`] = (result.body as { total: number }).total;
+        }
+      }));
+      if (!cancelled) setCounts(next);
     }
-    void loadCount();
-    const timer = window.setInterval(() => void loadCount(), 60_000);
+    void loadCounts();
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
     };
   }, [user, location.pathname]);
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        document.getElementById("globalSearch")?.focus();
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  const visible = useMemo(() => (user === null ? [] : areasForRole(user.role)), [user]);
 
   if (!auth.ready || user === null) {
     return (
@@ -76,13 +84,9 @@ export function AppShell() {
     );
   }
 
-  const visible = areasForRole(user.role);
-  const availableGroups = groups.filter((group) => visible.some((area) => area.group === group));
-  const currentGroup = groupOf(location.pathname, visible);
-  const pills = visible.filter((area) => area.group === currentGroup);
+  const signedIn = user;
 
   async function changePassword() {
-    if (user === null) return;
     setChanging(true);
     const result = await request("/api/v1/auth/change-password", jsonInit("POST", { currentPassword, newPassword }));
     setChanging(false);
@@ -91,81 +95,127 @@ export function AppShell() {
       return;
     }
     const next: StudioUser = {
-      id: user.id,
-      email: user.email,
-      role: user.role,
+      id: signedIn.id,
+      email: signedIn.email,
+      role: signedIn.role,
       mustChangePassword: false,
     };
     queryClient.setQueryData(sessionQueryKey, next);
     setCurrentPassword("");
     setNewPassword("");
+    setPasswordOpen(false);
     message.success("Password updated.");
   }
 
+  async function runGlobalSearch() {
+    const query = search.trim();
+    if (query.length === 0) return;
+    for (const route of collectionRoutes) {
+      const result = await request(`/api/v1/${route.collection}?pageSize=1&search=${encodeURIComponent(query)}`);
+      if (result.ok && result.body !== null && (result.body as { total: number }).total > 0) {
+        navigate(`/${route.path}?q=${encodeURIComponent(query)}`);
+        return;
+      }
+    }
+    message.error("No content matched this search.");
+  }
+
+  const initials = user.email.slice(0, 2).toUpperCase();
+  const forcePassword = user.mustChangePassword;
+
   return (
-    <div className="studio-shell">
-      <nav className="studio-rail" aria-label="Studio">
-        <img className="studio-rail-logo" src={logo} alt="Digital Hub" />
-        {availableGroups.map((group) => {
-          const first = visible.find((area) => area.group === group);
-          if (first === undefined) return null;
-          const active = currentGroup === group;
-          return (
-            <button
-              key={group}
-              type="button"
-              className="studio-rail-item"
-              aria-current={active ? "true" : undefined}
-              onClick={() => navigate(first.path)}
-            >
-              <span className="studio-rail-disk" aria-hidden="true">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                  <path d={groupIcons[group]} stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
-                </svg>
-              </span>
-              {group}
-            </button>
-          );
-        })}
-      </nav>
-      <div className="studio-main">
+    <div className={`studio-shell${collapsed ? " is-collapsed" : ""}`}>
+      <aside className="studio-sidebar" id="sidebar">
+        <a className="studio-brand" href={websiteOrigin} target="_blank" rel="noopener">
+          <img src={logo} alt="Digital Hub" />
+          <span>CONTENT STUDIO</span>
+        </a>
+        <nav className="studio-nav" aria-label="Studio">
+          {visible.filter((area) => area.group === null).map((area) => (
+            <NavLink key={area.path} to={area.path} end={area.path === "/"} className="studio-nav-link">
+              <span>{area.label}</span>
+            </NavLink>
+          ))}
+          {groups.map((group) => {
+            const items = visible.filter((area) => area.group === group);
+            if (items.length === 0) return null;
+            return (
+              <div key={group} className="studio-nav-group">
+                <p className="studio-nav-label">{group.toUpperCase()}</p>
+                {items.map((area) => (
+                  <AreaLink key={area.path} area={area} count={counts[area.path]} />
+                ))}
+              </div>
+            );
+          })}
+        </nav>
+        <div className="studio-sidebar-foot">
+          <div className="studio-health">
+            <span className="studio-health-dot" />
+            <div>
+              <strong>Website connected</strong>
+              <small>Content API</small>
+            </div>
+          </div>
+        </div>
+      </aside>
+      <div className="studio-workspace">
         <header className="studio-top">
-          <nav className="studio-pills" aria-label={currentGroup}>
-            {pills.map((area) => (
-              <NavLink
-                key={area.path}
-                to={area.path}
-                role="menuitem"
-                aria-label={area.label}
-                className="studio-pill"
-                aria-current={location.pathname === area.path || location.pathname.startsWith(`${area.path}/`) ? "page" : undefined}
-              >
-                {area.label}
-                {area.path === "/contact" && newContacts > 0 ? (
-                  <span className="studio-pill-dot" aria-hidden="true" />
-                ) : null}
-              </NavLink>
-            ))}
-          </nav>
-          <div className="studio-user">
-            <span>{user.email}</span>
-            <StatusChip state={user.role} />
-            <Button onClick={() => void auth.signOut()}>Sign out</Button>
+          <Button className="icon-btn" aria-label="Toggle sidebar" aria-controls="sidebar" onClick={() => setCollapsed((value) => !value)}>
+            Menu
+          </Button>
+          <label className="studio-search">
+            <input
+              id="globalSearch"
+              type="search"
+              placeholder="Search all content..."
+              aria-label="Search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") void runGlobalSearch();
+              }}
+            />
+            <kbd>⌘ K</kbd>
+          </label>
+          <div className="studio-top-actions">
+            <a className="studio-view-site" href={websiteOrigin} target="_blank" rel="noopener">
+              View website
+            </a>
+            <div>
+              <button type="button" className="studio-user-chip" aria-label={`${user.email} account menu`} aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((value) => !value)}>
+                <span className="studio-user-avatar">{initials}</span>
+                <span>
+                  <strong>{user.email}</strong>
+                  <small>{user.role === "admin" ? "Administrator" : "Editor"}</small>
+                </span>
+              </button>
+              {menuOpen ? (
+                <div className="ant-dropdown-menu" role="menu" style={{ position: "absolute", right: 34, marginTop: 8, minWidth: 210, padding: 6, borderRadius: 14 }}>
+                  <Button type="text" block onClick={() => { setMenuOpen(false); setPasswordOpen(true); }}>
+                    Change password
+                  </Button>
+                  <Button type="text" danger block onClick={() => void auth.signOut()}>
+                    Sign out
+                  </Button>
+                </div>
+              ) : null}
+            </div>
           </div>
         </header>
-        <main>
-          {user.mustChangePassword ? (
-            <Alert
-              className="!mb-4"
-              type="warning"
-              showIcon
-              message="You must change your temporary password before continuing."
-            />
-          ) : null}
+        <main className="studio-main">
           <Outlet />
         </main>
       </div>
-      <Modal title="Change password" open={user.mustChangePassword} closable={false} maskClosable={false} footer={null}>
+      <Modal
+        title="Change password"
+        open={passwordOpen || forcePassword}
+        closable={!forcePassword}
+        maskClosable={!forcePassword}
+        footer={null}
+        onCancel={() => { if (!forcePassword) setPasswordOpen(false); }}
+      >
+        {forcePassword ? <p>You must change your temporary password before continuing.</p> : null}
         <Form layout="vertical" onFinish={() => void changePassword()}>
           <Form.Item label="Current password" required>
             <Input.Password value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} />
@@ -179,5 +229,14 @@ export function AppShell() {
         </Form>
       </Modal>
     </div>
+  );
+}
+
+function AreaLink({ area, count }: { area: StudioArea; count?: number }) {
+  return (
+    <NavLink to={area.path} className="studio-nav-link" aria-label={area.label}>
+      <span>{area.label}</span>
+      {count !== undefined && count > 0 ? <b>{count}</b> : null}
+    </NavLink>
   );
 }

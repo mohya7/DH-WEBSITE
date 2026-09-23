@@ -3,25 +3,26 @@ import { e2eCatalog, e2eEnv, productionCatalog } from "./env";
 import { openArea, signIn } from "./helpers";
 
 const adminScreens = [
-  "Pages",
+  "Overview",
   "Services",
-  "Partners",
-  "Case studies",
-  "Blog posts",
-  "Vacancies",
-  "Team",
+  "Case Studies",
+  "Blog",
   "News",
+  "Partners",
+  "Inbox",
+  "Leadership Team",
+  "Pages",
+  "Vacancies",
+  "Site settings",
   "Media library",
   "Navigation",
   "Redirects",
-  "Contact inbox",
-  "Site settings",
   "Error pages",
-  "Users",
+  "User Management",
   "Audit log",
 ] as const;
 
-const editorScreens = adminScreens.filter((name) => name !== "Users" && name !== "Audit log");
+const editorScreens = adminScreens.filter((name) => name !== "User Management" && name !== "Audit log");
 
 test.describe.configure({ mode: "serial" });
 
@@ -31,44 +32,42 @@ test("12.5 admin sees every screen on DigitalHubContent_E2e", async ({ page }) =
   expect(env.connectionString).not.toMatch(new RegExp(`(?:Database|Initial Catalog)=${productionCatalog}(?:;|$)`));
 
   await signIn(page, "admin");
-  await expectDarkStudio(page);
-  await expect(page.getByRole("navigation", { name: "Studio" }).getByRole("button", { name: "Content" })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Studio" }).getByRole("button", { name: "Administration" })).toBeVisible();
+  await expectOldStudio(page);
+  await expect(page.getByRole("navigation", { name: "Studio" }).getByRole("link", { name: "User Management" })).toBeVisible();
 
   for (const name of adminScreens) {
     await openArea(page, name);
     await expect(page.getByRole("heading", { name })).toBeVisible();
-    await expectDarkStudio(page);
+    await expectOldStudio(page);
   }
 
   await openArea(page, "Pages");
-  await page.getByRole("button", { name: "New" }).click();
-  await expect(page.getByRole("button", { name: "Save" })).toBeVisible();
-  await expectDarkStudio(page);
+  await page.getByRole("button", { name: "Add page" }).click();
+  await expect(page.getByRole("button", { name: "Save content" })).toBeVisible();
+  await expectOldStudio(page);
 });
 
 test("12.5 editor sees every allowed screen and not administration", async ({ page }) => {
   await signIn(page, "editor");
-  await expectDarkStudio(page);
-  await expect(page.getByRole("navigation", { name: "Studio" }).getByRole("button", { name: "Administration" })).toHaveCount(0);
-  await expect(page.getByRole("menuitem", { name: "Users" })).toHaveCount(0);
-  await expect(page.getByRole("menuitem", { name: "Audit log" })).toHaveCount(0);
+  await expectOldStudio(page);
+  await expect(page.getByRole("navigation", { name: "Studio" }).getByRole("link", { name: "User Management" })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Studio" }).getByRole("link", { name: "Audit log" })).toHaveCount(0);
 
   for (const name of editorScreens) {
     await openArea(page, name);
     await expect(page.getByRole("heading", { name })).toBeVisible();
-    await expectDarkStudio(page);
+    await expectOldStudio(page);
   }
 
   await page.goto("/users");
   await expect(page.getByText("You do not have access to this area.")).toBeVisible();
 });
 
-async function expectDarkStudio(page: Page) {
+async function expectOldStudio(page: Page) {
   const pageBg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-  expect(pageBg).toBe("rgb(23, 25, 28)");
-  await expect(page.locator(".studio-rail")).toBeVisible();
-  const railWidth = await page.locator(".studio-rail").evaluate((node) => Math.round(node.getBoundingClientRect().width));
-  expect(railWidth).toBeGreaterThanOrEqual(160);
-  expect(railWidth).toBeLessThanOrEqual(200);
+  expect(pageBg).toBe("rgb(7, 17, 31)");
+  await expect(page.locator(".studio-sidebar")).toBeVisible();
+  const width = await page.locator(".studio-sidebar").evaluate((node) => Math.round(node.getBoundingClientRect().width));
+  expect(width).toBeGreaterThanOrEqual(240);
+  expect(width).toBeLessThanOrEqual(280);
 }

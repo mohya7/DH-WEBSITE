@@ -55,24 +55,52 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas, 
         IEnumerable<ContentRow> sorted = OrderedCollections.Contains(collection)
             ? rows.OrderBy(row => row.SortOrder).ThenBy(row => row.Title, StringComparer.OrdinalIgnoreCase).ThenBy(row => row.Slug, StringComparer.OrdinalIgnoreCase)
             : rows.OrderBy(row => row.Title, StringComparer.OrdinalIgnoreCase).ThenBy(row => row.Slug, StringComparer.OrdinalIgnoreCase);
-        var items = sorted
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
+        var pageRows = sorted.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+        var cards = await LoadCardsAsync(collection, pageRows.Select(row => row.Id).ToList(), cancellationToken);
+        var mediaIds = cards.Values
+            .SelectMany(card => new Guid?[] { card.ImageId, card.ShareImageId })
+            .Where(id => id is not null)
+            .Select(id => id!.Value)
+            .Distinct()
+            .ToList();
+        if (byId.Count > 0)
+        {
+            foreach (var document in byId.Values)
+            {
+                var draft = JsonSerializer.Deserialize<DraftDocument>(document, ContentJson.Options);
+                if (draft?.ShareImageId is Guid share)
+                    mediaIds.Add(share);
+                var image = FieldGuid(draft?.Fields, "imageId");
+                if (image is Guid id)
+                    mediaIds.Add(id);
+            }
+        }
+
+        var paths = mediaIds.Count == 0
+            ? new Dictionary<Guid, string>()
+            : await db.Media.AsNoTracking()
+                .Where(asset => mediaIds.Contains(asset.Id))
+                .ToDictionaryAsync(asset => asset.Id, asset => asset.Path, cancellationToken);
+
+        var items = pageRows
             .Select(row =>
             {
                 var slug = row.Slug;
                 var title = row.Title;
                 var hasCopy = byId.TryGetValue(row.Id, out var document);
+                cards.TryGetValue(row.Id, out var card);
+                card ??= new CardRow(null, null, null, null, []);
+                DraftDocument? draft = null;
                 if (hasCopy && document is not null)
+                    draft = JsonSerializer.Deserialize<DraftDocument>(document, ContentJson.Options);
+                if (draft is not null)
                 {
-                    var draft = JsonSerializer.Deserialize<DraftDocument>(document, ContentJson.Options);
-                    if (draft is not null)
-                    {
-                        slug = draft.Slug;
-                        title = draft.Title;
-                    }
+                    slug = draft.Slug;
+                    title = draft.Title;
+                    card = OverlayCard(collection, slug, card, draft);
                 }
 
+                var imageId = card.ImageId ?? card.ShareImageId;
                 return new
                 {
                     row.Id,
@@ -84,6 +112,9 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas, 
                     sortOrder = row.SortOrder,
                     updatedAt = row.UpdatedAt,
                     hasWorkingCopy = hasCopy,
+                    summary = card.Summary,
+                    imagePath = imageId is Guid mediaId && paths.TryGetValue(mediaId, out var path) ? path : null,
+                    chips = card.Chips,
                 };
             })
             .ToList();
@@ -1167,6 +1198,127 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas, 
             errors.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray()));
 
     private sealed record ContentRow(Guid Id, string Slug, string Title, ContentStatus Status, int Version, DateTime UpdatedAt, int SortOrder);
+
+    private sealed record CardRow(string? Summary, Guid? ImageId, Guid? ShareImageId, string? MetaDescription, IReadOnlyList<string> Chips);
+
+    private async Task<Dictionary<Guid, CardRow>> LoadCardsAsync(string collection, List<Guid> ids, CancellationToken cancellationToken)
+    {
+        if (ids.Count == 0)
+            return [];
+
+        switch (collection)
+        {
+            case "pages":
+                return (await db.Pages.AsNoTracking().Where(item => ids.Contains(item.Id))
+                    .Select(item => new { item.Id, item.MetaDescription, item.ShareImageId, item.Slug })
+                    .ToListAsync(cancellationToken))
+                    .ToDictionary(item => item.Id, item => new CardRow(item.MetaDescription, item.ShareImageId, item.ShareImageId, item.MetaDescription, ChipList(item.Slug)));
+            case "services":
+                return (await db.Services.AsNoTracking().Where(item => ids.Contains(item.Id))
+                    .Select(item => new { item.Id, item.Summary, item.ShareImageId, item.MetaDescription, item.Slug })
+                    .ToListAsync(cancellationToken))
+                    .ToDictionary(item => item.Id, item => new CardRow(item.Summary, item.ShareImageId, item.ShareImageId, item.MetaDescription, ChipList(ContentPaths.PublicPath("services", item.Slug))));
+            case "partners":
+                return (await db.Partners.AsNoTracking().Where(item => ids.Contains(item.Id))
+                    .Select(item => new { item.Id, item.Summary, item.ImageId, item.ShareImageId, item.MetaDescription, item.Slug })
+                    .ToListAsync(cancellationToken))
+                    .ToDictionary(item => item.Id, item => new CardRow(item.Summary, item.ImageId, item.ShareImageId, item.MetaDescription, ChipList(ContentPaths.PublicPath("partners", item.Slug))));
+            case "case-studies":
+                return (await db.CaseStudies.AsNoTracking().Where(item => ids.Contains(item.Id))
+                    .Select(item => new { item.Id, item.Summary, item.ImageId, item.ShareImageId, item.MetaDescription, item.Metric, item.Categories })
+                    .ToListAsync(cancellationToken))
+                    .ToDictionary(item => item.Id, item => new CardRow(item.Summary, item.ImageId, item.ShareImageId, item.MetaDescription, ChipList(item.Metric, string.Join(", ", item.Categories))));
+            case "blog-posts":
+                return (await db.BlogPosts.AsNoTracking().Where(item => ids.Contains(item.Id))
+                    .Select(item => new { item.Id, item.Summary, item.ImageId, item.ShareImageId, item.MetaDescription, item.ReadTime, item.Cluster, item.CategoryLabel, item.Category })
+                    .ToListAsync(cancellationToken))
+                    .ToDictionary(item => item.Id, item => new CardRow(item.Summary, item.ImageId, item.ShareImageId, item.MetaDescription, ChipList(item.ReadTime > 0 ? item.ReadTime + " min" : null, First(item.Cluster, item.CategoryLabel, item.Category))));
+            case "vacancies":
+                return (await db.Vacancies.AsNoTracking().Where(item => ids.Contains(item.Id))
+                    .Select(item => new { item.Id, item.Summary, item.ShareImageId, item.MetaDescription, item.Department, item.Location, item.EmploymentType })
+                    .ToListAsync(cancellationToken))
+                    .ToDictionary(item => item.Id, item => new CardRow(item.Summary, item.ShareImageId, item.ShareImageId, item.MetaDescription, ChipList(item.Department, item.Location, item.EmploymentType)));
+            case "team-members":
+                return (await db.TeamMembers.AsNoTracking().Where(item => ids.Contains(item.Id))
+                    .Select(item => new { item.Id, item.Role, item.ImageId, item.ShareImageId, item.MetaDescription, item.LinkedIn })
+                    .ToListAsync(cancellationToken))
+                    .ToDictionary(item => item.Id, item => new CardRow(item.Role, item.ImageId, item.ShareImageId, item.MetaDescription, ChipList(item.Role, string.IsNullOrWhiteSpace(item.LinkedIn) ? "No profile link" : item.LinkedIn)));
+            case "news-items":
+                return (await db.NewsItems.AsNoTracking().Where(item => ids.Contains(item.Id))
+                    .Select(item => new { item.Id, item.Summary, item.ImageId, item.ShareImageId, item.MetaDescription, item.Category, item.Location, item.Year })
+                    .ToListAsync(cancellationToken))
+                    .ToDictionary(item => item.Id, item => new CardRow(item.Summary, item.ImageId, item.ShareImageId, item.MetaDescription, ChipList(item.Category, item.Location, item.Year)));
+            default:
+                return [];
+        }
+    }
+
+    private static CardRow OverlayCard(string collection, string slug, CardRow live, DraftDocument draft)
+    {
+        var fields = draft.Fields;
+        var summary = First(FieldText(fields, "summary"), FieldText(fields, "role"), draft.MetaDescription, live.Summary);
+        var imageId = FieldGuid(fields, "imageId") ?? live.ImageId;
+        var shareImageId = draft.ShareImageId ?? live.ShareImageId;
+        var chips = collection switch
+        {
+            "pages" => ChipList(slug),
+            "services" => ChipList(ContentPaths.PublicPath("services", slug)),
+            "partners" => ChipList(ContentPaths.PublicPath("partners", slug)),
+            "case-studies" => ChipList(FieldText(fields, "metric"), FieldJoined(fields, "categories")),
+            "blog-posts" => ChipList(
+                FieldInt(fields, "readTime") is int minutes && minutes > 0 ? minutes + " min" : null,
+                First(FieldText(fields, "cluster"), FieldText(fields, "categoryLabel"), FieldText(fields, "category"))),
+            "vacancies" => ChipList(FieldText(fields, "department"), FieldText(fields, "location"), FieldText(fields, "employmentType")),
+            "team-members" => ChipList(
+                First(FieldText(fields, "role"), live.Summary),
+                First(FieldText(fields, "linkedIn"), live.Chips.ElementAtOrDefault(1), "No profile link")),
+            "news-items" => ChipList(FieldText(fields, "category"), FieldText(fields, "location"), FieldText(fields, "year")),
+            _ => live.Chips,
+        };
+        if (chips.Count == 0)
+            chips = live.Chips;
+        return new CardRow(summary, imageId, shareImageId, draft.MetaDescription ?? live.MetaDescription, chips);
+    }
+
+    private static IReadOnlyList<string> ChipList(params string?[] values) =>
+        values.Where(value => !string.IsNullOrWhiteSpace(value)).Select(value => value!.Trim()).Take(3).ToList();
+
+    private static string? First(params string?[] values) =>
+        values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+
+    private static string? FieldText(Dictionary<string, JsonElement>? fields, string key)
+    {
+        if (fields is null || !fields.TryGetValue(key, out var value))
+            return null;
+        if (value.ValueKind == JsonValueKind.String)
+            return string.IsNullOrWhiteSpace(value.GetString()) ? null : value.GetString();
+        if (value.ValueKind == JsonValueKind.Number)
+            return value.ToString();
+        return null;
+    }
+
+    private static Guid? FieldGuid(Dictionary<string, JsonElement>? fields, string key)
+    {
+        var text = FieldText(fields, key);
+        return Guid.TryParse(text, out var id) ? id : null;
+    }
+
+    private static int? FieldInt(Dictionary<string, JsonElement>? fields, string key)
+    {
+        if (fields is null || !fields.TryGetValue(key, out var value))
+            return null;
+        if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var number))
+            return number;
+        return int.TryParse(FieldText(fields, key), out var parsed) ? parsed : null;
+    }
+
+    private static string? FieldJoined(Dictionary<string, JsonElement>? fields, string key)
+    {
+        if (fields is null || !fields.TryGetValue(key, out var value) || value.ValueKind != JsonValueKind.Array)
+            return null;
+        var text = string.Join(", ", value.EnumerateArray().Select(item => item.GetString()).Where(item => !string.IsNullOrWhiteSpace(item)));
+        return string.IsNullOrWhiteSpace(text) ? null : text;
+    }
 
     private async Task<List<ContentRecord>> LoadRecordsAsync(string collection, CancellationToken cancellationToken) => collection switch
     {

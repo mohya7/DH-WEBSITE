@@ -1,56 +1,57 @@
 export const surfaces = {
-  page: "#17191C",
-  card: "#22272D",
-  raised: "#2B3138",
-  input: "#1C2025",
+  page: "#07111F",
+  card: "#0E1B2C",
+  raised: "#111F32",
+  input: "#091624",
 } as const;
 
 export const text = {
-  primary: "#E6E9ED",
-  secondary: "#A4ADB6",
-  muted: "#8B949E",
+  primary: "#F4F8FC",
+  secondary: "#8EA1B7",
+  muted: "#6F879F",
 } as const;
 
 export const accent = {
-  studio: "#45A8D4",
-  onAccent: "#0C1A22",
+  studio: "#1F9EE9",
+  onAccent: "#041018",
   brand: "#1270A0",
 } as const;
 
 export const action = {
-  primary: "#0E1114",
-  onPrimary: "#E6E9ED",
+  primary: "#1593DA",
+  onPrimary: "#F4F8FC",
 } as const;
 
 export const semantic = {
-  warning: "#F4970B",
-  error: "#E06B6B",
-  errorBg: "#3A2224",
+  warning: "#F59A23",
+  error: "#FF6B75",
+  errorBg: "#3A1A1E",
+  success: "#35D39A",
 } as const;
 
 export const chips = {
-  draft: { bg: "#2A3036", fg: "#C8D0D8" },
-  published: { bg: "#1E3A2C", fg: "#7DCEA0" },
-  changed: { bg: "#3A3118", fg: "#E8C36A" },
-  ended: { bg: "#3A3118", fg: "#F4970B" },
-  new: { bg: "#1C3340", fg: "#45A8D4" },
-  handled: { bg: "#1E3A2C", fg: "#7DCEA0" },
+  draft: { bg: "rgba(245, 154, 35, 0.12)", fg: "#F4AC4C" },
+  published: { bg: "rgba(53, 211, 154, 0.12)", fg: "#64DDB1" },
+  changed: { bg: "rgba(245, 154, 35, 0.12)", fg: "#E8C36A" },
+  ended: { bg: "rgba(245, 154, 35, 0.12)", fg: "#F59A23" },
+  new: { bg: "rgba(31, 158, 233, 0.14)", fg: "#50B8EF" },
+  handled: { bg: "rgba(53, 211, 154, 0.12)", fg: "#64DDB1" },
 } as const;
 
 export const border = {
-  subtle: "#343B43",
+  subtle: "#1E3348",
 } as const;
 
 export const radii = {
-  card: 20,
+  card: 18,
   raised: 16,
-  control: 12,
+  control: 10,
   pill: 999,
 } as const;
 
 export const fonts = {
-  heading: "Poppins, sans-serif",
-  body: "Inter, sans-serif",
+  heading: '"DM Sans", sans-serif',
+  body: '"DM Sans", sans-serif',
 } as const;
 
-export const railWidthPx = 176;
+export const railWidthPx = 258;

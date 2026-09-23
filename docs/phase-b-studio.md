@@ -13,7 +13,7 @@ Work in `D:\work\DigitalHub\dh-platform`, branch `rebuild/dotnet-platform`. Work
 | Area | Decision |
 |---|---|
 | Studio stack | Vite + React + TypeScript, Ant Design, Tailwind, React Router, TanStack Query |
-| Studio design | Dark content system, approved in Section 12. Tokens live in `packages/theme` for Phase G. Website brand `#1270A0` is untouched. |
+| Studio design | Old Content Studio look and flows, approved in Section 12. Tokens live in `packages/theme` for Phase G. Website brand `#1270A0` is untouched. |
 | Hosting | Studio and API on the **same origin**, on their own subdomain, never the website's domain. Vite proxy in development, IIS in production. No CORS. See Hosting below |
 | Tokens | Access token in memory only. Session restored after reload through `refresh`, echoing the `dh_csrf` cookie as the `X-CSRF-Token` header |
 | Roles in the Studio | `admin` and `editor` only. The other three roles exist but are not assignable from the Studio until hiring moves |
@@ -332,7 +332,9 @@ Report each result. If any step fails, stop and show it.
 
 ## Section 12 — Studio appearance
 
-The Studio is **not** a port of the old admin panel and **not** a clone of the task-dashboard reference. It is a modern content-system interface, **dark**. The reference supplies a visual language only: cards, rail, pills, quiet chips, card headers, type, and spacing. It does not supply a layout, a feature set, or a colour scheme.
+The Studio follows the **old Content Studio** on `feature/interviewer-portal` (`admin/index.html`, `admin/admin.js`, `admin/admin.css`): layout, navigation, screens, flows, and look. It is not the modern-CMS charcoal/rail direction.
+
+Publishing, media, and roles stay as built in Sections 1–11. Save is not publish. There is no whole-store import and no featured flag. Socials stay in site settings; the footer reads them from there.
 
 Do not take the kanban board, avatar stacks, the AI banner, gradient buttons, or any of that product's own features.
 
@@ -546,9 +548,9 @@ No Studio token, font load, or Ant theme is shared with the website. The website
 
 | Item | Source | Status | Evidence |
 |---|---|---|---|
-| 12.1 Written proposal, with the approved button, labelled rail, and focus ring | This section | Approved | Primary `#0E1114` / `#E6E9ED` 15.55:1; fill vs card 1.26:1; rail 176px with labels; focus `#45A8D4` ≥4.88:1 on every surface. |
-| 12.2 Apply across every Studio screen | Build | Pass | Dark shell, cards, chips, pills, near-black primary. Existing 10.12–10.19 still pass. |
-| 12.3 Real logo | Build | Pass | `packages/theme/assets/digital-hub-logo.png` on sign-in and the rail. |
+| 12.1 Written proposal: old panel look, layout, and flows | This section | Approved | Navy `#07111F` shell, 258px labelled sidebar, full-page editor. Change password from the user menu. Duplicate as a new draft only. Save is not publish. No featured flag. No whole-store import. Socials stay in site settings. |
+| 12.2 Apply across every Studio screen | Build | Pass | Sign-in, Overview, collections, editor, media, site, admin screens use the old chrome. |
+| 12.3 Real logo | Build | Pass | `packages/theme/assets/digital-hub-logo.png` on sign-in and the sidebar. |
 | 12.4 Tokens in a shared package for Phase G | Build | Pass | `@digitalhub/theme` (`packages/theme`). Website not imported. |
-| 12.5 Re-check every screen as admin and editor on `DigitalHubContent_E2e` | `studio/e2e/appearance.spec.ts` | Pass | Admin walks 16 screens plus the item editor; editor walks 14 and has no Administration rail. 10 e2e passed. |
+| 12.5 Re-check every screen as admin and editor on `DigitalHubContent_E2e` | `studio/e2e/appearance.spec.ts` | Pass | Admin and editor walks; editor has no User Management or Audit log. |
 | 12.6 Website design untouched | Settled decisions | Stands | Studio tokens are not shared with the website. |

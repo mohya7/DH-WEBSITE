@@ -252,10 +252,11 @@ export function ItemEditorPage({ collection }: { collection: CollectionName }) {
   const collectionSchema = schemas.data?.collections[collection];
 
   return (
-    <section className="surface-card">
+    <section>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <Button type="link" className="!px-0" onClick={() => navigate(`/${route.path}`)}>Back</Button>
+          <button type="button" className="back-link" onClick={() => navigate(`/${route.path}`)}>← {route.label}</button>
+          <span className="page-kicker">{item === null ? "NEW CONTENT" : "EDIT CONTENT"}</span>
           <Typography.Title level={2} className="!mb-1">{title || route.label}</Typography.Title>
           {item !== null ? <StatusChip state={item.state} /> : null}
           {item?.notice !== null && item?.notice !== undefined ? <Typography.Paragraph className="!mb-0">{item.notice}</Typography.Paragraph> : null}
@@ -263,7 +264,7 @@ export function ItemEditorPage({ collection }: { collection: CollectionName }) {
           {item?.endedAt !== null && item?.endedAt !== undefined ? <Typography.Paragraph>Ended {item.endedAt}. Publish brings this vacancy back and clears the end date.</Typography.Paragraph> : null}
         </div>
         <Space wrap>
-          <Button type="primary" onClick={() => void save()} disabled={!dirty}>Save</Button>
+          <Button type="primary" onClick={() => void save()} disabled={!dirty}>Save content</Button>
           <Button onClick={() => void publish()} disabled={dirty || item === null}>Publish</Button>
           {item?.status === "published" ? <Button onClick={() => void act(`/api/v1/${collection}/${id}/unpublish`, "Unpublished.")}>Unpublish</Button> : null}
           {item?.hasWorkingCopy ? <Button onClick={() => void act(`/api/v1/${collection}/${id}/discard`, "Draft discarded.")}>Discard draft</Button> : null}
@@ -350,7 +351,7 @@ export function ItemEditorPage({ collection }: { collection: CollectionName }) {
           <Typography.Title level={4}>Search result</Typography.Title>
           {nextPath === null ? <Typography.Paragraph>This item has no public page.</Typography.Paragraph> : (
             <div className="seo-preview mb-4">
-              <div className="text-lg text-[#1a0dab]">{shown(metaTitle, title) || "Untitled"}</div>
+              <div className="text-lg" style={{ color: "#7fd0f6" }}>{shown(metaTitle, title) || "Untitled"}</div>
               <div className="text-sm text-[#006621]">{nextPath}</div>
               <div className="text-sm" style={{ color: "var(--dh-text-secondary)" }}>{shown(metaDescription, textField(fields.summary))}</div>
             </div>
@@ -472,7 +473,7 @@ function Findings({ problem, onJump }: { problem: Problem | null; onJump: (key: 
   const warnings = Object.entries(problem.warnings ?? {});
   if (errors.length === 0 && warnings.length === 0) return null;
   return (
-    <div className="mb-4 rounded border border-amber-300 bg-amber-50 p-3">
+    <div className="findings">
       <strong>{problem.title ?? "Publishing is blocked until every check passes."}</strong>
       <ul className="mt-2">
         {errors.map(([key, messages]) => (

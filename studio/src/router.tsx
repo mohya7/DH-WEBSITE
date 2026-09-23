@@ -12,6 +12,7 @@ import { NavigationPage } from "./pages/NavigationPage";
 import { RedirectsPage } from "./pages/RedirectsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { UsersPage } from "./pages/UsersPage";
+import { OverviewPage } from "./pages/OverviewPage";
 import { AppShell } from "./shell/AppShell";
 
 export const router = createBrowserRouter([
@@ -22,7 +23,7 @@ export const router = createBrowserRouter([
       {
         element: <AppShell />,
         children: [
-          { index: true, element: <Navigate to="/pages" replace /> },
+          { index: true, element: <OverviewPage /> },
           { path: "media", element: <MediaLibraryPage /> },
           ...collectionRoutes.flatMap((route) => [
             { path: route.path, element: <CollectionListPage collection={route.collection} /> },
@@ -39,5 +40,5 @@ export const router = createBrowserRouter([
       },
     ],
   },
-  { path: "*", element: <Navigate to="/pages" replace /> },
+  { path: "*", element: <Navigate to="/" replace /> },
 ]);

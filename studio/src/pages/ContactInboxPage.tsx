@@ -1,4 +1,4 @@
-import { Button, Drawer, Input, Space, Table, Typography, message } from "antd";
+import { Button, Drawer, Input, Space, Typography, message } from "antd";
 import { PageHeader } from "../ui/PageHeader";
 import { StatusChip } from "../ui/StatusChip";
 import { useEffect, useState } from "react";
@@ -66,42 +66,38 @@ export function ContactInboxPage() {
     await load();
   }
 
+  const incoming = page.items.filter((item) => item.status === "new").length;
+  const handled = page.items.filter((item) => item.status !== "new").length;
+
   return (
-    <section className="surface-card">
-      <PageHeader title="Contact inbox" />
+    <section>
+      <PageHeader title="Inbox" subtitle="Review enquiry submissions from the contact form." />
+      <div className="stats-grid">
+        <article className="stat-card"><span>Total requests</span><strong>{page.total}</strong></article>
+        <article className="stat-card"><span>New</span><strong>{incoming}</strong></article>
+        <article className="stat-card"><span>Handled</span><strong>{handled}</strong></article>
+      </div>
       <Input.Search
         className="mb-4 max-w-md"
-        placeholder="Search"
+        placeholder="Search name, organization, email..."
         value={search}
         onChange={(event) => setSearch(event.target.value)}
         onSearch={() => void load()}
         allowClear
       />
       {error !== null ? <Typography.Paragraph type="danger">{error}</Typography.Paragraph> : null}
-      <Table
-        rowKey="id"
-        dataSource={page.items}
-        pagination={false}
-        onRow={(row) => ({
-          tabIndex: 0,
-          onClick: () => void open(row.id),
-          onKeyDown: (event) => {
-            if (event.key === "Enter" || event.key === " ") void open(row.id);
-          },
-        })}
-        columns={[
-          { title: "Name", dataIndex: "name" },
-          { title: "Organisation", dataIndex: "organization" },
-          { title: "Email", dataIndex: "email" },
-          {
-            title: "Status",
-            dataIndex: "status",
-            width: 120,
-            render: (value: string) => <StatusChip state={value} />,
-          },
-          { title: "Received", dataIndex: "createdAt", width: 200 },
-        ]}
-      />
+      {page.items.map((row) => (
+        <article key={row.id} className="panel contact-card" role="button" tabIndex={0} onClick={() => void open(row.id)} onKeyDown={(event) => { if (event.key === "Enter") void open(row.id); }}>
+          <header className="mb-3 flex items-start justify-between gap-3">
+            <div>
+              <span className="content-card__type">{row.situation}</span>
+              <h2 className="!mb-1">{row.name}</h2>
+              <p>{row.organization} · {row.email}</p>
+            </div>
+            <StatusChip state={row.status} />
+          </header>
+        </article>
+      ))}
       <Drawer title={selected?.name} open={selected !== null} onClose={() => setSelected(null)} width={480}>
         {selected !== null ? (
           <Space direction="vertical" className="w-full">
@@ -116,6 +112,7 @@ export function ContactInboxPage() {
             ) : (
               <Typography.Text type="secondary">Handled {selected.handledAt ?? ""}</Typography.Text>
             )}
+            <Button href={`mailto:${selected.email}`}>Reply by email</Button>
           </Space>
         ) : null}
       </Drawer>

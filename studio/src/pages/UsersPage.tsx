@@ -76,7 +76,7 @@ export function UsersPage() {
   return (
     <section className="surface-card">
       <PageHeader
-        title="Users"
+        title="User Management"
         extra={<Button type="primary" onClick={() => setCreateOpen(true)}>Create user</Button>}
       />
       {error !== null ? <Typography.Paragraph type="danger">{error}</Typography.Paragraph> : null}
