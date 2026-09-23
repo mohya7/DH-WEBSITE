@@ -18,7 +18,7 @@ export default defineConfig({
   globalSetup: "./e2e/global-setup.ts",
   webServer: [
     {
-      command: `dotnet run --project "${env.apiProject}" --no-launch-profile`,
+      command: 'node studio/e2e/start-api.ts',
       url: `${e2eApiOrigin}/health`,
       reuseExistingServer: false,
       timeout: 240_000,
