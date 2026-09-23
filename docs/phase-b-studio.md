@@ -554,3 +554,44 @@ No Studio token, font load, or Ant theme is shared with the website. The website
 | 12.4 Tokens in a shared package for Phase G | Build | Pass | `@digitalhub/theme` (`packages/theme`). Website not imported. |
 | 12.5 Re-check every screen as admin and editor on `DigitalHubContent_E2e` | `studio/e2e/appearance.spec.ts` | Pass | Admin and editor walks; editor has no User Management or Audit log. |
 | 12.6 Website design untouched | Settled decisions | Stands | Studio tokens are not shared with the website. |
+
+---
+
+## Running a review API
+
+A review API must never start on `DigitalHubContent`. The connection string in
+user-secrets names the real database, so a plain `dotnet run` binds to it. Start
+the review API with an environment override instead, which leaves user-secrets
+untouched and swaps only the catalog:
+
+```powershell
+$project = 'D:\work\DigitalHub\dh-platform\api\src\DigitalHub.Api\DigitalHub.Api.csproj'
+
+$secret = (dotnet user-secrets list --project $project |
+    Where-Object { $_ -like 'ConnectionStrings:Content = *' }) -replace '^ConnectionStrings:Content = ', ''
+if (-not $secret) { throw 'No ConnectionStrings:Content in user-secrets.' }
+
+$studio = $secret -replace '(?i)(Database|Initial Catalog)=[^;]+', 'Database=DigitalHubContent_Studio'
+if ($studio -match '(?i)(Database|Initial Catalog)=DigitalHubContent\s*(;|$)') {
+    throw 'Refusing to start a review API on DigitalHubContent.'
+}
+
+$env:ConnectionStrings__Content = $studio
+$env:ASPNETCORE_ENVIRONMENT = 'Development'
+$env:ASPNETCORE_URLS = 'http://127.0.0.1:5088'
+
+dotnet run --project $project -c Release --no-build --no-launch-profile
+```
+
+The guard refuses to start rather than fall back, so a mistyped catalog stops the
+run instead of reaching the real database. The connection string is read into a
+variable and never printed. `--no-launch-profile` keeps `launchSettings.json`
+from putting the URLs or environment back.
+
+Confirm the binding from the server, not from configuration:
+
+```sql
+SELECT DISTINCT DB_NAME(database_id)
+FROM sys.dm_exec_sessions
+WHERE host_process_id = <api pid> AND database_id > 4;
+```

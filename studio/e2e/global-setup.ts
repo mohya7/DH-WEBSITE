@@ -10,9 +10,19 @@ export default async function globalSetup() {
   fs.mkdirSync(env.mediaRoot, { recursive: true });
   fs.mkdirSync(path.join(env.studioRoot, "e2e", ".generated"), { recursive: true });
 
+  /* Drop and recreate rather than delete rows, so the identity tables start
+     empty too and the seeder creates the admin and editor fresh on every run.
+     Clearing content alone left AspNetUsers behind, which meant the seeded
+     passwords had to be reset somewhere -- and a password reset belongs in the
+     admin screens, never in startup code. SINGLE_USER rolls back any session
+     still holding the database so the drop cannot hang. */
   runSql(env.server, "master", `
-IF DB_ID(N'${e2eCatalog}') IS NULL
-    CREATE DATABASE [${e2eCatalog}];
+IF DB_ID(N'${e2eCatalog}') IS NOT NULL
+BEGIN
+    ALTER DATABASE [${e2eCatalog}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+    DROP DATABASE [${e2eCatalog}];
+END
+CREATE DATABASE [${e2eCatalog}];
 `);
 
   const apiRoot = path.join(env.repoRoot, "api");
@@ -44,25 +54,6 @@ IF NOT EXISTS (
     JOIN sys.database_principals m ON rm.member_principal_id = m.principal_id
     WHERE r.name = N'db_datawriter' AND m.name = N'${escapeSql(env.loginName)}')
     ALTER ROLE db_datawriter ADD MEMBER [${escapeIdent(env.loginName)}];
-
-DELETE FROM sections;
-DELETE FROM working_copies;
-DELETE FROM revisions;
-DELETE FROM redirects;
-UPDATE navigation_items SET parent_id = NULL;
-DELETE FROM navigation_items;
-DELETE FROM contact_requests;
-DELETE FROM pages;
-DELETE FROM services;
-DELETE FROM partners;
-DELETE FROM case_studies;
-DELETE FROM blog_posts;
-DELETE FROM vacancies;
-DELETE FROM team_members;
-DELETE FROM news_items;
-DELETE FROM media;
-DELETE FROM audit_log;
-DELETE FROM RefreshTokens;
 `);
 }
 
