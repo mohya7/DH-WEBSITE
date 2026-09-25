@@ -172,6 +172,52 @@ public sealed class AdminApiTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task Settings_read_returns_defaults_when_no_row_exists_and_never_writes()
+    {
+        var admin = await AdminAsync();
+        await ClearSettingsAsync();
+
+        var empty = await SendAsync(admin, HttpMethod.Get, "/api/v1/settings");
+        Assert.Equal(HttpStatusCode.OK, empty.Status);
+        var body = JsonDocument.Parse(empty.Body).RootElement;
+        Assert.Equal(JsonValueKind.Null, body.GetProperty("email").ValueKind);
+        Assert.Equal(JsonValueKind.Null, body.GetProperty("organizationName").ValueKind);
+
+        // Reading, twice, must not create the row.
+        Assert.Equal(HttpStatusCode.OK, (await SendAsync(admin, HttpMethod.Get, "/api/v1/settings")).Status);
+        Assert.Equal(0, await CountSettingsAsync());
+    }
+
+    [Fact]
+    public async Task Settings_first_save_creates_the_row_and_later_saves_update_it()
+    {
+        var admin = await AdminAsync();
+        await ClearSettingsAsync();
+
+        var created = await SendAsync(admin, HttpMethod.Put, "/api/v1/settings", new
+        {
+            email = "first@digitalhub.test",
+            organizationName = "Digital Hub",
+        });
+        Assert.Equal(HttpStatusCode.OK, created.Status);
+        Assert.Equal(1, await CountSettingsAsync());
+        Assert.Equal("first@digitalhub.test", JsonDocument.Parse(created.Body).RootElement.GetProperty("email").GetString());
+
+        var reread = await SendAsync(admin, HttpMethod.Get, "/api/v1/settings");
+        Assert.Equal("first@digitalhub.test", JsonDocument.Parse(reread.Body).RootElement.GetProperty("email").GetString());
+
+        // A second save updates that row rather than adding another.
+        var updated = await SendAsync(admin, HttpMethod.Put, "/api/v1/settings", new
+        {
+            email = "second@digitalhub.test",
+            organizationName = "Digital Hub",
+        });
+        Assert.Equal(HttpStatusCode.OK, updated.Status);
+        Assert.Equal(1, await CountSettingsAsync());
+        Assert.Equal("second@digitalhub.test", JsonDocument.Parse(updated.Body).RootElement.GetProperty("email").GetString());
+    }
+
+    [Fact]
     public async Task Editor_is_forbidden_on_settings_write_users_and_audit()
     {
         var editor = await EditorAsync();
@@ -554,6 +600,21 @@ public sealed class AdminApiTests : IClassFixture<ApiFactory>
         var session = await AuthSession.LoginAsync(_client, email, ApiFactory.AdminPassword);
         Assert.Equal(HttpStatusCode.OK, session.Status);
         return session;
+    }
+
+    private async Task ClearSettingsAsync()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ContentDbContext>();
+        db.SiteSettings.RemoveRange(await db.SiteSettings.ToListAsync());
+        await db.SaveChangesAsync();
+    }
+
+    private async Task<int> CountSettingsAsync()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ContentDbContext>();
+        return await db.SiteSettings.CountAsync();
     }
 
     private async Task EnsureSettingsAsync()

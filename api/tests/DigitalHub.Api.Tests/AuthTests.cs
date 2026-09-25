@@ -213,18 +213,23 @@ public sealed class AuthTests : IClassFixture<ApiFactory>
     [Fact]
     public async Task Login_rate_limit_is_per_ip_and_username()
     {
-        for (var attempt = 0; attempt < 8; attempt++)
+        /* Its own host, so the limit is the production one rather than the
+           raised budget the rest of the suite shares. */
+        using var factory = new ApiFactory.RateLimited();
+        using var client = factory.CreateClient();
+
+        for (var attempt = 0; attempt < ApiFactory.RateLimited.Limit; attempt++)
         {
-            var response = await _client.PostAsJsonAsync("/api/v1/auth/login", new { email = "limited@digitalhub.test", password = "wrong-password" });
+            var response = await client.PostAsJsonAsync("/api/v1/auth/login", new { email = "limited@digitalhub.test", password = "wrong-password" });
             Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         }
 
-        var limited = await _client.PostAsJsonAsync("/api/v1/auth/login", new { email = "limited@digitalhub.test", password = "wrong-password" });
+        var limited = await client.PostAsJsonAsync("/api/v1/auth/login", new { email = "limited@digitalhub.test", password = "wrong-password" });
         var limitedBody = await limited.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
         Assert.Equal("rate_limited", JsonDocument.Parse(limitedBody).RootElement.GetProperty("code").GetString());
 
-        var other = await _client.PostAsJsonAsync("/api/v1/auth/login", new { email = "someone-else@digitalhub.test", password = "wrong-password" });
+        var other = await client.PostAsJsonAsync("/api/v1/auth/login", new { email = "someone-else@digitalhub.test", password = "wrong-password" });
         Assert.Equal(HttpStatusCode.Unauthorized, other.StatusCode);
     }
 

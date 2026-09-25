@@ -191,20 +191,26 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
     public async Task<ContentOutcome> GetSettingsAsync(CancellationToken cancellationToken)
     {
         var settings = await db.SiteSettings.AsNoTracking().FirstOrDefaultAsync(cancellationToken);
-        if (settings is null)
-            return Missing("Site settings do not exist.");
-        return ContentOutcome.Ok(PresentSettings(settings));
+        /* A database that has never been written to has no settings row. Answer
+           with empty defaults rather than 404, so the screen loads and can be
+           filled in. Reading never creates the row; the first save does. */
+        return ContentOutcome.Ok(PresentSettings(settings ?? new SiteSettings()));
     }
 
     public async Task<ContentOutcome> UpdateSettingsAsync(SiteSettingsUpdate request, string? userId, CancellationToken cancellationToken)
     {
         var settings = await db.SiteSettings.FirstOrDefaultAsync(cancellationToken);
-        if (settings is null)
-            return Missing("Site settings do not exist.");
 
         var errors = ValidateSettings(request);
         if (errors.Count > 0)
             return Validation(errors);
+
+        // The first save is what creates the row.
+        if (settings is null)
+        {
+            settings = new SiteSettings { Id = Guid.NewGuid() };
+            db.SiteSettings.Add(settings);
+        }
 
         settings.Phone = TrimOrNull(request.Phone);
         settings.WhatsApp = TrimOrNull(request.WhatsApp);

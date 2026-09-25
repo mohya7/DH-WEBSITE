@@ -18,6 +18,13 @@ public class ApiFactory : WebApplicationFactory<Program>
 
     public string MediaRoot { get; } = Path.Combine(Path.GetTempPath(), "dh-platform-media-tests");
 
+    /* The login limiter keys on IP plus email, and every test signs in as the
+       same admin from the same address, so the whole suite shares one budget and
+       tests start failing with 429 as it grows. Raised for the shared host only;
+       the production default stays 8 in appsettings.json, and
+       RateLimitedApiFactory puts it back so the limiter itself can be tested. */
+    protected virtual int LoginPermitLimit => 1000;
+
     private readonly string _connectionString = TestConnectionString();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -32,11 +39,23 @@ public class ApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Auth:InitialAdminEmail", AdminEmail);
         builder.UseSetting("Auth:InitialAdminPassword", AdminPassword);
         builder.UseSetting("Database:EnsureCreated", "false");
+        builder.UseSetting("Auth:LoginPermitLimit", LoginPermitLimit.ToString());
         builder.ConfigureTestServices(services =>
         {
             services.AddSingleton<NoteStore>();
             services.AddControllers().AddApplicationPart(typeof(ConventionProbeController).Assembly);
         });
+    }
+
+    /// <summary>
+    /// A host that keeps the production login limit, so the limiter can be
+    /// exercised without the shared host's raised budget hiding it.
+    /// </summary>
+    public sealed class RateLimited : ApiFactory
+    {
+        public const int Limit = 8;
+
+        protected override int LoginPermitLimit => Limit;
     }
 
     private static string TestConnectionString()
