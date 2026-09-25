@@ -59,7 +59,7 @@ export function SettingsPage() {
   return (
     <section className="surface-card max-w-3xl">
       <PageHeader title="Site settings" />
-      {!canEdit ? <Alert className="!mb-4" type="info" showIcon message="Editors can view settings. Only admins can save changes." /> : null}
+      {!canEdit ? <Alert className="!mb-4" type="info" showIcon title="Editors can view settings. Only admins can save changes." /> : null}
       {error !== null ? <Typography.Paragraph type="danger">{error}</Typography.Paragraph> : null}
       <Form form={form} layout="vertical" disabled={!canEdit} onFinish={(values) => void save(values)}>
         <Form.Item label="Email" name="email"><Input /></Form.Item>

@@ -211,7 +211,7 @@ export function AppShell() {
         title="Change password"
         open={passwordOpen || forcePassword}
         closable={!forcePassword}
-        maskClosable={!forcePassword}
+        mask={{ closable: !forcePassword }}
         footer={null}
         onCancel={() => { if (!forcePassword) setPasswordOpen(false); }}
       >

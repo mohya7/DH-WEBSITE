@@ -98,9 +98,9 @@ export function ContactInboxPage() {
           </header>
         </article>
       ))}
-      <Drawer title={selected?.name} open={selected !== null} onClose={() => setSelected(null)} width={480}>
+      <Drawer title={selected?.name} open={selected !== null} onClose={() => setSelected(null)} size={480}>
         {selected !== null ? (
-          <Space direction="vertical" className="w-full">
+          <Space orientation="vertical" className="w-full">
             <Typography.Text>{selected.email}</Typography.Text>
             <Typography.Text type="secondary">{selected.organization}{selected.role ? ` · ${selected.role}` : ""}</Typography.Text>
             <Typography.Text type="secondary">{selected.situation}</Typography.Text>

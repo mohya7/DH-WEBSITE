@@ -80,7 +80,7 @@ export function NavigationPage() {
         }
       />
       {error !== null ? <Typography.Paragraph type="danger">{error}</Typography.Paragraph> : null}
-      <Space direction="vertical" className="w-full" size="large">
+      <Space orientation="vertical" className="w-full" size="large">
         {items.map((item, index) => (
           <div key={item.id ?? index} className="section-card">
             <Form layout="vertical">
