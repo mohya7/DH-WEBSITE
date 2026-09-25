@@ -595,3 +595,38 @@ SELECT DISTINCT DB_NAME(database_id)
 FROM sys.dm_exec_sessions
 WHERE host_process_id = <api pid> AND database_id > 4;
 ```
+
+---
+
+## Where Preview and View website point
+
+Three links leave the Studio for the public website: **Preview** on a published
+collection card ([`CollectionListPage.tsx`](../studio/src/pages/CollectionListPage.tsx)),
+the sidebar brand, and **View website** in the header (both in
+[`AppShell.tsx`](../studio/src/shell/AppShell.tsx)).
+
+All three read one value:
+
+```ts
+// studio/src/content/model.ts
+export const websiteOrigin = import.meta.env.VITE_PUBLIC_SITE_URL ?? "http://127.0.0.1:8765";
+```
+
+The mechanism is already per-environment configuration — a Vite variable,
+declared in `src/vite-env.d.ts`. What is missing is the configuration itself:
+no `.env` file in the repo sets `VITE_PUBLIC_SITE_URL`, so every environment
+falls through to the literal in the line above. The effective base URL today
+comes from code, not configuration.
+
+That fallback is the old Node site in `D:\work\DigitalHub\New Website\DH-WEBSITE-main`,
+which serves `.html` files — `cases/ministry-planning.html`,
+`services/ai-automation.html`. `publicPath()` builds extensionless addresses
+(`/cases/<slug>`, `/services/<slug>`, `/blogs/<slug>`, `/careers/<slug>`), and
+that site has no rewrite from one to the other. So Preview opens the right
+address for the new website and the wrong one for the site currently on 8765.
+
+**Phase C points this at the new website.** When the public site is built, set
+`VITE_PUBLIC_SITE_URL` per environment and remove the literal fallback, so a
+missing value fails loudly instead of quietly addressing a machine-local port.
+Until then the links are expected to 404 against 8765; that is the fallback, not
+a defect in the Preview logic, which is covered by P2.4.
