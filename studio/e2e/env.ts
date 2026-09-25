@@ -39,6 +39,11 @@ export function e2eEnv() {
       Auth__InitialEditorEmail: e2eEditorEmail,
       Auth__InitialEditorPassword: e2ePassword,
       Contact__PermitLimit: "1000",
+      /* The limiter keys on IP plus email, so every test signing in as the same
+         account from 127.0.0.1 shares one budget of 8 per hour. Raised for the
+         same reason Contact__PermitLimit is, and only for the e2e API: the
+         production default stays 8 in appsettings.json. */
+      Auth__LoginPermitLimit: "1000",
       Database__EnsureCreated: "false",
     },
     studioEnv: {
