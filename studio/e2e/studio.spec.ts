@@ -17,7 +17,10 @@ test("10.12 sign-in reload and sign-out, 10.20 no token in storage", async ({ pa
   await expectNoStoredToken(page);
   await page.reload();
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
-  await expect(page.getByText("e2e-admin@digitalhub.test")).toBeVisible();
+  /* Scoped to the header chip. A bare getByText also matches the sign_in rows
+     in Overview's recent activity, which carry the same address, so it resolved
+     to three elements whenever those entries sat in the top of the audit list. */
+  await expect(page.locator(".studio-user-chip").getByText("e2e-admin@digitalhub.test")).toBeVisible();
   await expectNoStoredToken(page);
   await page.getByRole("button", { name: "e2e-admin@digitalhub.test account menu" }).click();
   await page.getByRole("button", { name: "Sign out" }).click();
