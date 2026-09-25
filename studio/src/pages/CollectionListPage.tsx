@@ -19,6 +19,8 @@ type ListItem = {
   chips?: string[];
 };
 
+type StatusFilter = string | null;
+
 type ListPage = {
   items: ListItem[];
   total: number;
@@ -47,11 +49,15 @@ export function CollectionListPage({ collection }: { collection: CollectionName 
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const [search, setSearch] = useState(params.get("q") ?? "");
-  const [status, setStatus] = useState<string | undefined>(undefined);
+  /* null means "show every status"; undefined means "caller did not pass one".
+     A default parameter fires on undefined, so using undefined for both made
+     load() fall back to the previous status and the All tab could never clear
+     the filter. */
+  const [status, setStatus] = useState<StatusFilter>(null);
   const [layout, setLayout] = useState<"grid" | "list">("grid");
   const [page, setPage] = useState<ListPage>({ items: [], total: 0 });
   const [message, setMessage] = useState<string | null>(null);
-  const canReorder = route.ordered && search.trim().length === 0 && status === undefined && page.total === page.items.length;
+  const canReorder = route.ordered && search.trim().length === 0 && status === null && page.total === page.items.length;
 
   const counts = useMemo(() => ({
     all: page.total,
@@ -63,10 +69,10 @@ export function CollectionListPage({ collection }: { collection: CollectionName 
     void load(params.get("q") ?? search, status);
   }, [collection]);
 
-  async function load(nextSearch = search, nextStatus = status) {
+  async function load(nextSearch: string = search, nextStatus: StatusFilter = status) {
     const query = new URLSearchParams({ pageSize: "100" });
     if (nextSearch.trim().length > 0) query.set("search", nextSearch.trim());
-    if (nextStatus !== undefined) query.set("status", nextStatus);
+    if (nextStatus !== null) query.set("status", nextStatus);
     const result = await request(`/api/v1/${collection}?${query.toString()}`);
     if (!result.ok || result.body === null) {
       setMessage(result.problem?.title ?? "The list could not be loaded.");
@@ -163,7 +169,7 @@ export function CollectionListPage({ collection }: { collection: CollectionName 
         <Segmented
           value={status ?? "all"}
           onChange={(value) => {
-            const next = value === "all" ? undefined : String(value);
+            const next = value === "all" ? null : String(value);
             setStatus(next);
             void load(search, next);
           }}

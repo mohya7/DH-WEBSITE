@@ -144,7 +144,13 @@ test("P2.2 Collection list: views, active view, search, status tabs, and reorder
   // Reorder with the arrows, then prove it survived a reload.
   const before = await cardTitles(page);
   expect(before.length).toBeGreaterThan(1);
+  /* The arrow updates the list optimistically and saves in the background, so
+     wait for the save itself. Reloading on the optimistic state alone aborts
+     the in-flight POST and the order comes back unchanged. */
+  const saved = page.waitForResponse((entry) =>
+    /\/news-items\/order$/.test(entry.url()) && entry.request().method() === "POST");
   await page.locator("article.content-card").first().getByRole("button", { name: "Move down" }).click();
+  expect((await saved).status()).toBe(200);
   await expect.poll(async () => (await cardTitles(page))[0]).toBe(before[1]);
   const after = await cardTitles(page);
   expect(after[0]).toBe(before[1]);
