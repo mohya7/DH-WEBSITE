@@ -1,0 +1,11 @@
+# Written by the prepare step on every build; never committed.
+/.content/
+/public/media/
+
+# Written by Next.
+/next-env.d.ts
+
+# `next dev` writes these when it detects an AI agent running it. The project's
+# agent rules are the AGENTS.md and CLAUDE.md at the repository root.
+/AGENTS.md
+/CLAUDE.md
