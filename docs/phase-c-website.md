@@ -184,6 +184,12 @@ Organization uses the site settings, including the postal address fields.
 
 **6.3** `sitemap.xml` with last-modified dates from editorial dates, published and indexable pages only. `robots.txt`. `llms.txt`.
 
+The last-modified date is the **editorial date**: `dateModified` where the item has
+one, otherwise its most recent publish time. Never the snapshot's `generatedAt` or
+the export time. Snapshot timestamps reflect when the snapshot was exported, not
+when anyone changed the content, and they move on every refresh — they are
+acceptable for development builds only.
+
 **6.4** Run Lighthouse against the snapshot build and report every page type's SEO score. Report what could not be run.
 
 ---
