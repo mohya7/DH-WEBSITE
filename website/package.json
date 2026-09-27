@@ -9,9 +9,12 @@
   "scripts": {
     "gen:types": "tsx scripts/generate-schema-types.ts",
     "prepare:content": "tsx scripts/prepare-content.ts",
-    "dev": "npm run gen:types -- --check && npm run prepare:content && next dev",
-    "build": "npm run gen:types -- --check && npm run prepare:content && next build && tsx scripts/check-output.ts",
+    "prepare:design": "tsx scripts/prepare-design.ts",
+    "dev": "npm run gen:types -- --check && npm run prepare:content && npm run prepare:design && next dev",
+    "build": "npm run gen:types -- --check && npm run prepare:content && npm run prepare:design && next build && tsx scripts/check-output.ts",
     "check:output": "tsx scripts/check-output.ts",
+    "design:check": "tsx scripts/design-sources.ts",
+    "design:port": "tsx scripts/design-sources.ts --write",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

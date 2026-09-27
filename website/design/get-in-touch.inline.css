@@ -1,0 +1,28 @@
+
+  .page-contact .hub-hero{padding-bottom:clamp(28px,4vw,40px)}
+  .page-contact .contact-page{
+    padding:0 0 clamp(56px,8vw,96px);
+  }
+  .page-contact .contact-page__inner{
+    width:calc(100% - var(--nav-inset));
+    max-width:var(--nav-max);
+    margin:0 auto;
+  }
+  .page-contact .contact{
+    background:transparent;
+    padding:0;
+  }
+  .page-contact .contact-inner{
+    width:100%;
+    max-width:none;
+    margin:0;
+    gap:clamp(28px,4vw,48px);
+  }
+  .page-contact .contact-left .h2{white-space:normal}
+  .page-contact .contact-honeypot{position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden}
+  .page-contact .form-error{margin:0;color:#c0392b;font-size:13px}
+  @media (max-width:1024px){
+    .page-contact .contact-inner{grid-template-columns:1fr}
+    .page-contact .contact .field-row{grid-template-columns:1fr}
+    .page-contact .contact-card{padding:28px 22px}
+  }

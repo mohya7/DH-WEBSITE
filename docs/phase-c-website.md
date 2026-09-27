@@ -128,11 +128,41 @@ If neither is configured, the build **fails** with a clear message. No silent de
 
 **3.2** Fonts loaded exactly as the current site loads them.
 
-**3.3** The WebGL hero, GSAP, and Lenis as client components, loaded as the current site loads them, lazily, respecting `prefers-reduced-motion`.
+**3.3** The WebGL hero, GSAP, and Lenis as client components, loaded as the current site loads them, lazily, respecting `prefers-reduced-motion`. *Updated at Section 3:* "as the current site loads them" takes precedence over "lazily". GSAP, ScrollTrigger, and Lenis load from jsDelivr, eagerly, at the end of the body, on the same page types as today. They and the ported page scripts load as plain `<script>` tags in their original positions, not as client components; they respect `prefers-reduced-motion` as the current scripts do.
 
 **3.4** No Tailwind, no CSS modules, no restyling. If a style would have to change to work in Next.js, **stop and report it** — do not change it.
 
-**3.5** Known defect in the source, decide at Section 3: `css/about-page.css` on `feature/interviewer-portal` (at `eb05f064`) has a stray `}` at line 176, straight after the `@media (prefers-reduced-motion:reduce)` block closes. Browsers read it as the start of the next rule's selector, so the `.about-services` rule that follows is dropped. Porting the stylesheet unchanged carries the bug over. Decide at Section 3 whether to fix it in the port; if it is fixed, add it to the allowed differences register, because the About page will then differ from `feature/interviewer-portal` in screenshots.
+**3.5** Known defect in the source, decide at Section 3: `css/about-page.css` on `feature/interviewer-portal` (at `eb05f064`) has a stray `}` at line 176, straight after the `@media (prefers-reduced-motion:reduce)` block closes. Browsers read it as the start of the next rule's selector, so the `.about-services` rule that follows is dropped. Porting the stylesheet unchanged carries the bug over. Decide at Section 3 whether to fix it in the port; if it is fixed, add it to the allowed differences register, because the About page will then differ from `feature/interviewer-portal` in screenshots. *Decided at Section 3:* not fixed in the port. It is ported exactly as it is and will be fixed later as its own change.
+
+### Section 3 — how the design is ported
+
+**Where the files are.** `website/design/` mirrors the source layout — `css/`, `js/`, `assets/` — with original file names, so every relative `url()`, `@import`, and module import resolves exactly as it does today. `website/design/.gitattributes` (`* -text`) keeps the bytes identical on every checkout, Windows included. `npm run design:check` compares every file with `feature/interviewer-portal`; `npm run design:port` re-ports them. The files are served as static files, byte for byte, never through Next's CSS pipeline: Next rejects `about-page.css` (3.5) and rewrites everything it imports.
+
+**Cache busting.** The build copies `website/design/` to `/design/<hash>/`, where the hash covers every file's path and bytes. Any change gives a new folder. Section 8: serve `/design/*` with long, immutable caching.
+
+**Extracted inline blocks.** The home and contact `<style>` blocks, and the six home-page inline scripts, are files with bytes identical to the block contents: `index.inline.css`, `get-in-touch.inline.css`, `index.inline-1.js` to `index.inline-6.js`. They load at the same point in the order. The home block's four `url()`s are three fragment references (`#delivery-line-grad`, `#delivery-line-mid`, `#delivery-pulse-glow`) and one `data:` URI; the contact block has none.
+
+**What each page type loads.** `website/src/design/sets.ts`, one set per page type, taken from the old pages and compared with them by `npm run design:check`. 404 and 500 use the hub set.
+
+**Not ported.** `content/site-content.js` and `js/content-runtime.js` (content is rendered at build), `js/webgl-fluid.mjs` (unused), and the contact page's inline script — the old contact form handler, posting to `/api/contact/requests`. Section 5.4 builds the form.
+
+**Scripts that depend on markup the old runtime rendered** — Sections 4 and 5 render it at build, before these scripts run: `js/about-page.js` (`#teamStripInner`), `index.inline-3.js` (`.h1-wrap`, `.numbers-row`), `index.inline-4.js` (`#servicesTrack`), `index.inline-5.js` (`#newsTrack`), `index.inline-6.js` (`#blogsTrack`). No ported script reads `window.DH_CONTENT` or listens for `dh:content-ready`.
+
+**Script positions Sections 4 and 5 must keep.** `index.inline-2.js` straight after the header's `</nav>`; `js/hero-fluid.js` (module) inside the home hero, after `.hero-wires`; everything else after the footer. `index.inline-3.js` sets the fallback logo to `assets/digital-hub-logo.png`, relative to the page, so Section 5 serves that file at `/assets/digital-hub-logo.png`.
+
+**Loading differences React 19 makes.** Stylesheets carry `data-precedence="design"`; module preloads come after the stylesheets instead of between the Tabler link and the home stylesheet. Neither changes what is applied or when scripts run.
+
+**Open, found at Section 3: React hydration undoes ported scripts.** Next hydrates every page with React after load. A ported script that changes markup React rendered makes hydration fail (React error #418), and React then re-renders the page, undoing the script. Shown in Chromium with `index.inline-2.js` against its nav markup: the logo moved back, `#navIntro` came back, and the classes the script added to `<html>` and `<body>` were gone. With Next's client scripts removed from the page, the same script works as on the old site. It does not show yet because the scaffold has no markup for the scripts to change. Decide before Sections 4 and 5.
+
+### Ported with changes
+
+| File | Line | Before | After | Reason |
+|---|---|---|---|---|
+| `js/hero-fluid.js` | 7 | `import WebGLFluid from "./webgl-fluid-lib.js?v=26";` | `import WebGLFluid from "./webgl-fluid-lib.js";` | No `?v=` query strings anywhere (2.6). The design folder is content-hashed instead |
+
+### Links
+
+The website uses ordinary full-page links, never Next's client-side navigation, so the ported scripts run on every page load exactly as today. The website's link adapter renders plain `<a>` elements.
 
 ---
 

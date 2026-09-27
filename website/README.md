@@ -17,16 +17,17 @@ The output is `out/`. There is no default source: with `CONTENT_SOURCE` unset,
 or set to anything but `snapshot` or `api`, the build stops and says what to set.
 On Windows PowerShell, set the variables with `$env:CONTENT_SOURCE = "snapshot"`.
 
-`npm run build` runs four steps, and any of them can stop the build:
+`npm run build` runs five steps, and any of them can stop the build:
 
 | Step | What it does |
 |---|---|
 | `gen:types -- --check` | Fails if `src/content/generated/schema-types.ts` is out of date with `packages/sections` or `packages/collections` |
 | `prepare:content` | Reads the configured source **once**, checks it, writes `.content/` and `public/media/` |
+| `prepare:design` | Copies `design/` to `public/design/<hash>/` |
 | `next build` | Renders every page from `.content/` |
 | `check:output` | Checks `out/`, and prints the page count and every route |
 
-`npm run dev` runs the first two steps, then `next dev`.
+`npm run dev` runs the first three steps, then `next dev`.
 
 ## Data layer — `src/content/`
 
@@ -87,6 +88,23 @@ with the stored width and height, a `srcset` from the stored variant widths
 (`<hash>-w640.webp`, …), and the usage's alt text or an empty alt when
 decorative. The prepare step copies the files published content uses into
 `public/media/`, and Next copies them into `out/media/`.
+
+## Design — `design/`
+
+The stylesheets, scripts, and the assets they reference, ported from
+`feature/interviewer-portal` byte for byte (Phase C, Section 3). The build copies
+the folder to `/design/<hash>/`, where the hash covers every file, and each page
+type loads its set from `src/design/sets.ts` with plain `<link>` and `<script>`
+tags in the old order. They never go through Next's CSS pipeline.
+
+```bash
+npm run design:check                        # compare with origin/feature/interviewer-portal
+npm run design:check -- --source-dir "D:\work\DigitalHub\New Website\DH-WEBSITE-main"
+```
+
+It checks every file's SHA-256 and every design set's loading order against the
+old pages. The one permitted change is listed in `docs/phase-c-website.md`,
+"Ported with changes". Never edit `design/` by hand.
 
 ## Tests
 

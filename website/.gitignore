@@ -1,6 +1,7 @@
 # Written by the prepare step on every build; never committed.
 /.content/
 /public/media/
+/public/design/
 
 # Written by Next.
 /next-env.d.ts
