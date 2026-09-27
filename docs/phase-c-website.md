@@ -132,6 +132,8 @@ If neither is configured, the build **fails** with a clear message. No silent de
 
 **3.4** No Tailwind, no CSS modules, no restyling. If a style would have to change to work in Next.js, **stop and report it** — do not change it.
 
+**3.5** Known defect in the source, decide at Section 3: `css/about-page.css` on `feature/interviewer-portal` (at `eb05f064`) has a stray `}` at line 176, straight after the `@media (prefers-reduced-motion:reduce)` block closes. Browsers read it as the start of the next rule's selector, so the `.about-services` rule that follows is dropped. Porting the stylesheet unchanged carries the bug over. Decide at Section 3 whether to fix it in the port; if it is fixed, add it to the allowed differences register, because the About page will then differ from `feature/interviewer-portal` in screenshots.
+
 ---
 
 ## Section 4 [CLOUD] — Section components
