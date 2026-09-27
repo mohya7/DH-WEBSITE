@@ -185,19 +185,71 @@ describe("the built pages' loading check", () => {
   });
 });
 
+/*
+ * The website ships static HTML with no client runtime (Section 3). Markup must
+ * come from the build, never from client-side state or effects, and "use client"
+ * is allowed only where listed, with the reason.
+ */
+const clientComponents: Record<string, string> = {
+  "src/design/DesignHeadItems.tsx":
+    "Next renders the 404 component into every page's payload as its not-found fallback. Resource hints from a server component there put the hub set's preloads on every page; a client component is only rendered where it is shown. It uses no state or effects.",
+};
+
+const stateOrEffectHooks = /\b(?:React\.)?(useEffect|useLayoutEffect|useInsertionEffect|useState|useReducer|useSyncExternalStore|useTransition|useDeferredValue|useOptimistic|useActionState|useFormStatus)\s*\(/;
+
+function websiteSources(): { file: string; text: string }[] {
+  const out: { file: string; text: string }[] = [];
+  const walk = (dir: string) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (/\.(ts|tsx)$/.test(entry.name)) out.push({ file: path.relative(process.cwd(), full).split(path.sep).join("/"), text: fs.readFileSync(full, "utf8") });
+    }
+  };
+  walk(path.join(process.cwd(), "src"));
+  return out;
+}
+
+function staticHtmlProblems(sources: { file: string; text: string }[], allowed: Record<string, string>): string[] {
+  const problems: string[] = [];
+  for (const { file, text } of sources) {
+    const hook = stateOrEffectHooks.exec(text);
+    if (hook) problems.push(`${file} uses ${hook[1]}.`);
+    const client = /^\s*(?:\/\*[\s\S]*?\*\/\s*|\/\/[^\n]*\n\s*)*["']use client["']/.test(text) || /^["']use client["']/m.test(text);
+    if (client && !(file in allowed)) problems.push(`${file} is a client component but is not in the allowed list.`);
+  }
+  for (const file of Object.keys(allowed)) {
+    const source = sources.find((entry) => entry.file === file);
+    if (!source) problems.push(`${file} is listed as a client component but does not exist.`);
+    else if (!/["']use client["']/.test(source.text)) problems.push(`${file} is listed as a client component but is not one.`);
+    if ((allowed[file] ?? "").length < 40) problems.push(`${file} needs its reason.`);
+  }
+  return problems;
+}
+
 describe("static HTML only", () => {
-  it("no component relies on client-side effects or state to produce markup", () => {
-    const sources: string[] = [];
-    const walk = (dir: string) => {
-      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-        const full = path.join(dir, entry.name);
-        if (entry.isDirectory()) walk(full);
-        else if (/\.(ts|tsx)$/.test(entry.name)) sources.push(full);
-      }
-    };
-    walk(path.join(process.cwd(), "src"));
-    const hooks = /\b(useEffect|useLayoutEffect|useInsertionEffect|useState|useReducer|useSyncExternalStore|useTransition|useOptimistic|useActionState)\b/;
-    for (const file of sources) expect(fs.readFileSync(file, "utf8"), file).not.toMatch(hooks);
+  it("no website component uses React state or effect hooks, and \"use client\" appears only in the listed files", () => {
+    expect(staticHtmlProblems(websiteSources(), clientComponents)).toEqual([]);
+  });
+
+  it("lists DesignHeadItems.tsx as the one client component, with its reason", () => {
+    expect(Object.keys(clientComponents)).toEqual(["src/design/DesignHeadItems.tsx"]);
+    expect(clientComponents["src/design/DesignHeadItems.tsx"]).toMatch(/not-found fallback/);
+  });
+
+  it("catches a hook, an unlisted client component, and a stale entry", () => {
+    const problems = staticHtmlProblems(
+      [
+        { file: "src/a.tsx", text: 'import { useState } from "react";\nexport function A() { const [x] = useState(0); return <p>{x}</p>; }' },
+        { file: "src/b.tsx", text: '/* note */\n"use client";\nexport function B() { return null; }' },
+        { file: "src/c.tsx", text: 'export function C() { React.useEffect(() => {}); return null; }' },
+      ],
+      { "src/gone.tsx": "A reason long enough to count as a real explanation of why." },
+    ).join("\n");
+    expect(problems).toMatch(/src\/a\.tsx uses useState/);
+    expect(problems).toMatch(/src\/b\.tsx is a client component but is not in the allowed list/);
+    expect(problems).toMatch(/src\/c\.tsx uses useEffect/);
+    expect(problems).toMatch(/src\/gone\.tsx is listed as a client component but does not exist/);
   });
 
   it("the build strips Next's client runtime and then checks for it", () => {

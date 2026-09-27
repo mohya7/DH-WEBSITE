@@ -21,7 +21,7 @@ Sections run in order. A section starts only when the previous one is merged and
 | Content at build | The build reads the Content API. Development and cloud work read the content snapshot instead |
 | Design | **Locked.** Existing stylesheets from `feature/interviewer-portal` ported as they are. No Tailwind, no restyling, no "improvements" |
 | Proof of design | Automated screenshot comparison of every page at desktop, tablet, and mobile widths against `feature/interviewer-portal`. Any difference fails unless it is in the allowed-differences register below |
-| Interactive visuals | The WebGL hero, GSAP animations, and smooth scrolling carry over unchanged in behaviour, loaded lazily, respecting reduced motion |
+| Interactive visuals | The WebGL hero, GSAP animations, and smooth scrolling carry over unchanged in behaviour, loaded exactly as the current site loads them — GSAP, ScrollTrigger, and Lenis eagerly from jsDelivr (3.3). Lazy loading is a later, separate performance change |
 | URLs | Clean URLs. No legacy redirects — the old live site is out of scope. Redirects come only from the redirects table |
 | References | `{ type, id }` resolved to paths at build. An unpublished or missing target is never a link; its card is skipped |
 | Listing sections | Case cards and the blog list hide when nothing is published. The vacancy list shows its empty-state message |
@@ -146,7 +146,32 @@ If neither is configured, the build **fails** with a clear message. No silent de
 
 **Not ported.** `content/site-content.js` and `js/content-runtime.js` (content is rendered at build), `js/webgl-fluid.mjs` (unused), and the contact page's inline script — the old contact form handler, posting to `/api/contact/requests`. Section 5.4 builds the form.
 
-**Scripts that depend on markup the old runtime rendered** — Sections 4 and 5 render it at build, before these scripts run: `js/about-page.js` (`#teamStripInner`), `index.inline-3.js` (`.h1-wrap`, `.numbers-row`), `index.inline-4.js` (`#servicesTrack`), `index.inline-5.js` (`#newsTrack`), `index.inline-6.js` (`#blogsTrack`). No ported script reads `window.DH_CONTENT` or listens for `dh:content-ready`.
+**What the ported scripts read from the page.** Every element, id, and selector each ported script looks up, and the section that renders it. Until that section lands, a script that reads its element without checking for it throws; today that is `#nav`: `index.inline-3.js` and `js/service-page.js` look it up with `getElementById('nav')` and throw where they use it (line 442 and line 7), the cause of both console errors on the built home and service pages. No ported script reads `window.DH_CONTENT` or listens for `dh:content-ready`; the old runtime filled some of these elements, and Sections 4 and 5 render them at build instead, before the scripts run.
+
+| Elements and selectors | Read by | Provided by |
+|---|---|---|
+| `#nav`, `#navBurger`, `#mobileNav`, `.nav-inner`, `.nav-link`, `.has-dd`, `.has-dd > .nav-link`, `.has-dd.open`, `.nav-links .has-dd` | `js/shared.js`, `js/about-page.js`, `js/service-page.js`, `index.inline-3.js`; `index.inline-4.js` reads `#nav` | 5.2 header |
+| `.nav-link.is-active[href]`, `.dd a.is-active[href]`, `.mobile-nav a[href]` | `js/nav-stay-on-page.js` | 5.2 header |
+| `#navIntro`, `.nav-inner .brand`, `.brand-logo`, `.nav-intro-logo`, `.nav-intro-brand`, `.nav-wipe`, `.nav-wipe-cover` | `index.inline-2.js`, `index.inline-3.js` | 5.2 header (home intro) |
+| `a` — every link | `js/shared.js`, `index.inline-3.js` | 5.2 and every component: plain `<a>` |
+| `[data-reveal]`, `[data-section-reveal]`, `[data-stagger-item]` | `js/shared.js`, `js/about-page.js`, `js/service-page.js`, `js/hub-pages.js`, `index.inline-3.js` | 4.1 — every section component that carries them on the old pages |
+| `#top`, `#heroSandCanvas`, `#heroFluidCanvas`, `.h1-wrap`, `.h1-line > span` | `js/hero-fluid.js`, `index.inline-3.js` | 4.1 `hero` (home) |
+| `#stats`, `.numbers`, `.numbers-row`, `.stat-num[data-count]` | `js/about-page.js`, `index.inline-3.js` | 4.1 `stats` |
+| `#servicesScroll`, `#servicesPin`, `#servicesTrack`, `.services-viewport`, `.svc-card`, `.section.services` | `index.inline-4.js` | 4.1 `service_cards` (home) |
+| `#aboutConstellation`, `.pp-canvas`, `.pp-node`, `.pp-conn__line` | `js/about-page.js` | 4.1 `service_cards` (about) |
+| `#newsCarousel`, `#newsViewport`, `#newsTrack`, `#newsPrev`, `#newsNext`, `#newsDots`, `.news-slide`, `.news-carousel__dot` | `index.inline-5.js` | 4.1 `news_carousel` (home) |
+| `.news-hub-grid .news-slide__details`, `.news-hub-item`, `.news-slide__panel` | `js/hub-pages.js` | 4.1 `news_carousel` (news page) |
+| `#blogsCarousel`, `#blogsViewport`, `#blogsTrack`, `#blogsPrev`, `#blogsNext`, `.blog-dest` | `index.inline-6.js` | 4.1 `blog_list` (home) |
+| `.hub-filters`, `.hub-filter`, `[data-category]` | `js/hub-pages.js` | 4.1 `blog_list` and `case_cards` (blogs and cases pages) |
+| `#jtlWrap`, `.jtl-item`, `.jtl-slide`, `.jtl-track`, `.jtl-line`, `.jtl-line__fill`, `.jtl-dot`, `.jtl-item__btn`, `.jtl-visual` | `js/about-page.js` | 4.1 `timeline` |
+| `#teamStrip`, `#teamStripViewport`, `#teamStripInner`, `#teamStripProgress`, `#teamStripPrev`, `#teamStripNext`, `.team-strip__item`, `.team-card__action`, `.team-card__action--linkedin[href="#"]` | `js/about-page.js` | 4.1 `team_grid` |
+| `.page-partner-view .partner-overview` | `js/hub-pages.js` | 4.1 `partner_overview`, inside the partner page's `page-partner-view` class (5.1) |
+| `#problemPipeline`, `#problemPipelineStatus`, `.pp-card`, `.pp-canvas`, `.pp-node`, `.pp-conn__line`, `.pp-conn__break` | `js/service-page.js` | 4.1 `problem` (service pages) |
+| `#eswdDeck`, `#eswdStage`, `#eswdMenu`, `#eswdProgressBar`, `#eswdSceneNum`, `#eswdSceneName`, `#eswdStageGlow`, `.eswd-scene`, `.eswd-menu__item`, `.eswd-menu__title`, `.eswd-menu__media`, `.eswd-deck__progress`, `.eswd-scene__label`, `.eswd-scene__photo`, `[data-feature-block]` | `js/service-page.js` | 4.1 `feature_grid` (service pages) |
+| `#method`, `#methodRows`, `#methodWire`, `#methodWireLine`, `#methodWireBg`, `#methodWireDot`, `#methodWireNodes`, `.method-wire-wrap`, `.method-row`, `.method-spine-node`, `.method-frame` | `js/service-page.js` | 4.1 `methodology` |
+| `#contactForm`, `#situation`, `#submitBtn`, `#submitText`, `button[type="submit"]` | `js/about-page.js`, `js/service-page.js`, `index.inline-3.js` | 5.4 contact form, where a page renders one |
+| `form.careers-apply-form`, `.careers-apply-form__error`, `.submit-btn`, `[data-careers-apply-lead]`, `[data-careers-apply-intro]`, `[data-careers-apply-reset]`, and the inputs `resume`, `role`, `roleSlug`, `yearsOfExperience`, `expectedSalary`, `expectedSalaryRange`, `noticePeriod`, `noticePeriodWeeks` | `js/careers-apply.js` | 5.5 careers form |
+| `#dg-local-explain`, `#dg-local-storage`, `#dg-save-locally`, `#dg-new-constructor`, `head` | `js/webgl-fluid-lib.js` | Nothing: the library's own debug panel creates them |
 
 **Script positions Sections 4 and 5 must keep.** `index.inline-2.js` straight after the header's `</nav>`; `js/hero-fluid.js` (module) inside the home hero, after `.hero-wires`; everything else after the footer. `index.inline-3.js` sets the fallback logo to `assets/digital-hub-logo.png`, relative to the page, so Section 5 serves that file at `/assets/digital-hub-logo.png`.
 
@@ -163,7 +188,7 @@ If neither is configured, the build **fails** with a clear message. No silent de
 | empty `<!--$--><!--/$-->` pairs | React's markers for hydration; they mark nothing |
 | `.txt` files and `/_next/` scripts | Fetched only by the runtime and client-side navigation. No page references them after the above |
 
-The output check fails the build if any page still has a trace of the runtime, if any `.txt` payload or `/_next/` file remains, or if any page's head tags, design set, title, sections, or image are missing from its static HTML. No component may use client-side effects or state to produce markup; a test enforces it. `npm run dev` still runs Next's runtime: check ported-script behaviour against `npm run build` output.
+The output check fails the build if any page still has a trace of the runtime, if any `.txt` payload or `/_next/` file remains, or if any page's head tags, design set, title, sections, or image are missing from its static HTML. No component may use client-side effects or state to produce markup, and `"use client"` is allowed only in a listed set of files, each with its reason; `website/test/design.test.ts` ("static HTML only") enforces both. `npm run dev` still runs Next's runtime: check ported-script behaviour against `npm run build` output.
 
 ### Ported with changes
 
@@ -206,6 +231,11 @@ The website uses ordinary full-page links, never Next's client-side navigation, 
 **5.5** Careers application form posts to the Node hiring endpoint, from configuration. Same file limits as today: 5 MB, PDF, DOC, DOCX.
 
 *Decided at Section 3 — 5.4 and 5.5:* the contact form's and careers form's behaviour — validation, submission, and messages — are plain scripts in the ported style, not React client components: the website ships no client runtime. React renders the forms' markup at build. The same rules apply: no `innerHTML` with content, and no personal data sent to analytics.
+
+*Recorded at Section 3 — header and logo:*
+
+- Once the header exists, the logo test for `index.inline-2.js` becomes a saved browser test, run against the built output (`npm run build`, runtime stripped): with the intro skipped (reduced motion), the logo moves into `.nav-inner .brand`, `#navIntro` is removed, and `nav-shown` on `<html>` and `nav-ready loaded intro-grid-reveal` on `<body>` persist after load.
+- Section 5 serves `/assets/digital-hub-logo.png`, the fallback logo `index.inline-3.js` sets relative to the page.
 
 **5.6** Report every page and the sections it renders.
 
