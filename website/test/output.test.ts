@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { checkOutput, htmlFileFor } from "../scripts/check-output";
+import { checkOutput, checkStaticPage, htmlFileFor } from "../scripts/check-output";
+import { snapshotContent } from "./helpers";
 import type { Manifest } from "../src/content/prepared";
 import { tempDir } from "./helpers";
 
@@ -13,7 +14,7 @@ const manifest = {
 } as unknown as Manifest;
 
 const page = (body = "") =>
-  `<html><head><script src="/_next/static/chunks/abc123.js" async=""></script></head><body>${body}</body></html>`;
+  `<html><head><meta charSet="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="/design/abc123/css/tv.css"/></head><body>${body}</body></html>`;
 
 function build(files: Record<string, string>): string {
   const out = tempDir("out");
@@ -22,7 +23,7 @@ function build(files: Record<string, string>): string {
     "services/ai.html": page('<img src="/media/x.webp" width="10" height="10" srcSet="/media/x-w640.webp 640w, /media/x.webp 900w"/>'),
     "404.html": page(),
     "500.html": page(),
-    "_next/static/chunks/abc123.js": "",
+    "design/abc123/css/tv.css": "",
     "media/x.webp": "x",
     "media/x-w640.webp": "x",
     ...files,
@@ -51,7 +52,7 @@ describe("build output checks", () => {
     const report = checkOutput(
       build({
         "index.html": page('<link rel="stylesheet" href="css/about-page.css?v=12"/><img src="/media/x.webp?v=2" width="1" height="1"/>'),
-        "_next/static/chunks/site.css": ".a{background:url(/media/x.webp?v=3)}@import \"/fonts.css?a=1&v=4\";",
+        "design/abc123/css/site.css": ".a{background:url(/media/x.webp?v=3)}@import \"/fonts.css?a=1&v=4\";",
       }),
       manifest,
     );
@@ -73,7 +74,7 @@ describe("build output checks", () => {
   });
 
   it("catch a script loaded with a query string instead of a hashed name", () => {
-    const report = checkOutput(build({ "index.html": '<script src="/_next/static/chunks/abc123.js?dpl=1"></script>' }), manifest);
+    const report = checkOutput(build({ "index.html": page('<script src="/design/abc123/js/a.js?dpl=1"></script>') }), manifest);
     expect(report.problems.join("\n")).toMatch(/with a query string/);
   });
 
@@ -96,5 +97,44 @@ describe("build output checks", () => {
     const problems = checkOutput(build({ "fixtures/snapshot/content.json": "{}", "manifest.json": "{}" }), manifest).problems.join("\n");
     expect(problems).toMatch(/fixtures\/snapshot\/content\.json should not be in the build output/);
     expect(problems).toMatch(/manifest\.json should not be in the build output/);
+  });
+
+  it("fail on any trace of Next's client runtime: its scripts, payload, boundary markers, files", () => {
+    const problems = checkOutput(
+      build({
+        "index.html": page('<script src="/_next/static/chunks/a.js" async=""></script>'),
+        "404.html": page("<script>self.__next_f.push([1,\"x\"])</script>"),
+        "500.html": page("<!--$--><!--/$-->"),
+        "about.txt": "0:{}",
+        "_next/static/chunks/a.js": "",
+      }),
+      manifest,
+    ).problems.join("\n");
+    expect(problems).toMatch(/index\.html still contains Next's client runtime: a \/_next\/ URL/);
+    expect(problems).toMatch(/404\.html still contains Next's client runtime: the __next_f payload/);
+    expect(problems).toMatch(/500\.html still contains Next's client runtime: a React boundary marker/);
+    expect(problems).toMatch(/about\.txt is a client-navigation payload/);
+    expect(problems).toMatch(/_next\/static\/chunks\/a\.js is part of Next's client runtime/);
+  });
+});
+
+describe("static page content", () => {
+  const content = snapshotContent();
+  const post = content.collections["blog-posts"][0];
+  const service = content.collections.services[0];
+  const head = '<head><meta charSet="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/></head>';
+
+  it("passes a page whose HTML holds its title, sections, and image", () => {
+    const sections = service.sections.map((section) => `<section data-section="${section.type}"></section>`).join("");
+    expect(checkStaticPage("s.html", `<html>${head}<body><main><h1>${service.title.replace(/&/g, "&amp;")}</h1>${sections}</main></body></html>`, service)).toEqual([]);
+  });
+
+  it("catches a missing or second h1, missing sections, a missing image, and missing head tags", () => {
+    const problems = checkStaticPage("b.html", `<html><head></head><body><main><h1>Wrong</h1><h1>Two</h1><section data-section="hero"></section></main></body></html>`, post).join("\n");
+    expect(problems).toMatch(/no charset/);
+    expect(problems).toMatch(/no viewport/);
+    expect(problems).toMatch(/should have one <h1>/);
+    expect(problems).toMatch(/renders sections \[hero\], expected \[\]/);
+    expect(problems).toMatch(/does not render its image/);
   });
 });

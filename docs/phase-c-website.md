@@ -152,7 +152,18 @@ If neither is configured, the build **fails** with a clear message. No silent de
 
 **Loading differences React 19 makes.** Stylesheets carry `data-precedence="design"`; module preloads come after the stylesheets instead of between the Tabler link and the home stylesheet. Neither changes what is applied or when scripts run.
 
-**Open, found at Section 3: React hydration undoes ported scripts.** Next hydrates every page with React after load. A ported script that changes markup React rendered makes hydration fail (React error #418), and React then re-renders the page, undoing the script. Shown in Chromium with `index.inline-2.js` against its nav markup: the logo moved back, `#navIntro` came back, and the classes the script added to `<html>` and `<body>` were gone. With Next's client scripts removed from the page, the same script works as on the old site. It does not show yet because the scaffold has no markup for the scripts to change. Decide before Sections 4 and 5.
+**Decided at Section 3: static HTML, no client runtime.** React renders every page's HTML at build. The browser receives static HTML plus the ported scripts, exactly like today's site. Next's client runtime would hydrate the page and undo the ported scripts' changes (React error #418), so `npm run build` removes it after `next build` (`scripts/strip-runtime.ts`):
+
+| Removed | Why it is safe |
+|---|---|
+| `<script src="/_next/…">` tags | Next's and React's client code. It hydrates the page and runs client-side navigation; the site uses neither |
+| `<link rel="preload" as="script" href="/_next/…">` | Preloads one of those scripts; nothing would run it |
+| `<script>self.__next_f…</script>` bootstrap and payload | The React Server Components payload. Only the runtime reads it; the HTML already holds everything it describes |
+| `<div hidden=""><!--$--><!--/$--></div>` | An empty outlet the runtime streams metadata into. Removing it keeps the first script first in `<body>`, as on the old pages |
+| empty `<!--$--><!--/$-->` pairs | React's markers for hydration; they mark nothing |
+| `.txt` files and `/_next/` scripts | Fetched only by the runtime and client-side navigation. No page references them after the above |
+
+The output check fails the build if any page still has a trace of the runtime, if any `.txt` payload or `/_next/` file remains, or if any page's head tags, design set, title, sections, or image are missing from its static HTML. No component may use client-side effects or state to produce markup; a test enforces it. `npm run dev` still runs Next's runtime: check ported-script behaviour against `npm run build` output.
 
 ### Ported with changes
 
@@ -194,6 +205,8 @@ The website uses ordinary full-page links, never Next's client-side navigation, 
 
 **5.5** Careers application form posts to the Node hiring endpoint, from configuration. Same file limits as today: 5 MB, PDF, DOC, DOCX.
 
+*Decided at Section 3 — 5.4 and 5.5:* the contact form's and careers form's behaviour — validation, submission, and messages — are plain scripts in the ported style, not React client components: the website ships no client runtime. React renders the forms' markup at build. The same rules apply: no `innerHTML` with content, and no personal data sent to analytics.
+
 **5.6** Report every page and the sections it renders.
 
 ---
@@ -231,6 +244,8 @@ acceptable for development builds only.
 **7.1** Tag Manager container ID from site settings. Nothing loads when it is empty.
 
 **7.2** Consent banner with categories — necessary, analytics, marketing. Consent Mode v2, defaulting to denied. Choice stored in a first-party cookie for 12 months. "Cookie settings" in the footer reopens it. Banner text from site settings.
+
+*Decided at Section 3:* the consent banner is a plain script, not a React client component: the website ships no client runtime. React renders its markup at build. The same rules apply: no `innerHTML` with content, and no personal data sent to analytics.
 
 **7.3** Events: contact form submitted, application submitted, calls to action clicked. **No personal data** — no names, email addresses, or form content.
 

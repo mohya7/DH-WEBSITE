@@ -185,6 +185,27 @@ describe("the built pages' loading check", () => {
   });
 });
 
+describe("static HTML only", () => {
+  it("no component relies on client-side effects or state to produce markup", () => {
+    const sources: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(full);
+        else if (/\.(ts|tsx)$/.test(entry.name)) sources.push(full);
+      }
+    };
+    walk(path.join(process.cwd(), "src"));
+    const hooks = /\b(useEffect|useLayoutEffect|useInsertionEffect|useState|useReducer|useSyncExternalStore|useTransition|useOptimistic|useActionState)\b/;
+    for (const file of sources) expect(fs.readFileSync(file, "utf8"), file).not.toMatch(hooks);
+  });
+
+  it("the build strips Next's client runtime and then checks for it", () => {
+    const build = JSON.parse(fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8")).scripts.build as string;
+    expect(build).toMatch(/next build && tsx scripts\/strip-runtime\.ts && tsx scripts\/check-output\.ts$/);
+  });
+});
+
 describe("links", () => {
   it("are ordinary full-page links: nothing imports next/link", () => {
     const sources: string[] = [];

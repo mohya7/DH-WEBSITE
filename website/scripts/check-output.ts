@@ -14,6 +14,11 @@
  *   - the ported design is in out/design/<hash>/, one folder only, byte for
  *     byte the same as website/design/; every /design/ URL a page loads exists;
  *     and no ported script imports anything with ?v=
+ *   - no page contains Next's client runtime (its scripts, payload, or boundary
+ *     markers), and no runtime file (_next/, .txt payloads) is left in out/
+ *   - every page's static HTML holds its head tags and its content: charset,
+ *     viewport, the item's title as the one <h1>, a slot per section, and its
+ *     image where it has one; nothing waits for JavaScript
  *   - every page loads exactly its design set: its preconnects, stylesheets, and
  *     module preloads each in the set's order (React places preconnects first
  *     and module preloads after the stylesheets), and its scripts in order and
@@ -22,7 +27,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import type { AnyContentItem, BuildContent } from "../src/content/build-content";
 import type { Manifest } from "../src/content/prepared";
+import { createSite } from "../src/content/site";
+import { runtimeTracesIn } from "../src/build/strip-runtime";
 import { designFileList, designHash } from "../src/design/folder";
 import { designSets, type DesignSetName, type ScriptSlot } from "../src/design/sets";
 
@@ -69,7 +77,7 @@ function referencedUrls(text: string, kind: "html" | "css"): string[] {
 }
 const forbiddenNames = [/^content\.json$/, /^manifest\.json$/, /^package(-lock)?\.json$/, /\.tsx?$/, /^tsconfig/, /^next\.config/];
 
-export function checkOutput(outDir: string, manifest: Manifest, options: { designDir?: string } = {}): OutputReport {
+export function checkOutput(outDir: string, manifest: Manifest, options: { designDir?: string; content?: BuildContent } = {}): OutputReport {
   const problems: string[] = [];
   if (!fs.existsSync(outDir)) {
     return { pages: [], errorPages: [], assets: 0, images: 0, problems: [`${outDir} does not exist. Run next build first.`] };
@@ -91,6 +99,28 @@ export function checkOutput(outDir: string, manifest: Manifest, options: { desig
   }
   for (const file of files.filter((name) => name.endsWith(".html"))) {
     if (!expected.has(file) && !errorFiles.includes(file)) problems.push(`${file} is not a route of the published content.`);
+  }
+
+  // No trace of Next's client runtime: the site ships static HTML plus the ported scripts.
+  for (const file of files) {
+    if (file.startsWith("_next/")) problems.push(`${file} is part of Next's client runtime and should not be in the output.`);
+    else if (file.endsWith(".txt")) problems.push(`${file} is a client-navigation payload and should not be in the output.`);
+    else if (file.endsWith(".html")) {
+      const traces = runtimeTracesIn(fs.readFileSync(path.join(outDir, file), "utf8"));
+      if (traces.length > 0) problems.push(`${file} still contains Next's client runtime: ${traces.join(", ")}.`);
+    }
+  }
+
+  // Every page's content is in its static HTML.
+  if (options.content) {
+    const site = createSite(options.content);
+    const items = new Map<string, AnyContentItem | null>(site.routes.map((route) => [htmlFileFor(route.path), route.item]));
+    items.set("404.html", site.errorPage("404"));
+    items.set("500.html", site.errorPage("500"));
+    items.set("_not-found.html", site.errorPage("404"));
+    for (const [file, item] of items) {
+      if (fileSet.has(file)) problems.push(...checkStaticPage(file, fs.readFileSync(path.join(outDir, file), "utf8"), item));
+    }
   }
 
   // Nothing that is not meant to be served.
@@ -146,6 +176,27 @@ export function checkOutput(outDir: string, manifest: Manifest, options: { desig
   }
 
   return { pages, errorPages, assets, images, problems };
+}
+
+const decode = (text: string) =>
+  text.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/&#39;/g, "'").replace(/&amp;/g, "&");
+
+/** A page's head tags and content, as static HTML, with no JavaScript run. */
+export function checkStaticPage(file: string, html: string, item: AnyContentItem | null): string[] {
+  const problems: string[] = [];
+  const head = html.slice(html.indexOf("<head"), html.indexOf("</head>"));
+  if (!/<meta charSet="utf-8"\/?>/i.test(head)) problems.push(`${file} has no charset in its <head>.`);
+  if (!/<meta name="viewport" content="width=device-width, initial-scale=1"\/?>/.test(head)) problems.push(`${file} has no viewport in its <head>.`);
+  if (!item) return problems;
+
+  const h1s = [...html.matchAll(/<h1\b[^>]*>([\s\S]*?)<\/h1>/g)].map((match) => decode(match[1]));
+  if (h1s.length !== 1 || h1s[0] !== item.title) problems.push(`${file} should have one <h1>, "${item.title}"; it has ${JSON.stringify(h1s)}.`);
+  const sections = [...html.matchAll(/<section data-section="([^"]+)"/g)].map((match) => match[1]);
+  const want = item.sections.map((section) => section.type);
+  if (sections.join(",") !== want.join(",")) problems.push(`${file} renders sections [${sections.join(", ")}], expected [${want.join(", ")}].`);
+  const imageId = (item.fields as { imageId?: string | null }).imageId;
+  if (imageId && !/<img\b[^>]*\bsrc="\/media\//.test(html)) problems.push(`${file} does not render its image.`);
+  return problems;
 }
 
 /** What a built page loads from its design set, grouped the way it can be compared. */
@@ -227,12 +278,14 @@ export function checkDesignOutput(outDir: string, files: string[], designDir: st
 function main(): void {
   const websiteRoot = process.cwd();
   const manifest = JSON.parse(fs.readFileSync(path.join(websiteRoot, ".content", "manifest.json"), "utf8")) as Manifest;
-  const report = checkOutput(path.join(websiteRoot, "out"), manifest, { designDir: path.join(websiteRoot, "design") });
+  const content = JSON.parse(fs.readFileSync(path.join(websiteRoot, ".content", "content.json"), "utf8")) as BuildContent;
+  const report = checkOutput(path.join(websiteRoot, "out"), manifest, { designDir: path.join(websiteRoot, "design"), content });
 
   console.log(`\nBuilt from ${manifest.source}, content generated at ${manifest.contentGeneratedAt}`);
   console.log(`${report.pages.length} pages, plus error pages: ${report.errorPages.join(", ")}`);
   for (const page of report.pages) console.log(`  ${page.route.padEnd(40)} ${page.pageType.padEnd(11)} out/${page.file}`);
-  console.log(`${report.images} images and ${report.assets} framework and design asset references checked.`);
+  console.log(`${report.images} images and ${report.assets} design asset references checked.`);
+  console.log(`Static HTML: no page contains Next's client runtime; every page's head tags and content are in its HTML.`);
   console.log(`Loading order: every page loads exactly its design set.`);
   console.log(`Design: out/design/${designHash(path.join(websiteRoot, "design"))}/ matches website/design/ byte for byte (${designFileList(path.join(websiteRoot, "design")).length} files).`);
 
