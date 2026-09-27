@@ -64,9 +64,14 @@ if (connectionString.Error is not null)
 
 var databaseFlag = Array.IndexOf(args, "--database");
 var database = databaseFlag >= 0 && databaseFlag + 1 < args.Length ? args[databaseFlag + 1] : null;
-if (database is not null && !string.Equals(database, "DigitalHubNavImport", StringComparison.Ordinal))
+/* An explicit allow-list rather than a pattern: the point of this guard is that
+   the tool can only ever write to a catalog someone named here on purpose.
+   DigitalHubContent_Parity is the throwaway the Phase C snapshot is built from. */
+string[] allowedDatabases = ["DigitalHubNavImport", "DigitalHubContent_Parity"];
+if (database is not null && !allowedDatabases.Contains(database, StringComparer.Ordinal))
 {
-    Console.Error.WriteLine("--database may only name the throwaway DigitalHubNavImport. DigitalHubContent is the default.");
+    Console.Error.WriteLine(
+        "--database may only name " + string.Join(" or ", allowedDatabases) + ". DigitalHubContent is the default.");
     return 2;
 }
 
@@ -96,9 +101,18 @@ static (string? Commit, string? Error) ReadSourceRevision(string root)
     if (branch != "feature/interviewer-portal")
         return (null, "The source folder must be on feature/interviewer-portal. It is on " + branch + ".");
 
-    var porcelain = Git(root, "status", "--porcelain");
-    if (!string.IsNullOrWhiteSpace(porcelain))
+    /* Compare content, not the index. git status reports a file as modified when
+       only its line endings differ from the blob, which autocrlf produces just by
+       checking the branch out on Windows. git diff normalises before comparing,
+       so it stays silent for that and still reports a real edit. The guard is
+       about the commit being the content that was read, and a line ending that
+       git itself rewrites on checkout does not change that. */
+    if (GitExitCode(root, "diff", "--quiet", "HEAD") != 0)
         return (null, "The source folder has uncommitted changes, so the commit would not be the content that was read.");
+
+    var untracked = Git(root, "ls-files", "--others", "--exclude-standard");
+    if (!string.IsNullOrWhiteSpace(untracked))
+        return (null, "The source folder has untracked files, so the commit would not be the content that was read.");
 
     var commit = Git(root, "rev-parse", "HEAD");
     if (commit is null || commit.Length != 40)
@@ -124,6 +138,27 @@ static string? Git(string root, params string[] arguments)
     var output = process.StandardOutput.ReadToEnd().Trim();
     process.WaitForExit();
     return process.ExitCode == 0 ? output : null;
+}
+
+/// <summary>Runs git for its exit code. -1 when it could not be started.</summary>
+static int GitExitCode(string root, params string[] arguments)
+{
+    var start = new System.Diagnostics.ProcessStartInfo("git")
+    {
+        WorkingDirectory = root,
+        RedirectStandardOutput = true,
+        RedirectStandardError = true,
+        UseShellExecute = false,
+    };
+    foreach (var argument in arguments)
+        start.ArgumentList.Add(argument);
+    using var process = System.Diagnostics.Process.Start(start);
+    if (process is null)
+        return -1;
+    process.StandardOutput.ReadToEnd();
+    process.StandardError.ReadToEnd();
+    process.WaitForExit();
+    return process.ExitCode;
 }
 
 static (string? Value, string? Error) ReadConnectionString()

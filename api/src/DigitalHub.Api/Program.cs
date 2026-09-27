@@ -67,6 +67,8 @@ builder.Services.AddScoped<ContentStore>();
 builder.Services.AddScoped<MediaLibrary>();
 builder.Services.AddScoped<AdminStore>();
 builder.Services.AddScoped<PublicContactStore>();
+builder.Services.AddScoped<BuildContentStore>();
+builder.Services.AddSingleton<BuildToken>();
 builder.Services.AddHostedService<IdentitySeeder>();
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
@@ -86,6 +88,8 @@ var loginWindowHours = builder.Configuration.GetValue("Auth:LoginWindowHours", 1
 var uploadPermitLimit = builder.Configuration.GetValue("Media:UploadPermitLimit", 20);
 var contactPermitLimit = builder.Configuration.GetValue("Contact:PermitLimit", 10);
 var contactWindowHours = builder.Configuration.GetValue("Contact:WindowHours", 1);
+var buildPermitLimit = builder.Configuration.GetValue("Build:PermitLimit", 30);
+var buildWindowHours = builder.Configuration.GetValue("Build:WindowHours", 1);
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -134,6 +138,18 @@ builder.Services.AddRateLimiter(options =>
         {
             PermitLimit = contactPermitLimit,
             Window = TimeSpan.FromHours(contactWindowHours),
+            QueueLimit = 0,
+        });
+    });
+    /* A build reads this a handful of times, so a low ceiling per address is
+       ample and keeps the endpoint from being used to guess the token. */
+    options.AddPolicy("build-content", httpContext =>
+    {
+        var ip = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return RateLimitPartition.GetFixedWindowLimiter("build\n" + ip, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = buildPermitLimit,
+            Window = TimeSpan.FromHours(buildWindowHours),
             QueueLimit = 0,
         });
     });

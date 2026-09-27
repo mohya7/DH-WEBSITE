@@ -1,0 +1,313 @@
+# Phase C — Public website
+
+Build brief for the local agent and the cloud agent. The public website on Next.js, built from the Content API, looking **exactly** like the current site.
+
+**Read first:** `AGENTS.md` / `CLAUDE.md` — especially "Local and cloud work". Then `docs/business-analysis.md`, `docs/phase-a-foundation.md`, and `docs/phase-b-studio.md`, including every note recorded there for Phase C.
+
+Every section is marked **[LOCAL]** or **[CLOUD]**.
+
+- **[LOCAL]** sections are done by the local agent on this machine, on `rebuild/dotnet-platform`.
+- **[CLOUD]** sections are written by the cloud agent on their own branch, opened as a pull request, and **verified and merged by the local agent** using the checklist at the end of this brief.
+
+Sections run in order. A section starts only when the previous one is merged and its coverage table is confirmed.
+
+---
+
+## Settled decisions — do not revisit
+
+| Area | Decision |
+|---|---|
+| Framework | Next.js App Router, static export. No Node server in production |
+| Content at build | The build reads the Content API. Development and cloud work read the content snapshot instead |
+| Design | **Locked.** Existing stylesheets from `feature/interviewer-portal` ported as they are. No Tailwind, no restyling, no "improvements" |
+| Proof of design | Automated screenshot comparison of every page at desktop, tablet, and mobile widths against `feature/interviewer-portal`. Any difference fails unless it is in the allowed-differences register below |
+| Interactive visuals | The WebGL hero, GSAP animations, and smooth scrolling carry over unchanged in behaviour, loaded lazily, respecting reduced motion |
+| URLs | Clean URLs. No legacy redirects — the old live site is out of scope. Redirects come only from the redirects table |
+| References | `{ type, id }` resolved to paths at build. An unpublished or missing target is never a link; its card is skipped |
+| Listing sections | Case cards and the blog list hide when nothing is published. The vacancy list shows its empty-state message |
+| Rich text | Rendered as React elements from TipTap JSON. Never an HTML string. No `dangerouslySetInnerHTML` anywhere |
+| Table of contents | Anchors generated from heading text at build, unique within each article |
+| Images | Served from the build output with explicit width and height, responsive sizes from the stored variants, and the per-usage alt text or decorative flag |
+| Contact form | Posts to `/api/v1/public/contact` on the same origin. Reaching the API is IIS routing, set up in Phase D |
+| Careers application | Posts to the existing Node hiring system during the transition. The endpoint is configuration, not code |
+| Error pages | 404 and 500 built from existing components only — header, footer, hub hero, call to action. No new styles |
+| SEO | Lighthouse SEO 100 on every page type. The build fails below it |
+| Analytics | Google Tag Manager and GA4, Consent Mode v2 defaulting to denied. Nothing non-essential loads before consent |
+
+---
+
+## The content snapshot
+
+The one thing both agents depend on.
+
+| | |
+|---|---|
+| Path | `website/fixtures/snapshot/` |
+| Content | `website/fixtures/snapshot/content.json` — the build content endpoint's response, byte for byte |
+| Images | `website/fixtures/snapshot/media/` — every media file the content references, all widths |
+| Provenance | `website/fixtures/snapshot/README.md` — source database, API commit, date and time, and item counts |
+| Source database | `DigitalHubContent_Parity` — never `DigitalHubContent` |
+| Contains | Published content only. No drafts, contact requests, users, audit entries, tokens, or secrets |
+| Regenerated | By the local agent's export script only. Never edited by hand |
+
+### Why a parity database
+
+On the real database, the case studies and blog posts are placeholder drafts, and the 404 and 500 pages are drafts. A website built from that would be missing whole regions of the current design, and screenshot comparison could not prove anything about them.
+
+So the local agent creates `DigitalHubContent_Parity`: a fresh database, all migrations, the standard import, and then — **through the API, as admin** — the placeholder case studies, blog posts, and error pages published. The snapshot is the published content of that database. It stays "published content only", and the design can be compared in full.
+
+The real database is never changed for this. Whether real drafts are excluded is proven separately, in Section 10.
+
+---
+
+## Allowed differences register
+
+Screenshot comparison fails on any difference except these. Adding to this list needs my confirmation.
+
+| Page | Difference | Why |
+|---|---|---|
+| Careers | Vacancy list shows its empty-state message instead of three job links | All six vacancies were test data; none were migrated |
+| Careers detail | The three dummy job pages do not exist | Same |
+| 404, 500 | New pages with no counterpart | The current site has none |
+| Any page | Link targets use clean URLs instead of `.html` | Decided URL change; not visible in screenshots |
+
+---
+
+## Section 1 [LOCAL] — Build content endpoint and snapshot
+
+**1.1** `GET /api/v1/build/content` returns everything a build needs, in one response:
+- Every published page and collection item, with its sections, SEO fields, and share image
+- Every `{ type, id }` reference resolved to a path; unpublished or missing targets omitted, and listed separately so the build can report them
+- Media metadata: id, file names, dimensions, stored widths, default alt text
+- Navigation, with internal links resolved to paths
+- Site settings
+- Redirects
+- The 404 and 500 pages
+
+**1.2** Authenticated by a **build token** from configuration — not a user login and not a user role. Compared in constant time. Stored in user-secrets as `Build:Token`, never committed, never given to the cloud agent. Rate-limited.
+
+**1.3** The endpoint is not under `/api/v1/public/*`, so it is never reachable through the website's routing.
+
+**1.4** A script creates `DigitalHubContent_Parity` from scratch — drop, create, migrate with the elevated account, import from `feature/interviewer-portal` — then publishes the placeholder case studies, blog posts, and error pages **through the API**, and exports the snapshot to `website/fixtures/snapshot/`. Idempotent. Record the exact command in `docs/phase-c-website.md`.
+
+**1.5** Integration tests: the endpoint refuses a missing or wrong token; returns no drafts; omits unpublished references and lists them; contains no field from users, audit, contact requests, or secrets.
+
+**1.6** Update the snapshot path in `CLAUDE.md` and `AGENTS.md` — replace "set in the Phase C brief" with `website/fixtures/snapshot/`. Tighten "One agent at a time in this folder" to "One agent at a time in this folder, and never on the same branch as the cloud agent." Keep the two files identical.
+
+**1.7** Save this brief as `docs/phase-c-website.md`.
+
+**1.8** Report the snapshot's item counts per type, its total size, and confirm it holds no drafts and no secrets. Commit and push.
+
+---
+
+## Section 2 [CLOUD] — Website scaffold and data layer
+
+**2.1** Next.js App Router in `website/`, static export, TypeScript.
+
+**2.2** One data layer with two sources, chosen by configuration:
+- `CONTENT_SOURCE=snapshot` reads `website/fixtures/snapshot/`
+- `CONTENT_SOURCE=api` reads `GET /api/v1/build/content` using `CONTENT_API_URL` and `CONTENT_BUILD_TOKEN`
+
+If neither is configured, the build **fails** with a clear message. No silent default.
+
+**2.3** Types generated from `packages/sections/*.json` and `packages/collections/*.json`, so a section's props match its schema. Report how.
+
+**2.4** Routes for every page type with clean URLs, generated with `generateStaticParams`. Nothing is rendered for a draft.
+
+**2.5** Images: static export cannot use Next's image optimiser. Render images with explicit width and height and a `srcset` from the stored widths. Copy the files into the build output.
+
+**2.6** Asset hashing from the framework. No `?v=` query strings anywhere.
+
+**2.7** The build completes against the snapshot. Report the page count and every route.
+
+---
+
+## Section 3 [CLOUD] — Port the design
+
+**3.1** Copy the stylesheets from `feature/interviewer-portal` into the website **unchanged** — the same files, the same class names, the same order of loading. List every file.
+
+**3.2** Fonts loaded exactly as the current site loads them.
+
+**3.3** The WebGL hero, GSAP, and Lenis as client components, loaded as the current site loads them, lazily, respecting `prefers-reduced-motion`.
+
+**3.4** No Tailwind, no CSS modules, no restyling. If a style would have to change to work in Next.js, **stop and report it** — do not change it.
+
+---
+
+## Section 4 [CLOUD] — Section components
+
+**4.1** One React component per section type — all 28 — in `packages/blocks/`, producing the **same markup and class names** as the current HTML, so the ported stylesheets apply without change.
+
+**4.2** Components import nothing Next-specific. Images and links go through small adapters that the website and the Studio each supply.
+
+**4.3** Rich text renderer: TipTap JSON to React elements, allowed nodes only. Table-of-contents anchors generated from heading text, unique per article.
+
+**4.4** References render as links to their resolved paths. A reference with no path renders nothing — no broken link, no empty card.
+
+**4.5** Listing sections: case cards and the blog list render nothing when empty; the vacancy list shows its empty-state message.
+
+**4.6** A test per component against its schema's sample data.
+
+---
+
+## Section 5 [CLOUD] — Pages, navigation, and forms
+
+**5.1** Compose every page type from its sections. One `h1` per page — the page title.
+
+**5.2** Header and footer from navigation and site settings. Email, phone, and social links from site settings only.
+
+**5.3** 404 and 500 from existing components only.
+
+**5.4** Contact form posts to the relative path `/api/v1/public/contact`: the honeypot field, client-side validation for convenience, and the labels, placeholders, button texts, success, and error messages from the section's fields.
+
+**5.5** Careers application form posts to the Node hiring endpoint, from configuration. Same file limits as today: 5 MB, PDF, DOC, DOCX.
+
+**5.6** Report every page and the sections it renders.
+
+---
+
+## Section 6 [CLOUD] — SEO
+
+**6.1** Per page: title, meta description, canonical, share image with its alt, and noindex where set.
+
+**6.2** Structured data:
+
+| Page | Schema |
+|---|---|
+| Every page | Organization, WebSite, BreadcrumbList |
+| Service | Service |
+| Blog post | Article |
+| Vacancy | JobPosting |
+| Pages with an FAQ section, and blog posts with FAQ items | FAQPage |
+
+Organization uses the site settings, including the postal address fields.
+
+**6.3** `sitemap.xml` with last-modified dates from editorial dates, published and indexable pages only. `robots.txt`. `llms.txt`.
+
+**6.4** Run Lighthouse against the snapshot build and report every page type's SEO score. Report what could not be run.
+
+---
+
+## Section 7 [CLOUD] — Cookie consent and analytics
+
+**7.1** Tag Manager container ID from site settings. Nothing loads when it is empty.
+
+**7.2** Consent banner with categories — necessary, analytics, marketing. Consent Mode v2, defaulting to denied. Choice stored in a first-party cookie for 12 months. "Cookie settings" in the footer reopens it. Banner text from site settings.
+
+**7.3** Events: contact form submitted, application submitted, calls to action clicked. **No personal data** — no names, email addresses, or form content.
+
+**7.4** List every domain Tag Manager and GA4 need, for the content security policy in Section 8.
+
+---
+
+## Section 8 [CLOUD] — IIS configuration for the static site
+
+**8.1** A `web.config` generated at build:
+- Clean URL rewrites
+- Redirects from the redirects table, as 301s
+- Custom 404 and 500 pages returned with the correct status codes — never 200
+- Security headers: Content-Security-Policy, Strict-Transport-Security, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`
+- The Content-Security-Policy extended for the domains from 7.4, shipped in **report-only** mode first
+- Cache headers: hashed assets immutable for a year; HTML short
+
+**8.2** Routing to the API and the Node hiring system is Phase D. Do not add it here.
+
+---
+
+## Section 9 [CLOUD] — Studio preview and website address
+
+**9.1** The Studio's preview renders a draft with the `packages/blocks` components and the website's stylesheets, **inside an iframe**, so the website's styles never leak into the Studio.
+
+**9.2** `VITE_PUBLIC_SITE_URL` is set per environment. Remove the hard-coded fallback in `studio/src/content/model.ts`: a missing value fails loudly.
+
+**9.3** No change to the Studio's own look.
+
+---
+
+## Section 10 [LOCAL] — Verification
+
+**10.1** Serve `feature/interviewer-portal`'s public files statically, and the new site built in snapshot mode.
+
+**10.2** Screenshot parity for every page at desktop, tablet, and mobile widths. Wait for the current site's runtime content to load before capturing. Any difference outside the allowed-differences register fails. Report each page's result.
+
+**10.3** Lighthouse on every page type: SEO 100, Accessibility 95 or above, Performance 93.5 or above, Best Practices 99 or above.
+
+**10.4** Mobile: zero horizontal overflow at 390px and 320px on every page.
+
+**10.5** Structured data validates with no errors.
+
+**10.6** Build against the real Content API in `api` mode, from `DigitalHubContent_Studio`. Confirm drafts are excluded, listing sections hide, and unpublished references render nothing.
+
+**10.7** Every redirect in the table resolves to a page returning 200.
+
+**10.8** The build output contains no source files, fixtures, configuration, or secrets.
+
+**10.9** The contact form submits end to end to the API; the honeypot stores nothing.
+
+**10.10** Studio preview renders a draft correctly; the Studio's end-to-end suite still passes.
+
+**10.11** Every section's coverage table carried into one final Phase C table.
+
+---
+
+## How the local agent verifies a cloud pull request
+
+For every [CLOUD] pull request, before merging:
+
+1. Check out the branch. Confirm it changes only what its section covers
+2. Confirm it adds no migration and does not touch the database
+3. Build the website in snapshot mode
+4. Run the website's tests, the API integration suite, and — if the Studio changed — the Studio's end-to-end suite
+5. Run screenshot parity on the pages the section affects
+6. Report with a coverage table: each item in that section, and the evidence
+7. Merge only if everything passes. If anything fails, **report it back** — do not fix it silently
+8. After merging, re-run the suites on `rebuild/dotnet-platform`
+
+---
+
+## Content tasks for later — not agent work
+
+Recorded so they are not lost. Done by an editor in the Studio against the real database, before cutover:
+
+- Review and publish the 404 and 500 pages
+- Add a share image for the careers and apply pages
+- Replace the TikTok link with the clean profile URL
+- Rewrite and publish the placeholder case studies and blog posts
+
+---
+
+## Section 1 — how the snapshot is built
+
+Regenerate the content snapshot with one command, from the repository root:
+
+```bash
+node api/tools/parity-snapshot.mjs
+```
+
+It drops and recreates `DigitalHubContent_Parity`, applies the migrations with
+the elevated account, grants the application login, imports from
+`feature/interviewer-portal`, starts the API against that catalog on port 5097,
+publishes the placeholder case studies, blog posts and error pages **through the
+API as admin**, then writes `website/fixtures/snapshot/`. It is idempotent: the
+catalog is rebuilt from nothing every run.
+
+The real database is never touched. The script refuses to start if the connection
+string resolves to anything but `DigitalHubContent_Parity`, and the import tool
+keeps its own allow-list of catalogs it may write to.
+
+### The build token
+
+`GET /api/v1/build/content` is authenticated by `Build:Token` from configuration,
+compared in constant time. It is not a user login and not a role: an admin's
+bearer token does not open it. Set it once per machine:
+
+```bash
+dotnet user-secrets set "Build:Token" "<a long random value>" --project api/src/DigitalHub.Api/DigitalHub.Api.csproj
+```
+
+Never commit it and never give it to the cloud agent, which builds against the
+snapshot instead. The parity script generates its own throwaway token for the
+API instance it starts, so the real one is not needed to refresh the snapshot.
+
+When no token is configured the endpoint refuses every caller, so it cannot be
+left open by leaving the setting out.

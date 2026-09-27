@@ -1631,17 +1631,20 @@ static partial class ContentWriter
     private static async Task<int> ApplyCore(string sourceRoot, string connectionString, string? mediaRoot)
     {
         var catalog = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(connectionString).InitialCatalog;
-        if (!string.Equals(catalog, "DigitalHubContent", StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(catalog, "DigitalHubNavImport", StringComparison.OrdinalIgnoreCase))
+        /* DigitalHubContent_Parity is the throwaway the Phase C snapshot is built
+           from: rebuilt from nothing on every run, never a place anyone edits. */
+        string[] writable = ["DigitalHubContent", "DigitalHubNavImport", "DigitalHubContent_Parity"];
+        if (!writable.Contains(catalog, StringComparer.OrdinalIgnoreCase))
         {
-            Console.Error.WriteLine("Refusing to write. The connection must target DigitalHubContent.");
+            Console.Error.WriteLine("Refusing to write. The connection must target " + string.Join(", ", writable) + ".");
             return 2;
         }
 
-        if (string.Equals(catalog, "DigitalHubNavImport", StringComparison.OrdinalIgnoreCase)
+        // Only the real database may write media into the API's own folder.
+        if (!string.Equals(catalog, "DigitalHubContent", StringComparison.OrdinalIgnoreCase)
             && string.IsNullOrWhiteSpace(mediaRoot))
         {
-            Console.Error.WriteLine("Refusing to write media into the API folder for DigitalHubNavImport. Pass --media-root.");
+            Console.Error.WriteLine("Refusing to write media into the API folder for " + catalog + ". Pass --media-root.");
             return 2;
         }
 

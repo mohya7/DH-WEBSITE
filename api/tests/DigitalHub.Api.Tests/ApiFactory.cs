@@ -15,6 +15,7 @@ public class ApiFactory : WebApplicationFactory<Program>
     public const string AdminEmail = "admin@digitalhub.test";
     public const string AdminPassword = "Test-Only-Passw0rd!";
     public const string SecretsId = "41335d15-4f42-410a-bf90-41068117e45a";
+    public const string BuildTokenValue = "test-only-build-token-0123456789abcdef";
 
     public string MediaRoot { get; } = Path.Combine(Path.GetTempPath(), "dh-platform-media-tests");
 
@@ -40,6 +41,8 @@ public class ApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Auth:InitialAdminPassword", AdminPassword);
         builder.UseSetting("Database:EnsureCreated", "false");
         builder.UseSetting("Auth:LoginPermitLimit", LoginPermitLimit.ToString());
+        builder.UseSetting("Build:Token", BuildTokenValue);
+        builder.UseSetting("Build:PermitLimit", "1000");
         builder.ConfigureTestServices(services =>
         {
             services.AddSingleton<NoteStore>();
