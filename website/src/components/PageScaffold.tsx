@@ -1,16 +1,21 @@
 /*
- * Section 2 scaffold: proves every route receives its item and typed sections.
- * Section 5 replaces the body with the real page composition; until then each
- * section is an empty, labelled slot.
+ * Page body until Section 5 composes pages: the item's sections, rendered by the
+ * components in packages/blocks, inside the page's design frame (Section 3).
  *
- * Since Section 3 the page loads its design set (src/design/sets.ts). The hero
- * scripts go inside the hero slot, where the hero component will place them.
+ * Pages whose sections include a hero carry their <h1> in it, as on the old
+ * site. Other pages (blog posts, the error pages) keep the scaffold's <h1>, and
+ * blog posts their image, until Section 5 builds their templates.
  */
+import { Section, type PageKind } from "@digitalhub/blocks";
 import { Image } from "@/adapters/Image";
+import { blockContext } from "@/content/blocks";
 import type { AnyContentItem } from "@/content/site";
+import { getSite } from "@/content/site";
 import type { PageType } from "@/content/routes";
 import { DesignFrame, DesignScripts } from "@/design/Design";
 import { designSetFor } from "@/design/sets";
+
+const headingSections = new Set(["hero", "hub_hero", "service_hero"]);
 
 export function PageScaffold({ item, pageType }: { item: AnyContentItem | null; pageType: PageType | "error" }) {
   const set = designSetFor(pageType, item?.slug ?? "");
@@ -23,17 +28,21 @@ export function PageScaffold({ item, pageType }: { item: AnyContentItem | null; 
   }
 
   const fields = item.fields as { imageId?: string | null; imageAltOverride?: string | null };
-  const heroIndex = item.sections.findIndex((section) => section.type === "hero");
+  const ctx = {
+    ...blockContext(getSite(), { kind: pageType as PageKind, slug: item.slug }),
+    slots: { hero: <DesignScripts set={set} slot="hero" /> },
+  };
+  const hasHeading = item.sections.some((section) => headingSections.has(section.type));
 
   return (
     <DesignFrame set={set}>
       <main data-page-type={pageType} data-collection={item.collection} data-slug={item.slug} data-design-set={set}>
-        <h1>{item.title}</h1>
-        {fields.imageId ? <Image mediaId={fields.imageId} alt={fields.imageAltOverride} sizes="(max-width: 900px) 100vw, 50vw" /> : null}
+        {hasHeading ? null : <h1>{item.title}</h1>}
+        {item.collection === "blog-posts" && fields.imageId ? (
+          <Image mediaId={fields.imageId} alt={fields.imageAltOverride} sizes="(max-width: 900px) 100vw, 50vw" />
+        ) : null}
         {item.sections.map((section, index) => (
-          <section key={index} data-section={section.type}>
-            {index === heroIndex ? <DesignScripts set={set} slot="hero" /> : null}
-          </section>
+          <Section key={index} section={section} ctx={ctx} />
         ))}
       </main>
     </DesignFrame>

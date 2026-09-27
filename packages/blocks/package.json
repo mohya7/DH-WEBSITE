@@ -1,0 +1,13 @@
+{
+  "name": "@digitalhub/blocks",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema-types": "./src/generated/schema-types.ts"
+  },
+  "peerDependencies": {
+    "react": "19.3.0"
+  }
+}

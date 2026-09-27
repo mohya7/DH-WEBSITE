@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
 /*
@@ -9,10 +10,14 @@ import type { NextConfig } from "next";
  * agentRules: false stops `next dev` writing AGENTS.md and CLAUDE.md into
  * website/ when it detects an AI agent. The project's agent rules are the pair
  * at the repository root. The two names stay in .gitignore as a backstop.
+ *
+ * The section components live in packages/blocks, outside website/, so
+ * Turbopack's root is the repository.
  */
 const config: NextConfig = {
   output: "export",
   agentRules: false,
+  turbopack: { root: path.resolve(process.cwd(), "..") },
 };
 
 export default config;

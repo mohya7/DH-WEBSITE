@@ -1,5 +1,5 @@
 /*
- * Generates src/content/generated/schema-types.ts from the JSON Schemas in
+ * Generates packages/blocks/src/generated/schema-types.ts from the JSON Schemas in
  * packages/sections and packages/collections — the same files the API validates
  * against and the Studio builds its forms from.
  *
@@ -18,7 +18,7 @@ const websiteRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 const packagesRoot = path.resolve(websiteRoot, "..", "packages");
 const sectionsDir = path.join(packagesRoot, "sections");
 const collectionsDir = path.join(packagesRoot, "collections");
-const outputFile = path.join(websiteRoot, "src", "content", "generated", "schema-types.ts");
+const outputFile = path.join(packagesRoot, "blocks", "src", "generated", "schema-types.ts");
 
 const DEFS_ID = "https://digitalhub.local/sections/defs";
 
@@ -282,7 +282,7 @@ function main(): void {
     const current = fs.existsSync(outputFile) ? fs.readFileSync(outputFile, "utf8").replace(/\r\n/g, "\n") : "";
     if (current !== generated) {
       console.error(
-        "src/content/generated/schema-types.ts is out of date with packages/sections or packages/collections.\n" +
+        "packages/blocks/src/generated/schema-types.ts is out of date with packages/sections or packages/collections.\n" +
           "Run `npm run gen:types` in website/ and commit the result.",
       );
       process.exit(1);
@@ -293,7 +293,7 @@ function main(): void {
 
   fs.mkdirSync(path.dirname(outputFile), { recursive: true });
   fs.writeFileSync(outputFile, generated);
-  console.log(`Wrote ${path.relative(websiteRoot, outputFile)}`);
+  console.log(`Wrote ${path.relative(path.dirname(packagesRoot), outputFile)}`);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

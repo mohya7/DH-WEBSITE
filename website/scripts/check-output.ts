@@ -17,8 +17,9 @@
  *   - no page contains Next's client runtime (its scripts, payload, or boundary
  *     markers), and no runtime file (_next/, .txt payloads) is left in out/
  *   - every page's static HTML holds its head tags and its content: charset,
- *     viewport, the item's title as the one <h1>, a slot per section, and its
- *     image where it has one; nothing waits for JavaScript
+ *     viewport, one <h1>, each section that renders (listing sections with
+ *     nothing to list render nothing), and a blog post's image; nothing waits
+ *     for JavaScript
  *   - every page loads exactly its design set: its preconnects, stylesheets, and
  *     module preloads each in the set's order (React places preconnects first
  *     and module preloads after the stylesheets), and its scripts in order and
@@ -29,7 +30,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AnyContentItem, BuildContent } from "../src/content/build-content";
 import type { Manifest } from "../src/content/prepared";
-import { createSite } from "../src/content/site";
+import { sectionRenders } from "@digitalhub/blocks/select";
+import type { PageKind } from "@digitalhub/blocks/context";
+import { blockData } from "../src/content/block-data";
+import { createSite, type Site } from "../src/content/site";
 import { runtimeTracesIn } from "../src/build/strip-runtime";
 import { designFileList, designHash } from "../src/design/folder";
 import { designSets, type DesignSetName, type ScriptSlot } from "../src/design/sets";
@@ -114,12 +118,14 @@ export function checkOutput(outDir: string, manifest: Manifest, options: { desig
   // Every page's content is in its static HTML.
   if (options.content) {
     const site = createSite(options.content);
-    const items = new Map<string, AnyContentItem | null>(site.routes.map((route) => [htmlFileFor(route.path), route.item]));
-    items.set("404.html", site.errorPage("404"));
-    items.set("500.html", site.errorPage("500"));
-    items.set("_not-found.html", site.errorPage("404"));
-    for (const [file, item] of items) {
-      if (fileSet.has(file)) problems.push(...checkStaticPage(file, fs.readFileSync(path.join(outDir, file), "utf8"), item));
+    const items = new Map<string, { item: AnyContentItem | null; kind: PageKind }>(
+      site.routes.map((route) => [htmlFileFor(route.path), { item: route.item, kind: route.pageType }]),
+    );
+    items.set("404.html", { item: site.errorPage("404"), kind: "error" });
+    items.set("500.html", { item: site.errorPage("500"), kind: "error" });
+    items.set("_not-found.html", { item: site.errorPage("404"), kind: "error" });
+    for (const [file, { item, kind }] of items) {
+      if (fileSet.has(file)) problems.push(...checkStaticPage(file, fs.readFileSync(path.join(outDir, file), "utf8"), item, expectedSections(site, item, kind)));
     }
   }
 
@@ -181,8 +187,38 @@ export function checkOutput(outDir: string, manifest: Manifest, options: { desig
 const decode = (text: string) =>
   text.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/&#39;/g, "'").replace(/&amp;/g, "&");
 
-/** A page's head tags and content, as static HTML, with no JavaScript run. */
-export function checkStaticPage(file: string, html: string, item: AnyContentItem | null): string[] {
+/** How many sections of an item render: listing sections with nothing to list render nothing. */
+export function expectedSections(site: Site, item: AnyContentItem | null, kind: PageKind): number {
+  if (!item) return 0;
+  const ctx = blockData(site, { kind, slug: item.slug });
+  return item.sections.filter((section) => sectionRenders(section, { ...ctx, Image: () => null, Link: () => null })).length;
+}
+
+/** The <section> elements directly inside <main>. */
+export function mainSections(html: string): number {
+  const start = html.indexOf("<main");
+  const end = html.indexOf("</main>");
+  if (start === -1 || end === -1) return 0;
+  let depth = 0;
+  let count = 0;
+  for (const match of html.slice(start, end).matchAll(/<(\/?)section\b/g)) {
+    if (match[1]) depth -= 1;
+    else {
+      if (depth === 0) count += 1;
+      depth += 1;
+    }
+  }
+  return count;
+}
+
+const headingSections = new Set(["hero", "hub_hero", "service_hero"]);
+
+/**
+ * A page's head tags and content, as static HTML, with no JavaScript run: one
+ * <h1> (the hero's, or the item's title on a page without a hero), each section
+ * that renders as a <section> in <main>, and a blog post's image.
+ */
+export function checkStaticPage(file: string, html: string, item: AnyContentItem | null, sections = item?.sections.length ?? 0): string[] {
   const problems: string[] = [];
   const head = html.slice(html.indexOf("<head"), html.indexOf("</head>"));
   if (!/<meta charSet="utf-8"\/?>/i.test(head)) problems.push(`${file} has no charset in its <head>.`);
@@ -190,12 +226,13 @@ export function checkStaticPage(file: string, html: string, item: AnyContentItem
   if (!item) return problems;
 
   const h1s = [...html.matchAll(/<h1\b[^>]*>([\s\S]*?)<\/h1>/g)].map((match) => decode(match[1]));
-  if (h1s.length !== 1 || h1s[0] !== item.title) problems.push(`${file} should have one <h1>, "${item.title}"; it has ${JSON.stringify(h1s)}.`);
-  const sections = [...html.matchAll(/<section data-section="([^"]+)"/g)].map((match) => match[1]);
-  const want = item.sections.map((section) => section.type);
-  if (sections.join(",") !== want.join(",")) problems.push(`${file} renders sections [${sections.join(", ")}], expected [${want.join(", ")}].`);
+  const inHero = item.sections.some((section) => headingSections.has(section.type));
+  if (h1s.length !== 1) problems.push(`${file} should have one <h1>; it has ${h1s.length}.`);
+  else if (!inHero && h1s[0] !== item.title) problems.push(`${file} should have the <h1> "${item.title}"; it has "${h1s[0]}".`);
+  const found = mainSections(html);
+  if (found !== sections) problems.push(`${file} renders ${found} sections in <main>, expected ${sections}.`);
   const imageId = (item.fields as { imageId?: string | null }).imageId;
-  if (imageId && !/<img\b[^>]*\bsrc="\/media\//.test(html)) problems.push(`${file} does not render its image.`);
+  if (item.collection === "blog-posts" && imageId && !/<img\b[^>]*\bsrc="\/media\//.test(html)) problems.push(`${file} does not render its image.`);
   return problems;
 }
 

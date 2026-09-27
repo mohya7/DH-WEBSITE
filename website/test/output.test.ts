@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { checkOutput, checkStaticPage, htmlFileFor } from "../scripts/check-output";
+import { checkOutput, checkStaticPage, expectedSections, htmlFileFor } from "../scripts/check-output";
+import { createSite } from "../src/content/site";
 import { snapshotContent } from "./helpers";
 import type { Manifest } from "../src/content/prepared";
 import { tempDir } from "./helpers";
@@ -124,17 +125,29 @@ describe("static page content", () => {
   const service = content.collections.services[0];
   const head = '<head><meta charSet="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/></head>';
 
-  it("passes a page whose HTML holds its title, sections, and image", () => {
-    const sections = service.sections.map((section) => `<section data-section="${section.type}"></section>`).join("");
-    expect(checkStaticPage("s.html", `<html>${head}<body><main><h1>${service.title.replace(/&/g, "&amp;")}</h1>${sections}</main></body></html>`, service)).toEqual([]);
+  it("passes a page with one h1 and a <section> in <main> for each section that renders", () => {
+    // Nested sections count once: only <main>'s own children are sections of the page.
+    const sections = service.sections.map((section) => `<section class="${section.type}"><div><section></section></div></section>`).join("");
+    expect(checkStaticPage("s.html", `<html>${head}<body><main><h1>Any hero heading</h1>${sections}</main></body></html>`, service)).toEqual([]);
+    expect(checkStaticPage("s.html", `<html>${head}<body><main><h1>x</h1><section></section></main></body></html>`, service, 1)).toEqual([]);
   });
 
-  it("catches a missing or second h1, missing sections, a missing image, and missing head tags", () => {
-    const problems = checkStaticPage("b.html", `<html><head></head><body><main><h1>Wrong</h1><h1>Two</h1><section data-section="hero"></section></main></body></html>`, post).join("\n");
+  it("catches a missing or second h1, a wrong title without a hero, missing sections, a missing image, and missing head tags", () => {
+    const problems = checkStaticPage("b.html", `<html><head></head><body><main><h1>Wrong</h1><h1>Two</h1><section></section></main></body></html>`, post).join("\n");
     expect(problems).toMatch(/no charset/);
     expect(problems).toMatch(/no viewport/);
-    expect(problems).toMatch(/should have one <h1>/);
-    expect(problems).toMatch(/renders sections \[hero\], expected \[\]/);
+    expect(problems).toMatch(/should have one <h1>; it has 2/);
+    expect(problems).toMatch(/renders 1 sections in <main>, expected 0/);
     expect(problems).toMatch(/does not render its image/);
+    expect(checkStaticPage("b.html", `<html>${head}<body><main><h1>Wrong</h1></main></body></html>`, post).join("\n")).toMatch(/should have the <h1> /);
+  });
+
+  it("expects only the sections that render: an empty listing section renders nothing", () => {
+    const site = createSite(content);
+    const cases = site.routes.find((route) => route.path === "/cases")!;
+    expect(expectedSections(site, cases.item, "page")).toBe(cases.item!.sections.length);
+    const empty = createSite({ ...content, collections: { ...content.collections, "case-studies": [] } });
+    const emptyCases = empty.routes.find((route) => route.path === "/cases")!;
+    expect(expectedSections(empty, emptyCases.item, "page")).toBe(emptyCases.item!.sections.filter((section) => section.type !== "case_cards").length);
   });
 });

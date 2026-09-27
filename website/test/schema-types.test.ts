@@ -11,7 +11,7 @@ const packagesRoot = path.resolve(process.cwd(), "..", "packages");
 
 describe("generated schema types", () => {
   it("are up to date with packages/sections and packages/collections", () => {
-    const committed = fs.readFileSync(path.join(process.cwd(), "src", "content", "generated", "schema-types.ts"), "utf8").replace(/\r\n/g, "\n");
+    const committed = fs.readFileSync(path.join(process.cwd(), "..", "packages", "blocks", "src", "generated", "schema-types.ts"), "utf8").replace(/\r\n/g, "\n");
     expect(generate()).toBe(committed);
   });
 

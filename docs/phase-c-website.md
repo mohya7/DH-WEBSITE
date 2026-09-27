@@ -216,6 +216,20 @@ The website uses ordinary full-page links, never Next's client-side navigation, 
 
 **4.6** A test per component against its schema's sample data.
 
+### Section 4 — how the components are built
+
+**Verified against the old pages after their runtime.** Each component renders what `feature/interviewer-portal` shows once `content-runtime.js` has filled it in. The comparison serves that branch statically, runs only `site-content.js` and `content-runtime.js`, and compares every `main > section` with the new build: elements, nesting, ids, classes, every other attribute, and text. It ignores only link targets and image file details (`src`, `srcset`, `sizes`, `width`, `height`, `loading`, `decoding`, `fetchpriority`, and `url()` in styles).
+
+**Lists the old runtime built** (home services, partners, cases, blogs, news; team; vacancies; the home counters) are built from the published collections the same way; the section's fields supply the headings.
+
+**`faq`** has no page on the old site. It uses the one FAQ design the old site has, the blog-post FAQ (`renderFaq` in `scripts/blog-pages.js`, `.blog-view-faq` in `hub-pages.css`): the same markup, first item open.
+
+**Script-dependency table, as found.** `[data-feature-block]` is on the industry cards (`industries`), not the feature grid. `.eswd-menu__media` (`js/service-page.js`) and `.news-carousel__dot` (`index.inline-5.js`) are created by the scripts themselves and are not in the old HTML.
+
+**Content-model gaps, not changed.** Three kinds of inline emphasis were lost at import because the fields are plain text: the `<em>` in case-study hero headings, the `<strong>` in service hero ledes, and the inline `<a class="accent">` at the end of the service problem leads. Keeping them needs a schema change (and a migration of the stored values), which is local work; the components render the plain text.
+
+**Output check.** The static-page check now expects one `<h1>` (the hero's, or the item's title on a page without a hero) and one `<section>` in `<main>` for each section that renders; `sectionRenders` says which listing sections render nothing.
+
 ---
 
 ## Section 5 [CLOUD] — Pages, navigation, and forms

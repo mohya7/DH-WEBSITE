@@ -207,6 +207,8 @@ function websiteSources(): { file: string; text: string }[] {
     }
   };
   walk(path.join(process.cwd(), "src"));
+  // The section components render into the same static pages.
+  walk(path.join(process.cwd(), "..", "packages", "blocks", "src"));
   return out;
 }
 
@@ -269,6 +271,7 @@ describe("links", () => {
       }
     };
     walk(path.join(process.cwd(), "src"));
+    walk(path.join(process.cwd(), "..", "packages", "blocks", "src"));
     for (const file of sources) expect(fs.readFileSync(file, "utf8"), file).not.toMatch(/from ["']next\/link["']/);
   });
 });

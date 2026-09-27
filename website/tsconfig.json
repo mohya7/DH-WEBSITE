@@ -28,6 +28,18 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@digitalhub/blocks": [
+        "../packages/blocks/src/index.ts"
+      ],
+      "@digitalhub/blocks/*": [
+        "../packages/blocks/src/*"
+      ],
+      "react": [
+        "./node_modules/@types/react"
+      ],
+      "react/*": [
+        "./node_modules/@types/react/*"
       ]
     }
   },
@@ -36,6 +48,8 @@
     "src/**/*.ts",
     "src/**/*.tsx",
     "scripts/**/*.ts",
+    "../packages/blocks/src/**/*.ts",
+    "../packages/blocks/src/**/*.tsx",
     "test/**/*.ts",
     "test/**/*.tsx",
     "next.config.ts",

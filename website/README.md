@@ -21,7 +21,7 @@ On Windows PowerShell, set the variables with `$env:CONTENT_SOURCE = "snapshot"`
 
 | Step | What it does |
 |---|---|
-| `gen:types -- --check` | Fails if `src/content/generated/schema-types.ts` is out of date with `packages/sections` or `packages/collections` |
+| `gen:types -- --check` | Fails if `packages/blocks/src/generated/schema-types.ts` is out of date with `packages/sections` or `packages/collections` |
 | `prepare:content` | Reads the configured source **once**, checks it, writes `.content/` and `public/media/` |
 | `prepare:design` | Copies `design/` to `public/design/<hash>/` |
 | `next build` | Renders every page from `.content/` |
@@ -56,7 +56,8 @@ to the output, or to the log.
 
 `scripts/generate-schema-types.ts` reads `packages/sections/*.json`,
 `packages/sections/defs.json`, and `packages/collections/*.json`, and writes
-`src/content/generated/schema-types.ts`:
+`packages/blocks/src/generated/schema-types.ts`, beside the section components
+that use it (`src/content/generated/schema-types.ts` re-exports it):
 
 - one interface per section (`HeroFields`, …) and per collection (`BlogPostsFields`, …)
 - `Media`, `Reference`, `Link`, `TextPair`, and `Block` from `defs.json`
@@ -80,6 +81,15 @@ page records.
 
 Pages are exported as `about.html`, `services/ai-automation.html`, and so on.
 Links use the clean path (`/about`). Mapping one to the other in IIS is Section 8.
+
+## Sections — `packages/blocks`
+
+Pages render their sections with the components in `packages/blocks`
+(Section 4). `src/content/blocks.ts` gives them their context: the page, the
+image and link adapters (`src/adapters/`), reference resolution, and the
+published collections. `src/content/block-data.ts` is the same without the
+adapters, for build scripts. `next.config.ts` sets `turbopack.root` to the
+repository root so the build can import a package outside `website/`.
 
 ## Images
 
@@ -113,6 +123,9 @@ old pages. The one permitted change is listed in `docs/phase-c-website.md`,
 npm test            # Vitest
 npm run typecheck   # tsc, including the compile-time checks in test/schema-types.test.ts
 ```
+
+`test/blocks/` renders every section of the snapshot through `packages/blocks`
+with the website's adapters (4.6), and the rich-text renderer (4.3).
 
 The `api` source is tested against a local HTTP server that behaves like the
 build endpoint. It checks the token, returns 401 and 429, and serves media.
