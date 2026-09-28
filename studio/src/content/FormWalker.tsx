@@ -9,10 +9,12 @@ import { fieldLabel, kindOf, resolveSchema, type SchemaCatalog, type SchemaNode 
 
 type Value = Record<string, unknown>;
 
+const allowAllMarks = () => true;
+
 /**
- * inlineTextMarks: whether inline-text fields may carry bold, italic, and links.
- * The API allows them only in a case study's sections (ContentStore), so the
- * item editor passes false everywhere else and the editor offers plain text.
+ * inlineTextMarks: whether an inline-text field, by name, may carry bold,
+ * italic, and links. The item editor passes the rule for each section
+ * (model.ts, inlineMarksAllowed); a field without marks is edited as plain text.
  */
 export function FormWalker({
   schema,
@@ -20,14 +22,14 @@ export function FormWalker({
   value,
   onChange,
   fieldPath,
-  inlineTextMarks = true,
+  inlineTextMarks = allowAllMarks,
 }: {
   schema: SchemaNode;
   catalog: SchemaCatalog;
   value: Value;
   onChange: (value: Value) => void;
   fieldPath: string;
-  inlineTextMarks?: boolean;
+  inlineTextMarks?: (field: string) => boolean;
 }) {
   const resolved = resolveSchema(schema, catalog.defs);
   const properties = resolved.properties ?? {};
@@ -67,7 +69,7 @@ function Field({
   value: unknown;
   onChange: (value: unknown) => void;
   fieldPath: string;
-  inlineTextMarks: boolean;
+  inlineTextMarks: (field: string) => boolean;
 }) {
   const label = fieldLabel(name, schema);
   if (schema.oneOf !== undefined) {
@@ -105,7 +107,7 @@ function Field({
           {label}
           {required ? " *" : ""}
         </span>
-        <InlineTextEditor value={text(value)} onChange={onChange} fieldPath={fieldPath} allowMarks={inlineTextMarks} label={label} />
+        <InlineTextEditor value={text(value)} onChange={onChange} fieldPath={fieldPath} allowMarks={inlineTextMarks(name)} label={label} />
       </div>
     );
   }
@@ -273,7 +275,7 @@ function ArrayField({
   value: unknown;
   onChange: (value: unknown) => void;
   fieldPath: string;
-  inlineTextMarks: boolean;
+  inlineTextMarks: (field: string) => boolean;
 }) {
   const items = Array.isArray(value) ? value : [];
   const itemSchema = schema.items === undefined ? {} : resolveSchema(schema.items, catalog.defs);
@@ -328,7 +330,7 @@ function OneOfField({
   value: unknown;
   onChange: (value: unknown) => void;
   fieldPath: string;
-  inlineTextMarks: boolean;
+  inlineTextMarks: (field: string) => boolean;
 }) {
   const branches = (schema.oneOf ?? []).map((branch) => resolveSchema(branch, catalog.defs));
   const current = isRecord(value) ? text(value.kind) : "";

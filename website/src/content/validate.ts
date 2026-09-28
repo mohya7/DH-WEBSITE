@@ -6,7 +6,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { Ajv2020, type ValidateFunction } from "ajv/dist/2020.js";
-import { inlineTextProblems } from "@digitalhub/blocks/inline/document";
+import { inlineMarksAllowed, inlineTextProblems } from "@digitalhub/blocks/inline/document";
 import type { AnyContentItem, BuildContent } from "./build-content";
 import { websiteRoot } from "./config";
 import { collectionNames, sectionTypes } from "./generated/schema-types";
@@ -144,10 +144,9 @@ export function validateContent(content: BuildContent): string[] {
         problems.push(`${where}: section ${index + 1} (${section.type}) does not match sections/${section.type}.json: ${describeErrors(validateSection)}`);
         return;
       }
-      // The API's rule (ContentStore): marks only in a case study's sections; everywhere else plain.
-      const allowMarks = item.collection === "case-studies";
       for (const name of inlineText.get(section.type) ?? []) {
         const value = (section.fields as Record<string, unknown>)[name];
+        const allowMarks = inlineMarksAllowed(item.collection, section.type, name);
         for (const message of inlineTextProblems(typeof value === "string" ? value : null, { allowMarks })) {
           problems.push(`${where}: section ${index + 1} (${section.type}) ${name}: ${message}`);
         }

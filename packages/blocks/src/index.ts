@@ -5,4 +5,4 @@ export { RichText } from "./richtext/RichText";
 export { parseRichText, textOf, type RichDocument, type RichNode } from "./richtext/document";
 export { headingAnchors, slugify, type HeadingAnchor } from "./richtext/anchors";
 export { InlineText } from "./inline/InlineText";
-export { inlinePlainText, inlineTextFrom, inlineTextProblems, parseInlineText, type InlinePart } from "./inline/document";
+export { inlineMarksAllowed, inlinePlainText, inlineTextFrom, inlineTextProblems, parseInlineText, type InlinePart } from "./inline/document";

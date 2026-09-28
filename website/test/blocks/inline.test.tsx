@@ -5,7 +5,7 @@
  */
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { InlineText, inlinePlainText, inlineTextFrom, inlineTextProblems, type PageKind } from "@digitalhub/blocks";
+import { InlineText, inlineMarksAllowed, inlinePlainText, inlineTextFrom, inlineTextProblems, type PageKind } from "@digitalhub/blocks";
 import type { Section } from "@digitalhub/blocks/generated/schema-types";
 import { blockContext } from "../../src/content/blocks";
 import { validateContent } from "../../src/content/validate";
@@ -66,17 +66,35 @@ describe("inline text: the API's rules", () => {
     expect(inlineTextProblems(doc(t("x", italic)), { allowMarks: false }).join("\n")).toMatch(/"italic" is not allowed here: this text must be plain/);
   });
 
-  it("the website build refuses content the API would refuse: marks outside a case study, plain strings", () => {
+  it("marks are refused only in a hero's heading outside a case study", () => {
+    expect(inlineMarksAllowed("pages", "hero", "heading")).toBe(false);
+    expect(inlineMarksAllowed("partners", "hero", "heading")).toBe(false);
+    expect(inlineMarksAllowed("case-studies", "hero", "heading")).toBe(true);
+    expect(inlineMarksAllowed("services", "service_hero", "lead")).toBe(true);
+    expect(inlineMarksAllowed("services", "problem", "lead")).toBe(true);
+    expect(inlineMarksAllowed("case-studies", "problem", "lead")).toBe(true);
+  });
+
+  it("the website build applies that rule, and refuses a plain string", () => {
     const copy = snapshotContent();
+    const find = <T extends Section["type"]>(sections: Section[], type: T) => sections.find((section) => section.type === type) as Extract<Section, { type: T }>;
     const home = copy.pages.find((page) => page.slug === "home")!;
-    const hero = home.sections.find((section) => section.type === "hero")! as Extract<Section, { type: "hero" }>;
-    hero.fields.heading = doc(t("Your strategy is "), t("right", italic));
-    const serviceItem = copy.collections.services[0];
-    const serviceHero = serviceItem.sections.find((section) => section.type === "service_hero")! as Extract<Section, { type: "service_hero" }>;
-    serviceHero.fields.lead = "A plain string, not a document";
-    const problems = validateContent(copy).join("\n");
-    expect(problems).toMatch(/pages\/home: section 1 \(hero\) heading: "italic" is not allowed here: this text must be plain/);
-    expect(problems).toContain(`services/${serviceItem.slug}: section ${serviceItem.sections.indexOf(serviceHero) + 1} (service_hero) lead: This text must be a document.`);
+    find(home.sections, "hero").fields.heading = doc(t("Your strategy is "), t("right", italic));
+    const partner = copy.collections.partners[0];
+    find(partner.sections, "hero").fields.heading = doc(t(partner.title, bold));
+    const study = copy.collections["case-studies"][0];
+    find(study.sections, "hero").fields.heading = doc(t("Powering "), t("planning", italic));
+    const [serviceA, serviceB] = copy.collections.services;
+    find(serviceA.sections, "service_hero").fields.lead = doc(t("We build "), t("secure platforms", bold), t("."));
+    find(serviceA.sections, "problem").fields.lead = doc(t("Legacy slows you. "), t("See how", fragment("#services")), t("."));
+    find(serviceB.sections, "service_hero").fields.lead = "A plain string, not a document";
+    const problems = validateContent(copy);
+    const about = (item: { collection: string; slug: string }) => problems.filter((line) => line.startsWith(`${item.collection}/${item.slug}:`)).join("\n");
+    expect(about(home)).toMatch(/section 1 \(hero\) heading: "italic" is not allowed here: this text must be plain/);
+    expect(about(partner)).toMatch(/\(hero\) heading: "bold" is not allowed here: this text must be plain/);
+    expect(about(study)).not.toMatch(/\(hero\) heading/);
+    expect(about(serviceA)).not.toMatch(/\((service_hero|problem)\) lead/);
+    expect(about(serviceB)).toContain(`section ${serviceB.sections.indexOf(find(serviceB.sections, "service_hero")) + 1} (service_hero) lead: This text must be a document.`);
   });
 });
 

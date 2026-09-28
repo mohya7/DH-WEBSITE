@@ -146,7 +146,7 @@ export function InlineTextEditor({
           <Button size="small" onClick={() => editor?.chain().focus().extendMarkRange("link").unsetMark("link").run()}>Remove link</Button>
         </Space>
       ) : (
-        <p className="mb-1 text-xs" style={{ color: "var(--dh-text-muted)" }}>Plain text here: bold, italic, and links are allowed only in case studies.</p>
+        <p className="mb-1 text-xs" style={{ color: "var(--dh-text-muted)" }}>Plain text here: a hero heading takes no formatting outside case studies.</p>
       )}
       <EditorContent editor={editor} />
       {tooLong ? <p className="mt-2 text-sm" style={{ color: "var(--dh-error)" }}>This text is longer than {maxBytes} bytes.</p> : null}

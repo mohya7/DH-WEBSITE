@@ -61,6 +61,16 @@ function linkProblems(mark: Json, problems: string[]): void {
 }
 
 /**
+ * Where inline text may carry marks. Everywhere, except a hero's heading on any
+ * page but a case study: the home hero's heading is split into animated lines by
+ * the ported scripts, and the other heroes' headings are plain on the old pages.
+ * The Studio's item editor applies the same rule (studio/src/content/model.ts).
+ */
+export function inlineMarksAllowed(collection: string, sectionType: string, field: string): boolean {
+  return !(sectionType === "hero" && field === "heading" && collection !== "case-studies");
+}
+
+/**
  * What is wrong with a stored inline-text value, as readable lines. Empty means
  * it is valid. An empty or blank value is valid: the field is simply not set.
  */
