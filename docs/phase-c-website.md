@@ -253,6 +253,21 @@ The website uses ordinary full-page links, never Next's client-side navigation, 
 
 **5.6** Report every page and the sections it renders.
 
+*Recorded at Section 4 — what the section comparison found missing:*
+
+- **Blog post pages render their full article**: body, table of contents, related
+  items, and FAQ where present. Today they render only the title and image —
+  `/blogs/azure-digital-egypt-2030` is 1,783 bytes with 85 characters of text —
+  so all 15 of the five pages' sections render nothing.
+- **The apply page renders its application form** (5.5). Today its second section
+  renders nothing.
+- **The section comparison counts a section that renders nothing as a failure**,
+  and reports the full denominator: **119**, every section on the old pages, not
+  103. At Section 4 it stands at 80 of 119 — 23 differing, 16 rendering nothing.
+  Reporting only the sections the build happens to render hides the pages that
+  are not built yet. Run it with `node tools/section-compare/server.mjs` in
+  `website/`.
+
 ---
 
 ## Section 6 [CLOUD] — SEO
