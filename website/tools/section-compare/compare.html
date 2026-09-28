@@ -1,0 +1,152 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Section comparison</title>
+<style>
+  body { font: 13px/1.6 system-ui, sans-serif; margin: 0; padding: 20px 24px; background: #0d1117; color: #e6edf3; }
+  h1 { font-size: 16px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 18px; color: #8b949e; }
+  table { border-collapse: collapse; margin: 0 0 20px; }
+  th, td { text-align: left; padding: 3px 14px 3px 0; }
+  th { color: #8b949e; font-weight: 600; }
+  .ok { color: #3fb950; } .bad { color: #f85149; } .warn { color: #d29922; }
+  .totals { font-size: 15px; margin: 0 0 18px; }
+  details { margin: 0 0 6px; } summary { cursor: pointer; }
+  pre { margin: 4px 0 10px 16px; padding: 8px 10px; background: #161b22; border-radius: 6px; overflow-x: auto; white-space: pre-wrap; }
+  .old { color: #f85149; } .now { color: #3fb950; }
+</style>
+<body>
+<h1>Section comparison</h1>
+<p class="sub">Every <code>main &gt; section</code> on the built site against the same page on
+feature/interviewer-portal, after only that page's content runtime has run.</p>
+<div id="out">Running…</div>
+
+<script type="module">
+/*
+ * A section that renders nothing in the new build counts as a failure, and the
+ * denominator is every section on the old pages — not only the ones the new
+ * build happens to render.
+ *
+ * Ignored, because they are not what this compares: link targets, image file
+ * details, and url() inside style attributes.
+ */
+const pairs = [
+  ["/", "/index.html"],
+  ["/about", "/about-us.html"],
+  ["/contact", "/get-in-touch.html"],
+  ["/blogs", "/blogs/index.html"],
+  ["/blogs/augment-vs-outsource-tech-team", "/blogs/augment-vs-outsource-tech-team.html"],
+  ["/blogs/azure-digital-egypt-2030", "/blogs/azure-digital-egypt-2030.html"],
+  ["/blogs/digital-employee-experience", "/blogs/digital-employee-experience.html"],
+  ["/blogs/digital-transformation-signs", "/blogs/digital-transformation-signs.html"],
+  ["/blogs/enterprise-ai-production", "/blogs/enterprise-ai-production.html"],
+  ["/cases", "/cases/index.html"],
+  ["/cases/data-center-transformation", "/cases/data-center-transformation.html"],
+  ["/cases/ministry-planning", "/cases/ministry-planning.html"],
+  ["/cases/nexthink-dex-bank", "/cases/nexthink-dex-bank.html"],
+  ["/partners", "/partners/index.html"],
+  ["/partners/efinance", "/partners/efinance.html"],
+  ["/partners/huawei", "/partners/huawei.html"],
+  ["/partners/microsoft", "/partners/microsoft.html"],
+  ["/partners/nexthink", "/partners/nexthink.html"],
+  ["/partners/vodafone", "/partners/vodafone.html"],
+  ["/news", "/news/index.html"],
+  ["/careers", "/careers/index.html"],
+  ["/careers/apply", "/careers/apply.html"],
+  ["/services/ai-automation", "/services/ai-automation.html"],
+  ["/services/data-analytics", "/services/data-analytics.html"],
+  ["/services/enterprise-software", "/services/enterprise-software.html"],
+  ["/services/outsourcing", "/services/outsourcing.html"],
+];
+
+const ignoredAttrs = new Set(["href", "src", "srcset", "sizes", "width", "height", "loading", "decoding", "fetchpriority"]);
+
+function sig(el) {
+  const parts = [];
+  const walk = (node, depth) => {
+    if (node.nodeType === 3) {
+      const text = node.nodeValue.replace(/\s+/g, " ").trim();
+      if (text) parts.push(depth + "#text:" + text);
+      return;
+    }
+    if (node.nodeType !== 1) return;
+    const attrs = [];
+    for (const a of node.attributes) {
+      if (ignoredAttrs.has(a.name)) continue;
+      let v = a.value;
+      if (a.name === "style") v = v.replace(/url\([^)]*\)/g, "url()");
+      if (a.name === "class") v = v.split(/\s+/).filter(Boolean).sort().join(" ");
+      attrs.push(a.name + "=" + v.replace(/\s+/g, " ").trim());
+    }
+    attrs.sort();
+    parts.push(depth + "<" + node.tagName.toLowerCase() + " " + attrs.join("|"));
+    for (const child of node.childNodes) walk(child, depth + 1);
+  };
+  walk(el, 0);
+  return parts;
+}
+
+const sectionsOf = (doc) =>
+  Array.from(doc.querySelector("main")?.children ?? []).filter((el) => el.tagName === "SECTION");
+
+/** The old page in a frame, with only its content runtime, given time to run. */
+const oldDoc = (url) => new Promise((resolve) => {
+  const frame = document.createElement("iframe");
+  frame.style.cssText = "width:1280px;height:900px;position:absolute;left:-9999px";
+  frame.src = "/oldrt" + url;
+  frame.onload = () => setTimeout(() => resolve(frame.contentDocument), 1400);
+  document.body.appendChild(frame);
+});
+
+/** The new page parsed, never executed: it is static HTML by design. */
+const newDoc = async (url) =>
+  new DOMParser().parseFromString(await (await fetch("/new" + url)).text(), "text/html");
+
+const out = document.getElementById("out");
+const results = [];
+let total = 0, matched = 0;
+
+for (const [newUrl, oldUrl] of pairs) {
+  out.textContent = "comparing " + oldUrl + " …";
+  const [od, nd] = [await oldDoc(oldUrl), await newDoc(newUrl)];
+  const oldSecs = sectionsOf(od), newSecs = sectionsOf(nd);
+  total += oldSecs.length;
+  for (let i = 0; i < Math.max(oldSecs.length, newSecs.length); i++) {
+    const o = oldSecs[i], s = newSecs[i];
+    const id = (o || s)?.id || String((o || s)?.className ?? "").split(/\s+/)[0] || "#" + i;
+    if (!o) { results.push({ page: oldUrl, id, status: "extra in new", diff: [] }); continue; }
+    if (!s) { results.push({ page: oldUrl, id, status: "renders nothing", diff: [] }); continue; }
+    const a = sig(o), b = sig(s);
+    if (a.join("\n") === b.join("\n")) { matched++; results.push({ page: oldUrl, id, status: "match", diff: [] }); continue; }
+    const diff = [];
+    for (let k = 0; k < Math.max(a.length, b.length) && diff.length < 8; k++) {
+      if (a[k] !== b[k]) diff.push({ old: a[k] ?? "(end)", now: b[k] ?? "(end)" });
+    }
+    results.push({ page: oldUrl, id, status: "differs", diff });
+  }
+}
+
+const failing = results.filter((r) => r.status !== "match");
+window.__result = { total, matched, failing: failing.length, results };
+
+const byStatus = (s) => results.filter((r) => r.status === s).length;
+const rows = {};
+for (const r of results) {
+  rows[r.page] ??= { total: 0, match: 0 };
+  rows[r.page].total++;
+  if (r.status === "match") rows[r.page].match++;
+}
+
+out.innerHTML =
+  `<p class="totals"><strong class="${matched === total ? "ok" : "bad"}">${matched} of ${total}</strong> sections match` +
+  ` — ${byStatus("differs")} differ, ${byStatus("renders nothing")} render nothing, ${byStatus("extra in new")} extra.</p>` +
+  "<table><tr><th>page</th><th>matched</th></tr>" +
+  Object.entries(rows).map(([page, r]) =>
+    `<tr><td>${page}</td><td class="${r.match === r.total ? "ok" : "bad"}">${r.match} / ${r.total}</td></tr>`).join("") +
+  "</table>" +
+  failing.map((r) =>
+    `<details><summary><span class="${r.status === "renders nothing" ? "bad" : "warn"}">${r.status}</span> — ${r.page} <code>${r.id}</code></summary>` +
+    (r.diff.length === 0 ? "" : "<pre>" + r.diff.map((d) =>
+      `<span class="old">old  ${d.old.replace(/</g, "&lt;")}</span>\n<span class="now">new  ${d.now.replace(/</g, "&lt;")}</span>`).join("\n\n") + "</pre>") +
+    "</details>").join("");
+</script>
+</body>

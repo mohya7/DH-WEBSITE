@@ -129,3 +129,29 @@ with the website's adapters (4.6), and the rich-text renderer (4.3).
 
 The `api` source is tested against a local HTTP server that behaves like the
 build endpoint. It checks the token, returns 401 and 429, and serves media.
+
+## Section comparison — `tools/section-compare`
+
+Compares every `main > section` on the built site with the same page on
+`feature/interviewer-portal`, after only that page's content runtime has run.
+Every verification of a website change uses it.
+
+```bash
+cd website
+CONTENT_SOURCE=snapshot npm run build
+node tools/section-compare/server.mjs
+```
+
+Then open the printed address. Results are on the page, and in `window.__result`
+for a script to read. Pass the source and build roots as arguments to override
+the defaults (`node tools/section-compare/server.mjs <oldRoot> <newRoot> [port]`).
+
+It serves the source branch with every script removed except `site-content.js`
+and `content-runtime.js`, so the comparison sees what a visitor saw, without
+GSAP, Lenis, or the page scripts mutating the DOM. The new pages are parsed, not
+executed: the site ships static HTML.
+
+A section that renders nothing in the new build **counts as a failure**, and the
+denominator is every section on the old pages — not only the ones the new build
+happens to render. Link targets, image file details, and `url()` inside style
+attributes are ignored.
