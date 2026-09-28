@@ -8,13 +8,16 @@
  */
 import type { BlockContext } from "../context";
 import type { HeroFields } from "../generated/schema-types";
+import { inlinePlainText } from "../inline/document";
+import { InlineText } from "../inline/InlineText";
 import { partnerLogoModifier, sentences } from "../util";
 
 type Props = { fields: HeroFields; ctx: BlockContext };
 
 function HomeHero({ fields, ctx }: Props) {
   const { Image, Link } = ctx;
-  const lines = sentences(fields.heading);
+  // Plain text: the ported scripts split these lines into animated parts.
+  const lines = sentences(inlinePlainText(fields.heading));
   const logos = (fields.logos ?? []).flatMap((logo) => {
     const path = ctx.resolve(logo.reference);
     if (!path) return [];
@@ -75,7 +78,9 @@ function AboutHero({ fields, ctx }: Props) {
           <div className="hero-glass__glow" aria-hidden="true"></div>
           <div className="about-banner__head hero-glass__copy">
             {fields.eyebrow ? <p className="label about-eyebrow">{fields.eyebrow}</p> : null}
-            <h1 className="about-display">{fields.heading}</h1>
+            <h1 className="about-display">
+              <InlineText value={fields.heading} ctx={ctx} />
+            </h1>
             {fields.lead ? <p className="lead about-lede">{fields.lead}</p> : null}
             {actions.length > 0 ? (
               <div className="about-hero__cta">
@@ -137,7 +142,9 @@ function PartnerHero({ fields, ctx }: Props) {
               <span className={orangeKickers.has(ctx.page.slug) ? "partner-view-tag partner-view-tag--orange" : "partner-view-tag"}>{fields.kicker}</span>
             </div>
           ) : null}
-          <h1 className="partner-view-title">{fields.heading}</h1>
+          <h1 className="partner-view-title">
+            <InlineText value={fields.heading} ctx={ctx} />
+          </h1>
           {fields.lead ? <p className="partner-view-lead">{fields.lead}</p> : null}
         </div>
         {fields.image ? (
@@ -157,7 +164,9 @@ function CaseHero({ fields, ctx }: Props) {
       <div className="section-inner">
         <div className="cs-hero__content" data-reveal="">
           {fields.eyebrow ? <span className="label">{fields.eyebrow}</span> : null}
-          <h1 className="cs-hero__title">{fields.heading}</h1>
+          <h1 className="cs-hero__title">
+            <InlineText value={fields.heading} ctx={ctx} />
+          </h1>
           {fields.client ? <p className="cs-hero__client">{fields.client}</p> : null}
           {fields.tags && fields.tags.length > 0 ? (
             <div className="cs-meta">

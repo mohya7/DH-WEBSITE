@@ -339,6 +339,7 @@ export function ItemEditorPage({ collection }: { collection: CollectionName }) {
                         value={section.fields}
                         onChange={(next) => setSections(sections.map((entry, entryIndex) => entryIndex === index ? { ...entry, fields: next } : entry))}
                         fieldPath={`sections[${index}]`}
+                        inlineTextMarks={collection === "case-studies"}
                       />
                     ) : null}
                   </article>

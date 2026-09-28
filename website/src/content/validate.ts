@@ -6,6 +6,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { Ajv2020, type ValidateFunction } from "ajv/dist/2020.js";
+import { inlineTextProblems } from "@digitalhub/blocks/inline/document";
 import type { AnyContentItem, BuildContent } from "./build-content";
 import { websiteRoot } from "./config";
 import { collectionNames, sectionTypes } from "./generated/schema-types";
@@ -17,6 +18,8 @@ const packagesRoot = path.resolve(websiteRoot, "..", "packages");
 type Validators = {
   sections: Map<string, ValidateFunction>;
   collections: Map<string, ValidateFunction>;
+  /** Per section type, the fields declared as inline text, directly or through defs.json. */
+  inlineText: Map<string, string[]>;
 };
 
 let validators: Validators | undefined;
@@ -35,15 +38,23 @@ function loadValidators(): Validators {
   ajv.addSchema(readJson(path.join(packagesRoot, "sections", "defs.json")));
 
   const sections = new Map<string, ValidateFunction>();
+  const inlineText = new Map<string, string[]>();
   for (const type of sectionTypes) {
-    sections.set(type, ajv.compile(readJson(path.join(packagesRoot, "sections", `${type}.json`))));
+    const schema = readJson(path.join(packagesRoot, "sections", `${type}.json`)) as { properties?: Record<string, { $ref?: string; "x-dh-kind"?: string }> };
+    sections.set(type, ajv.compile(schema));
+    inlineText.set(
+      type,
+      Object.entries(schema.properties ?? {})
+        .filter(([, property]) => property["x-dh-kind"] === "inlineText" || (property["x-dh-kind"] === undefined && property.$ref?.endsWith("/inlineText") === true))
+        .map(([name]) => name),
+    );
   }
   const collections = new Map<string, ValidateFunction>();
   for (const name of collectionNames) {
     collections.set(name, ajv.compile(readJson(path.join(packagesRoot, "collections", `${name}.json`))));
   }
 
-  validators = { sections, collections };
+  validators = { sections, collections, inlineText };
   return validators;
 }
 
@@ -93,7 +104,7 @@ function missingMediaIds(content: BuildContent): string[] {
  */
 export function validateContent(content: BuildContent): string[] {
   const problems: string[] = [];
-  const { sections, collections } = loadValidators();
+  const { sections, collections, inlineText } = loadValidators();
 
   for (const key of ["pages", "collections", "errorPages", "media", "navigation", "settings", "redirects", "references", "unresolvedReferences", "counts"] as const) {
     if (content[key] === undefined || content[key] === null) problems.push(`The content has no "${key}".`);
@@ -131,6 +142,15 @@ export function validateContent(content: BuildContent): string[] {
       }
       if (!validateSection(section.fields)) {
         problems.push(`${where}: section ${index + 1} (${section.type}) does not match sections/${section.type}.json: ${describeErrors(validateSection)}`);
+        return;
+      }
+      // The API's rule (ContentStore): marks only in a case study's sections; everywhere else plain.
+      const allowMarks = item.collection === "case-studies";
+      for (const name of inlineText.get(section.type) ?? []) {
+        const value = (section.fields as Record<string, unknown>)[name];
+        for (const message of inlineTextProblems(typeof value === "string" ? value : null, { allowMarks })) {
+          problems.push(`${where}: section ${index + 1} (${section.type}) ${name}: ${message}`);
+        }
       }
     });
   };

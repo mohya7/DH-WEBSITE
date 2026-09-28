@@ -8,6 +8,8 @@
  * are part of the design, chosen by the service's visual.
  */
 import type { BlockContext } from "../context";
+import { inlinePlainText } from "../inline/document";
+import { InlineText } from "../inline/InlineText";
 import type { ProblemFields } from "../generated/schema-types";
 import { serviceVisual } from "../lookup";
 import { Prose } from "./Prose";
@@ -35,7 +37,11 @@ export function Problem({ fields, ctx }: { fields: ProblemFields; ctx: BlockCont
         <header className="problem-lead" data-reveal="">
           {fields.eyebrow ? <span className="label">{fields.eyebrow}</span> : null}
           <h2>{fields.heading}</h2>
-          {fields.lead ? <p>{fields.lead}</p> : null}
+          {inlinePlainText(fields.lead) ? (
+            <p>
+              <InlineText value={fields.lead} ctx={ctx} />
+            </p>
+          ) : null}
         </header>
 
         <div className="problem-pipeline" id="problemPipeline" aria-label={`Illustration: broken ${look.flow} flow with three break points`}>

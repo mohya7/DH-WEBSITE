@@ -9,6 +9,8 @@
  */
 import type { ReactNode } from "react";
 import type { BlockContext } from "../context";
+import { inlinePlainText } from "../inline/document";
+import { InlineText } from "../inline/InlineText";
 import type { ServiceHeroFields } from "../generated/schema-types";
 
 const stages: Record<string, ReactNode> = {
@@ -271,7 +273,11 @@ export function ServiceHero({ fields, ctx }: { fields: ServiceHeroFields; ctx: B
         <div className="svc-hero-copy">
           {fields.eyebrow ? <p className="svc-eyebrow">{fields.eyebrow}</p> : null}
           <h1 className="svc-display">{heading(fields.heading)}</h1>
-          {fields.lead ? <p className="svc-lede">{fields.lead}</p> : null}
+          {inlinePlainText(fields.lead) ? (
+            <p className="svc-lede">
+              <InlineText value={fields.lead} ctx={ctx} />
+            </p>
+          ) : null}
           {fields.action ? (
             <div className="svc-cta-row">
               <Link href={fields.action.href} className="btn-svc btn-svc-primary">
