@@ -84,7 +84,7 @@ function Field({
           {label}
           {required ? " *" : ""}
         </span>
-        <Control kind={kind} schema={schema} value={value} onChange={onChange} fieldPath={fieldPath} />
+        <Control kind={kind} schema={schema} value={value} onChange={onChange} />
       </label>
     );
   }
@@ -99,8 +99,21 @@ function Field({
     );
   }
 
-  if (kind === "inlineText") {
+  if (kind === "richText") {
     // Not a <label>: clicking a label activates its first button, which would toggle bold.
+    return (
+      <div className="block" data-field={fieldPath}>
+        <span className="mb-1 block text-sm">
+          {label}
+          {required ? " *" : ""}
+        </span>
+        <RichTextEditor value={text(value)} onChange={onChange} fieldPath={fieldPath} label={label} />
+      </div>
+    );
+  }
+
+  if (kind === "inlineText") {
+    // Not a <label>, for the same reason as rich text.
     return (
       <div className="block" data-field={fieldPath}>
         <span className="mb-1 block text-sm">
@@ -122,7 +135,7 @@ function Field({
         {label}
         {required ? " *" : ""}
       </span>
-      <Control kind={kind} schema={schema} value={value} onChange={onChange} fieldPath={fieldPath} />
+      <Control kind={kind} schema={schema} value={value} onChange={onChange} />
     </label>
   );
 }
@@ -132,13 +145,11 @@ function Control({
   schema,
   value,
   onChange,
-  fieldPath,
 }: {
   kind: string;
   schema: SchemaNode;
   value: unknown;
   onChange: (value: unknown) => void;
-  fieldPath: string;
 }) {
   const [picker, setPicker] = useState(false);
   if (kind === "longText") {
@@ -149,9 +160,6 @@ function Control({
   }
   if (kind === "number") {
     return <InputNumber value={typeof value === "number" ? value : undefined} onChange={(next) => onChange(next)} />;
-  }
-  if (kind === "richText") {
-    return <RichTextEditor value={text(value)} onChange={onChange} fieldPath={fieldPath} />;
   }
   if (kind === "media" || schema.properties?.mediaId !== undefined) {
     const media = isRecord(value) ? value : { mediaId: "", alt: "", decorative: false };

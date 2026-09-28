@@ -82,10 +82,12 @@ export function RichTextEditor({
   value,
   onChange,
   fieldPath,
+  label,
 }: {
   value: string;
   onChange: (value: string) => void;
   fieldPath: string;
+  label: string;
 }) {
   const [picker, setPicker] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
@@ -102,7 +104,7 @@ export function RichTextEditor({
     ],
     content: parseDocument(value),
     editorProps: {
-      attributes: { "data-field": fieldPath, class: "min-h-40" },
+      attributes: { "data-field": fieldPath, class: "min-h-40", role: "textbox", "aria-multiline": "true", "aria-label": label },
       handlePaste(_view, event) {
         const files = Array.from(event.clipboardData?.files ?? []);
         if (files.some((file) => file.type.startsWith("image/"))) {
