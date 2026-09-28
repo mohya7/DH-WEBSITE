@@ -689,10 +689,23 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas, 
                     Add(errors, key, message);
                 if (section.Fields.ValueKind == JsonValueKind.Object)
                 {
+                    /* Marks are allowed only on a case study's hero. The home hero's
+                       heading is split into animated parts by the ported scripts, and
+                       a mark there would break that, so every other hero must be one
+                       paragraph of plain text. */
+                    var inlineTextFields = schemas.InlineTextFields(section.Type);
+                    var allowMarks = collection == "case-studies";
                     foreach (var property in section.Fields.EnumerateObject())
                     {
                         if (property.Value.ValueKind != JsonValueKind.String || property.Value.GetString() is not { } text)
                             continue;
+                        if (inlineTextFields.Contains(property.Name))
+                        {
+                            foreach (var message in InlineText.Validate(text, allowMarks))
+                                Add(errors, key + "." + property.Name, message);
+                            continue;
+                        }
+
                         if (!text.Contains("\"type\":\"doc\"", StringComparison.Ordinal) && !text.Contains("\"type\": \"doc\"", StringComparison.Ordinal))
                             continue;
                         foreach (var message in RichText.Validate(text))

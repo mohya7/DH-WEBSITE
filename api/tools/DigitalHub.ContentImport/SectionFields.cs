@@ -14,13 +14,13 @@ static partial class ContentWriter
         return type switch
         {
             "hero" => Hero(section, fromPage, media, warnings),
-            "hub_hero" => HubHero(section),
+            "hub_hero" => HubHero(section, fromPage),
             "service_hero" => ServiceHero(section, fromPage),
             "service_cards" => ServiceCards(section, fromPage, warnings),
             "feature_grid" => FeatureGrid(section, fromPage, media, warnings),
             "delivery_flow" => DeliveryFlow(section),
             "logo_bar" => LogoBar(section, fromPage, media, warnings),
-            "stats" => Stats(section),
+            "stats" => Stats(section, fromPage),
             "partner_grid" => PartnerGrid(section, fromPage, media, warnings),
             "case_cards" => CaseCards(section, fromPage, media, warnings),
             "news_carousel" => NewsCarousel(section, fromPage, media, warnings),
@@ -33,7 +33,7 @@ static partial class ContentWriter
             "pillars" => TitledPairs(section, "article.about-pillar"),
             "profile" => Profile(section, fromPage, media, warnings),
             "team_grid" => TeamGrid(section, fromPage, media, warnings),
-            "problem" => Problem(section),
+            "problem" => Problem(section, fromPage),
             "methodology" => Methodology(section, fromPage, media, warnings),
             "industries" => TitledPairs(section, "article.industry-card"),
             "rich_text" => Prose(section),
@@ -59,7 +59,8 @@ static partial class ContentWriter
     private static JsonObject HomeHero(IElement section, string fromPage, Dictionary<string, MediaAsset> media, List<string> warnings)
     {
         var fields = new JsonObject { ["heading"] = Heading(section) };
-        Put(fields, "eyebrow", section.QuerySelector(".eyebrow span:not([aria-hidden])")?.TextContent);
+        // The runtime replaced this label on load; the markup’s text was never shown.
+        Put(fields, "eyebrow", RuntimeText("home", "label") ?? section.QuerySelector(".eyebrow span:not([aria-hidden])")?.TextContent);
         Put(fields, "lead", section.QuerySelector(".hero-sub")?.TextContent);
         var logos = new JsonArray();
         foreach (var anchor in section.QuerySelectorAll(".partner-logos a"))
@@ -112,7 +113,8 @@ static partial class ContentWriter
 
     private static JsonObject CaseHero(IElement section, string fromPage, Dictionary<string, MediaAsset> media, List<string> warnings)
     {
-        var fields = new JsonObject { ["heading"] = Heading(section) };
+        // Keeps the emphasis the heading carries.
+        var fields = new JsonObject { ["heading"] = InlineDocument(section.QuerySelector(".cs-hero__title"), fromPage) };
         Put(fields, "eyebrow", Eyebrow(section));
         Put(fields, "client", section.QuerySelector(".cs-hero__client")?.TextContent);
         var tags = Strings(section.QuerySelectorAll(".cs-tag").Select(tag => tag.TextContent));
@@ -137,11 +139,12 @@ static partial class ContentWriter
         return fields;
     }
 
-    private static JsonObject HubHero(IElement section)
+    private static JsonObject HubHero(IElement section, string fromPage)
     {
         var fields = new JsonObject { ["heading"] = Heading(section) };
         Put(fields, "eyebrow", Eyebrow(section));
-        Put(fields, "lead", section.QuerySelector(".lead")?.TextContent);
+        // The runtime rewrote each hub lead on load; the markup’s text was never shown.
+        Put(fields, "lead", RuntimeText(RuntimePageOf(fromPage), "lead") ?? section.QuerySelector(".lead")?.TextContent);
         return fields;
     }
 
@@ -149,7 +152,7 @@ static partial class ContentWriter
     {
         var fields = new JsonObject { ["heading"] = Heading(section) };
         Put(fields, "eyebrow", section.QuerySelector(".svc-eyebrow")?.TextContent);
-        Put(fields, "lead", section.QuerySelector(".svc-lede")?.TextContent);
+        fields["lead"] = InlineDocument(section.QuerySelector(".svc-lede"), fromPage);
         var action = LinkOf(section.QuerySelector(".svc-cta-row a"), fromPage);
         if (action is not null)
             fields["action"] = action;
@@ -254,19 +257,27 @@ static partial class ContentWriter
         Put(fields, "label", Eyebrow(section));
         var logos = new JsonArray();
         var track = section.QuerySelector(".trust-track") ?? section;
+        /* The marquee repeats the set so it can scroll without a seam. Store each
+           logo once; the component repeats them. */
+        var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var image in track.QuerySelectorAll("img"))
         {
             var mediaItem = MediaOf(image, fromPage, media, warnings);
-            if (mediaItem is not null)
-                logos.Add(mediaItem);
+            if (mediaItem is null)
+                continue;
+            var id = mediaItem["mediaId"]?.ToString() ?? "";
+            if (id.Length > 0 && !seen.Add(id))
+                continue;
+            logos.Add(mediaItem);
         }
 
         fields["logos"] = logos;
         return fields;
     }
 
-    private static JsonObject Stats(IElement section)
+    private static JsonObject Stats(IElement section, string fromPage)
     {
+        _ = fromPage;
         var fields = Headed(section);
         Put(fields, "lead", section.QuerySelector(".numbers-head p, header p, .lead")?.TextContent);
         var items = new JsonArray();
@@ -276,10 +287,11 @@ static partial class ContentWriter
             var value = number is null
                 ? Text(stat.QuerySelector(".stat-num"))
                 : (number.GetAttribute("data-count") ?? "") + (number.GetAttribute("data-suffix") ?? "");
+            var label = Text(stat.QuerySelector(".stat-label"));
             items.Add(new JsonObject
             {
-                ["value"] = value,
-                ["label"] = Text(stat.QuerySelector(".stat-label")),
+                ["value"] = RuntimeStatValue(label) ?? value,
+                ["label"] = label,
             });
         }
 
@@ -621,13 +633,13 @@ static partial class ContentWriter
         return fields;
     }
 
-    private static JsonObject Problem(IElement section)
+    private static JsonObject Problem(IElement section, string fromPage)
     {
         if (section.QuerySelector(".problem-pipeline, .pp-card") is null)
             return Prose(section);
 
         var fields = Headed(section);
-        Put(fields, "lead", section.QuerySelector(".problem-lead p")?.TextContent);
+        fields["lead"] = InlineDocument(section.QuerySelector(".problem-lead p"), fromPage);
         var head = section.QuerySelector(".pp-head");
         if (head is not null)
         {

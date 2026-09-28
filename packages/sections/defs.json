@@ -13,6 +13,10 @@
         "decorative": { "type": "boolean", "x-dh-kind": "boolean" }
       }
     },
+    "inlineText": {
+      "type": "string",
+      "x-dh-kind": "inlineText"
+    },
     "reference": {
       "type": "object",
       "additionalProperties": false,
