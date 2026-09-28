@@ -71,9 +71,12 @@ describe("inline text: the API's rules", () => {
     const home = copy.pages.find((page) => page.slug === "home")!;
     const hero = home.sections.find((section) => section.type === "hero")! as Extract<Section, { type: "hero" }>;
     hero.fields.heading = doc(t("Your strategy is "), t("right", italic));
+    const serviceItem = copy.collections.services[0];
+    const serviceHero = serviceItem.sections.find((section) => section.type === "service_hero")! as Extract<Section, { type: "service_hero" }>;
+    serviceHero.fields.lead = "A plain string, not a document";
     const problems = validateContent(copy).join("\n");
     expect(problems).toMatch(/pages\/home: section 1 \(hero\) heading: "italic" is not allowed here: this text must be plain/);
-    expect(problems).toMatch(/section \d+ \(service_hero\) lead: This text must be a document/);
+    expect(problems).toContain(`services/${serviceItem.slug}: section ${serviceItem.sections.indexOf(serviceHero) + 1} (service_hero) lead: This text must be a document.`);
   });
 });
 
