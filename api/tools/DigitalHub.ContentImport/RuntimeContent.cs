@@ -59,15 +59,20 @@ static partial class ContentWriter
         return stats;
     }
 
-    /// <summary>The runtime's key for a page, from the file it was imported from.</summary>
-    private static string RuntimePageOf(string fromPage)
+    /// <summary>
+    /// The runtime's key for a hub, when the file is that hub's own index.html:
+    /// partners/index.html is "partners". The runtime rewrote a hub's leads only
+    /// on the hub itself, so every other file -- get-in-touch.html,
+    /// careers/apply.html, a partner's own page -- has no key and keeps the text
+    /// in its own markup.
+    /// </summary>
+    private static string? RuntimePageOf(string fromPage)
     {
         // A page is given as a relative path with no leading slash: partners/index.html.
-        var path = fromPage.Replace('\\', '/').TrimStart('.', '/').ToLowerInvariant();
-        var folder = path.Split('/')[0];
-        if (folder is "partners" or "blogs" or "cases" or "careers" or "news")
-            return folder;
-        return path.StartsWith("about", StringComparison.Ordinal) ? "about" : "home";
+        var parts = fromPage.Replace('\\', '/').TrimStart('.', '/').ToLowerInvariant().Split('/');
+        if (parts.Length == 2 && parts[1] == "index.html" && parts[0] is "partners" or "blogs" or "cases" or "careers" or "news")
+            return parts[0];
+        return null;
     }
 
     /// <summary>

@@ -1643,8 +1643,11 @@ static partial class ContentWriter
     {
         var catalog = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(connectionString).InitialCatalog;
         /* DigitalHubContent_Parity is the throwaway the Phase C snapshot is built
-           from: rebuilt from nothing on every run, never a place anyone edits. */
-        string[] writable = ["DigitalHubContent", "DigitalHubNavImport", "DigitalHubContent_Parity"];
+           from: rebuilt from nothing on every run, never a place anyone edits.
+           DigitalHubContent_Studio is the manual-review database. Like every
+           catalog here, it is refused once content has been edited in the Studio
+           (below), and it needs --media-root. */
+        string[] writable = ["DigitalHubContent", "DigitalHubNavImport", "DigitalHubContent_Parity", "DigitalHubContent_Studio"];
         if (!writable.Contains(catalog, StringComparer.OrdinalIgnoreCase))
         {
             Console.Error.WriteLine("Refusing to write. The connection must target " + string.Join(", ", writable) + ".");

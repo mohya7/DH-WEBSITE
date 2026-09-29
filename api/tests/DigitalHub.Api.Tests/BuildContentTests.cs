@@ -138,6 +138,61 @@ public sealed class BuildContentTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task A_page_reference_resolves_to_the_page_path()
+    {
+        var admin = await AuthSession.LoginAsync(_client, ApiFactory.AdminEmail, ApiFactory.AdminPassword);
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+
+        // A published page, and a published host page whose section links to it by { type: "page", id }.
+        var target = await CreateAsync(admin, "pages", "build-page-target-" + suffix, "Build page target " + suffix);
+        await DescribeAsync(admin, "pages", target.Id);
+        var targetReady = await GetAsync(admin, "pages", target.Id);
+        await PublishAsync(admin, "pages", target.Id, targetReady.GetProperty("version").GetInt32());
+
+        var host = await CreateAsync(admin, "pages", "build-page-host-" + suffix, "Build page host " + suffix);
+        var loaded = await GetAsync(admin, "pages", host.Id);
+        await SaveWithPageReferenceAsync(admin, host.Id, loaded, target.Id);
+        var hostReady = await GetAsync(admin, "pages", host.Id);
+        await PublishAsync(admin, "pages", host.Id, hostReady.GetProperty("version").GetInt32());
+
+        var body = await ReadBuildAsync();
+
+        // The reference resolves to the page's own path.
+        var key = "page:" + target.Id.ToString("D");
+        Assert.Equal("/build-page-target-" + suffix, body.GetProperty("references").GetProperty(key).GetString());
+        Assert.DoesNotContain(
+            body.GetProperty("unresolvedReferences").EnumerateArray(),
+            entry => entry.GetProperty("id").GetGuid() == target.Id);
+
+        // The host keeps the reference as stored: { type, id }, resolved by the build, not rewritten to a path.
+        var hosted = Assert.Single(body.GetProperty("pages").EnumerateArray(), page => page.GetProperty("id").GetGuid() == host.Id);
+        var reference = hosted.GetProperty("sections")[0].GetProperty("fields").GetProperty("items")[0].GetProperty("reference");
+        Assert.Equal("page", reference.GetProperty("type").GetString());
+        Assert.Equal(target.Id, reference.GetProperty("id").GetGuid());
+    }
+
+    [Fact]
+    public async Task An_error_page_is_not_a_reference_target()
+    {
+        /* The error pages are page records that the build serves at /404 and /500.
+           A path of /error-404 would be an address that does not exist. */
+        var (errorPage, restore) = await PublishedErrorPageAsync();
+        try
+        {
+            var body = await ReadBuildAsync();
+            Assert.Equal(errorPage, body.GetProperty("errorPages").GetProperty("404").GetProperty("id").GetGuid());
+            Assert.False(body.GetProperty("references").TryGetProperty("page:" + errorPage.ToString("D"), out _));
+            Assert.DoesNotContain(
+                body.GetProperty("references").EnumerateObject(),
+                entry => entry.Value.GetString()?.StartsWith("/error-", StringComparison.Ordinal) == true);
+        }
+        finally
+        {
+            await restore();
+        }
+    }
+
+    [Fact]
     public async Task Nothing_from_users_audit_contact_requests_or_secrets_is_included()
     {
         var admin = await AuthSession.LoginAsync(_client, ApiFactory.AdminEmail, ApiFactory.AdminPassword);
@@ -322,6 +377,85 @@ public sealed class BuildContentTests : IClassFixture<ApiFactory>
             },
         });
         Ok(response);
+    }
+
+    private async Task SaveWithPageReferenceAsync(AuthSession session, Guid id, JsonElement loaded, Guid referencedPage)
+    {
+        var content = loaded.GetProperty("content");
+        var response = await SendAsync(session, HttpMethod.Put, $"/api/v1/pages/{id}/save", new
+        {
+            version = loaded.GetProperty("version").GetInt32(),
+            slug = content.GetProperty("slug").GetString(),
+            title = content.GetProperty("title").GetString(),
+            metaDescription = "A page whose service cards link to another page by reference.",
+            sortOrder = 0,
+            sections = new object[]
+            {
+                new
+                {
+                    type = "service_cards",
+                    visible = true,
+                    fields = new
+                    {
+                        heading = "What we do",
+                        items = new object[]
+                        {
+                            new { title = "Consultation", reference = new { type = "page", id = referencedPage } },
+                        },
+                    },
+                },
+            },
+        });
+        Ok(response);
+    }
+
+    /// <summary>
+    /// A published error-404 page, and how to put things back. The test database
+    /// may or may not hold the error pages (AdminApiTests seeds and removes them),
+    /// so one is created if missing, or published if it is a draft.
+    /// </summary>
+    private async Task<(Guid Id, Func<Task> Restore)> PublishedErrorPageAsync()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ContentDbContext>();
+        var existing = await db.Pages.SingleOrDefaultAsync(page => page.Slug == "error-404");
+        if (existing is null)
+        {
+            var now = DateTime.UtcNow;
+            var created = new Page
+            {
+                Id = Guid.NewGuid(),
+                Slug = "error-404",
+                Title = "Page not found",
+                Status = ContentStatus.Published,
+                Version = 1,
+                NoIndex = true,
+                CreatedAt = now,
+                UpdatedAt = now,
+                PublishedAt = now,
+            };
+            db.Pages.Add(created);
+            await db.SaveChangesAsync();
+            return (created.Id, async () =>
+            {
+                using var cleanup = _factory.Services.CreateScope();
+                var cleanupDb = cleanup.ServiceProvider.GetRequiredService<ContentDbContext>();
+                cleanupDb.Pages.Remove(await cleanupDb.Pages.SingleAsync(page => page.Id == created.Id));
+                await cleanupDb.SaveChangesAsync();
+            });
+        }
+
+        var status = existing.Status;
+        existing.Status = ContentStatus.Published;
+        await db.SaveChangesAsync();
+        return (existing.Id, async () =>
+        {
+            using var cleanup = _factory.Services.CreateScope();
+            var cleanupDb = cleanup.ServiceProvider.GetRequiredService<ContentDbContext>();
+            var page = await cleanupDb.Pages.SingleAsync(item => item.Id == existing.Id);
+            page.Status = status;
+            await cleanupDb.SaveChangesAsync();
+        });
     }
 
     private async Task<(HttpStatusCode Status, string Body)> SendAsync(AuthSession session, HttpMethod method, string url, object? body = null)
