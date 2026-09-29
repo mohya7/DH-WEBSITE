@@ -22,25 +22,30 @@ website, is next.
 
 Two agents work on this project. They never work on the same branch at once.
 
+### The cloud agent — works from GitHub only
+**The default for all code**, including the API and the importer. No SQL Server,
+no secrets, no local folders. It:
+- Writes the code, against the content snapshot
+- Works only on its own branch, one piece of work per branch
+- Opens a pull request into rebuild/dotnet-platform and never merges
+- Never adds a migration and never touches a database. If a change needs either,
+  it stops and says so in the pull request
+- States plainly what it could not run
+
 ### The local agent — Claude Code on this machine
-The only agent with SQL Server, user-secrets, the DH-WEBSITE-main source folder,
-and IIS. It owns:
-- Exporting the content snapshot the cloud agent builds against
-- All API, database, and migration work — migrations never come from the cloud
+Does only what needs this machine. It owns:
+- Database work: imports, rebuilds, the content snapshot, and migrations
+- Running the .NET API and its tests
+- Windows checks — anything that has to be proved on this operating system
 - Verifying every cloud pull request before it is merged: check out the branch,
   build against the real Content API, run the integration and end-to-end suites,
-  run screenshot parity against feature/interviewer-portal, and run Lighthouse
+  run the section comparison and screenshot parity against
+  feature/interviewer-portal, and run Lighthouse
 - Merging into rebuild/dotnet-platform — the only agent that merges
 - Reporting each verification with a coverage table
 
-### The cloud agent — works from GitHub only
-No SQL Server, no secrets, no local folders. It:
-- Writes code that does not need this machine, against the content snapshot
-- Works only on its own branch, one piece of work per branch
-- Opens a pull request into rebuild/dotnet-platform and never merges
-- Never adds a migration or changes the database. If a change needs one, it stops
-  and says so in the pull request
-- States plainly what it could not run
+Writing code is not on that list. Where a change needs a migration or a database,
+the local agent makes that part; the rest is the cloud agent's.
 
 ### The content snapshot
 - Published content only: no drafts, contact requests, users, audit entries, or
