@@ -144,8 +144,11 @@ static partial class ContentWriter
     {
         var fields = new JsonObject { ["heading"] = Heading(section) };
         Put(fields, "eyebrow", Eyebrow(section));
-        // The runtime rewrote each hub lead on load; the markup’s text was never shown.
-        Put(fields, "lead", RuntimeText(RuntimePageOf(fromPage), "lead") ?? section.QuerySelector(".lead")?.TextContent);
+        /* The runtime rewrote each hub's lead on load, so on a hub's own index.html
+           the markup's text was never shown. Any other page keeps its own lead. */
+        var page = RuntimePageOf(fromPage);
+        var runtimeLead = page is null ? null : RuntimeText(page, "lead");
+        Put(fields, "lead", runtimeLead ?? section.QuerySelector(".lead")?.TextContent);
         return fields;
     }
 
@@ -303,10 +306,11 @@ static partial class ContentWriter
     private static JsonObject PartnerGrid(IElement section, string fromPage, Dictionary<string, MediaAsset> media, List<string> warnings)
     {
         var fields = Headed(section);
-        /* On a hub page the runtime rewrote the section lead. It leaves the home
-           page alone, so the home grid keeps the text in the markup. */
+        /* On a hub's own index.html the runtime rewrote the section lead. It left
+           every other page alone, the home page included, so they keep the text
+           in the markup. */
         var page = RuntimePageOf(fromPage);
-        var runtimeLead = page == "home" ? null : RuntimeText(page, "sectionLead");
+        var runtimeLead = page is null ? null : RuntimeText(page, "sectionLead");
         Put(fields, "lead", runtimeLead ?? Intro(section));
         var viewAll = ViewAll(section, fromPage);
         if (viewAll is not null)
