@@ -58,7 +58,8 @@ static partial class ContentWriter
 
     private static JsonObject HomeHero(IElement section, string fromPage, Dictionary<string, MediaAsset> media, List<string> warnings)
     {
-        var fields = new JsonObject { ["heading"] = Heading(section) };
+        // hero.heading is inline text everywhere; outside a case study it stays plain.
+        var fields = new JsonObject { ["heading"] = InlineDocumentFromText(Heading(section)) };
         // The runtime replaced this label on load; the markup’s text was never shown.
         Put(fields, "eyebrow", RuntimeText("home", "label") ?? section.QuerySelector(".eyebrow span:not([aria-hidden])")?.TextContent);
         Put(fields, "lead", section.QuerySelector(".hero-sub")?.TextContent);
@@ -85,7 +86,7 @@ static partial class ContentWriter
 
     private static JsonObject AboutHero(IElement section, string fromPage)
     {
-        var fields = new JsonObject { ["heading"] = Heading(section) };
+        var fields = new JsonObject { ["heading"] = InlineDocumentFromText(Heading(section)) };
         Put(fields, "eyebrow", Eyebrow(section));
         Put(fields, "lead", section.QuerySelector(".about-lede, .lead")?.TextContent);
         var actions = new JsonArray();
@@ -127,7 +128,7 @@ static partial class ContentWriter
 
     private static JsonObject PartnerHero(IElement section, string fromPage, Dictionary<string, MediaAsset> media, List<string> warnings)
     {
-        var fields = new JsonObject { ["heading"] = Heading(section) };
+        var fields = new JsonObject { ["heading"] = InlineDocumentFromText(Heading(section)) };
         var back = LinkOf(section.QuerySelector(".partner-view-back"), fromPage);
         if (back is not null)
             fields["back"] = back;
@@ -302,7 +303,11 @@ static partial class ContentWriter
     private static JsonObject PartnerGrid(IElement section, string fromPage, Dictionary<string, MediaAsset> media, List<string> warnings)
     {
         var fields = Headed(section);
-        Put(fields, "lead", Intro(section));
+        /* On a hub page the runtime rewrote the section lead. It leaves the home
+           page alone, so the home grid keeps the text in the markup. */
+        var page = RuntimePageOf(fromPage);
+        var runtimeLead = page == "home" ? null : RuntimeText(page, "sectionLead");
+        Put(fields, "lead", runtimeLead ?? Intro(section));
         var viewAll = ViewAll(section, fromPage);
         if (viewAll is not null)
             fields["action"] = viewAll;

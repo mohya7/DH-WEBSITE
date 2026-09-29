@@ -16,7 +16,7 @@ export interface Media {
 export type InlineText = string;
 
 export interface Reference {
-  type: "service" | "partner" | "case_study" | "blog_post";
+  type: "service" | "partner" | "case_study" | "blog_post" | "page";
   id: string;
 }
 

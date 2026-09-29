@@ -43,7 +43,7 @@ describe("generated schema types", () => {
     // @ts-expect-error a hero has no "items" field
     const wrongField: Section = { type: "hero", fields: { heading: "h", items: [] } };
     // @ts-expect-error references are limited to the types in defs.json
-    const badReference: HeroFields = { heading: "h", logos: [{ image: { mediaId: "m", alt: "", decorative: true }, reference: { type: "page", id: "x" } }] };
+    const badReference: HeroFields = { heading: "h", logos: [{ image: { mediaId: "m", alt: "", decorative: true }, reference: { type: "vacancy", id: "x" } }] };
     const service: ServicesFields = { summary: null, featured: true };
     expect([hero, missingHeading, wrongField, badReference, service]).toHaveLength(5);
   });

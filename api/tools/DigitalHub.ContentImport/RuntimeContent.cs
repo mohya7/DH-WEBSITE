@@ -62,14 +62,12 @@ static partial class ContentWriter
     /// <summary>The runtime's key for a page, from the file it was imported from.</summary>
     private static string RuntimePageOf(string fromPage)
     {
-        var path = fromPage.Replace('\\', '/').ToLowerInvariant();
-        if (path.Contains("/partners", StringComparison.Ordinal)) return "partners";
-        if (path.Contains("/blogs", StringComparison.Ordinal)) return "blogs";
-        if (path.Contains("/cases", StringComparison.Ordinal)) return "cases";
-        if (path.Contains("/careers", StringComparison.Ordinal)) return "careers";
-        if (path.Contains("/news", StringComparison.Ordinal)) return "news";
-        if (path.Contains("about", StringComparison.Ordinal)) return "about";
-        return "home";
+        // A page is given as a relative path with no leading slash: partners/index.html.
+        var path = fromPage.Replace('\\', '/').TrimStart('.', '/').ToLowerInvariant();
+        var folder = path.Split('/')[0];
+        if (folder is "partners" or "blogs" or "cases" or "careers" or "news")
+            return folder;
+        return path.StartsWith("about", StringComparison.Ordinal) ? "about" : "home";
     }
 
     /// <summary>

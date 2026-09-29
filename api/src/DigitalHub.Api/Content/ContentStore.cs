@@ -659,6 +659,19 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas, 
         return await CommitAsync(cancellationToken, () => ContentOutcome.Ok(Present(collection, loaded, draft)));
     }
 
+    /// <summary>
+    /// Whether an inline-text field may carry marks. Only one field may not: a
+    /// hero's heading outside a case study. The home hero's heading is split into
+    /// animated parts by the ported scripts, and a mark there would break that.
+    /// Every other inline field -- a service hero's lede, a problem's lead, and a
+    /// case study's own heading -- carries the emphasis the old pages had.
+    ///
+    /// The same rule, by the same name, is in packages/blocks/src/inline/document.ts
+    /// for the website and the Studio. The two must agree.
+    /// </summary>
+    public static bool InlineMarksAllowed(string collection, string sectionType, string field) =>
+        !(sectionType == "hero" && field == "heading" && collection != "case-studies");
+
     private async Task<Dictionary<string, List<string>>> CheckAsync(string collection, Guid id, DraftDocument draft, CancellationToken cancellationToken, bool requireMedia = true)
     {
         var errors = new Dictionary<string, List<string>>();
@@ -689,19 +702,14 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas, 
                     Add(errors, key, message);
                 if (section.Fields.ValueKind == JsonValueKind.Object)
                 {
-                    /* Marks are allowed only on a case study's hero. The home hero's
-                       heading is split into animated parts by the ported scripts, and
-                       a mark there would break that, so every other hero must be one
-                       paragraph of plain text. */
                     var inlineTextFields = schemas.InlineTextFields(section.Type);
-                    var allowMarks = collection == "case-studies";
                     foreach (var property in section.Fields.EnumerateObject())
                     {
                         if (property.Value.ValueKind != JsonValueKind.String || property.Value.GetString() is not { } text)
                             continue;
                         if (inlineTextFields.Contains(property.Name))
                         {
-                            foreach (var message in InlineText.Validate(text, allowMarks))
+                            foreach (var message in InlineText.Validate(text, InlineMarksAllowed(collection, section.Type, property.Name)))
                                 Add(errors, key + "." + property.Name, message);
                             continue;
                         }

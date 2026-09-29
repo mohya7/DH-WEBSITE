@@ -94,7 +94,7 @@ public sealed class ContentPublishTests : IClassFixture<ApiFactory>
             type = "hero",
             fields = new
             {
-                heading = "Hero",
+                heading = Inline("Hero"),
                 back = new { label = "Missing", href = "/no-such-page" },
                 logos = new[]
                 {
@@ -644,7 +644,7 @@ public sealed class ContentPublishTests : IClassFixture<ApiFactory>
         {
             version = page.Version,
             type = "hero",
-            fields = new { heading = "Hero" },
+            fields = new { heading = Inline("Hero") },
         });
         Assert.Equal(HttpStatusCode.OK, section.Status);
         var ready = ReadPage(section.Body, page.Slug);
@@ -655,7 +655,7 @@ public sealed class ContentPublishTests : IClassFixture<ApiFactory>
         {
             var database = scope.ServiceProvider.GetRequiredService<ContentDbContext>();
             var hero = await database.Sections.SingleAsync(item => item.PageId == page.Id);
-            hero.Fields = "{\"heading\":\"Hero\",\"image\":{\"mediaId\":\"" + missingImage + "\",\"alt\":\"\",\"decorative\":false}}";
+            hero.Fields = "{\"heading\":" + JsonSerializer.Serialize(Inline("Hero")) + ",\"image\":{\"mediaId\":\"" + missingImage + "\",\"alt\":\"\",\"decorative\":false}}";
             var post = await database.BlogPosts.SingleAsync(item => item.Id == articleRef.Id);
             post.Body = "{\"type\":\"doc\",\"content\":[{\"type\":\"image\",\"attrs\":{\"mediaId\":\"" + missingInBody + "\"}}]}";
             await database.SaveChangesAsync();
@@ -1141,6 +1141,17 @@ public sealed class ContentPublishTests : IClassFixture<ApiFactory>
     private static string UnpublishUrl(PageRef page) => "/api/v1/pages/" + page.Id + "/unpublish";
 
     private static string RevisionUrl(PageRef page, Guid revisionId) => "/api/v1/pages/" + page.Id + "/revisions/" + revisionId;
+
+    /// <summary>Plain inline text as the document the field now stores.</summary>
+    private static string Inline(string text) =>
+        JsonSerializer.Serialize(new { type = "doc", content = new object[] { new { type = "paragraph", content = new object[] { new { type = "text", text } } } } });
+
+    /// <summary>Inline text carrying one italic run, to test where marks are allowed.</summary>
+    private static string InlineWithMark(string plain, string emphasised) =>
+        JsonSerializer.Serialize(new { type = "doc", content = new object[] { new { type = "paragraph", content = new object[] {
+            new { type = "text", text = plain },
+            new { type = "text", text = emphasised, marks = new object[] { new { type = "italic" } } },
+        } } } });
 
     private static string Slug() => "pub-" + Guid.NewGuid().ToString("N")[..10];
 

@@ -25,7 +25,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["service", "partner", "case_study", "blog_post"]
+          "enum": ["service", "partner", "case_study", "blog_post", "page"]
         },
         "id": { "type": "string", "format": "uuid", "x-dh-kind": "text" }
       }
