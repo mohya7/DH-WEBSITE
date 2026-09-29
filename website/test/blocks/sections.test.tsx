@@ -159,6 +159,22 @@ function withCollection(name: keyof BuildContent["collections"], items: unknown[
   return copy;
 }
 
+describe("team grid", () => {
+  it("uses each portrait's stored alt text, or the member's override, not the name and role", () => {
+    const [instance] = instances(site, "team_grid");
+    const members = content.collections["team-members"];
+    const media = new Map(content.media.map((asset) => [asset.id, asset]));
+    const alts = (html: string) => [...html.matchAll(/<img\b[^>]*\balt="([^"]*)"/g)].map((match) => match[1].replace(/&amp;/g, "&"));
+    const stored = members.map((member) => media.get((member.fields as { imageId: string }).imageId)!.alt);
+    expect(stored[0]).toBe("Kareem Adel, CEO of Digital Hub");
+    expect(alts(renderChecked(site, instance))).toEqual(stored);
+
+    const copy = snapshotContent();
+    (copy.collections["team-members"][0].fields as { imageAltOverride?: string }).imageAltOverride = "Kareem Adel speaking";
+    expect(alts(renderChecked(siteFrom(copy), instance))[0]).toBe("Kareem Adel speaking");
+  });
+});
+
 describe("references (4.4)", () => {
   it("related items whose target is not published render nothing; a section with none left renders nothing", () => {
     const partners = content.collections.partners;
