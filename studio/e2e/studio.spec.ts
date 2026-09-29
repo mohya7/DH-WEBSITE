@@ -160,6 +160,32 @@ test("10.19 a script in a contact message is stored and shown as text", async ({
   expect(html).not.toContain("<script>");
 });
 
+test("10.21 a section reference offers pages and links one", async ({ page }) => {
+  expect(publishedPageUrl, "10.13 publishes the page this test links to").not.toBe("");
+  await signIn(page);
+  await page.goto(publishedPageUrl);
+  await addSection(page, "Service cards");
+  await page.locator("[data-field='sections[1].heading'] input").fill("Services with a page link");
+  await page.locator("[data-field='sections[1].items']").getByRole("button", { name: "Add items" }).click();
+  await page.locator("[data-field='sections[1].items[0].title'] input").fill("Consultation");
+
+  const reference = page.locator("[data-field='sections[1].items[0].reference']");
+  const type = reference.getByLabel("Linked item type");
+  await expect(type.locator("option")).toHaveText(["Service", "Partner", "Case study", "Blog post", "Page"]);
+  await type.selectOption("page");
+  await reference.getByPlaceholder("Search the linked item").fill("E2E published");
+  await reference.getByRole("button", { name: "E2E published page" }).click();
+  const pageId = publishedPageUrl.split("/").pop() ?? "";
+  await expect(reference.getByText(`Linked item ${pageId}`)).toBeVisible();
+
+  await page.getByRole("button", { name: "Save content" }).click();
+  await expect(page.getByText("Saved.")).toBeVisible();
+  await page.reload();
+  await page.locator("article").filter({ hasText: "Service cards" }).getByRole("button", { name: "Edit" }).click();
+  await expect(page.locator("[data-field='sections[1].items[0].reference']").getByLabel("Linked item type")).toHaveValue("page");
+  await expect(page.locator("[data-field='sections[1].items[0].reference']").getByText(`Linked item ${pageId}`)).toBeVisible();
+});
+
 async function fillItemField(page: import("@playwright/test").Page, field: string, value: string) {
   const control = page.locator(`[data-field='${field}']`).locator("input, textarea").first();
   await expect(control).toBeVisible();

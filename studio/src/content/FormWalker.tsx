@@ -216,6 +216,12 @@ function Control({
   return <Input value={text(value)} onChange={(event) => onChange(event.target.value)} />;
 }
 
+/**
+ * Picks a content item for a { type, id } reference. The types offered are the
+ * schema's enum (defs.json: service, partner, case study, blog post, page), each
+ * searched in its collection. Changing the type clears the search, so a hit from
+ * the previous collection can never be saved under the new type.
+ */
 function ReferenceField({
   value,
   schema,
@@ -241,7 +247,16 @@ function ReferenceField({
 
   return (
     <div className="flex flex-col gap-2" data-check="references">
-      <select className="native-control" value={type} onChange={(event) => onChange({ type: event.target.value, id: "" })}>
+      <select
+        className="native-control"
+        aria-label="Linked item type"
+        value={type}
+        onChange={(event) => {
+          setSearch("");
+          setItems([]);
+          onChange({ type: event.target.value, id: "" });
+        }}
+      >
         {options.map((option) => (
           <option key={option} value={option}>{labelFromKey(option)}</option>
         ))}
