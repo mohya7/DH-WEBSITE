@@ -220,12 +220,16 @@ jobs:
             -S localhost -U sa -P "$SA_PASSWORD" -C -b -Q "
               CREATE LOGIN [$APP_LOGIN] WITH PASSWORD = N'$APP_PASSWORD', CHECK_POLICY = OFF;"
 
-      - name: Make sqlcmd available to the end-to-end harness
+      - name: Put mssql-tools18 sqlcmd first on the path for the end-to-end harness
+        # The harness calls sqlcmd with -C (trust the container's certificate), as
+        # mssql-tools18 does locally. Use that version, whatever else the runner has.
         run: |
-          if ! command -v sqlcmd >/dev/null; then
+          if [ ! -x /opt/mssql-tools18/bin/sqlcmd ]; then
+            sudo apt-get update
             sudo ACCEPT_EULA=Y apt-get install -y mssql-tools18 unixodbc-dev
-            echo /opt/mssql-tools18/bin >> "$GITHUB_PATH"
           fi
+          echo /opt/mssql-tools18/bin >> "$GITHUB_PATH"
+          /opt/mssql-tools18/bin/sqlcmd -? | head -n 3
 
       - name: Install Playwright's Chromium
         run: npx playwright install --with-deps chromium
