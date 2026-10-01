@@ -6,12 +6,21 @@
  *   node .github/section-compare/run.mjs <url> <outDir>
  *
  * Writes result.json (the harness's own result), report.md (also appended to
- * the job summary), page.html and page.png. Exits 1 only when the harness does
- * not produce a result; differences are reported, not failed on.
+ * the job summary), page.html and page.png.
+ *
+ * Fails (exit 1) when the harness produces no result, or when any section is
+ * not a match and is not in accepted-differences.json with the same status
+ * and, for "differs", exactly the same reported differences. Accepted entries
+ * that no longer occur are reported as stale, without failing.
  */
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const accepted = JSON.parse(fs.readFileSync(path.join(here, "accepted-differences.json"), "utf8")).accepted;
+const key = (entry) => `${entry.status} ${entry.page} ${entry.id}`;
 
 const [url = "http://127.0.0.1:4190/", outDir = "section-compare-output"] = process.argv.slice(2);
 fs.mkdirSync(outDir, { recursive: true });
@@ -45,6 +54,18 @@ if (result === null) {
 
 fs.writeFileSync(path.join(outDir, "result.json"), JSON.stringify(result, null, 2) + "\n");
 
+const acceptedByKey = new Map(accepted.map((entry) => [key(entry), entry]));
+const notMatching = result.results.filter((entry) => entry.status !== "match");
+const unexpected = [];
+const acceptedNow = [];
+for (const entry of notMatching) {
+  const allowed = acceptedByKey.get(key(entry));
+  if (allowed && JSON.stringify(allowed.diff ?? []) === JSON.stringify(entry.diff ?? [])) acceptedNow.push(entry);
+  else unexpected.push({ ...entry, why: allowed ? "accepted, but the differences changed" : "not in the accepted list" });
+}
+const seen = new Set(notMatching.map(key));
+const stale = accepted.filter((entry) => !seen.has(key(entry)));
+
 const count = (status) => result.results.filter((entry) => entry.status === status).length;
 const pages = new Map();
 for (const entry of result.results) {
@@ -53,22 +74,41 @@ for (const entry of result.results) {
   if (entry.status === "match") row.match += 1;
   pages.set(entry.page, row);
 }
+const show = (line) => "`" + String(line).replace(/`/g, "'").slice(0, 200) + "`";
 const lines = [
   "## Section comparison",
   "",
   `**${result.matched} of ${result.total}** sections on feature/interviewer-portal match the build — ` +
     `${count("differs")} differ, ${count("renders nothing")} render nothing, ${count("extra in new")} extra in the build.`,
   "",
+  unexpected.length === 0
+    ? `**Pass.** Every section that is not a match is an accepted difference (${acceptedNow.length} of ${accepted.length} listed in .github/section-compare/accepted-differences.json).`
+    : `**Fail.** ${unexpected.length} section(s) differ in a way that is not accepted.`,
+  "",
+];
+if (unexpected.length > 0) {
+  lines.push("### Not accepted", "");
+  for (const entry of unexpected) {
+    lines.push(`- ${entry.status}: \`${entry.page}\` \`${entry.id}\` — ${entry.why}`);
+    for (const d of entry.diff ?? []) lines.push(`  - old ${show(d.old)}`, `  - new ${show(d.now)}`);
+  }
+  lines.push("");
+}
+if (stale.length > 0) {
+  lines.push("### Accepted but no longer occurring (remove from the list)", "");
+  for (const entry of stale) lines.push(`- ${entry.status}: \`${entry.page}\` \`${entry.id}\``);
+  lines.push("");
+}
+lines.push(
   "| Old page | Matched |",
   "|---|---|",
   ...[...pages].map(([name, row]) => `| \`${name}\` | ${row.match} / ${row.total} |`),
   "",
-  "Every section that is not a match:",
+  "Accepted differences in this run:",
   "",
-  ...result.results
-    .filter((entry) => entry.status !== "match")
-    .map((entry) => `- ${entry.status}: \`${entry.page}\` \`${entry.id}\``),
+  ...acceptedNow.map((entry) => `- ${entry.status}: \`${entry.page}\` \`${entry.id}\` — ${acceptedByKey.get(key(entry)).reason}`),
   "",
-];
+);
 fs.writeFileSync(path.join(outDir, "report.md"), lines.join("\n"));
 console.log(lines.join("\n"));
+if (unexpected.length > 0) process.exit(1);
