@@ -161,29 +161,49 @@ test("10.19 a script in a contact message is stored and shown as text", async ({
 });
 
 test("10.21 a section reference offers pages and links one", async ({ page }) => {
-  expect(publishedPageUrl, "10.13 publishes the page this test links to").not.toBe("");
+  /* Self-contained: it publishes its own target page under a title no other
+     test uses or renames, then links to it from a page of its own. */
+  const stamp = Date.now().toString(36);
+  const targetTitle = `E2E reference target ${stamp}`;
   await signIn(page);
-  await page.goto(publishedPageUrl);
-  await addSection(page, "Service cards");
-  await page.locator("[data-field='sections[1].heading'] input").fill("Services with a page link");
-  await page.locator("[data-field='sections[1].items']").getByRole("button", { name: "Add items" }).click();
-  await page.locator("[data-field='sections[1].items[0].title'] input").fill("Consultation");
 
-  const reference = page.locator("[data-field='sections[1].items[0].reference']");
+  await openArea(page, "Pages");
+  await page.getByRole("button", { name: "Add page" }).click();
+  await fillItemField(page, "title", targetTitle);
+  await fillItemField(page, "slug", `e2e-reference-target-${stamp}`);
+  await fillItemField(page, "metaDescription", "A page published so a section on another page can link to it.");
+  await page.getByRole("button", { name: "Save content" }).click();
+  await expect(page.getByText("Saved.")).toBeVisible();
+  await page.getByRole("button", { name: "Publish" }).click();
+  await expect(page.getByText("Published. Changes appear on the website at the next build.")).toBeVisible();
+  const targetUrl = page.url();
+  expect(targetUrl).toMatch(/\/pages\/[0-9a-f-]{36}/i);
+  const targetId = targetUrl.split("/").pop() ?? "";
+
+  await openArea(page, "Pages");
+  await page.getByRole("button", { name: "Add page" }).click();
+  await fillItemField(page, "title", `E2E reference host ${stamp}`);
+  await fillItemField(page, "slug", `e2e-reference-host-${stamp}`);
+  await addSection(page, "Service cards");
+  await page.locator("[data-field='sections[0].heading'] input").fill("Services with a page link");
+  await page.locator("[data-field='sections[0].items']").getByRole("button", { name: "Add items" }).click();
+  await page.locator("[data-field='sections[0].items[0].title'] input").fill("Consultation");
+
+  const reference = page.locator("[data-field='sections[0].items[0].reference']");
   const type = reference.getByLabel("Linked item type");
   await expect(type.locator("option")).toHaveText(["Service", "Partner", "Case study", "Blog post", "Page"]);
   await type.selectOption("page");
-  await reference.getByPlaceholder("Search the linked item").fill("E2E published");
-  await reference.getByRole("button", { name: "E2E published page" }).click();
-  const pageId = publishedPageUrl.split("/").pop() ?? "";
-  await expect(reference.getByText(`Linked item ${pageId}`)).toBeVisible();
+  await reference.getByPlaceholder("Search the linked item").fill(targetTitle);
+  await reference.getByRole("button", { name: targetTitle }).click();
+  await expect(reference.getByText(`Linked item ${targetId}`)).toBeVisible();
 
   await page.getByRole("button", { name: "Save content" }).click();
   await expect(page.getByText("Saved.")).toBeVisible();
   await page.reload();
   await page.locator("article").filter({ hasText: "Service cards" }).getByRole("button", { name: "Edit" }).click();
-  await expect(page.locator("[data-field='sections[1].items[0].reference']").getByLabel("Linked item type")).toHaveValue("page");
-  await expect(page.locator("[data-field='sections[1].items[0].reference']").getByText(`Linked item ${pageId}`)).toBeVisible();
+  const saved = page.locator("[data-field='sections[0].items[0].reference']");
+  await expect(saved.getByLabel("Linked item type")).toHaveValue("page");
+  await expect(saved.getByText(`Linked item ${targetId}`)).toBeVisible();
 });
 
 async function fillItemField(page: import("@playwright/test").Page, field: string, value: string) {
