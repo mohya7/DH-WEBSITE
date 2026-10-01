@@ -14,18 +14,36 @@ export const e2eStudioOrigin = "http://127.0.0.1:5174";
 const studioRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = path.resolve(studioRoot, "..");
 
+/**
+ * The end-to-end configuration.
+ *
+ * The restricted connection comes from ConnectionStrings__Content when it is set
+ * in the environment (CI), otherwise from the API's user-secrets (the local
+ * machine). The administrator connection, used to reset the database, grant the
+ * login, and apply migrations, comes from ConnectionStrings__ContentAdmin when it
+ * is set, using SQL authentication; otherwise it is the restricted connection
+ * with Windows authentication, as locally. Both are rewritten to
+ * DigitalHubContent_E2e, and nothing else is accepted.
+ */
 export function e2eEnv() {
   const apiProject = path.join(repoRoot, "api", "src", "DigitalHub.Api", "DigitalHub.Api.csproj");
-  const restricted = readSecretConnectionString(apiProject);
+  const restricted = readConnectionString(apiProject);
   const connectionString = toE2eCatalog(restricted);
   assertSafeCatalog(catalogOf(connectionString));
+  const admin = process.env.ConnectionStrings__ContentAdmin?.trim();
+  const elevatedConnectionString = admin ? toE2eCatalog(admin) : toIntegratedSecurity(connectionString);
+  assertSafeCatalog(catalogOf(elevatedConnectionString));
   const mediaRoot = path.join(os.tmpdir(), "dh-platform-media-e2e");
   return {
     repoRoot,
     studioRoot,
     apiProject,
     connectionString,
-    elevatedConnectionString: toIntegratedSecurity(connectionString),
+    elevatedConnectionString,
+    /** SQL authentication for the administrator connection, or null for Windows authentication. */
+    sqlAdmin: admin
+      ? { user: valueOf(elevatedConnectionString, "User ID", "UID") ?? "", password: valueOf(elevatedConnectionString, "Password", "PWD") ?? "" }
+      : null,
     mediaRoot,
     loginName: valueOf(restricted, "User ID", "UID") ?? "dh_content_app",
     server: valueOf(connectionString, "Server", "Data Source") ?? "localhost",
@@ -63,7 +81,12 @@ export function assertSafeCatalog(catalog: string) {
   }
 }
 
-function readSecretConnectionString(apiProject: string) {
+function readConnectionString(apiProject: string) {
+  const fromEnvironment = process.env.ConnectionStrings__Content?.trim();
+  if (fromEnvironment) {
+    return fromEnvironment;
+  }
+
   const output = execFileSync("dotnet", ["user-secrets", "list", "--project", apiProject], {
     encoding: "utf8",
   });
