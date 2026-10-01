@@ -205,22 +205,26 @@ test("P2.4 Preview appears only for a published item with a public path, and ope
   await openArea(page, "Pages");
   await expect(cardFor(page, pageTitle).getByRole("link", { name: "Preview" })).toHaveCount(0);
 
-  // Publishing it adds one, pointing at the public path.
+  /* Publishing it adds one, pointing at the public path on the website. What
+     the Studio controls is the link itself: its address and that it opens a new
+     tab. The website's origin is configuration (VITE_PUBLIC_SITE_URL), so it is
+     compared with the Studio's own "View site" link rather than a fixed port,
+     and the link is not followed: no website needs to be running. */
   await cardFor(page, pageTitle).getByRole("button", { name: "Edit" }).click();
   await publishItem(page);
   await openArea(page, "Pages");
   const preview = cardFor(page, pageTitle).getByRole("link", { name: "Preview" });
   await expect(preview).toHaveCount(1);
   const href = await preview.getAttribute("href");
-  expect(href).toBe(`http://127.0.0.1:8765/${slug}`);
+  expect(href, "Preview has an address").not.toBeNull();
+  const target = new URL(href ?? "");
+  const siteHref = await page.locator("a.studio-view-site").getAttribute("href");
+  expect(siteHref, "the Studio links to the website").not.toBeNull();
+  expect(target.origin).toBe(new URL(siteHref ?? "").origin);
+  expect(target.pathname).toBe(`/${slug}`);
+  expect(target.search + target.hash).toBe("");
   await expect(preview).toHaveAttribute("target", "_blank");
-
-  // It opens that address. The website itself need not be running for this.
-  const opened = page.context().waitForEvent("page");
-  await preview.click();
-  const tab = await opened;
-  expect(tab.url()).toBe(href);
-  await tab.close();
+  await expect(preview).toHaveAttribute("rel", "noopener");
 
   // A published item in a collection with no public path still has no Preview.
   const newsTitle = unique("Preview news");
