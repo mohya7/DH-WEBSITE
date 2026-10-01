@@ -111,6 +111,13 @@ function toE2eCatalog(connectionString: string) {
   }
 
   const catalog = match[2];
+  /* Already the end-to-end catalog: the API web server is started with
+     ConnectionStrings__Content set to the derived connection (apiEnv below), and
+     start-api.ts reads it back from its environment. */
+  if (catalog === e2eCatalog) {
+    return connectionString;
+  }
+
   if (catalog.localeCompare(productionCatalog, undefined, { sensitivity: "accent" }) !== 0) {
     throw new Error("The API connection string must name DigitalHubContent.");
   }
