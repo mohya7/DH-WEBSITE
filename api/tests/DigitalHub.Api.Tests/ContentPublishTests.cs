@@ -94,7 +94,7 @@ public sealed class ContentPublishTests : IClassFixture<ApiFactory>
             type = "hero",
             fields = new
             {
-                heading = "Hero",
+                heading = Inline("Hero"),
                 back = new { label = "Missing", href = "/no-such-page" },
                 logos = new[]
                 {
@@ -644,7 +644,7 @@ public sealed class ContentPublishTests : IClassFixture<ApiFactory>
         {
             version = page.Version,
             type = "hero",
-            fields = new { heading = "Hero" },
+            fields = new { heading = Inline("Hero") },
         });
         Assert.Equal(HttpStatusCode.OK, section.Status);
         var ready = ReadPage(section.Body, page.Slug);
@@ -655,7 +655,7 @@ public sealed class ContentPublishTests : IClassFixture<ApiFactory>
         {
             var database = scope.ServiceProvider.GetRequiredService<ContentDbContext>();
             var hero = await database.Sections.SingleAsync(item => item.PageId == page.Id);
-            hero.Fields = "{\"heading\":\"Hero\",\"image\":{\"mediaId\":\"" + missingImage + "\",\"alt\":\"\",\"decorative\":false}}";
+            hero.Fields = "{\"heading\":" + JsonSerializer.Serialize(Inline("Hero")) + ",\"image\":{\"mediaId\":\"" + missingImage + "\",\"alt\":\"\",\"decorative\":false}}";
             var post = await database.BlogPosts.SingleAsync(item => item.Id == articleRef.Id);
             post.Body = "{\"type\":\"doc\",\"content\":[{\"type\":\"image\",\"attrs\":{\"mediaId\":\"" + missingInBody + "\"}}]}";
             await database.SaveChangesAsync();
@@ -916,6 +916,74 @@ public sealed class ContentPublishTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task Publish_resolves_page_references()
+    {
+        var editor = await Editor();
+        var live = await PublishNewAsync(editor);
+        var draft = await CreatePageAsync(editor);
+        var missing = Guid.NewGuid();
+        var errorPage = await ErrorPageAsync();
+
+        // A published page and a draft page: the first resolves, the second warns and still publishes.
+        var host = await CreatePageAsync(editor);
+        var cards = await SendAsync(editor, HttpMethod.Post, "/api/v1/pages/" + host.Id + "/sections", new
+        {
+            version = host.Version,
+            type = "service_cards",
+            fields = new
+            {
+                heading = "Pages",
+                items = new object[]
+                {
+                    new { title = "Live page", reference = new { type = "page", id = live.Id } },
+                    new { title = "Draft page", reference = new { type = "page", id = draft.Id } },
+                },
+            },
+        });
+        Assert.True(cards.Status == HttpStatusCode.OK, cards.Body);
+        var ready = ReadPage(cards.Body, host.Slug);
+        var published = await SendAsync(editor, HttpMethod.Post, PublishUrl(ready), new { version = ready.Version });
+        Assert.True(published.Status == HttpStatusCode.OK, published.Body);
+        Assert.Equal("published", Text(published.Body, "state"));
+        var warnings = JsonDocument.Parse(published.Body).RootElement.GetProperty("warnings");
+        var referenceWarnings = warnings.GetProperty("references").EnumerateArray().Select(item => item.GetString()).ToList();
+        Assert.Contains("page " + draft.Id.ToString("D") + " is not published, so it will not show.", referenceWarnings);
+        Assert.DoesNotContain(referenceWarnings, item => item != null && item.Contains(live.Id.ToString("D"), StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain("does not exist", published.Body, StringComparison.Ordinal);
+
+        // A page that does not exist, and an error page, each block publishing.
+        var blocked = await CreatePageAsync(editor);
+        var bad = await SendAsync(editor, HttpMethod.Post, "/api/v1/pages/" + blocked.Id + "/sections", new
+        {
+            version = blocked.Version,
+            type = "service_cards",
+            fields = new
+            {
+                heading = "Pages",
+                items = new object[]
+                {
+                    new { title = "Missing page", reference = new { type = "page", id = missing } },
+                    new { title = "Error page", reference = new { type = "page", id = errorPage.Id } },
+                },
+            },
+        });
+        Assert.True(bad.Status == HttpStatusCode.OK, bad.Body);
+        var badReady = ReadPage(bad.Body, blocked.Slug);
+        var refused = await SendAsync(editor, HttpMethod.Post, PublishUrl(badReady), new { version = badReady.Version });
+        Assert.Equal(HttpStatusCode.BadRequest, refused.Status);
+        Assert.Equal("publish_blocked", Code(refused.Body));
+        var errors = JsonDocument.Parse(refused.Body).RootElement.GetProperty("errors").GetProperty("references").EnumerateArray().Select(item => item.GetString()).ToList();
+        Assert.Contains("page " + missing.ToString("D") + " does not exist.", errors);
+        Assert.Contains("page " + errorPage.Id.ToString("D") + " is an error page, which has no address to link to.", errors);
+
+        await RemoveItemAsync("pages", host.Id);
+        await RemoveItemAsync("pages", blocked.Id);
+        await RemoveItemAsync("pages", live.Id);
+        await RemoveItemAsync("pages", draft.Id);
+        await errorPage.Restore();
+    }
+
+    [Fact]
     public async Task Publish_blocks_a_blog_until_it_has_a_body()
     {
         var editor = await Editor();
@@ -984,6 +1052,42 @@ public sealed class ContentPublishTests : IClassFixture<ApiFactory>
         Assert.Equal(HttpStatusCode.BadRequest, image.Status);
         Assert.Contains(missing.ToString(), image.Body, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("is not in the library", image.Body, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The error-404 page, and how to put things back. The test database may or
+    /// may not hold the error pages (AdminApiTests seeds and removes them), so
+    /// one is created, as a draft, when missing.
+    /// </summary>
+    private async Task<(Guid Id, Func<Task> Restore)> ErrorPageAsync()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var database = scope.ServiceProvider.GetRequiredService<ContentDbContext>();
+        var existing = await database.Pages.AsNoTracking().SingleOrDefaultAsync(page => page.Slug == "error-404");
+        if (existing is not null)
+            return (existing.Id, static () => Task.CompletedTask);
+
+        var now = DateTime.UtcNow;
+        var created = new Page
+        {
+            Id = Guid.NewGuid(),
+            Slug = "error-404",
+            Title = "Page not found",
+            Status = ContentStatus.Draft,
+            Version = 1,
+            NoIndex = true,
+            CreatedAt = now,
+            UpdatedAt = now,
+        };
+        database.Pages.Add(created);
+        await database.SaveChangesAsync();
+        return (created.Id, async () =>
+        {
+            using var cleanup = _factory.Services.CreateScope();
+            var cleanupDatabase = cleanup.ServiceProvider.GetRequiredService<ContentDbContext>();
+            cleanupDatabase.Pages.Remove(await cleanupDatabase.Pages.SingleAsync(page => page.Id == created.Id));
+            await cleanupDatabase.SaveChangesAsync();
+        });
     }
 
     private async Task<PageRef> CreatePageAsync(AuthSession session)
@@ -1141,6 +1245,17 @@ public sealed class ContentPublishTests : IClassFixture<ApiFactory>
     private static string UnpublishUrl(PageRef page) => "/api/v1/pages/" + page.Id + "/unpublish";
 
     private static string RevisionUrl(PageRef page, Guid revisionId) => "/api/v1/pages/" + page.Id + "/revisions/" + revisionId;
+
+    /// <summary>Plain inline text as the document the field now stores.</summary>
+    private static string Inline(string text) =>
+        JsonSerializer.Serialize(new { type = "doc", content = new object[] { new { type = "paragraph", content = new object[] { new { type = "text", text } } } } });
+
+    /// <summary>Inline text carrying one italic run, to test where marks are allowed.</summary>
+    private static string InlineWithMark(string plain, string emphasised) =>
+        JsonSerializer.Serialize(new { type = "doc", content = new object[] { new { type = "paragraph", content = new object[] {
+            new { type = "text", text = plain },
+            new { type = "text", text = emphasised, marks = new object[] { new { type = "italic" } } },
+        } } } });
 
     private static string Slug() => "pub-" + Guid.NewGuid().ToString("N")[..10];
 

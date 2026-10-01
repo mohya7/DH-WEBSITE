@@ -688,6 +688,24 @@ a {
   color: var(--dh-text-primary);
 }
 
+/* Inline text: one line, the height of an input. */
+.inline-text-editor .tiptap,
+.inline-text-editor .ProseMirror {
+  min-height: 0;
+  padding: 5px 11px;
+  white-space: nowrap;
+  overflow-x: auto;
+}
+
+.inline-text-editor .ProseMirror p {
+  margin: 0;
+}
+
+.inline-text-editor .ProseMirror a {
+  color: var(--dh-accent);
+  text-decoration: underline;
+}
+
 .seo-preview {
   padding: 12px;
   border-radius: var(--dh-radius-control);

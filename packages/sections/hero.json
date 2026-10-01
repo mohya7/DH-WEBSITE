@@ -6,7 +6,7 @@
   "required": ["heading"],
   "properties": {
     "eyebrow": { "type": "string", "x-dh-kind": "text" },
-    "heading": { "type": "string", "x-dh-kind": "text" },
+    "heading": { "$ref": "https://digitalhub.local/sections/defs#/$defs/inlineText" },
     "lead": { "type": "string", "x-dh-kind": "longText" },
     "kicker": { "type": "string", "x-dh-kind": "text" },
     "client": { "type": "string", "x-dh-kind": "text" },

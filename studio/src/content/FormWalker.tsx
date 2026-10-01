@@ -3,23 +3,33 @@ import { useState } from "react";
 import { request } from "../api/http";
 import { labelFromKey, referenceCollections } from "./model";
 import { MediaPicker, type MediaChoice } from "./MediaPicker";
+import { InlineTextEditor } from "./InlineTextEditor";
 import { RichTextEditor } from "./RichTextEditor";
 import { fieldLabel, kindOf, resolveSchema, type SchemaCatalog, type SchemaNode } from "./schemas";
 
 type Value = Record<string, unknown>;
 
+const allowAllMarks = () => true;
+
+/**
+ * inlineTextMarks: whether an inline-text field, by name, may carry bold,
+ * italic, and links. The item editor passes the rule for each section
+ * (model.ts, inlineMarksAllowed); a field without marks is edited as plain text.
+ */
 export function FormWalker({
   schema,
   catalog,
   value,
   onChange,
   fieldPath,
+  inlineTextMarks = allowAllMarks,
 }: {
   schema: SchemaNode;
   catalog: SchemaCatalog;
   value: Value;
   onChange: (value: Value) => void;
   fieldPath: string;
+  inlineTextMarks?: (field: string) => boolean;
 }) {
   const resolved = resolveSchema(schema, catalog.defs);
   const properties = resolved.properties ?? {};
@@ -35,6 +45,7 @@ export function FormWalker({
           value={value[name]}
           fieldPath={fieldPath.length === 0 ? name : `${fieldPath}.${name}`}
           onChange={(next) => onChange({ ...value, [name]: next })}
+          inlineTextMarks={inlineTextMarks}
         />
       ))}
     </div>
@@ -49,6 +60,7 @@ function Field({
   value,
   onChange,
   fieldPath,
+  inlineTextMarks,
 }: {
   name: string;
   schema: SchemaNode;
@@ -57,10 +69,11 @@ function Field({
   value: unknown;
   onChange: (value: unknown) => void;
   fieldPath: string;
+  inlineTextMarks: (field: string) => boolean;
 }) {
   const label = fieldLabel(name, schema);
   if (schema.oneOf !== undefined) {
-    return <OneOfField label={label} schema={schema} catalog={catalog} value={value} onChange={onChange} fieldPath={fieldPath} />;
+    return <OneOfField label={label} schema={schema} catalog={catalog} value={value} onChange={onChange} fieldPath={fieldPath} inlineTextMarks={inlineTextMarks} />;
   }
 
   const kind = kindOf(schema);
@@ -71,7 +84,7 @@ function Field({
           {label}
           {required ? " *" : ""}
         </span>
-        <Control kind={kind} schema={schema} value={value} onChange={onChange} fieldPath={fieldPath} />
+        <Control kind={kind} schema={schema} value={value} onChange={onChange} />
       </label>
     );
   }
@@ -81,13 +94,39 @@ function Field({
     return (
       <fieldset data-field={fieldPath} className="section-card">
         <legend className="px-1 text-sm">{label}</legend>
-        <FormWalker schema={schema} catalog={catalog} value={objectValue} onChange={onChange} fieldPath={fieldPath} />
+        <FormWalker schema={schema} catalog={catalog} value={objectValue} onChange={onChange} fieldPath={fieldPath} inlineTextMarks={inlineTextMarks} />
       </fieldset>
     );
   }
 
+  if (kind === "richText") {
+    // Not a <label>: clicking a label activates its first button, which would toggle bold.
+    return (
+      <div className="block" data-field={fieldPath}>
+        <span className="mb-1 block text-sm">
+          {label}
+          {required ? " *" : ""}
+        </span>
+        <RichTextEditor value={text(value)} onChange={onChange} fieldPath={fieldPath} label={label} />
+      </div>
+    );
+  }
+
+  if (kind === "inlineText") {
+    // Not a <label>, for the same reason as rich text.
+    return (
+      <div className="block" data-field={fieldPath}>
+        <span className="mb-1 block text-sm">
+          {label}
+          {required ? " *" : ""}
+        </span>
+        <InlineTextEditor value={text(value)} onChange={onChange} fieldPath={fieldPath} allowMarks={inlineTextMarks(name)} label={label} />
+      </div>
+    );
+  }
+
   if ((schema.type === "array" || (Array.isArray(schema.type) && schema.type.includes("array"))) && schema.items !== undefined) {
-    return <ArrayField label={label} schema={schema} catalog={catalog} value={value} onChange={onChange} fieldPath={fieldPath} />;
+    return <ArrayField label={label} schema={schema} catalog={catalog} value={value} onChange={onChange} fieldPath={fieldPath} inlineTextMarks={inlineTextMarks} />;
   }
 
   return (
@@ -96,7 +135,7 @@ function Field({
         {label}
         {required ? " *" : ""}
       </span>
-      <Control kind={kind} schema={schema} value={value} onChange={onChange} fieldPath={fieldPath} />
+      <Control kind={kind} schema={schema} value={value} onChange={onChange} />
     </label>
   );
 }
@@ -106,13 +145,11 @@ function Control({
   schema,
   value,
   onChange,
-  fieldPath,
 }: {
   kind: string;
   schema: SchemaNode;
   value: unknown;
   onChange: (value: unknown) => void;
-  fieldPath: string;
 }) {
   const [picker, setPicker] = useState(false);
   if (kind === "longText") {
@@ -123,9 +160,6 @@ function Control({
   }
   if (kind === "number") {
     return <InputNumber value={typeof value === "number" ? value : undefined} onChange={(next) => onChange(next)} />;
-  }
-  if (kind === "richText") {
-    return <RichTextEditor value={text(value)} onChange={onChange} fieldPath={fieldPath} />;
   }
   if (kind === "media" || schema.properties?.mediaId !== undefined) {
     const media = isRecord(value) ? value : { mediaId: "", alt: "", decorative: false };
@@ -182,6 +216,12 @@ function Control({
   return <Input value={text(value)} onChange={(event) => onChange(event.target.value)} />;
 }
 
+/**
+ * Picks a content item for a { type, id } reference. The types offered are the
+ * schema's enum (defs.json: service, partner, case study, blog post, page), each
+ * searched in its collection. Changing the type clears the search, so a hit from
+ * the previous collection can never be saved under the new type.
+ */
 function ReferenceField({
   value,
   schema,
@@ -207,7 +247,16 @@ function ReferenceField({
 
   return (
     <div className="flex flex-col gap-2" data-check="references">
-      <select className="native-control" value={type} onChange={(event) => onChange({ type: event.target.value, id: "" })}>
+      <select
+        className="native-control"
+        aria-label="Linked item type"
+        value={type}
+        onChange={(event) => {
+          setSearch("");
+          setItems([]);
+          onChange({ type: event.target.value, id: "" });
+        }}
+      >
         {options.map((option) => (
           <option key={option} value={option}>{labelFromKey(option)}</option>
         ))}
@@ -241,6 +290,7 @@ function ArrayField({
   value,
   onChange,
   fieldPath,
+  inlineTextMarks,
 }: {
   label: string;
   schema: SchemaNode;
@@ -248,6 +298,7 @@ function ArrayField({
   value: unknown;
   onChange: (value: unknown) => void;
   fieldPath: string;
+  inlineTextMarks: (field: string) => boolean;
 }) {
   const items = Array.isArray(value) ? value : [];
   const itemSchema = schema.items === undefined ? {} : resolveSchema(schema.items, catalog.defs);
@@ -265,6 +316,7 @@ function ArrayField({
                 value={isRecord(item) ? item : {}}
                 onChange={(next) => onChange(items.map((entry, entryIndex) => (entryIndex === index ? next : entry)))}
                 fieldPath={`${fieldPath}[${index}]`}
+                inlineTextMarks={inlineTextMarks}
               />
             ) : (
               <Input
@@ -293,6 +345,7 @@ function OneOfField({
   value,
   onChange,
   fieldPath,
+  inlineTextMarks,
 }: {
   label: string;
   schema: SchemaNode;
@@ -300,6 +353,7 @@ function OneOfField({
   value: unknown;
   onChange: (value: unknown) => void;
   fieldPath: string;
+  inlineTextMarks: (field: string) => boolean;
 }) {
   const branches = (schema.oneOf ?? []).map((branch) => resolveSchema(branch, catalog.defs));
   const current = isRecord(value) ? text(value.kind) : "";
@@ -321,7 +375,7 @@ function OneOfField({
           <option key={branch.properties?.kind?.const} value={branch.properties?.kind?.const}>{branch.properties?.kind?.const}</option>
         ))}
       </select>
-      <FormWalker schema={selected} catalog={catalog} value={isRecord(value) ? value : {}} onChange={onChange} fieldPath={fieldPath} />
+      <FormWalker schema={selected} catalog={catalog} value={isRecord(value) ? value : {}} onChange={onChange} fieldPath={fieldPath} inlineTextMarks={inlineTextMarks} />
     </div>
   );
 }

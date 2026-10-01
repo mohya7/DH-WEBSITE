@@ -7,7 +7,7 @@
   "properties": {
     "eyebrow": { "type": "string", "x-dh-kind": "text" },
     "heading": { "type": "string", "x-dh-kind": "text" },
-    "lead": { "type": "string", "x-dh-kind": "longText" },
+    "lead": { "$ref": "https://digitalhub.local/sections/defs#/$defs/inlineText" },
     "action": { "$ref": "https://digitalhub.local/sections/defs#/$defs/link" },
     "marks": { "type": "array", "items": { "type": "string", "x-dh-kind": "text" } }
   }

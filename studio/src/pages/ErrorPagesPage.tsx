@@ -65,7 +65,7 @@ export function ErrorPagesPage() {
                 <Input value={page.title} onChange={(event) => patch(page.type, { title: event.target.value })} />
               </Form.Item>
               <Form.Item label="Body">
-                <RichTextEditor value={page.body} onChange={(body) => patch(page.type, { body })} fieldPath={`error-${page.type}.body`} />
+                <RichTextEditor value={page.body} onChange={(body) => patch(page.type, { body })} fieldPath={`error-${page.type}.body`} label="Body" />
               </Form.Item>
               <Button type="primary" onClick={() => void save(page)}>Save</Button>
             </Form>

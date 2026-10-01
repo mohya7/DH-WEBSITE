@@ -52,6 +52,9 @@ const allowedKeywords = new Set([
 const kindNotes: Record<string, string> = {
   richText: "TipTap JSON document, serialized as a string.",
   mediaId: "Id of a media library item.",
+  inlineText:
+    "TipTap JSON document of one paragraph, serialized as a string: text with bold, italic, and link marks only; " +
+    "a link is a { type, id } reference or a #fragment. At most 4096 UTF-8 bytes.",
 };
 
 /** Kinds the TypeScript type already says everything about. */
@@ -60,6 +63,7 @@ const plainKinds = new Set(["text", "boolean", "number", "media", "reference"]);
 /** The shared definitions in defs.json, by name, to the exported type name. */
 const defTypeNames: Record<string, string> = {
   media: "Media",
+  inlineText: "InlineText",
   reference: "Reference",
   link: "Link",
   textPair: "TextPair",
@@ -217,7 +221,7 @@ export function generate(dirs: { sections: string; collections: string } = { sec
   );
 
   for (const [name, schema] of defEntries) {
-    out.push(declaration(defTypeNames[name], schema, `defs.json/$defs/${name}`), "");
+    out.push(docComment(schema, "") + declaration(defTypeNames[name], schema, `defs.json/$defs/${name}`), "");
   }
 
   out.push("/* ---- Sections (packages/sections) ---- */", "");

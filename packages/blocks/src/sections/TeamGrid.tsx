@@ -3,6 +3,10 @@
  * published team, as the old runtime rendered them from its team collection;
  * the section supplies the heading. LinkedIn links open in a new tab; without a
  * profile the action is an inert "#" link, as before.
+ *
+ * A portrait's alt text is the member's override if set, else the alt stored
+ * with the image in the media library ("Kareem Adel, CEO of Digital Hub"), as
+ * the old page showed — never one made up from the name and role.
  */
 import type { BlockContext } from "../context";
 import type { TeamGridFields } from "../generated/schema-types";
@@ -37,7 +41,7 @@ export function TeamGrid({ fields, ctx }: { fields: TeamGridFields; ctx: BlockCo
                     <div key={member.id} className="team-strip__item">
                       <div className="team-card">
                         <div className="team-card__photo">
-                          <Image mediaId={member.fields.imageId} alt={member.fields.imageAltOverride || (role ? `${member.title}, ${role}` : member.title)} sizes="320px" />
+                          <Image mediaId={member.fields.imageId} alt={member.fields.imageAltOverride} sizes="320px" />
                           <div className="team-card__overlay">
                             <div className="team-card__meta">
                               <p className="team-card__role">{role}</p>

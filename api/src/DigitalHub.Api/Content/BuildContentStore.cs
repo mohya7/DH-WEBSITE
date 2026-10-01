@@ -47,13 +47,18 @@ public sealed class BuildContentStore(ContentDbContext db)
         foreach (var collection in Collections)
             loaded[collection] = await LoadAsync(collection, cancellationToken);
 
-        // Every published item that can be linked to, by reference key.
+        /* Every published item that can be linked to, by reference key: a page
+           reference { type: "page", id } resolves to the page's path like any
+           other. The error pages are pages too, but the build serves them at
+           /404 and /500, never at /error-404, so a reference to one has no path
+           and is listed as unresolved rather than linked to an address that
+           does not exist. */
         var paths = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var (type, collection) in ReferenceCollections)
         {
             foreach (var item in loaded[collection])
             {
-                if (item.Path is not null)
+                if (item.Path is not null && !(collection == "pages" && ErrorSlugs.ContainsValue(item.Slug)))
                     paths[Key(type, item.Id)] = item.Path;
             }
         }

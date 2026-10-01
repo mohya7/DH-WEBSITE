@@ -644,7 +644,18 @@ static partial class ContentWriter
             UpdatedAt = stamp ?? default,
             Version = 1,
         };
-        if (media.TryGetValue(portrait, out var asset))
+        /* The runtime replaced the About page's crop with the uploaded portrait and
+           its own alt text, so that is what visitors saw. The page's own image is
+           the fallback for a member the runtime did not carry. */
+        var uploaded = Catalog.NormalizeAsset(Text(item, "image"), "index.html", sourceRoot);
+        if (uploaded is not null && media.TryGetValue(uploaded, out var uploadedAsset))
+        {
+            member.ImageId = uploadedAsset.Id;
+            var alt = Text(item, "alt");
+            if (!string.IsNullOrWhiteSpace(alt) && !string.Equals(alt.Trim(), uploadedAsset.Alt, StringComparison.Ordinal))
+                member.ImageAltOverride = Cut(alt.Trim(), 300);
+        }
+        else if (media.TryGetValue(portrait, out var asset))
         {
             member.ImageId = asset.Id;
             var shown = about.QuerySelectorAll(".about-leaders img")
@@ -656,7 +667,7 @@ static partial class ContentWriter
         }
         else
         {
-            warnings.Add("Missing About-page portrait for " + slug);
+            warnings.Add("Missing portrait for " + slug);
         }
 
         return member;
@@ -1632,8 +1643,11 @@ static partial class ContentWriter
     {
         var catalog = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(connectionString).InitialCatalog;
         /* DigitalHubContent_Parity is the throwaway the Phase C snapshot is built
-           from: rebuilt from nothing on every run, never a place anyone edits. */
-        string[] writable = ["DigitalHubContent", "DigitalHubNavImport", "DigitalHubContent_Parity"];
+           from: rebuilt from nothing on every run, never a place anyone edits.
+           DigitalHubContent_Studio is the manual-review database. Like every
+           catalog here, it is refused once content has been edited in the Studio
+           (below), and it needs --media-root. */
+        string[] writable = ["DigitalHubContent", "DigitalHubNavImport", "DigitalHubContent_Parity", "DigitalHubContent_Studio"];
         if (!writable.Contains(catalog, StringComparer.OrdinalIgnoreCase))
         {
             Console.Error.WriteLine("Refusing to write. The connection must target " + string.Join(", ", writable) + ".");

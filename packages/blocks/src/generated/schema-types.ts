@@ -12,8 +12,11 @@ export interface Media {
   decorative: boolean;
 }
 
+/** inlineText: TipTap JSON document of one paragraph, serialized as a string: text with bold, italic, and link marks only; a link is a { type, id } reference or a #fragment. At most 4096 UTF-8 bytes. */
+export type InlineText = string;
+
 export interface Reference {
-  type: "service" | "partner" | "case_study" | "blog_post";
+  type: "service" | "partner" | "case_study" | "blog_post" | "page";
   id: string;
 }
 
@@ -157,7 +160,7 @@ export interface FeatureGridFields {
 /** Fields of the `hero` section. */
 export interface HeroFields {
   eyebrow?: string;
-  heading: string;
+  heading: InlineText;
   /** longText */
   lead?: string;
   kicker?: string;
@@ -288,8 +291,7 @@ export interface PillarsFields {
 export interface ProblemFields {
   eyebrow?: string;
   heading: string;
-  /** longText */
-  lead?: string;
+  lead?: InlineText;
   diagramTitle?: string;
   diagramStatus?: string;
   flow?: string[];
@@ -357,8 +359,7 @@ export interface ServiceCardsFields {
 export interface ServiceHeroFields {
   eyebrow?: string;
   heading: string;
-  /** longText */
-  lead?: string;
+  lead?: InlineText;
   action?: Link;
   marks?: string[];
 }

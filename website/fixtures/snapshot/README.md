@@ -5,11 +5,11 @@ the script again instead.
 
 | | |
 |---|---|
-| Generated | 2026-09-27T08:03:01.128Z |
+| Generated | 2026-09-29T15:03:32.007Z |
 | Source database | `DigitalHubContent_Parity` (throwaway, rebuilt each run) |
 | Content imported from | `feature/interviewer-portal` at `eb05f0647c3458cc612f8a9ed8625fbb0ebc7752` |
-| API commit | `b9e61b98c579b1c83ef1a38a74182481f977e314` |
-| content.json | 170,277 bytes |
+| API commit | `7343a3838c67b09082ab621a0f395599fe85999d` |
+| content.json | 156,398 bytes |
 | media | 104 files, 2,938,496 bytes |
 
 ## Item counts
@@ -20,18 +20,31 @@ the script again instead.
 | services | 4 |
 | partners | 5 |
 | case-studies | 4 |
-| blog-posts | 5 |
+| blog-posts | 3 |
 | vacancies | 0 |
 | team-members | 6 |
 | news-items | 3 |
 
-Unresolved references: 0.
+Unresolved references: 2.
 
 ## What this contains
 
 Published content only, as the build content endpoint returned it, byte for byte.
 No drafts, contact requests, users, audit entries, tokens, or anything from
 user-secrets.
+
+## What changes when the snapshot is regenerated
+
+The database is rebuilt from nothing each run, so two runs of the same source
+commit produce the same content, the same counts, and the same structure — but:
+
+- **Item ids are new GUIDs.** Do not store a snapshot id anywhere that has to
+  survive a refresh, and do not hard-code one in a test.
+- **`publishedAt` and `updatedAt` are the time of the run**, not an editorial
+  date. Anything that reads them, such as the sitemap's last-modified dates, will
+  move on every refresh. A real editorial date has to come from the content.
+
+Everything else compares byte for byte.
 
 ## Placeholders published for parity
 
@@ -40,7 +53,7 @@ a website built from it would be missing whole regions of the design. This
 snapshot comes from a throwaway parity database where those were published, so
 screenshot comparison can cover them. The real database is not changed.
 
-Published for parity: 4 case studies, 5 blog posts, 2 error pages.
+Published for parity: 4 case studies, 3 blog posts, 2 error pages.
 
 ### Text added to make them publishable
 

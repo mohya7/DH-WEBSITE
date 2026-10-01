@@ -125,6 +125,13 @@ static class Links
             return null;
         var path = clean.Split('#')[0].Trim('/');
         var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        /* A page is one segment: /contact, /about, or / for the home page. Without
+           this a link to a page resolved to nothing, which is how the About
+           constellation's Consultation node lost its link to the contact page. */
+        if (parts.Length == 0)
+            return ("page", "home");
+        if (parts.Length == 1)
+            return ("page", parts[0]);
         if (parts.Length != 2)
             return null;
         return parts[0] switch

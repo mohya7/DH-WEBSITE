@@ -216,9 +216,9 @@ ALTER ROLE db_datawriter ADD MEMBER [${appLogin.replace(/]/g, "]]")}];
 
   step("Publish the placeholder case studies, blog posts, and error pages");
   const published = {};
-  for (const collection of ["case-studies", "blog-posts"]) {
-    published[collection] = await publishDrafts(collection, token);
-  }
+  const listed = listedBlogTitles();
+  published["case-studies"] = await publishDrafts("case-studies", token);
+  published["blog-posts"] = await publishDrafts("blog-posts", token, listed);
   published["error-pages"] = await publishErrorPages(token);
 
   step("Export the snapshot");
@@ -270,16 +270,31 @@ ALTER ROLE db_datawriter ADD MEMBER [${appLogin.replace(/]/g, "]]")}];
 /* Publishes every draft in a collection, filling only what the publish checks
    demand. Anything filled is recorded and reported, so invented text is never
    silently part of the snapshot. */
-async function publishDrafts(collection, token) {
+async function publishDrafts(collection, token, keep = null) {
   const drafts = await listAll(collection, token, "status=draft");
   const names = [];
+  const left = [];
   for (const row of drafts) {
+    /* Only what the old site listed. Two blog posts exist as HTML but were never
+       in site-content.js, so no page linked to them and no visitor saw them.
+       They stay drafts, as they are on the real database. */
+    if (keep !== null && !keep.has(row.title)) {
+      left.push(row.slug);
+      continue;
+    }
     await publishOne(collection, row.id, token);
     names.push(row.slug);
   }
 
-  console.log(`  ${collection}: published ${names.length}`);
+  console.log(`  ${collection}: published ${names.length}${left.length > 0 ? `, left as drafts ${left.length} (${left.join(", ")})` : ""}`);
   return names;
+}
+
+/** The blog posts the old site listed, read from the same file its runtime read. */
+function listedBlogTitles() {
+  const file = path.join(sourceRoot, "content", "site-content.json");
+  const site = JSON.parse(fs.readFileSync(file, "utf8"));
+  return new Set((site.collections?.blogs ?? []).map((post) => post.title).filter(Boolean));
 }
 
 /** The list endpoint caps pageSize at 100, so read every page. */

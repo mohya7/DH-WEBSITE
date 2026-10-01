@@ -5,7 +5,7 @@ import { useAuth } from "../auth/AuthProvider";
 import { jsonInit, request, type Problem } from "../api/http";
 import { FormWalker } from "../content/FormWalker";
 import { MediaPicker, type MediaChoice } from "../content/MediaPicker";
-import { labelFromKey, publicPath, routeFor, type CollectionName } from "../content/model";
+import { inlineMarksAllowed, labelFromKey, publicPath, routeFor, type CollectionName } from "../content/model";
 import { useSchemas } from "../content/schemas";
 import { StatusChip } from "../ui/StatusChip";
 
@@ -339,6 +339,7 @@ export function ItemEditorPage({ collection }: { collection: CollectionName }) {
                         value={section.fields}
                         onChange={(next) => setSections(sections.map((entry, entryIndex) => entryIndex === index ? { ...entry, fields: next } : entry))}
                         fieldPath={`sections[${index}]`}
+                        inlineTextMarks={(field) => inlineMarksAllowed(collection, section.type, field)}
                       />
                     ) : null}
                   </article>

@@ -1,7 +1,8 @@
 /*
- * logo_bar: the scrolling client-logo marquee (home and About). The stored list
- * already holds the marquee's repeat as decorative entries, which render hidden
- * from assistive technology, as on the old pages.
+ * logo_bar: the scrolling client-logo marquee (home and About). Each client
+ * logo is stored once. The marquee scrolls without a seam by showing the list
+ * twice, as on the old pages: the second copy is hidden from assistive
+ * technology (aria-hidden on each item, empty alt), so each logo is announced once.
  *
  * Some logos carry a size modifier or a nudge on the old pages so they sit
  * evenly in the row. Those are design tweaks per logo, kept here by media id;
@@ -25,19 +26,22 @@ export function LogoBar({ fields, ctx }: { fields: LogoBarFields; ctx: BlockCont
   const { Image } = ctx;
   // The home page's bar reveals on scroll; the About page's is labelled instead.
   const sectionAttributes = ctx.page.kind === "home" ? { "data-section-reveal": "" } : { "aria-label": "Clients" };
+  const logos = fields.logos ?? [];
+  const item = (logo: (typeof logos)[number], key: string, repeat: boolean) => {
+    const tweak = tweaks[logo.mediaId] ?? {};
+    return (
+      <span key={key} className={tweak.modifier ? `trust-item ${tweak.modifier}` : "trust-item"} style={tweak.style} {...(repeat ? { "aria-hidden": "true" as const } : {})}>
+        <Image mediaId={logo.mediaId} alt={logo.alt} decorative={repeat || logo.decorative} className="trust-item__logo" sizes="184px" />
+      </span>
+    );
+  };
   return (
     <section className="trust-logos" {...sectionAttributes}>
       {fields.label ? <span className="label">{fields.label}</span> : null}
       <div className="trust-marquee" style={{ "--speed": "100s" } as CSSProperties} aria-label="Client logos">
         <div className="trust-track">
-          {(fields.logos ?? []).map((logo, index) => {
-            const tweak = tweaks[logo.mediaId] ?? {};
-            return (
-              <span key={index} className={tweak.modifier ? `trust-item ${tweak.modifier}` : "trust-item"} style={tweak.style} {...(logo.decorative ? { "aria-hidden": "true" as const } : {})}>
-                <Image mediaId={logo.mediaId} alt={logo.alt} decorative={logo.decorative} className="trust-item__logo" sizes="184px" />
-              </span>
-            );
-          })}
+          {logos.map((logo, index) => item(logo, `a${index}`, false))}
+          {logos.map((logo, index) => item(logo, `b${index}`, true))}
         </div>
       </div>
     </section>

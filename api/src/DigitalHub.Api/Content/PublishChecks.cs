@@ -110,10 +110,16 @@ public static class PublishChecks
         var ids = await IdsAsync(db, cancellationToken);
         if (ReferenceCollections.ContainsValue(collection))
             ids[collection][id] = ContentStatus.Published;
+        /* Error pages are page records, but the site serves them at /404 and /500
+           rather than at an address of their own, so nothing can link to one. */
+        var errorPages = await db.Pages.AsNoTracking()
+            .Where(item => item.Slug == "error-404" || item.Slug == "error-500")
+            .Select(item => item.Id)
+            .ToListAsync(cancellationToken);
 
         var json = JsonSerializer.Serialize(draft, ContentJson.Options);
         using var document = JsonDocument.Parse(json);
-        WalkLinks(document.RootElement, paths, ids, errors, warnings);
+        WalkLinks(document.RootElement, paths, ids, errorPages.ToHashSet(), errors, warnings);
     }
 
     private static async Task<Dictionary<string, ContentStatus>> PublicPathsAsync(
@@ -213,6 +219,7 @@ public static class PublishChecks
         JsonElement element,
         Dictionary<string, ContentStatus> paths,
         Dictionary<string, Dictionary<Guid, ContentStatus>> ids,
+        HashSet<Guid> errorPages,
         Dictionary<string, List<string>> errors,
         Dictionary<string, List<string>> warnings)
     {
@@ -238,22 +245,24 @@ public static class PublishChecks
                     var label = target.ToString("D");
                     if (!ids[referenced].TryGetValue(target, out var status))
                         Add(errors, "references", name + " " + label + " does not exist.");
+                    else if (referenced == "pages" && errorPages.Contains(target))
+                        Add(errors, "references", name + " " + label + " is an error page, which has no address to link to.");
                     else if (status != ContentStatus.Published)
                         Add(warnings, "references", name + " " + label + " is not published, so it will not show.");
                 }
 
                 foreach (var property in element.EnumerateObject())
-                    WalkLinks(property.Value, paths, ids, errors, warnings);
+                    WalkLinks(property.Value, paths, ids, errorPages, errors, warnings);
                 break;
             case JsonValueKind.Array:
                 foreach (var item in element.EnumerateArray())
-                    WalkLinks(item, paths, ids, errors, warnings);
+                    WalkLinks(item, paths, ids, errorPages, errors, warnings);
                 break;
             case JsonValueKind.String:
                 if (TryParse(element.GetString(), out var nested))
                 {
                     using (nested)
-                        WalkLinks(nested.RootElement, paths, ids, errors, warnings);
+                        WalkLinks(nested.RootElement, paths, ids, errorPages, errors, warnings);
                 }
 
                 break;

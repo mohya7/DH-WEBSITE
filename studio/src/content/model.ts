@@ -66,6 +66,16 @@ export const referenceCollections: Record<string, CollectionName> = {
   vacancy: "vacancies",
 };
 
+/**
+ * Whether an inline-text field may carry bold, italic, and links. It may,
+ * except a hero's heading on any page but a case study, which stays plain (the
+ * home hero's heading is split into animated lines). The same rule as the
+ * website build (packages/blocks/src/inline/document.ts) and the API.
+ */
+export function inlineMarksAllowed(collection: CollectionName, sectionType: string, field: string): boolean {
+  return !(sectionType === "hero" && field === "heading" && collection !== "case-studies");
+}
+
 export function labelFromKey(key: string): string {
   const spaced = key.replaceAll("_", " ").replace(/([a-z])([A-Z])/g, "$1 $2");
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);

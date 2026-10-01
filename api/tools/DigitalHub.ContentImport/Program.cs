@@ -66,8 +66,9 @@ var databaseFlag = Array.IndexOf(args, "--database");
 var database = databaseFlag >= 0 && databaseFlag + 1 < args.Length ? args[databaseFlag + 1] : null;
 /* An explicit allow-list rather than a pattern: the point of this guard is that
    the tool can only ever write to a catalog someone named here on purpose.
-   DigitalHubContent_Parity is the throwaway the Phase C snapshot is built from. */
-string[] allowedDatabases = ["DigitalHubNavImport", "DigitalHubContent_Parity"];
+   DigitalHubContent_Parity is the throwaway the Phase C snapshot is built from.
+   DigitalHubContent_Studio is the manual-review database (CLAUDE.md, Databases). */
+string[] allowedDatabases = ["DigitalHubNavImport", "DigitalHubContent_Parity", "DigitalHubContent_Studio"];
 if (database is not null && !allowedDatabases.Contains(database, StringComparer.Ordinal))
 {
     Console.Error.WriteLine(
