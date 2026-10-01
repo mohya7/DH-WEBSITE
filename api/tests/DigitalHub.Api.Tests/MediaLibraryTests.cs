@@ -261,7 +261,8 @@ public sealed class MediaLibraryTests : IClassFixture<ApiFactory>
             type = "hero",
             fields = new
             {
-                heading = "Hello",
+                // hero.heading is inline text: a one-paragraph TipTap document, not a plain string.
+                heading = JsonSerializer.Serialize(new { type = "doc", content = new object[] { new { type = "paragraph", content = new object[] { new { type = "text", text = "Hello" } } } } }),
                 image = new { mediaId = mediaId.ToString(), alt = "Hero", decorative = false },
             },
         });
