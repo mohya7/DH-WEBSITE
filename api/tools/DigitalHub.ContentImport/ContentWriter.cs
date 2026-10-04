@@ -492,7 +492,7 @@ static partial class ContentWriter
             CategoryLabel = Required(htmlOnly ? Collapse(document!.QuerySelector(".blog-view-tag")?.TextContent) : Text(item, "categoryLabel"), 80),
             ReadTime = htmlOnly ? ReadTime(document!) : Int(item, "readTime"),
             Accent = Required(htmlOnly ? Accent(document!) : Text(item, "accent"), 40),
-            Cluster = htmlOnly ? "" : Required(Text(item, "cluster"), 80),
+            Cluster = Required(htmlOnly ? Collapse(document!.QuerySelector(".blog-view-tag")?.TextContent) : Text(item, "cluster"), 80),
             Body = ArticleBody(document, source, media, warnings),
             AnswerBlock = Blank(Text(item, "answerBlock")),
             Faq = """{"items":[]}""",

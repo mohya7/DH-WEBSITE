@@ -14,6 +14,8 @@
 import { DesignHeadItems } from "./DesignHeadItems";
 import { designUrl } from "./folder";
 import { designSets, type DesignSetName, type ScriptSlot } from "./sets";
+import { behaviorUrl } from "./behaviors";
+import { getSite } from "../content/site";
 
 export function DesignHead({ set }: { set: DesignSetName }) {
   // URLs are resolved here, on the server, where the design folder's hash is known.
@@ -26,24 +28,25 @@ export function DesignScripts({ set, slot }: { set: DesignSetName; slot: ScriptS
   return (
     <>
       {scripts.map((script) => (
-        <script key={script.src} src={designUrl(script.src)} type={script.module ? "module" : undefined} />
+        script.src === "js/careers-apply.js"
+          ? <script key={script.src} src={behaviorUrl("careers")} data-vacancies={JSON.stringify(getSite().content.collections.vacancies.map((vacancy) => ({ slug: vacancy.slug, title: vacancy.title })))} />
+          : <script key={script.src} src={designUrl(script.src)} type={script.module ? "module" : undefined} />
       ))}
     </>
   );
 }
 
 /**
- * Head items and the scripts outside the page content, around the page body.
- * Sections 4 and 5 put the header and footer inside this frame: the after-nav
- * scripts move to straight after the header's </nav>, and the hero scripts are
- * placed by the hero component (PageScaffold stands in for both until then).
+ * Head items and the scripts outside the page content. Header places after-nav
+ * immediately after </nav>; the hero component places its own module script.
+ * The careers behaviour replaces the old handler at its original position;
+ * the byte-identical archived design script remains available for comparison.
  */
 export function DesignFrame({ set, children }: { set: DesignSetName; children: React.ReactNode }) {
   return (
     <>
       <DesignHead set={set} />
       <DesignScripts set={set} slot="body-start" />
-      <DesignScripts set={set} slot="after-nav" />
       {children}
       <DesignScripts set={set} slot="body-end" />
     </>

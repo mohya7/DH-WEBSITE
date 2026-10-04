@@ -64,7 +64,7 @@ describe("CONTENT_SOURCE=api", () => {
     expect(contentRequests).toBe(1);
     expect(seenTokens).toEqual([TOKEN]);
     expect(manifest.source).toBe(`api (${apiUrl})`);
-    expect(manifest.routes).toHaveLength(25);
+    expect(manifest.routes).toHaveLength(27);
     // Every listed asset is used; 104 files with their stored widths (fixtures/snapshot/README.md).
     expect(manifest.media).toMatchObject({ assetsListed: 63, assetsUsed: 63, files: 104 });
     expect(fs.readdirSync(mediaDir)).toHaveLength(104);
@@ -103,7 +103,7 @@ describe("CONTENT_SOURCE=snapshot", () => {
     const config: ContentConfig = { source: "snapshot", snapshotDir };
     const manifest = await prepareContent(config, { outDir, mediaDir });
     expect(manifest.source).toBe("snapshot (fixtures/snapshot)");
-    expect(manifest.routes).toHaveLength(25);
+    expect(manifest.routes).toHaveLength(27);
     expect(manifest.errorPages).toEqual({ "404": true, "500": true });
     for (const file of fs.readdirSync(mediaDir)) {
       expect(fs.readFileSync(path.join(mediaDir, file)).equals(fs.readFileSync(path.join(snapshotDir, "media", file)))).toBe(true);

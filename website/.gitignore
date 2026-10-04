@@ -2,6 +2,10 @@
 /.content/
 /public/media/
 /public/design/
+/public/assets/
+/public/behaviors/
+/test-results/
+/playwright-report/
 
 # Written by Next.
 /next-env.d.ts

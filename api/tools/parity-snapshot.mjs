@@ -150,7 +150,7 @@ CREATE DATABASE [${catalog}];
   run("dotnet", ["tool", "restore"], { cwd: apiRoot });
   run("dotnet", [
     "tool", "run", "dotnet-ef", "--", "database", "update",
-    "--project", apiProject, "--connection", elevatedConnection,
+    "--project", apiProject, "--configuration", "Release", "--connection", elevatedConnection,
   ], { cwd: apiRoot });
 
   step("Grant the application login");
@@ -216,10 +216,15 @@ ALTER ROLE db_datawriter ADD MEMBER [${appLogin.replace(/]/g, "]]")}];
 
   step("Publish the placeholder case studies, blog posts, and error pages");
   const published = {};
-  const listed = listedBlogTitles();
   published["case-studies"] = await publishDrafts("case-studies", token);
-  published["blog-posts"] = await publishDrafts("blog-posts", token, listed);
+  published["blog-posts"] = await publishDrafts("blog-posts", token);
   published["error-pages"] = await publishErrorPages(token);
+
+  // Publishing is still through the API. Only in this throwaway parity catalog,
+  // preserve the source's original publication dates, which the importer stores
+  // in created_at. Otherwise every article byline shows the snapshot run date.
+  step("Restore imported article publication dates in " + catalog);
+  sql(catalog, "UPDATE blog_posts SET published_at = created_at WHERE published_at IS NOT NULL;");
 
   step("Export the snapshot");
   const content = await api("GET", "/api/v1/build/content", { buildHeader: buildToken });
@@ -270,31 +275,16 @@ ALTER ROLE db_datawriter ADD MEMBER [${appLogin.replace(/]/g, "]]")}];
 /* Publishes every draft in a collection, filling only what the publish checks
    demand. Anything filled is recorded and reported, so invented text is never
    silently part of the snapshot. */
-async function publishDrafts(collection, token, keep = null) {
+async function publishDrafts(collection, token) {
   const drafts = await listAll(collection, token, "status=draft");
   const names = [];
-  const left = [];
   for (const row of drafts) {
-    /* Only what the old site listed. Two blog posts exist as HTML but were never
-       in site-content.js, so no page linked to them and no visitor saw them.
-       They stay drafts, as they are on the real database. */
-    if (keep !== null && !keep.has(row.title)) {
-      left.push(row.slug);
-      continue;
-    }
     await publishOne(collection, row.id, token);
     names.push(row.slug);
   }
 
-  console.log(`  ${collection}: published ${names.length}${left.length > 0 ? `, left as drafts ${left.length} (${left.join(", ")})` : ""}`);
+  console.log(`  ${collection}: published ${names.length}`);
   return names;
-}
-
-/** The blog posts the old site listed, read from the same file its runtime read. */
-function listedBlogTitles() {
-  const file = path.join(sourceRoot, "content", "site-content.json");
-  const site = JSON.parse(fs.readFileSync(file, "utf8"));
-  return new Set((site.collections?.blogs ?? []).map((post) => post.title).filter(Boolean));
 }
 
 /** The list endpoint caps pageSize at 100, so read every page. */
@@ -435,9 +425,10 @@ commit produce the same content, the same counts, and the same structure — but
 
 - **Item ids are new GUIDs.** Do not store a snapshot id anywhere that has to
   survive a refresh, and do not hard-code one in a test.
-- **\`publishedAt\` and \`updatedAt\` are the time of the run**, not an editorial
-  date. Anything that reads them, such as the sitemap's last-modified dates, will
-  move on every refresh. A real editorial date has to come from the content.
+- Blog **\`publishedAt\`** is restored from the imported original publication
+  date (\`created_at\`) in the parity database after API publishing. Blog
+  \`dateModified\` is the imported editorial modification date. Other publish
+  timestamps and \`updatedAt\` can still reflect the export run.
 
 Everything else compares byte for byte.
 

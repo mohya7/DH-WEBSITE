@@ -6,6 +6,16 @@
  * folder and the old one is never served stale.
  */
 import { publishDesign } from "../src/design/folder";
+import fs from "node:fs";
+import path from "node:path";
+import { behaviorUrl } from "../src/design/behaviors";
 
 const { hash, files } = publishDesign();
 console.log(`Design: ${files} files copied to public/design/${hash}/`);
+fs.mkdirSync("public/assets", { recursive: true });
+fs.copyFileSync("assets/digital-hub-logo.png", "public/assets/digital-hub-logo.png");
+const behaviorDir = path.resolve("public/behaviors");
+if (!behaviorDir.startsWith(path.resolve("public") + path.sep)) throw new Error("Invalid behavior output directory");
+fs.rmSync(behaviorDir, { recursive: true, force: true });
+fs.mkdirSync(behaviorDir, { recursive: true });
+for (const name of ["contact", "careers"] as const) fs.copyFileSync(`behaviors/${name}.js`, path.join("public", behaviorUrl(name)));

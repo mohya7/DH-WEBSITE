@@ -41,6 +41,11 @@ export async function prepareContent(config: ContentConfig, options: PrepareOpti
   const { content } = opened;
 
   const problems = validateContent(content);
+  if (config.source === "api") {
+    for (const code of ["404", "500"] as const) {
+      if (!content.errorPages?.[code]?.publishedAt) problems.push(`Error page ${code} must be published before an API build. Publish error-${code} in the Studio.`);
+    }
+  }
   if (problems.length > 0) throw new ContentCheckError(problems);
 
   const table = buildRoutes(content);
