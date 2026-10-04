@@ -7,7 +7,9 @@
  * violation. Exits 0 either way: the list is the result. Exits 1 only when
  * the pages could not be loaded.
  *
- * Ports: 4380 for the site, 4381 for the browser. This process stops only the
+ * Ports come from the environment, so another agent can run this on its own
+ * range. The defaults are Cursor's: CSP_CHECK_PORT=4380 for the site and
+ * CSP_CHECK_DEBUG_PORT=4381 for the browser. This process stops only the
  * browser it started.
  */
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
@@ -16,8 +18,18 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 
-const sitePort = 4380;
-const debugPort = 4381;
+function port(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 1 || value > 65535) {
+    throw new Error(`${name} must be a TCP port. It is "${raw}".`);
+  }
+  return value;
+}
+
+const sitePort = port("CSP_CHECK_PORT", 4380);
+const debugPort = port("CSP_CHECK_DEBUG_PORT", 4381);
 const outDir = path.join(process.cwd(), "out");
 
 interface Violation {
@@ -79,18 +91,24 @@ const types: Record<string, string> = {
   ".map": "application/json",
 };
 
-function policyFromConfig(): string {
+function policiesFromConfig(): { site: string; home: string } {
   const xml = fs.readFileSync(path.join(outDir, "web.config"), "utf8");
-  const value = /name="Content-Security-Policy-Report-Only" value="([^"]*)"/.exec(xml)?.[1];
-  if (!value) throw new Error("out/web.config has no Content-Security-Policy-Report-Only header.");
-  return value;
+  const values = [...xml.matchAll(/name="Content-Security-Policy-Report-Only" value="([^"]*)"/g)].map((match) => match[1]);
+  const site = values[0];
+  const home = values.find((value) => value !== site);
+  if (!site || !home) throw new Error("out/web.config has no separate report-only policy for the home page.");
+  return { site, home };
 }
 
-function serve(policy: string): Promise<http.Server> {
+function policyFor(pathname: string, policies: { site: string; home: string }): string {
+  return pathname === "/" || pathname === "/index.html" ? policies.home : policies.site;
+}
+
+function serve(policies: { site: string; home: string }): Promise<http.Server> {
   const server = http.createServer((request, response) => {
     const url = new URL(request.url ?? "/", `http://127.0.0.1:${sitePort}`);
     const file = fileFor(url.pathname);
-    response.setHeader("Content-Security-Policy-Report-Only", policy);
+    response.setHeader("Content-Security-Policy-Report-Only", policyFor(url.pathname, policies));
     response.setHeader("X-Content-Type-Options", "nosniff");
     response.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
     response.setHeader("X-Frame-Options", "DENY");
@@ -226,9 +244,9 @@ function sleep(ms: number): Promise<void> {
 
 async function main(): Promise<void> {
   if (!fs.existsSync(outDir)) throw new Error("out/ does not exist. Run npm run build in website/ first.");
-  const policy = policyFromConfig();
+  const policies = policiesFromConfig();
   const pages = walk(outDir).filter((file) => file.endsWith(".html")).sort();
-  const server = await serve(policy);
+  const server = await serve(policies);
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), "dh-csp-"));
   let browser: ChildProcess | undefined;
   try {
@@ -241,7 +259,8 @@ async function main(): Promise<void> {
     const tab = await openTab();
     const cdp = await connect(tab.webSocketDebuggerUrl);
     const consoleHits: string[] = [];
-    let documentPolicy = "";
+    const documentPolicies = new Map<string, string>();
+    let currentPath = "/";
     cdp.on("Log.entryAdded", (params) => {
       const entry = params.entry as { text?: string } | undefined;
       const text = entry?.text ?? "";
@@ -249,10 +268,11 @@ async function main(): Promise<void> {
     });
     cdp.on("Network.responseReceived", (params) => {
       const response = params.response as { url?: string; headers?: Record<string, string> } | undefined;
-      if (response?.url?.startsWith(`http://127.0.0.1:${sitePort}/`) && response.headers) {
-        const header = response.headers["Content-Security-Policy-Report-Only"] ?? response.headers["content-security-policy-report-only"];
-        if (header) documentPolicy = header;
-      }
+      if (!response?.url || !response.headers) return;
+      const responseUrl = new URL(response.url);
+      if (responseUrl.port !== String(sitePort) || responseUrl.pathname !== currentPath) return;
+      const header = response.headers["Content-Security-Policy-Report-Only"] ?? response.headers["content-security-policy-report-only"];
+      if (header) documentPolicies.set(currentPath, header);
     });
     await cdp.send("Page.enable");
     await cdp.send("Network.enable");
@@ -263,6 +283,7 @@ async function main(): Promise<void> {
     for (const file of pages) {
       const urlPath = pageUrl(file);
       const url = `http://127.0.0.1:${sitePort}${urlPath}`;
+      currentPath = urlPath;
       consoleHits.length = 0;
       const loaded = cdp.wait("Page.loadEventFired", 25000);
       await cdp.send("Page.navigate", { url });
@@ -276,8 +297,12 @@ async function main(): Promise<void> {
       if (violations.length > 0 || consoleHits.length > 0) found.push({ url: urlPath, violations, console: [...consoleHits] });
       console.log(`${urlPath}  ${violations.length} violation(s)`);
     }
-    if (documentPolicy !== policy) {
-      throw new Error("The browser did not receive the report-only policy from out/web.config.");
+    for (const file of pages) {
+      const urlPath = pageUrl(file);
+      const received = documentPolicies.get(urlPath);
+      if (received !== policyFor(urlPath, policies)) {
+        throw new Error(`${urlPath} was not served with its report-only policy from out/web.config.`);
+      }
     }
     await cdp.send("Runtime.evaluate", { expression: 'fetch("https://csp-probe.invalid/").catch(function () {})' });
     await sleep(500);

@@ -25,6 +25,8 @@
  *     and module preloads after the stylesheets), and its scripts in order and
  *     position, with nothing from another set
  *   - out/web.config is the file generated from this content's redirects
+ *   - Next's _not-found export is not in the output
+ *   - the careers form endpoint, when present, is a same-site path
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -38,6 +40,7 @@ import { createSite, type Site } from "../src/content/site";
 import { runtimeTracesIn } from "../src/build/strip-runtime";
 import { designFileList, designHash } from "../src/design/folder";
 import { designSets, type DesignSetName, type ScriptSlot } from "../src/design/sets";
+import { careersEndpointError, careersEndpointsIn } from "../src/iis/careers-endpoint";
 import { renderWebConfig } from "../src/iis/web-config";
 
 export interface OutputReport {
@@ -59,7 +62,7 @@ export function htmlFileFor(route: string): string {
   return route === "/" ? "index.html" : `${route.slice(1)}.html`;
 }
 
-const errorFiles = ["404.html", "500.html", "_not-found.html"];
+const errorFiles = ["404.html", "500.html"];
 
 /** A URL served by this site: no scheme and not protocol-relative. */
 function isOwnUrl(url: string): boolean {
@@ -103,8 +106,18 @@ export function checkOutput(outDir: string, manifest: Manifest, options: { desig
   for (const file of ["404.html", "500.html"]) {
     if (!fileSet.has(file)) problems.push(`${file} is missing.`);
   }
+  for (const file of files) {
+    if (file === "_not-found.html" || file.startsWith("_not-found/") || file.includes("/_not-found")) {
+      problems.push(`${file} is Next's not-found export and must not be in the output.`);
+    }
+  }
   for (const file of files.filter((name) => name.endsWith(".html"))) {
+    if (file === "_not-found.html" || file.startsWith("_not-found/")) continue;
     if (!expected.has(file) && !errorFiles.includes(file)) problems.push(`${file} is not a route of the published content.`);
+    for (const endpoint of careersEndpointsIn(fs.readFileSync(path.join(outDir, file), "utf8"))) {
+      const error = careersEndpointError(endpoint);
+      if (error) problems.push(`${file}: ${error}`);
+    }
   }
 
   // No trace of Next's client runtime: the site ships static HTML plus the ported scripts.
@@ -125,7 +138,6 @@ export function checkOutput(outDir: string, manifest: Manifest, options: { desig
     );
     items.set("404.html", { item: site.errorPage("404"), kind: "error" });
     items.set("500.html", { item: site.errorPage("500"), kind: "error" });
-    items.set("_not-found.html", { item: site.errorPage("404"), kind: "error" });
     for (const [file, { item, kind }] of items) {
       if (fileSet.has(file)) problems.push(...checkStaticPage(file, fs.readFileSync(path.join(outDir, file), "utf8"), item, expectedSections(site, item, kind)));
     }
@@ -327,6 +339,12 @@ function main(): void {
   console.log(`Static HTML: no page contains Next's client runtime; every page's head tags and content are in its HTML.`);
   console.log(`Loading order: every page loads exactly its design set.`);
   console.log(`Design: out/design/${designHash(path.join(websiteRoot, "design"))}/ matches website/design/ byte for byte (${designFileList(path.join(websiteRoot, "design")).length} files).`);
+
+  const careersEndpoint = process.env.CAREERS_APPLICATION_ENDPOINT;
+  if (careersEndpoint !== undefined) {
+    const error = careersEndpointError(careersEndpoint);
+    if (error) report.problems.push(error);
+  }
 
   const configFile = path.join(websiteRoot, "out", "web.config");
   const expectedConfig = renderWebConfig(content.redirects);

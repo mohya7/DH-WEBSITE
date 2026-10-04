@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Redirect } from "../src/content/build-content";
-import { WebConfigError, contentSecurityPolicy, renderWebConfig } from "../src/iis/web-config";
+import { WebConfigError, contentSecurityPolicy, homeContentSecurityPolicy, renderWebConfig } from "../src/iis/web-config";
+import { careersEndpointError } from "../src/iis/careers-endpoint";
 import { snapshotContent } from "./helpers";
 
 const redirect = (fromPath: string, toPath: string, statusCode = 301): Redirect => ({ fromPath, toPath, statusCode });
@@ -35,7 +36,7 @@ describe("web.config", () => {
     expect(first).toContain('<match url="^a\\.b/?$" ignoreCase="false" />');
     expect(first).toContain('<action type="Redirect" url="/about" redirectType="Permanent" appendQueryString="false" />');
     expect(xml).not.toContain("302");
-    expect(xml).not.toContain("Found");
+    expect(xml).not.toContain('redirectType="Found"');
     expect(xml.indexOf("Redirect /a.b")).toBeLessThan(xml.indexOf("Redirect /old&amp;gone"));
     expect(xml.indexOf("Redirect /old&amp;gone")).toBeLessThan(xml.indexOf('name="Clean URLs"'));
     const escaped = rule(xml, "Redirect /old&amp;gone");
@@ -70,25 +71,48 @@ describe("web.config", () => {
     const xml = renderWebConfig([]);
     expect(xml).toContain(`name="Content-Security-Policy-Report-Only" value="${contentSecurityPolicy}"`);
     expect(xml).not.toContain('name="Content-Security-Policy"');
-    expect(contentSecurityPolicy).toContain("https://cdn.jsdelivr.net");
-    expect(contentSecurityPolicy).toContain("https://fonts.googleapis.com");
-    expect(contentSecurityPolicy).toContain("https://fonts.gstatic.com");
-    expect(contentSecurityPolicy).toContain("style-src-attr 'unsafe-inline'");
-    expect(contentSecurityPolicy).toContain("style-src 'self' https://fonts.googleapis.com https://cdn.jsdelivr.net 'unsafe-inline'");
-    const scriptSrc = /script-src [^;]+/.exec(contentSecurityPolicy)?.[0] ?? "";
-    expect(scriptSrc).toBe("script-src 'self' https://cdn.jsdelivr.net");
-    expect(xml).toContain('name="Strict-Transport-Security" value="max-age=31536000; includeSubDomains"');
+    const directive = (policy: string, name: string) => policy.split("; ").find((part) => part.startsWith(`${name} `)) ?? "";
+    expect(directive(contentSecurityPolicy, "script-src")).toBe(
+      "script-src 'self' https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js https://cdn.jsdelivr.net/gh/studio-freight/lenis@1.0.23/bundled/lenis.min.js",
+    );
+    expect(directive(contentSecurityPolicy, "style-src")).toBe(
+      "style-src 'self' https://fonts.googleapis.com https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css",
+    );
+    expect(directive(contentSecurityPolicy, "style-src")).not.toContain("unsafe-inline");
+    expect(directive(contentSecurityPolicy, "font-src")).toBe(
+      "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/",
+    );
+    for (const name of ["script-src", "style-src", "font-src"]) {
+      expect(directive(contentSecurityPolicy, name)).not.toMatch(/https:\/\/cdn\.jsdelivr\.net(?:\s|;|$)/);
+    }
+    expect(directive(contentSecurityPolicy, "style-src-attr")).toBe("style-src-attr 'unsafe-inline'");
+    expect(directive(homeContentSecurityPolicy, "style-src")).toContain("'unsafe-inline'");
+    expect(directive(homeContentSecurityPolicy, "style-src-attr")).toBe("style-src-attr 'unsafe-inline'");
+    expect(xml).toContain(`<location path="index.html">`);
+    expect(xml).toContain(`value="${homeContentSecurityPolicy}"`);
+    expect(rule(xml, "Home page inline style elements")).toContain(`value="${homeContentSecurityPolicy}"`);
+    expect(xml).toContain('<preCondition name="IsHome">');
+    expect(xml).toContain('<add input="{URL}" pattern="^/$" />');
+    expect(xml).toContain('name="Strict-Transport-Security" value="max-age=31536000"');
+    expect(xml).not.toContain("includeSubDomains");
     expect(xml).toContain('name="X-Content-Type-Options" value="nosniff"');
     expect(xml).toContain('name="Referrer-Policy" value="strict-origin-when-cross-origin"');
     expect(xml).toContain('name="X-Frame-Options" value="DENY"');
   });
 
-  it("caches the design folder for a year and keeps HTML short", () => {
+  it("caches the design folder and media for a year, and keeps HTML short", () => {
     const xml = renderWebConfig([]);
     expect(xml).toContain('name="Cache-Control" value="public, max-age=0, must-revalidate"');
-    expect(xml).toContain('<location path="design">');
-    expect(xml).toContain('name="Cache-Control" value="public, max-age=31536000, immutable"');
-    expect(xml.indexOf("max-age=31536000, immutable")).toBeGreaterThan(xml.indexOf('path="design"'));
+    for (const folder of ["design", "media"]) {
+      const location = xml.slice(xml.indexOf(`<location path="${folder}">`), xml.indexOf("</location>", xml.indexOf(`<location path="${folder}">`)));
+      expect(location).toContain('name="Cache-Control" value="public, max-age=31536000, immutable"');
+    }
+  });
+
+  it("declares the webp MIME type, removing any mapping the server already has", () => {
+    const xml = renderWebConfig([]);
+    const block = xml.slice(xml.indexOf("<staticContent>"), xml.indexOf("</staticContent>"));
+    expect(block.indexOf('<remove fileExtension=".webp" />')).toBeLessThan(block.indexOf('<mimeMap fileExtension=".webp" mimeType="image/webp" />'));
   });
 
   it("does not route to the API or the hiring system", () => {
@@ -96,6 +120,36 @@ describe("web.config", () => {
     expect(xml).not.toMatch(/type="Proxy"|<proxy|reverseProxy|applicationRequestRouting/i);
     expect(xml).not.toMatch(/url="[^"]*\/api/);
     expect(xml).not.toContain("hiring");
+  });
+
+  it("serves a path that is both a page and a folder, without redirecting to the folder", () => {
+    const xml = renderWebConfig([]);
+    const site = {
+      files: new Set(["blogs.html", "blogs/post.html", "careers.html", "cases.html", "partners.html", "services/ai.html", "design/hash/a.css", "media/abc.webp", "index.html", "404.html"]),
+      dirs: new Set(["blogs", "careers", "cases", "partners", "services", "design", "media"]),
+    };
+    for (const path of ["blogs", "careers", "cases", "partners"]) {
+      expect(outcome(xml, site, path)).toEqual({ kind: "rewrite", url: `${path}.html` });
+      expect(outcome(xml, site, `${path}/`)).toEqual({ kind: "rewrite", url: `${path}.html` });
+    }
+    expect(outcome(xml, site, "blogs/post")).toEqual({ kind: "rewrite", url: "blogs/post.html" });
+    expect(outcome(xml, site, "services")).toEqual({ kind: "status", status: 404 });
+    expect(outcome(xml, site, "services/")).toEqual({ kind: "status", status: 404 });
+    expect(outcome(xml, site, "design")).toEqual({ kind: "status", status: 404 });
+    expect(outcome(xml, site, "media")).toEqual({ kind: "status", status: 404 });
+    expect(outcome(xml, site, "services/ai")).toEqual({ kind: "rewrite", url: "services/ai.html" });
+    expect(outcome(xml, site, "design/hash/a.css")).toEqual({ kind: "file", url: "design/hash/a.css" });
+    expect(outcome(xml, site, "media/abc.webp")).toEqual({ kind: "file", url: "media/abc.webp" });
+    expect(outcome(xml, site, "")).toEqual({ kind: "file", url: "index.html" });
+    expect(rule(xml, "Clean URLs")).not.toContain("IsDirectory");
+    expect(rule(xml, "Clean URLs")).not.toContain("Redirect");
+  });
+
+  it("rejects an absolute careers endpoint and accepts a same-site path", () => {
+    expect(careersEndpointError("https://hiring.example/api/careers/applications")).toMatch(/absolute URL/);
+    expect(careersEndpointError("//hiring.example/api")).toMatch(/absolute URL/);
+    expect(careersEndpointError("/api/careers/applications")).toBeNull();
+    expect(careersEndpointError("")).toBeNull();
   });
 
   it("builds a config with no redirect rules when the table is empty, as in the snapshot", () => {
@@ -106,3 +160,36 @@ describe("web.config", () => {
     expect(xml.startsWith('<?xml version="1.0" encoding="utf-8"?>')).toBe(true);
   });
 });
+
+/**
+ * What the generated rules do to one request, using the same conditions IIS
+ * evaluates. A path that is a directory is not skipped when its .html file exists.
+ * A directory with no page becomes a 404, not IIS's directory redirect and 403.
+ */
+function outcome(
+  xml: string,
+  site: { files: Set<string>; dirs: Set<string> },
+  request: string,
+): { kind: "rewrite"; url: string } | { kind: "file"; url: string } | { kind: "status"; status: number } | { kind: "iis-directory" } {
+  const path = request.replace(/^\/+/, "");
+  const physical = path.endsWith("/") ? path.slice(0, -1) : path;
+  const rules = [...xml.matchAll(/<rule name="[^"]*"[\s\S]*?<\/rule>/g)].map((match) => match[0]);
+  for (const block of rules) {
+    if (block.includes('name="Clean URLs"')) {
+      const matched = /^(.+?)\/?$/.exec(path);
+      if (!matched) continue;
+      const target = matched[1];
+      if (block.includes('matchType="IsFile" negate="true"') && site.files.has(physical)) continue;
+      if (block.includes('matchType="IsDirectory" negate="true"') && site.dirs.has(physical)) continue;
+      if (!site.files.has(`${target}.html`)) continue;
+      return { kind: "rewrite", url: `${target}.html` };
+    }
+    if (block.includes('type="CustomResponse"') && block.includes('statusCode="404"') && block.includes('matchType="IsDirectory"')) {
+      if (physical !== "" && site.dirs.has(physical)) return { kind: "status", status: 404 };
+    }
+  }
+  if (path === "" && xml.includes('<add value="index.html" />')) return { kind: "file", url: "index.html" };
+  if (site.files.has(physical)) return { kind: "file", url: physical };
+  if (site.dirs.has(physical)) return { kind: "iis-directory" };
+  return { kind: "status", status: 404 };
+}
