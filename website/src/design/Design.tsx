@@ -29,7 +29,7 @@ export function DesignScripts({ set, slot }: { set: DesignSetName; slot: ScriptS
     <>
       {scripts.map((script) => (
         script.src === "js/careers-apply.js"
-          ? <script key={script.src} src={behaviorUrl("careers")} data-vacancies={JSON.stringify(getSite().content.collections.vacancies.map((vacancy) => ({ slug: vacancy.slug, title: vacancy.title })))} />
+          ? <script key={script.src} src={behaviorUrl("careers")} data-failure-message="Submission failed. Please try again." data-vacancies={JSON.stringify(getSite().content.collections.vacancies.map((vacancy) => ({ slug: vacancy.slug, title: vacancy.title })))} />
           : <script key={script.src} src={designUrl(script.src)} type={script.module ? "module" : undefined} />
       ))}
     </>

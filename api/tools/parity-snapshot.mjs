@@ -29,7 +29,7 @@ const mediaRoot = path.join(repoRoot, "artifacts", "parity-media");
 
 const catalog = "DigitalHubContent_Parity";
 const forbidden = ["DigitalHubContent", "DigitalHubContent_Studio", "DigitalHubContent_Test", "DigitalHubContent_E2e"];
-const origin = "http://127.0.0.1:5097";
+const origin = `http://127.0.0.1:${process.env.PARITY_API_PORT ?? 5097}`;
 const adminEmail = "parity-admin@digitalhub.test";
 const adminPassword = "Parity-Only-Passw0rd!";
 const buildToken = "parity-only-build-token-" + Math.random().toString(36).slice(2, 12);
@@ -121,6 +121,10 @@ async function waitForApi() {
   }
   throw new Error("The parity API did not start.");
 }
+
+// Check before reading credentials, building, or touching the parity database.
+const dirty = run("git", ["status", "--porcelain", "--untracked-files=no"], { cwd: repoRoot }).trim();
+if (dirty) throw new Error("Refusing snapshot refresh: tracked files have uncommitted changes. Commit them first so the recorded API commit reproduces the snapshot.");
 
 const secret = secretConnectionString();
 const server = valueOf(secret, "Server", "Data Source") ?? "localhost";
@@ -217,14 +221,8 @@ ALTER ROLE db_datawriter ADD MEMBER [${appLogin.replace(/]/g, "]]")}];
   step("Publish the placeholder case studies, blog posts, and error pages");
   const published = {};
   published["case-studies"] = await publishDrafts("case-studies", token);
-  published["blog-posts"] = await publishDrafts("blog-posts", token);
+  published["blog-posts"] = await publishDrafts("blog-posts", token, listedBlogTitles());
   published["error-pages"] = await publishErrorPages(token);
-
-  // Publishing is still through the API. Only in this throwaway parity catalog,
-  // preserve the source's original publication dates, which the importer stores
-  // in created_at. Otherwise every article byline shows the snapshot run date.
-  step("Restore imported article publication dates in " + catalog);
-  sql(catalog, "UPDATE blog_posts SET published_at = created_at WHERE published_at IS NOT NULL;");
 
   step("Export the snapshot");
   const content = await api("GET", "/api/v1/build/content", { buildHeader: buildToken });
@@ -275,16 +273,24 @@ ALTER ROLE db_datawriter ADD MEMBER [${appLogin.replace(/]/g, "]]")}];
 /* Publishes every draft in a collection, filling only what the publish checks
    demand. Anything filled is recorded and reported, so invented text is never
    silently part of the snapshot. */
-async function publishDrafts(collection, token) {
+async function publishDrafts(collection, token, keep = null) {
   const drafts = await listAll(collection, token, "status=draft");
   const names = [];
+  const left = [];
   for (const row of drafts) {
+    // HTML-only posts were never listed. They stay drafts, as on the real database.
+    if (keep && !keep.has(row.title)) { left.push(row.slug); continue; }
     await publishOne(collection, row.id, token);
     names.push(row.slug);
   }
 
-  console.log(`  ${collection}: published ${names.length}`);
+  console.log(`  ${collection}: published ${names.length}; left as drafts ${left.length}${left.length ? " (" + left.join(", ") + ")" : ""}`);
   return names;
+}
+
+function listedBlogTitles() {
+  const content = JSON.parse(fs.readFileSync(path.join(sourceRoot, "content", "site-content.json"), "utf8"));
+  return new Set(content.collections.blogs.map((post) => post.title));
 }
 
 /** The list endpoint caps pageSize at 100, so read every page. */
@@ -425,10 +431,9 @@ commit produce the same content, the same counts, and the same structure — but
 
 - **Item ids are new GUIDs.** Do not store a snapshot id anywhere that has to
   survive a refresh, and do not hard-code one in a test.
-- Blog **\`publishedAt\`** is restored from the imported original publication
-  date (\`created_at\`) in the parity database after API publishing. Blog
-  \`dateModified\` is the imported editorial modification date. Other publish
-  timestamps and \`updatedAt\` can still reflect the export run.
+- **\`publishedAt\` and \`updatedAt\`** can reflect the time of the run.
+  They are system timestamps, not editorial publication dates. Blog
+  \`dateModified\` is the imported editorial modification date.
 
 Everything else compares byte for byte.
 

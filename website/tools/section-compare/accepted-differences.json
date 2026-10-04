@@ -1,0 +1,25 @@
+[
+  {
+    "id": "unlisted-articles",
+    "pages": ["/blogs/digital-transformation-signs.html", "/blogs/augment-vs-outsource-tech-team.html"],
+    "sections": ["blog-view-hero", "blog-view-body", "blog-view-related"],
+    "kind": "absent-page",
+    "reason": "The two HTML-only articles were not listed by the old site. They stay drafts, as on the real database. All six sections remain in the 119 denominator; their page chrome is also absent."
+  },
+  {
+    "id": "careers-empty-state",
+    "pages": ["/careers/index.html"],
+    "sections": ["opportunities"],
+    "kind": "empty-vacancies",
+    "message": "No open roles right now.",
+    "reason": "No test vacancies were migrated. Only the vacancy list is replaced; the rest of the section must match."
+  },
+  {
+    "id": "service-case-accessible-names",
+    "pages": ["/services/ai-automation.html", "/services/data-analytics.html", "/services/enterprise-software.html", "/services/outsourcing.html"],
+    "sections": ["cases"],
+    "kind": "case-labels",
+    "oldLabels": ["Read case study: Ministry of Planning and Economic Development", "Read case study: Credit Guarantee Corporation", "Read case study: Leading Egyptian Bank DEX"],
+    "reason": "Accessible names now match visible case titles. One old label named the wrong client. Only these aria-label changes are accepted."
+  }
+]

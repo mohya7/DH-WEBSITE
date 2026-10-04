@@ -65,6 +65,16 @@ async function application(page: Page) {
   await page.locator('[name="noticePeriodWeeks"]').fill('2');
   await page.locator('[name="linkedin"]').fill('https://linkedin.com/in/example');
 }
+test('careers shows its configured failure message for an HTML gateway error', async ({ page }) => {
+  await page.route('**/api/careers/applications', (route) => route.fulfill({ status: 502, contentType: 'text/html', body: '<h1>Bad Gateway</h1>' }));
+  await application(page);
+  const message = await page.locator('script[data-failure-message]').getAttribute('data-failure-message');
+  await page.locator('[name="resume"]').setInputFiles({ name: 'cv.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\ntest') });
+  await page.locator('button[type="submit"]').click();
+  await expect(page.locator('.careers-apply-form__error')).toHaveText(message!);
+  await expect(page.locator('button[type="submit"]')).toBeEnabled();
+  await expect(page.locator('form.careers-apply-form')).toBeVisible();
+});
 test('careers checks file limits, submits multipart to configuration, and safely resets after success', async ({ page }) => {
   let submissions = 0;
   let body = '';

@@ -8,8 +8,9 @@ describe("routes", () => {
     const content = snapshotContent();
     const { routes } = buildRoutes(content);
     const withPaths = allItems(content).filter((item) => item.path !== null);
-    // Parity publishes all five articles, including the two HTML-only pages.
-    expect(routes).toHaveLength(27);
+    // Only the three listed articles are published; HTML-only posts stay drafts.
+    expect(content.collections['blog-posts']).toHaveLength(3);
+    expect(routes).toHaveLength(25);
     expect(routes.map((route) => route.path).sort()).toEqual(withPaths.map((item) => item.path).sort());
     for (const route of routes) expect(route.item.path).toBe(route.path);
   });

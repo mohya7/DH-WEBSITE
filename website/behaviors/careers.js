@@ -6,6 +6,7 @@
   var button = form.querySelector('.submit-btn');
   var buttonNodes = Array.from(button.childNodes);
   var sending = false;
+  var failureMessage = document.currentScript.getAttribute('data-failure-message') || 'Submission failed. Please try again.';
   var ranges = [['0-1', '0 – 1'], ['1-3', '1 – 3'], ['3-5', '3 – 5'], ['5-7', '5 – 7'], ['7-10', '7 – 10'], ['10-plus', '+10']];
   var experience = form.elements.namedItem('yearsOfExperience');
   ranges.forEach(function (range) { experience.add(new Option(range[1], range[0])); });
@@ -49,8 +50,10 @@
     form.querySelector('.careers-apply-form__error')?.remove();
     try {
       var response = await fetch(form.getAttribute('data-submit-url'), { method: 'POST', body: new FormData(form) });
-      var data = await response.json();
-      if (!response.ok) throw new Error(typeof data.error === 'string' ? data.error : 'Submission failed. Please try again.');
+      var data;
+      try { data = await response.json(); } catch { throw new Error(failureMessage); }
+      if (!data || typeof data !== 'object') throw new Error(failureMessage);
+      if (!response.ok) throw new Error(typeof data.error === 'string' ? data.error : failureMessage);
       var success = element('div', '', 'careers-apply-form careers-apply-form--success');
       success.setAttribute('role', 'status');
       success.append(element('h3', 'Application received'));
@@ -65,7 +68,7 @@
       form.replaceWith(success);
       reset.addEventListener('click', function () { success.replaceWith(form); form.reset(); role = setRole(); });
     } catch (error) {
-      showError(error.message || 'Submission failed. Please try again.');
+      showError(error.message || failureMessage);
     } finally {
       sending = false;
       button.disabled = false;

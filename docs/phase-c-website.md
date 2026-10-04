@@ -69,6 +69,8 @@ Screenshot comparison fails on any difference except these. Adding to this list 
 | Careers | Vacancy list shows its empty-state message instead of three job links | All six vacancies were test data; none were migrated |
 | Careers detail | The three dummy job pages do not exist | Same |
 | 404, 500 | New pages with no counterpart | The current site has none |
+| Two unlisted blog articles | Six sections absent; pages stay drafts | Approved Section 5 correction task: they were never listed |
+| Four service pages | Case-card aria-labels use visible titles | Approved accessibility correction; one old label named the wrong client |
 | Any page | Link targets use clean URLs instead of `.html` | Decided URL change; not visible in screenshots |
 
 ---
@@ -267,6 +269,81 @@ The website uses ordinary full-page links, never Next's client-side navigation, 
   Reporting only the sections the build happens to render hides the pages that
   are not built yet. Run it with `node tools/section-compare/server.mjs` in
   `website/`.
+
+
+### Section 5 correction task — implementation notes
+
+The 2026-10-04 task authorizes importer blog changes and the comparison/parity
+tools on this branch. The importer has no test project (the API tests reference
+the API and images projects only). The snapshot refresh executes the importer;
+the published article comparison exercises its listed-post content. The two
+HTML-only cluster labels remain draft data and are therefore not in the public
+snapshot; their extraction is reviewed against the source tags, not claimed as
+public snapshot test coverage.
+
+The machine-readable accepted-differences register is
+`website/tools/section-compare/accepted-differences.json`: six absent sections
+from the two unlisted draft articles, the careers vacancy empty state, and the
+four service case-card accessible-label corrections. It retains all 119 old
+sections. Header, mobile navigation and footer are compared separately on all
+26 source page pairs; the two absent pages have no chrome. Scripts are excluded
+symmetrically and checked by build loading-order checks and browser tests.
+No content-date or unified-navigation difference is silently accepted.
+
+**Fixed design markup/constants in Section 5:**
+
+| Constant | Source / use |
+|---|---|
+| Navigation icon map | Old header: enterprise software `code`, data `chart-bar`, AI `brain`, outsourcing `users`; Microsoft `brand-windows`, Huawei `cloud`, Nexthink `device-desktop-analytics`, eFinance `credit-card`, Vodafone `antenna-bars-5`. Unknown paths use `arrow-right`. |
+| Header controls | Old markup: chevron-down, arrow-right, menu-2 icons; `Digital Hub home`, `Primary`, `Open menu` accessible labels; mobile `All partners` and `Get in Touch`. Group state follows route paths, never label text. |
+| Logo | `/assets/digital-hub-logo.png`, Digital Hub alt, 180 by 48 dimensions; home intro logo has empty alt. |
+| Footer tagline | `Empowering Digital Evolution`, absent on home and case pages as in the source. |
+| Footer Contact heading styles | Home/case opacity 0.6, about/service 0.55; 11px, weight 600, white RGB, spacing 0.12em, uppercase, margin 0 0 14px. Other sets use their stylesheet. |
+| Footer fixed bottom markup | Two separate spans: copyright `© 2024 Digital Hub S.A.E. All rights reserved.` and partner line `Microsoft Partner · Nexthink Authorized Reseller · Huawei · eFinance · Vodafone`. Contact has copyright only. Explicit fixed-markup choice allowed by this task: the combined legacy `footerText` is not parsed or rendered. Future editability needs separate settings. |
+| Footer contact group | Identified by its home link or mail/tel link kinds, never the word Contact. Label comes from navigation; `Contact` is the fallback. Email, phone and social URLs come only from settings. |
+| Social icons/accessible labels | LinkedIn/linkedin, Facebook/facebook, Instagram/instagram, TikTok/tiktok from the old footer. |
+| Background | Old SVG wave paths, six on home/service, four on other sets, none on case pages; strokes #1A9AD6/#36B0E5/#F4970B with original opacity/width; grid/wave class names unchanged. |
+| Article pillar labels | Old `scripts/blog-pages.js` labels for DEX, enterprise software, data/cloud, AI and outsourcing. This existing article-only map is outside site-chrome logic; links still resolve stored references. |
+| Application form | Old apply markup, labels, placeholders, option labels, file-validation and response messages; API endpoint is configuration. Failure text is passed on the behavior script and used for non-JSON responses. |
+
+**5.6 Page report.** Direct `main > section` selectors, in rendered order. All
+pages also render the shared header/mobile navigation and footer. This lists the
+25 intended public routes plus 404 and 500; `_not-found.html` duplicates 404.
+The two unlisted article routes are drafts and must not be exported. No vacancy
+detail route is exported. Team/news items are rendered within listing sections.
+Article body sections include the table of contents, rich text and FAQ; the
+related section includes article cards and the pillar link. The empty national
+portal placeholder has no designed source page; its generated hero is listed.
+
+| Page | Rendered sections in order |
+|---|---|
+| `/404` | `.hub-hero`, `.hub-cta` |
+| `/500` | `.hub-hero`, `.hub-cta` |
+| `/about` | `#top`, `#services`, `#mission`, `.trust-logos`, `#stats`, `#history`, `#ceo`, `#leadership` |
+| `/blogs` | `.hub-hero`, `.section.hub-section.hub-section--tight`, `.hub-cta` |
+| `/blogs/azure-digital-egypt-2030` | `.blog-view-hero`, `.blog-view-body`, `.blog-view-related` |
+| `/blogs/digital-employee-experience` | `.blog-view-hero`, `.blog-view-body`, `.blog-view-related` |
+| `/blogs/enterprise-ai-production` | `.blog-view-hero`, `.blog-view-body`, `.blog-view-related` |
+| `/careers` | `.hub-hero`, `.section.careers-values.hub-section--tight`, `#opportunities`, `.hub-cta` |
+| `/careers/apply` | `.hub-hero`, `.section.careers-detail.hub-section--tight` |
+| `/cases` | `.hub-hero`, `.section.hub-section.hub-section--tight`, `.hub-cta` |
+| `/cases/data-center-transformation` | `.section.cs-hero`, `.section`, `.section`, `.section`, `.section`, `.section` |
+| `/cases/ministry-planning` | `.section.cs-hero`, `.section`, `.section`, `.section`, `.section`, `.section` |
+| `/cases/national-portal` | `.hub-hero` |
+| `/cases/nexthink-dex-bank` | `.section.cs-hero`, `.section`, `.section`, `.section`, `.section`, `.section` |
+| `/contact` | `.hub-hero`, `#contact` |
+| `/` | `#top`, `#services`, `#delivery`, `.trust-logos`, `#numbers`, `#partners`, `#cases`, `#news`, `#blogs` |
+| `/news` | `.hub-hero`, `.section.hub-section.hub-section--tight`, `.hub-cta` |
+| `/partners` | `.hub-hero`, `.section.hub-section.hub-section--tight`, `.section.hub-cta` |
+| `/partners/efinance` | `.partner-view-hero`, `.partner-view-body`, `.section.partner-focus`, `.section.partner-view-related`, `.section.hub-cta` |
+| `/partners/huawei` | `.partner-view-hero`, `.partner-view-body`, `.section.partner-focus`, `.section.partner-view-related`, `.section.hub-cta` |
+| `/partners/microsoft` | `.partner-view-hero`, `.partner-view-body`, `.section.partner-focus`, `.section.partner-view-related`, `.section.hub-cta` |
+| `/partners/nexthink` | `.partner-view-hero`, `.partner-view-body`, `.section.partner-focus`, `.section.partner-view-related`, `.section.hub-cta` |
+| `/partners/vodafone` | `.partner-view-hero`, `.partner-view-body`, `.section.partner-focus`, `.section.partner-view-related`, `.section.hub-cta` |
+| `/services/ai-automation` | `#top`, `#problem`, `#services`, `#method`, `#industries`, `#cases` |
+| `/services/data-analytics` | `#top`, `#problem`, `#services`, `#method`, `#industries`, `#cases` |
+| `/services/enterprise-software` | `#top`, `#problem`, `#services`, `#method`, `#industries`, `#cases` |
+| `/services/outsourcing` | `#top`, `#problem`, `#services`, `#method`, `#industries`, `#cases` |
 
 ---
 

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = path.resolve('out');
+const port = Number(process.env.WEBSITE_TEST_PORT ?? 4177);
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.woff2': 'font/woff2' };
 http.createServer((req, res) => {
   let pathname;
@@ -19,4 +20,4 @@ http.createServer((req, res) => {
   }
   res.writeHead(404, { 'Content-Type': types['.html'] });
   res.end(fs.readFileSync(path.join(root, '404.html')));
-}).listen(4177, '127.0.0.1', () => console.log('Built website: http://127.0.0.1:4177'));
+}).listen(port, '127.0.0.1', () => console.log(`Built website: http://127.0.0.1:${port}`));

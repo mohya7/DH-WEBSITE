@@ -88,7 +88,7 @@ describe("content against the schemas", () => {
   it("reports a count that does not match the items, as a truncated response would", () => {
     const content = snapshotContent();
     content.collections["blog-posts"].pop();
-    expect(validateContent(content).join("\n")).toContain(`Collection "blog-posts" has ${content.counts["blog-posts"] - 1} items but the content says ${content.counts["blog-posts"]}`);
+    expect(validateContent(content).join("\n")).toContain('Collection "blog-posts" has 2 items but the content says 3');
   });
 
   it("reports media used by content but missing from the media list", () => {
