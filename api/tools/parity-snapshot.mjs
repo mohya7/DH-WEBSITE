@@ -140,6 +140,10 @@ if (resolved !== catalog || forbidden.includes(resolved)) {
 
 let child = null;
 try {
+  step("Restore migration tools and API dependencies");
+  run("dotnet", ["tool", "restore"], { cwd: apiRoot });
+  run("dotnet", ["restore", apiProject], { cwd: apiRoot });
+
   step("Drop and recreate " + catalog);
   sql("master", `
 IF DB_ID(N'${catalog}') IS NOT NULL
@@ -151,7 +155,6 @@ CREATE DATABASE [${catalog}];
 `);
 
   step("Apply migrations with the elevated account");
-  run("dotnet", ["tool", "restore"], { cwd: apiRoot });
   run("dotnet", [
     "tool", "run", "dotnet-ef", "--", "database", "update",
     "--project", apiProject, "--configuration", "Release", "--connection", elevatedConnection,
@@ -204,6 +207,7 @@ ALTER ROLE db_datawriter ADD MEMBER [${appLogin.replace(/]/g, "]]")}];
     cwd: repoRoot,
     stdio: ["ignore", logHandle, logHandle],
     env: apiEnv,
+    windowsHide: true,
   });
 
   try {
