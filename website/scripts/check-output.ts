@@ -24,6 +24,7 @@
  *     module preloads each in the set's order (React places preconnects first
  *     and module preloads after the stylesheets), and its scripts in order and
  *     position, with nothing from another set
+ *   - out/web.config is the file generated from this content's redirects
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -37,6 +38,7 @@ import { createSite, type Site } from "../src/content/site";
 import { runtimeTracesIn } from "../src/build/strip-runtime";
 import { designFileList, designHash } from "../src/design/folder";
 import { designSets, type DesignSetName, type ScriptSlot } from "../src/design/sets";
+import { renderWebConfig } from "../src/iis/web-config";
 
 export interface OutputReport {
   pages: { route: string; file: string; pageType: string }[];
@@ -325,6 +327,12 @@ function main(): void {
   console.log(`Static HTML: no page contains Next's client runtime; every page's head tags and content are in its HTML.`);
   console.log(`Loading order: every page loads exactly its design set.`);
   console.log(`Design: out/design/${designHash(path.join(websiteRoot, "design"))}/ matches website/design/ byte for byte (${designFileList(path.join(websiteRoot, "design")).length} files).`);
+
+  const configFile = path.join(websiteRoot, "out", "web.config");
+  const expectedConfig = renderWebConfig(content.redirects);
+  if (!fs.existsSync(configFile)) report.problems.push("web.config is missing from the build output.");
+  else if (fs.readFileSync(configFile, "utf8") !== expectedConfig) report.problems.push("out/web.config does not match the redirects in the content.");
+  else console.log(`web.config: ${content.redirects.length} redirect(s), report-only content security policy, custom 404 and 500.`);
 
   if (report.problems.length > 0) {
     console.error(`\nThe build output failed its checks:\n- ${report.problems.join("\n- ")}\n`);
