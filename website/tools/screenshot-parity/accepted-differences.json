@@ -1,0 +1,4 @@
+{
+  "description": "Visual differences that are allowed. Each entry needs old (the feature/interviewer-portal path), new (the built site path), width, browser, and a reason. The list starts empty. Any difference that is not listed here fails the comparison. Add an entry only when a difference has been decided.",
+  "differences": []
+}

@@ -1,0 +1,32 @@
+{
+  "masks": [
+    {
+      "selector": "#heroFluidCanvas",
+      "effect": "hide",
+      "reason": "The home page WebGL fluid canvas redraws every frame. The picture is not the same from one capture to the next. The canvas sits behind the hero text, so the mask hides the canvas element itself and leaves the headline, which is static, in the capture."
+    },
+    {
+      "selector": "#heroSandCanvas",
+      "effect": "hide",
+      "reason": "The home page sand canvas places grains with Math.random and redraws them every frame. It sits behind the hero text, so the mask hides the canvas and leaves the headline in the capture."
+    }
+  ],
+  "reviewedNotMasked": [
+    {
+      "selector": "#newsViewport",
+      "reason": "The news carousel does not autoplay. No timer advances it. It rests on one slide, and reduced motion removes its slide transition, so the cards are static content and stay in the comparison."
+    },
+    {
+      "selector": "#blogsViewport",
+      "reason": "The blogs carousel does not autoplay. It rests on the first cards. Those cards stay in the comparison."
+    },
+    {
+      "selector": ".trust-track",
+      "reason": "The logo strip is a CSS marquee. The site's reduced-motion rule sets that animation to none, so the logos sit still and are compared."
+    },
+    {
+      "selector": ".marquee-track",
+      "reason": "The text marquee is a CSS animation. The site's reduced-motion rule sets it to none, so the words sit still and are compared."
+    }
+  ]
+}
