@@ -32,6 +32,15 @@ export async function compareSites(options) {
   const candidatePort = options.candidatePort ?? portFromEnv("SCREENSHOT_CANDIDATE_PORT", 4391);
   if (baselinePort === candidatePort) throw new Error("The two screenshot servers need different ports.");
 
+  for (const browser of browsers) {
+    try {
+      await withBrowser(browser, [widths[0]], async () => {});
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Could not launch ${browser}.\n${message}`);
+    }
+  }
+
   const baselineServer = await startServer({ root: options.baselineRoot, port: baselinePort });
   const candidateServer = await startServer({
     root: options.candidateRoot,
