@@ -5,11 +5,11 @@ the script again instead.
 
 | | |
 |---|---|
-| Generated | 2026-10-01T15:51:53.848Z |
+| Generated | 2026-10-04T11:03:22.669Z |
 | Source database | `DigitalHubContent_Parity` (throwaway, rebuilt each run) |
 | Content imported from | `feature/interviewer-portal` at `eb05f0647c3458cc612f8a9ed8625fbb0ebc7752` |
-| API commit | `c1f3dbe1c45c3a859f34b490c5db22df7b13934b` |
-| content.json | 170,471 bytes |
+| API commit | `86ff6033d034fff4c5ecd34a163a6e4185a0d2df` |
+| content.json | 156,398 bytes |
 | media | 104 files, 2,938,496 bytes |
 
 ## Item counts
@@ -20,12 +20,12 @@ the script again instead.
 | services | 4 |
 | partners | 5 |
 | case-studies | 4 |
-| blog-posts | 5 |
+| blog-posts | 3 |
 | vacancies | 0 |
 | team-members | 6 |
 | news-items | 3 |
 
-Unresolved references: 0.
+Unresolved references: 2.
 
 ## What this contains
 
@@ -40,10 +40,9 @@ commit produce the same content, the same counts, and the same structure — but
 
 - **Item ids are new GUIDs.** Do not store a snapshot id anywhere that has to
   survive a refresh, and do not hard-code one in a test.
-- Blog **`publishedAt`** is restored from the imported original publication
-  date (`created_at`) in the parity database after API publishing. Blog
-  `dateModified` is the imported editorial modification date. Other publish
-  timestamps and `updatedAt` can still reflect the export run.
+- **`publishedAt` and `updatedAt`** can reflect the time of the run.
+  They are system timestamps, not editorial publication dates. Blog
+  `dateModified` is the imported editorial modification date.
 
 Everything else compares byte for byte.
 
@@ -54,7 +53,7 @@ a website built from it would be missing whole regions of the design. This
 snapshot comes from a throwaway parity database where those were published, so
 screenshot comparison can cover them. The real database is not changed.
 
-Published for parity: 4 case studies, 5 blog posts, 2 error pages.
+Published for parity: 4 case studies, 3 blog posts, 2 error pages.
 
 ### Text added to make them publishable
 

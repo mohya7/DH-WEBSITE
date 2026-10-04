@@ -176,7 +176,8 @@ for (const r of results) {
 
 out.innerHTML =
   `<p class="totals"><strong class="${matched === total ? "ok" : "bad"}">${matched} of ${total}</strong> sections match` +
-  ` — ${byStatus("differs")} differ, ${byStatus("renders nothing")} render nothing, ${byStatus("extra in new")} extra.</p>` +
+  ` — ${byStatus("accepted")} accepted, ${byStatus("differs")} differ, ${byStatus("renders nothing")} render nothing, ${byStatus("extra in new")} extra.</p>` +
+  `<p>Chrome: ${chromeResults.filter(r => r.status === 'match').length} match, ${chromeResults.filter(r => r.status === 'accepted').length} accepted, ${chromeResults.filter(r => !['match', 'accepted'].includes(r.status)).length} failures. Total unregistered failures: ${failing.length}.</p>` +
   "<table><tr><th>page</th><th>matched</th></tr>" +
   Object.entries(rows).map(([page, r]) =>
     `<tr><td>${page}</td><td class="${r.match === r.total ? "ok" : "bad"}">${r.match} / ${r.total}</td></tr>`).join("") +

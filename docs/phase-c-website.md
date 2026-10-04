@@ -315,35 +315,55 @@ Article body sections include the table of contents, rich text and FAQ; the
 related section includes article cards and the pillar link. The empty national
 portal placeholder has no designed source page; its generated hero is listed.
 
-| Page | Rendered sections in order |
-|---|---|
-| `/404` | `.hub-hero`, `.hub-cta` |
-| `/500` | `.hub-hero`, `.hub-cta` |
-| `/about` | `#top`, `#services`, `#mission`, `.trust-logos`, `#stats`, `#history`, `#ceo`, `#leadership` |
-| `/blogs` | `.hub-hero`, `.section.hub-section.hub-section--tight`, `.hub-cta` |
-| `/blogs/azure-digital-egypt-2030` | `.blog-view-hero`, `.blog-view-body`, `.blog-view-related` |
-| `/blogs/digital-employee-experience` | `.blog-view-hero`, `.blog-view-body`, `.blog-view-related` |
-| `/blogs/enterprise-ai-production` | `.blog-view-hero`, `.blog-view-body`, `.blog-view-related` |
-| `/careers` | `.hub-hero`, `.section.careers-values.hub-section--tight`, `#opportunities`, `.hub-cta` |
-| `/careers/apply` | `.hub-hero`, `.section.careers-detail.hub-section--tight` |
-| `/cases` | `.hub-hero`, `.section.hub-section.hub-section--tight`, `.hub-cta` |
-| `/cases/data-center-transformation` | `.section.cs-hero`, `.section`, `.section`, `.section`, `.section`, `.section` |
-| `/cases/ministry-planning` | `.section.cs-hero`, `.section`, `.section`, `.section`, `.section`, `.section` |
-| `/cases/national-portal` | `.hub-hero` |
-| `/cases/nexthink-dex-bank` | `.section.cs-hero`, `.section`, `.section`, `.section`, `.section`, `.section` |
-| `/contact` | `.hub-hero`, `#contact` |
-| `/` | `#top`, `#services`, `#delivery`, `.trust-logos`, `#numbers`, `#partners`, `#cases`, `#news`, `#blogs` |
-| `/news` | `.hub-hero`, `.section.hub-section.hub-section--tight`, `.hub-cta` |
-| `/partners` | `.hub-hero`, `.section.hub-section.hub-section--tight`, `.section.hub-cta` |
-| `/partners/efinance` | `.partner-view-hero`, `.partner-view-body`, `.section.partner-focus`, `.section.partner-view-related`, `.section.hub-cta` |
-| `/partners/huawei` | `.partner-view-hero`, `.partner-view-body`, `.section.partner-focus`, `.section.partner-view-related`, `.section.hub-cta` |
-| `/partners/microsoft` | `.partner-view-hero`, `.partner-view-body`, `.section.partner-focus`, `.section.partner-view-related`, `.section.hub-cta` |
-| `/partners/nexthink` | `.partner-view-hero`, `.partner-view-body`, `.section.partner-focus`, `.section.partner-view-related`, `.section.hub-cta` |
-| `/partners/vodafone` | `.partner-view-hero`, `.partner-view-body`, `.section.partner-focus`, `.section.partner-view-related`, `.section.hub-cta` |
-| `/services/ai-automation` | `#top`, `#problem`, `#services`, `#method`, `#industries`, `#cases` |
-| `/services/data-analytics` | `#top`, `#problem`, `#services`, `#method`, `#industries`, `#cases` |
-| `/services/enterprise-software` | `#top`, `#problem`, `#services`, `#method`, `#industries`, `#cases` |
-| `/services/outsourcing` | `#top`, `#problem`, `#services`, `#method`, `#industries`, `#cases` |
+| Page | Rendered sections in order | Content section types / composition |
+|---|---|---|
+| `/404` | `.hub-hero`, `.hub-cta` | rich_text (rich text uses hub CTA markup) |
+| `/500` | `.hub-hero`, `.hub-cta` | rich_text (rich text uses hub CTA markup) |
+| `/about` | `#top`, `#services`, `#mission`, `.trust-logos`, `#stats`, `#history`, `#ceo`, `#leadership` | hero, service_cards, pillars, logo_bar, stats, timeline, profile, team_grid |
+| `/blogs` | `.hub-hero`, `.section.hub-section.hub-section--tight`, `.hub-cta` | hub_hero, blog_list, call_to_action |
+| `/blogs/azure-digital-egypt-2030` | `.blog-view-hero`, `.blog-view-body`, `.blog-view-related` | Article hero; body with TOC and FAQ; related items |
+| `/blogs/digital-employee-experience` | `.blog-view-hero`, `.blog-view-body`, `.blog-view-related` | Article hero; body with TOC and FAQ; related items |
+| `/blogs/enterprise-ai-production` | `.blog-view-hero`, `.blog-view-body`, `.blog-view-related` | Article hero; body with TOC and FAQ; related items |
+| `/careers` | `.hub-hero`, `.section.careers-values.hub-section--tight`, `#opportunities`, `.hub-cta` | hub_hero, values, vacancy_list, call_to_action |
+| `/careers/apply` | `.hub-hero`, `.section.careers-detail.hub-section--tight` | hub_hero; application form |
+| `/cases` | `.hub-hero`, `.section.hub-section.hub-section--tight`, `.hub-cta` | hub_hero, case_cards, call_to_action |
+| `/cases/data-center-transformation` | `.section.cs-hero`, `.section`, `.section`, `.section`, `.section`, `.section` | hero, problem, rich_text, rich_text, related_items, call_to_action |
+| `/cases/ministry-planning` | `.section.cs-hero`, `.section`, `.section`, `.section`, `.section`, `.section` | hero, problem, rich_text, rich_text, related_items, call_to_action |
+| `/cases/national-portal` | `.hub-hero` | Generated hub hero |
+| `/cases/nexthink-dex-bank` | `.section.cs-hero`, `.section`, `.section`, `.section`, `.section`, `.section` | hero, problem, rich_text, rich_text, related_items, call_to_action |
+| `/contact` | `.hub-hero`, `#contact` | hub_hero, contact_details |
+| `/` | `#top`, `#services`, `#delivery`, `.trust-logos`, `#numbers`, `#partners`, `#cases`, `#news`, `#blogs` | hero, service_cards, delivery_flow, logo_bar, stats, partner_grid, case_cards, news_carousel, blog_list |
+| `/news` | `.hub-hero`, `.section.hub-section.hub-section--tight`, `.hub-cta` | hub_hero, news_carousel, call_to_action |
+| `/partners` | `.hub-hero`, `.section.hub-section.hub-section--tight`, `.section.hub-cta` | hub_hero, partner_grid, call_to_action |
+| `/partners/efinance` | `.partner-view-hero`, `.partner-view-body`, `.section.partner-focus`, `.section.partner-view-related`, `.section.hub-cta` | hero, partner_overview, partner_focus, related_items, call_to_action |
+| `/partners/huawei` | `.partner-view-hero`, `.partner-view-body`, `.section.partner-focus`, `.section.partner-view-related`, `.section.hub-cta` | hero, partner_overview, partner_focus, related_items, call_to_action |
+| `/partners/microsoft` | `.partner-view-hero`, `.partner-view-body`, `.section.partner-focus`, `.section.partner-view-related`, `.section.hub-cta` | hero, partner_overview, partner_focus, related_items, call_to_action |
+| `/partners/nexthink` | `.partner-view-hero`, `.partner-view-body`, `.section.partner-focus`, `.section.partner-view-related`, `.section.hub-cta` | hero, partner_overview, partner_focus, related_items, call_to_action |
+| `/partners/vodafone` | `.partner-view-hero`, `.partner-view-body`, `.section.partner-focus`, `.section.partner-view-related`, `.section.hub-cta` | hero, partner_overview, partner_focus, related_items, call_to_action |
+| `/services/ai-automation` | `#top`, `#problem`, `#services`, `#method`, `#industries`, `#cases` | service_hero, problem, feature_grid, methodology, industries, case_cards |
+| `/services/data-analytics` | `#top`, `#problem`, `#services`, `#method`, `#industries`, `#cases` | service_hero, problem, feature_grid, methodology, industries, case_cards |
+| `/services/enterprise-software` | `#top`, `#problem`, `#services`, `#method`, `#industries`, `#cases` | service_hero, problem, feature_grid, methodology, industries, case_cards |
+| `/services/outsourcing` | `#top`, `#problem`, `#services`, `#method`, `#industries`, `#cases` | service_hero, problem, feature_grid, methodology, industries, case_cards |
+
+---
+
+### Section 5 correction run — 2026-10-04
+
+Builder checks: 158/158 website tests, TypeScript, snapshot build (25 routes +
+error pages), 5/5 browser tests, and the design-source check pass. The refreshed
+snapshot records clean API commit `86ff603` and three published posts.
+
+**Not ready to merge:** the expanded comparison reports 105/119 section matches,
+11 registered differences and three publication-byline failures. Chrome has
+44 matches, six accepted absences and 28 failures. It exits nonzero (31 failures).
+The old pages disagree on navigation labels/link sets, email addresses and the
+news copyright year. These are not approved exceptions; the website still uses
+the shared navigation and contact settings. Full results and coverage are in
+`D:/work/DigitalHub/agent-tasks/reports/codex.md` and its comparison JSON attachment.
+
+The editorial-date fix is shown, **not applied**, in
+[`section-5-editorial-dates-proposal.md`](section-5-editorial-dates-proposal.md).
+It requires Part B confirmation. No Section 6 implementation has started.
 
 ---
 

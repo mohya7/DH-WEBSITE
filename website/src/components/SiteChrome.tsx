@@ -33,7 +33,7 @@ export function Header({ site, set, currentPath }: { site: Site; set: DesignSetN
       <li key={node.id} className="has-dd" role="none">
         <a className={`nav-link${groupActive(node) ? " is-active" : ""}`} aria-current={partnersGroup(node) && currentPath === '/partners' ? 'page' : undefined} role="menuitem" tabIndex={0}>{node.label} <i className="ti ti-chevron-down" /></a>
         <div className="dd" role="menu">{visible(node.children).map((child) => <a key={child.id} href={navigationHref(child)} className={active(navigationHref(child)) ? "is-active" : undefined} aria-current={set !== 'service' && active(navigationHref(child)) ? "page" : undefined}><i className={`ti ti-${icons[navigationHref(child)!] ?? "arrow-right"}`} />{` ${child.label}`}</a>)}</div>
-      </li> : <li key={node.id}><a className={`nav-link${active(navigationHref(node)) ? " is-active" : ""}`} href={navigationHref(node)} aria-current={currentPath === navigationHref(node) || set === 'blog-post' && active(navigationHref(node)) ? "page" : undefined}>{node.label}</a></li>)}</ul>
+      </li> : <li key={node.id}><a className={`nav-link${active(navigationHref(node)) ? " is-active" : ""}`} href={navigationHref(node)} aria-current={currentPath === navigationHref(node) || ['blog-post', 'apply'].includes(set) && active(navigationHref(node)) ? "page" : undefined}>{node.label}</a></li>)}</ul>
     {cta ? <a className="nav-cta" href={navigationHref(cta)} aria-current={currentPath === navigationHref(cta) ? 'page' : undefined}>{cta.label} <i className="ti ti-arrow-right" /></a> : null}
     <button className="nav-burger" id="navBurger" aria-label="Open menu" aria-expanded="false"><i className="ti ti-menu-2" /></button>
   </div>;
