@@ -16,7 +16,7 @@ website, is next.
   Evidence — shows evidence for every item. Moved items name their destination.
 - Never start the next section without confirmation.
 - Verify by running it. Report failures before fixing them; never fix silently.
-- One agent at a time in this folder, and never on the same branch as the cloud agent.
+- One agent per worktree, and never on the same branch as the cloud agent.
 
 ## Agents
 - Codex, in Cursor on this machine, builds. One branch per piece of work, pushed to
@@ -28,8 +28,8 @@ website, is next.
   retired.
 - No agent ever opens a session in DH-WEBSITE-main. It is read-only, and stays on
   feature/interviewer-portal.
-- No .NET project is built or run on this machine while Windows Application Control
-  blocks it. .NET is verified by GitHub Actions.
+- .NET may be built and run on this machine. If Application Control blocks anything,
+  stop and report.
 
 ## Schema
 - Show every migration before applying it. No exceptions, however small.
