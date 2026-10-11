@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace DigitalHub.Api.Data.Migrations
 {
     [DbContext(typeof(ContentDbContext))]
-    [Migration("20261011093928_AddSiteSettingsCareersEmail")]
+    [Migration("20261011101107_AddSiteSettingsCareersEmail")]
     partial class AddSiteSettingsCareersEmail
     {
         /// <inheritdoc />

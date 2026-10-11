@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace DigitalHub.Api.Data.Migrations
 {
     [DbContext(typeof(ContentDbContext))]
-    [Migration("20261011093911_BlogEditorialCalendarDates")]
+    [Migration("20261011101053_BlogEditorialCalendarDates")]
     partial class BlogEditorialCalendarDates
     {
         /// <inheritdoc />
