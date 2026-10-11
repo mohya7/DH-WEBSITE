@@ -1,7 +1,7 @@
 {
   "_about": [
     "Differences between feature/interviewer-portal and the build that the section comparison accepts.",
-    "The CI job (.github/section-compare/run.mjs) fails on any section that is not a match unless it is listed here with the same status and, for 'differs', exactly the same reported differences (the harness reports up to the first eight).",
+    "npm run compare:sections (website/tools/section-compare/run.mjs) fails on any section that is not a match unless it is listed here with the same status and, for 'differs', exactly the same reported differences (the harness reports up to the first eight).",
     "An entry that no longer occurs is reported as stale; remove it in the same change that fixes it.",
     "Changing this file is changing what CI accepts: say why in the pull request."
   ],

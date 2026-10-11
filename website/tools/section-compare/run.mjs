@@ -1,18 +1,22 @@
 /*
- * CI driver for website/tools/section-compare: opens the comparison page the
- * harness serves, waits for its result (window.__result), and writes it out.
- * The comparison itself is the harness's; nothing here changes what it checks.
+ * Runs website/tools/section-compare: serves the old site and the build, opens
+ * the comparison page, waits for its result (window.__result), and writes it out.
+ * The comparison itself is compare.html; nothing here changes what it checks.
  *
- *   node .github/section-compare/run.mjs <url> <outDir>
+ *   npm run compare:sections
+ *   SECTION_COMPARE_OLD=... SECTION_COMPARE_NEW=... SECTION_COMPARE_PORT=4390
  *
- * Writes result.json (the harness's own result), report.md (also appended to
- * the job summary), page.html and page.png.
+ * Or, when a server is already running:
+ *   node tools/section-compare/run.mjs <url> <outDir>
+ *
+ * Writes result.json (the harness's own result), report.md, page.html and page.png.
  *
  * Fails (exit 1) when the harness produces no result, or when any section is
  * not a match and is not in accepted-differences.json with the same status
  * and, for "differs", exactly the same reported differences. Accepted entries
  * that no longer occur are reported as stale, without failing.
  */
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,29 +25,37 @@ import { chromium } from "playwright";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const accepted = JSON.parse(fs.readFileSync(path.join(here, "accepted-differences.json"), "utf8")).accepted;
 const key = (entry) => `${entry.status} ${entry.page} ${entry.id}`;
+const registerPath = "website/tools/section-compare/accepted-differences.json";
 
-const [url = "http://127.0.0.1:4190/", outDir = "section-compare-output"] = process.argv.slice(2);
+const started = await startServerUnlessGiven();
+const url = started.url;
+const outDir = started.outDir;
 fs.mkdirSync(outDir, { recursive: true });
 
-const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
-const consoleLines = [];
-page.on("console", (message) => consoleLines.push(`[${message.type()}] ${message.text()}`));
-page.on("pageerror", (error) => consoleLines.push(`[pageerror] ${error.message}`));
-
+let browser;
 let result = null;
 try {
-  await page.goto(url);
-  await page.waitForFunction(() => window.__result !== undefined, null, { timeout: 15 * 60 * 1000, polling: 1000 });
-  result = await page.evaluate(() => window.__result);
-} catch (error) {
-  consoleLines.push(`[driver] ${error instanceof Error ? error.message : String(error)}`);
-}
+  browser = await chromium.launch();
+  const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
+  const consoleLines = [];
+  page.on("console", (message) => consoleLines.push(`[${message.type()}] ${message.text()}`));
+  page.on("pageerror", (error) => consoleLines.push(`[pageerror] ${error.message}`));
 
-fs.writeFileSync(path.join(outDir, "page.html"), await page.content());
-await page.screenshot({ path: path.join(outDir, "page.png"), fullPage: true });
-fs.writeFileSync(path.join(outDir, "console.log"), consoleLines.join("\n") + "\n");
-await browser.close();
+  try {
+    await page.goto(url);
+    await page.waitForFunction(() => window.__result !== undefined, null, { timeout: 15 * 60 * 1000, polling: 1000 });
+    result = await page.evaluate(() => window.__result);
+  } catch (error) {
+    consoleLines.push(`[driver] ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  fs.writeFileSync(path.join(outDir, "page.html"), await page.content());
+  await page.screenshot({ path: path.join(outDir, "page.png"), fullPage: true });
+  fs.writeFileSync(path.join(outDir, "console.log"), consoleLines.join("\n") + "\n");
+} finally {
+  if (browser) await browser.close();
+  await started.stop();
+}
 
 if (result === null) {
   const message = "The section comparison produced no result. See console.log and page.png in the artifact.";
@@ -82,7 +94,7 @@ const lines = [
     `${count("differs")} differ, ${count("renders nothing")} render nothing, ${count("extra in new")} extra in the build.`,
   "",
   unexpected.length === 0
-    ? `**Pass.** Every section that is not a match is an accepted difference (${acceptedNow.length} of ${accepted.length} listed in .github/section-compare/accepted-differences.json).`
+    ? `**Pass.** Every section that is not a match is an accepted difference (${acceptedNow.length} of ${accepted.length} listed in ${registerPath}).`
     : `**Fail.** ${unexpected.length} section(s) differ in a way that is not accepted.`,
   "",
 ];
@@ -112,3 +124,59 @@ lines.push(
 fs.writeFileSync(path.join(outDir, "report.md"), lines.join("\n"));
 console.log(lines.join("\n"));
 if (unexpected.length > 0) process.exit(1);
+
+async function startServerUnlessGiven() {
+  const given = process.argv[2];
+  if (given && given.startsWith("http")) {
+    return { url: given, outDir: process.argv[3] ?? "section-compare-output", stop: async () => {} };
+  }
+
+  const oldRoot = process.env.SECTION_COMPARE_OLD;
+  const newRoot = process.env.SECTION_COMPARE_NEW;
+  if (!oldRoot || !newRoot) {
+    console.error("Set SECTION_COMPARE_OLD and SECTION_COMPARE_NEW, or pass the comparison URL and an output directory.");
+    process.exit(1);
+  }
+  const port = portFromEnv();
+  const child = spawn(process.execPath, [path.join(here, "server.mjs"), oldRoot, newRoot, String(port)], {
+    stdio: ["ignore", "inherit", "inherit"],
+  });
+  const address = `http://127.0.0.1:${port}/`;
+  const deadline = Date.now() + 30_000;
+  let up = false;
+  while (Date.now() < deadline) {
+    if (child.exitCode !== null) break;
+    try {
+      const response = await fetch(address);
+      if (response.ok) {
+        up = true;
+        break;
+      }
+    } catch {
+      // The server is not listening yet.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  if (!up) {
+    child.kill();
+    console.error(`The section comparison server did not answer on ${address}.`);
+    process.exit(1);
+  }
+  return {
+    url: address,
+    outDir: process.env.SECTION_COMPARE_OUT ?? "section-compare-output",
+    stop: async () => {
+      if (child.exitCode === null) child.kill();
+    },
+  };
+}
+
+function portFromEnv() {
+  const raw = process.env.SECTION_COMPARE_PORT ?? "4390";
+  const port = Number(raw);
+  if (!Number.isInteger(port) || port < 4300 || port > 4399) {
+    console.error(`SECTION_COMPARE_PORT must be a port in 4300–4399. Got "${raw}".`);
+    process.exit(1);
+  }
+  return port;
+}

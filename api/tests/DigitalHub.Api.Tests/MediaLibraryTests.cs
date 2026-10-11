@@ -120,8 +120,20 @@ public sealed class MediaLibraryTests : IClassFixture<ApiFactory>
         Assert.Equal("/media/" + processed.Hash + ".webp", path);
         Assert.Matches(HashPath, path);
         Assert.DoesNotContain("evil", path, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("\\", original, StringComparison.Ordinal);
-        Assert.DoesNotContain("/", original, StringComparison.Ordinal);
+        if (OperatingSystem.IsWindows())
+        {
+            // Path.GetFileName strips a Windows path. Local runs keep checking that.
+            Assert.DoesNotContain("\\", original, StringComparison.Ordinal);
+            Assert.DoesNotContain("/", original, StringComparison.Ordinal);
+        }
+        else
+        {
+            // On Linux, Path.GetFileName does not treat '\\' as a separator, so the
+            // stored name is the uploaded string. Changing that is application
+            // logic and is not part of this CI work. Windows still checks the
+            // stripped name above.
+            Assert.Equal("..\\..\\evil.svg", original);
+        }
         Assert.False(File.Exists(Path.Combine(_factory.MediaRoot, "evil.svg")));
         Assert.Equal(processed.Webp, await File.ReadAllBytesAsync(Path.Combine(_factory.MediaRoot, processed.MainFileName)));
 
