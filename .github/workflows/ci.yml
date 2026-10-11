@@ -216,7 +216,14 @@ jobs:
       - name: Typecheck
         run: npx tsc -b
 
-      - name: Build
+      - name: Unit tests
+        run: npm test
+
+      - name: Build (fails if the preview's design files differ from website/design/)
+        env:
+          # Required, with no default (Phase C, 9.2). This build is not deployed;
+          # each deployment sets its own website address.
+          VITE_PUBLIC_SITE_URL: https://website.ci.invalid
         run: npm run build
 
       - uses: actions/setup-dotnet@v4

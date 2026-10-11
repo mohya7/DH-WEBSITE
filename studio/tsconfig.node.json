@@ -14,5 +14,5 @@
     "composite": true,
     "types": ["node", "vite/client"]
   },
-  "include": ["vite.config.ts"]
+  "include": ["vite.config.ts", "vitest.config.ts", "vite/**/*.ts", "scripts/**/*.ts", "test/**/*.ts", "src/content/siteUrl.ts", "src/content/model.ts", "../website/src/design/folder.ts"]
 }
