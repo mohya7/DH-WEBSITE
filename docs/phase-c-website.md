@@ -297,9 +297,9 @@ No content-date or unified-navigation difference is silently accepted.
 | Navigation icon map | Old header: enterprise software `code`, data `chart-bar`, AI `brain`, outsourcing `users`; Microsoft `brand-windows`, Huawei `cloud`, Nexthink `device-desktop-analytics`, eFinance `credit-card`, Vodafone `antenna-bars-5`. Unknown paths use `arrow-right`. |
 | Header controls | Old markup: chevron-down, arrow-right, menu-2 icons; `Digital Hub home`, `Primary`, `Open menu` accessible labels; mobile `All partners` and `Get in Touch`. Group state follows route paths, never label text. |
 | Logo | `/assets/digital-hub-logo.png`, Digital Hub alt, 180 by 48 dimensions; home intro logo has empty alt. |
-| Footer tagline | `Empowering Digital Evolution`, absent on home and case pages as in the source. |
+| Footer tagline | `Empowering Digital Evolution`, absent on home and case pages as in the source. `/partners/nexthink` keeps its old page's own tagline, `Empowering Digital Evolution — Egypt & GCC` (by route path). |
 | Footer Contact heading styles | Home/case opacity 0.6, about/service 0.55; 11px, weight 600, white RGB, spacing 0.12em, uppercase, margin 0 0 14px. Other sets use their stylesheet. |
-| Footer fixed bottom markup | Two separate spans: copyright `© 2024 Digital Hub S.A.E. All rights reserved.` and partner line `Microsoft Partner · Nexthink Authorized Reseller · Huawei · eFinance · Vodafone`. Contact has copyright only. Explicit fixed-markup choice allowed by this task: the combined legacy `footerText` is not parsed or rendered. Future editability needs separate settings. |
+| Footer fixed bottom markup | Two separate spans: copyright `© <build year> Digital Hub S.A.E. All rights reserved.` (the UTC year of the build; see the chrome decisions below) and partner line `Microsoft Partner · Nexthink Authorized Reseller · Huawei · eFinance · Vodafone`. Contact has copyright only. Explicit fixed-markup choice allowed by this task: the combined legacy `footerText` is not parsed or rendered. Future editability needs separate settings. |
 | Footer contact group | Identified by its home link or mail/tel link kinds, never the word Contact. Label comes from navigation; `Contact` is the fallback. Email, phone and social URLs come only from settings. |
 | Social icons/accessible labels | LinkedIn/linkedin, Facebook/facebook, Instagram/instagram, TikTok/tiktok from the old footer. |
 | Background | Old SVG wave paths, six on home/service, four on other sets, none on case pages; strokes #1A9AD6/#36B0E5/#F4970B with original opacity/width; grid/wave class names unchanged. |
@@ -364,6 +364,27 @@ the shared navigation and contact settings. Full results and coverage are in
 The editorial-date fix is shown, **not applied**, in
 [`section-5-editorial-dates-proposal.md`](section-5-editorial-dates-proposal.md).
 It requires Part B confirmation. No Section 6 implementation has started.
+
+### Section 5 chrome decisions — decided by the marketing lead, 2026-10-11
+
+The old pages disagree on these; the site renders one answer. The importer sets
+the content from the source (`api/tools/DigitalHub.ContentImport/ContentWriter.cs`);
+every remaining old-site difference has an exact entry in
+`website/tools/section-compare/accepted-differences.json`.
+
+| Item | Decision | Where it comes from |
+|---|---|---|
+| Main email | `sales@digitalhub.com.eg` on every page except careers, apply, and vacancies — footer and contact details | Site setting `email`. The importer reads it from the old news footer and stops if any article footer disagrees |
+| Careers email | `careers@digitalhub.com.eg` on the careers, apply, and vacancy pages. When the setting is empty, those pages show the main email | Site setting `careersEmail` (Studio: Site settings → Careers email). The importer reads it from the old careers page footer |
+| Footer Company column | About, Partners, Careers, News — four links, in that order, on every page. Labels are the old footer labels exactly (`About Us`, `Partners`, `Careers`, `News`) | Footer navigation. The importer takes each link and label from the first old footer that has it: the home footer for the first three, the news footer for News |
+| Menu and footer service labels | The shorter shared labels most old pages use (menu `AI & Intelligent Automation`; footer `Enterprise Software`, `Data & Analytics`, `AI & Automation`, `Outsourcing`) | Navigation imported from the old home page, which has them. The three article pages had longer ones |
+| Copyright year | The year of the build, so it never goes stale | Rendered at build (`copyrightYear()` in `SiteChrome.tsx`) |
+
+Blog bylines read the editorial calendar dates `datePublished` and `dateModified`
+(`YYYY-MM-DD`, Studio date pickers), never the publish time; see
+[`section-5-editorial-dates-proposal.md`](section-5-editorial-dates-proposal.md) as
+amended: no conversion map, and the migration drops and re-adds the columns behind
+a guard that refuses once any blog post has been edited.
 
 ---
 
