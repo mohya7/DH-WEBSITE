@@ -17,7 +17,7 @@ The output is `out/`. There is no default source: with `CONTENT_SOURCE` unset,
 or set to anything but `snapshot` or `api`, the build stops and says what to set.
 On Windows PowerShell, set the variables with `$env:CONTENT_SOURCE = "snapshot"`.
 
-`npm run build` runs six steps, and any of them can stop the build:
+`npm run build` runs seven steps, and any of them can stop the build:
 
 | Step | What it does |
 |---|---|
@@ -26,7 +26,8 @@ On Windows PowerShell, set the variables with `$env:CONTENT_SOURCE = "snapshot"`
 | `prepare:design` | Copies `design/` to `public/design/<hash>/` |
 | `next build` | Renders every page from `.content/` |
 | `strip:runtime` | Removes Next's client runtime from every page: the site ships static HTML plus the ported scripts |
-| `check:output` | Checks `out/`, and prints the page count and every route |
+| `webconfig` | Writes `out/web.config` from the redirects in the prepared content |
+| `check:output` | Checks `out/`, including that `web.config`, and prints the page count and every route |
 
 `npm run dev` runs the first three steps, then `next dev`. The dev server still runs Next's client runtime, which can undo the ported scripts' changes; check their behaviour against `out/` from `npm run build`.
 
