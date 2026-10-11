@@ -51,7 +51,7 @@ public sealed class Section5Tests : IClassFixture<ApiFactory>
 
         var read = await SendAsync(editor, HttpMethod.Get, "/api/v1/blog-posts/" + id);
         Assert.Equal(HttpStatusCode.OK, read.Status);
-        var fields = JsonDocument.Parse(read.Body).RootElement.GetProperty("fields");
+        var fields = JsonDocument.Parse(read.Body).RootElement.GetProperty("content").GetProperty("fields");
         Assert.Equal("2024-02-29", fields.GetProperty("datePublished").GetString());
         Assert.Equal("2026-08-12", fields.GetProperty("dateModified").GetString());
 
@@ -69,7 +69,7 @@ public sealed class Section5Tests : IClassFixture<ApiFactory>
             fields = new { datePublished = (string?)null, dateModified = (string?)null },
         });
         Assert.Equal(HttpStatusCode.OK, cleared.Status);
-        var after = JsonDocument.Parse((await SendAsync(editor, HttpMethod.Get, "/api/v1/blog-posts/" + id)).Body).RootElement.GetProperty("fields");
+        var after = JsonDocument.Parse((await SendAsync(editor, HttpMethod.Get, "/api/v1/blog-posts/" + id)).Body).RootElement.GetProperty("content").GetProperty("fields");
         Assert.Equal(JsonValueKind.Null, after.GetProperty("datePublished").ValueKind);
         Assert.Equal(JsonValueKind.Null, after.GetProperty("dateModified").ValueKind);
     }
@@ -165,8 +165,8 @@ public sealed class Section5Tests : IClassFixture<ApiFactory>
         // Every case runs in its own transaction and is rolled back.
         await GuardCaseAsync(guard, null, refuses: false);
         await GuardCaseAsync(guard, "UPDATE blog_posts SET version = 2 WHERE id = @id;", refuses: true);
-        await GuardCaseAsync(guard, "INSERT INTO working_copies (id, blog_post_id, document, saved_at) VALUES (NEWID(), @id, N'{}', SYSUTCDATETIME());", refuses: true);
-        await GuardCaseAsync(guard, "INSERT INTO revisions (id, entity_type, entity_id, version, snapshot, published_at) VALUES (NEWID(), N'blog_post', @id, 1, N'{}', SYSUTCDATETIME());", refuses: true);
+        await GuardCaseAsync(guard, "INSERT INTO working_copies (id, blog_post_id, document, saved_at) VALUES (NEWID(), @id, N'{{}}', SYSUTCDATETIME());", refuses: true);
+        await GuardCaseAsync(guard, "INSERT INTO revisions (id, entity_type, entity_id, version, snapshot, published_at) VALUES (NEWID(), N'blog_post', @id, 1, N'{{}}', SYSUTCDATETIME());", refuses: true);
     }
 
     private async Task GuardCaseAsync(string guard, string? edit, bool refuses)
