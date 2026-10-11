@@ -1,4 +1,4 @@
-﻿<!-- Web SDK: a class-library test assembly is blocked by Application Control on this machine. -->
+<!-- Web SDK: a class-library test assembly is blocked by Application Control on this machine. -->
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
@@ -25,6 +25,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\DigitalHub.Api\DigitalHub.Api.csproj" />
     <ProjectReference Include="..\..\src\DigitalHub.Images\DigitalHub.Images.csproj" />
+    <!-- Aliased: the importer has its own top-level Program. -->
+    <ProjectReference Include="..\..\tools\DigitalHub.ContentImport\DigitalHub.ContentImport.csproj" Aliases="importer" />
   </ItemGroup>
 
   <ItemGroup>

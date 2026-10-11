@@ -469,9 +469,7 @@ static partial class ContentWriter
     {
         var title = htmlOnly ? HeadingText(document!) ?? slug : Text(item, "title");
         var summary = htmlOnly ? Meta(document!, "description") ?? "" : Text(item, "summary");
-        var modified = htmlOnly ? BylineDate(document!, "Updated") : ParseDate(Text(item, "dateModified"));
-        var created = htmlOnly ? BylineDate(document!, "Published") ?? modified : ParseDate(Text(item, "datePublished")) ?? modified;
-        modified ??= created;
+        var (published, modified) = BlogDates(item, document, source, htmlOnly);
         var imagePath = htmlOnly
             ? Catalog.NormalizeAsset(document!.QuerySelector(".blog-view-media img")?.GetAttribute("src") ?? "", source, sourceRoot)
             : Catalog.NormalizeAsset(Text(item, "image"), "index.html", sourceRoot);
@@ -484,8 +482,9 @@ static partial class ContentWriter
             Status = ContentStatus.Draft,
             SortOrder = htmlOnly ? 0 : Int(item, "order"),
             PublishedAt = null,
-            CreatedAt = created ?? default,
-            UpdatedAt = modified ?? created ?? default,
+            CreatedAt = default,
+            UpdatedAt = default,
+            DatePublished = published,
             DateModified = modified,
             Version = 1,
             Category = Required(htmlOnly ? Slugify(document!.QuerySelector(".blog-view-tag")?.TextContent) : Text(item, "category"), 80),
@@ -1374,7 +1373,8 @@ static partial class ContentWriter
         SameRecord(left, right) && left.Summary == right.Summary && left.ImageId == right.ImageId && left.ImageAltOverride == right.ImageAltOverride
         && left.Category == right.Category && left.CategoryLabel == right.CategoryLabel && left.ReadTime == right.ReadTime
         && left.Accent == right.Accent && left.Cluster == right.Cluster && left.Body == right.Body && left.AnswerBlock == right.AnswerBlock
-        && left.Faq == right.Faq && left.Featured == right.Featured && T(left.DateModified) == T(right.DateModified);
+        && left.Faq == right.Faq && left.Featured == right.Featured
+        && left.DatePublished == right.DatePublished && left.DateModified == right.DateModified;
 
     private static bool SameTeam(TeamMember left, TeamMember right) =>
         SameRecord(left, right) && left.Role == right.Role && left.ImageId == right.ImageId && left.ImageAltOverride == right.ImageAltOverride
@@ -1622,13 +1622,35 @@ static partial class ContentWriter
         return match.Success ? int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture) : 0;
     }
 
-    private static DateTime? BylineDate(AngleSharp.Html.Dom.IHtmlDocument document, string label)
+    /// <summary>
+    /// Editorial calendar dates, each from its own source field: the listed
+    /// article's JSON, or an HTML-only article's byline. A missing date stays
+    /// null; one is never copied into the other or into a system time.
+    /// </summary>
+    internal static (DateOnly? Published, DateOnly? Modified) BlogDates(JsonElement item, AngleSharp.Html.Dom.IHtmlDocument? document, string source, bool htmlOnly) =>
+        htmlOnly
+            ? (BylineCalendarDate(document!, "Published", source), BylineCalendarDate(document!, "Updated", source))
+            : (SourceCalendarDate(Text(item, "datePublished"), source, "datePublished"), SourceCalendarDate(Text(item, "dateModified"), source, "dateModified"));
+
+    /// <summary>A listed article's YYYY-MM-DD field. Blank is null; anything else invalid stops the import.</summary>
+    private static DateOnly? SourceCalendarDate(string? value, string source, string field)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+        return ContentFields.ParseCalendarDate(value.Trim())
+            ?? throw new InvalidOperationException(source + ": " + field + " \"" + value + "\" is not a YYYY-MM-DD calendar date.");
+    }
+
+    /// <summary>"Published 15 Jun 2026" in an HTML-only article's byline. Absent is null; unreadable stops the import.</summary>
+    private static DateOnly? BylineCalendarDate(AngleSharp.Html.Dom.IHtmlDocument document, string label, string source)
     {
         var byline = document.QuerySelector(".blog-view-byline")?.TextContent ?? "";
-        var match = Regex.Match(byline, label + @"\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})");
-        return match.Success && DateTime.TryParse(match.Groups[1].Value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var parsed)
-            ? Stamp(parsed)
-            : null;
+        var match = Regex.Match(byline, Regex.Escape(label) + @"\s+(\S+\s+\S+\s+\S+)");
+        if (!match.Success)
+            return null;
+        return DateOnly.TryParseExact(match.Groups[1].Value, ["d MMM yyyy", "dd MMM yyyy"], CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
+            ? date
+            : throw new InvalidOperationException(source + ": byline date \"" + match.Groups[0].Value + "\" is not a day, month and year.");
     }
 
     private static ImportModel Prepare(string sourceRoot, ImportPlan plan, MediaWrite written)
