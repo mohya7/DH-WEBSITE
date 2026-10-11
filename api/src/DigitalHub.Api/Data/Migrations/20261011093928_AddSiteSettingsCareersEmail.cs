@@ -1,12 +1,10 @@
-using Microsoft.EntityFrameworkCore.Migrations;
+﻿using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
 namespace DigitalHub.Api.Data.Migrations
 {
-    /// <summary>
-    /// The address the careers and apply pages show in place of the main email.
-    /// </summary>
+    /// <inheritdoc />
     public partial class AddSiteSettingsCareersEmail : Migration
     {
         /// <inheritdoc />

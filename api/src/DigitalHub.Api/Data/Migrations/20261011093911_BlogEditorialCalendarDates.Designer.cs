@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace DigitalHub.Api.Data.Migrations
 {
     [DbContext(typeof(ContentDbContext))]
-    [Migration("20261004125203_AddSiteSettingsCareersEmail")]
-    partial class AddSiteSettingsCareersEmail
+    [Migration("20261011093911_BlogEditorialCalendarDates")]
+    partial class BlogEditorialCalendarDates
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -1277,11 +1277,6 @@ namespace DigitalHub.Api.Data.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)")
                         .HasColumnName("analytics_container_id");
-
-                    b.Property<string>("CareersEmail")
-                        .HasMaxLength(320)
-                        .HasColumnType("nvarchar(320)")
-                        .HasColumnName("careers_email");
 
                     b.Property<string>("CookieBannerText")
                         .HasColumnType("nvarchar(max)")
