@@ -79,25 +79,25 @@ public sealed class AuditRollbackTests : IClassFixture<ApiFactory>
         await command.ExecuteNonQueryAsync();
     }
 
+    /// <summary>
+    /// The administrator connection to DigitalHubContent_Test, which this test
+    /// needs to create and drop a trigger. From ConnectionStrings:ContentAdmin
+    /// when configured (an environment variable in CI, using SQL
+    /// authentication); otherwise derived from ConnectionStrings:Content with
+    /// Windows authentication, as on the local machine.
+    /// </summary>
     private static string ElevatedTestConnectionString()
     {
-        var content = new ConfigurationBuilder()
-            .AddUserSecrets(ApiFactory.SecretsId)
-            .Build()
-            .GetConnectionString("Content");
+        var configuration = ApiFactory.TestConfiguration();
+        var admin = configuration.GetConnectionString("ContentAdmin");
+        if (!string.IsNullOrWhiteSpace(admin))
+            return ApiFactory.ToTestCatalog(admin);
+
+        var content = configuration.GetConnectionString("Content");
         if (string.IsNullOrWhiteSpace(content))
             throw new InvalidOperationException("ConnectionStrings:Content is not configured.");
 
-        const string catalog = "Database=DigitalHubContent";
-        var index = content.IndexOf(catalog, StringComparison.OrdinalIgnoreCase);
-        if (index < 0)
-            throw new InvalidOperationException("The API connection string must name DigitalHubContent.");
-
-        var after = index + catalog.Length;
-        if (after < content.Length && content[after] == '_')
-            throw new InvalidOperationException("The API connection string must name DigitalHubContent.");
-
-        var test = string.Concat(content.AsSpan(0, after), "_Test", content.AsSpan(after));
+        var test = ApiFactory.ToTestCatalog(content);
         var stripped = System.Text.RegularExpressions.Regex.Replace(
             test,
             ";?(User ID|UID|Password|PWD)=[^;]*",
