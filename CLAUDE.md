@@ -16,20 +16,27 @@ website, is next.
   Evidence — shows evidence for every item. Moved items name their destination.
 - Never start the next section without confirmation.
 - Verify by running it. Report failures before fixing them; never fix silently.
-- One agent per worktree, and never on the same branch as the cloud agent.
+- One agent per worktree, and never two agents on the same branch.
 
 ## Agents
-- Codex, in Cursor on this machine, builds. One branch per piece of work, pushed to
-  origin. Codex never merges.
-- Claude Code, in Cursor on this machine, verifies Codex's branch against the
-  checklist in docs/phase-c-website.md and merges it. No agent verifies its own work.
-- One agent runs at a time in this folder.
-- The Claude cloud agent finishes pull request #13 (GitHub Actions) and is then
-  retired.
-- No agent ever opens a session in DH-WEBSITE-main. It is read-only, and stays on
+- Three agents: Codex, Claude Code, and Cursor's agent. Any of them builds, checks,
+  and tests.
+- Each works in its own worktree beside dh-platform: dh-platform-codex,
+  dh-platform-claude, dh-platform-cursor. dh-platform stays on
+  rebuild/dotnet-platform and is used only for merging.
+- A builder owns its branch. A checker works on a detached checkout of the commit it
+  checks, so the builder can keep working.
+- Parallel work must change different files.
+- No agent checks its own work. Rotation: Claude Code checks Codex, Cursor checks
+  Claude Code, Codex checks Cursor.
+- Findings go back to the builder. The checker does not fix them.
+- One integrator per section, named in the prompt, merges checked branches into
+  rebuild/dotnet-platform one at a time, re-running the suites after each.
+- Ports: Codex 41xx, Claude Code 42xx, Cursor 43xx. Never stop a process you did not
+  start.
+- Only one agent at a time may reset or write a local database.
+- No agent ever opens a session in DH-WEBSITE-main. It is read-only, on
   feature/interviewer-portal.
-- .NET may be built and run on this machine. If Application Control blocks anything,
-  stop and report.
 
 ## Schema
 - Show every migration before applying it. No exceptions, however small.
