@@ -40,7 +40,7 @@ export function PageScaffold({ item, pageType, site = getSite() }: { item: AnyCo
         {set === "apply" ? <ApplicationForm endpoint={careersEndpoint()} /> : null}
       </>}
     </main>
-    <Footer site={site} set={set} />
+    <Footer site={site} set={set} currentPath={item.path ?? ""} />
     {item.sections.some((section) => section.type === "contact_details") ? <script src={behaviorUrl("contact")} data-contact-messages={JSON.stringify(item.sections.find((section) => section.type === "contact_details")!.fields)} /> : null}
   </DesignFrame>;
 }

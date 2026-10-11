@@ -110,6 +110,15 @@
     "reason": "Marketing lead decision: every page except careers, apply, and vacancies shows the main email, sales@digitalhub.com.eg, as in the old article and news footers. These pages showed sales@digitalhubgroup.com."
   },
   {
+    "id": "contact-section-email",
+    "pages": ["/get-in-touch.html"],
+    "sections": ["contact"],
+    "kind": "section-text",
+    "selector": "a",
+    "replace": [{ "old": "sales@digitalhubgroup.com", "new": "sales@digitalhub.com.eg" }],
+    "reason": "Marketing lead decision: every page except careers, apply, and vacancies shows the main email, sales@digitalhub.com.eg. The contact page's contact details showed sales@digitalhubgroup.com; only that link text is accepted."
+  },
+  {
     "id": "copyright-build-year-2024",
     "pages": [
       "/index.html", "/about-us.html", "/get-in-touch.html", "/blogs/index.html",

@@ -61,7 +61,11 @@ export function footerEmail(settings: SiteSettings, set: DesignSetName): string 
 export function copyrightYear(now: Date = new Date()): number {
   return now.getUTCFullYear();
 }
-export function Footer({ site, set }: { site: Site; set: DesignSetName }) {
+/** Old footer taglines that differ from the shared one, by route path (old partners/nexthink.html). */
+const footerTaglines: Record<string, string> = {
+  "/partners/nexthink": "Empowering Digital Evolution — Egypt & GCC",
+};
+export function Footer({ site, set, currentPath = "" }: { site: Site; set: DesignSetName; currentPath?: string }) {
   const home = set === "home";
   const styledContact = ["home", "about", "service", "case-study"].includes(set);
   const settings = site.content.settings;
@@ -71,7 +75,7 @@ export function Footer({ site, set }: { site: Site; set: DesignSetName }) {
   const contact = groups.find((node) => node.children.some((child) => child.path === '/' || /^(mailto:|tel:)/.test(child.url ?? "")));
   const socials: [keyof SiteSettings, string, string][] = [["linkedIn", "LinkedIn", "linkedin"], ["facebook", "Facebook", "facebook"], ["instagram", "Instagram", "instagram"], ["tikTok", "TikTok", "tiktok"]];
   return <footer className="footer"><div className="footer-inner"><div className="footer-top">
-    <div className={home ? "footer-logo-wrap" : undefined}><Logo className="footer-logo" lazy />{home || set === "case-study" ? null : <p className="footer-tagline">Empowering Digital Evolution</p>}</div>
+    <div className={home ? "footer-logo-wrap" : undefined}><Logo className="footer-logo" lazy />{home || set === "case-study" ? null : <p className="footer-tagline">{footerTaglines[currentPath] ?? "Empowering Digital Evolution"}</p>}</div>
     <div className="footer-cols">{groups.filter((node) => node !== contact).map((node) => <div className="footer-col" key={node.id}><h4>{node.label}</h4>{node.kind === "group" ? visible(node.children).map((child) => <a key={child.id} href={navigationHref(child)}>{child.label}</a>) : <a href={navigationHref(node)}>{node.label}</a>}</div>)}</div>
     <div className="footer-contact"><h4 style={styledContact ? { fontSize: "11px", fontWeight: 600, color: `rgba(255,255,255,${home || set === "case-study" ? "0.6" : "0.55"})`, letterSpacing: "0.12em", textTransform: "uppercase", margin: "0 0 14px" } : undefined}>{contact?.label ?? "Contact"}</h4>
       {email ? <a href={`mailto:${email}`}>{email}</a> : null}

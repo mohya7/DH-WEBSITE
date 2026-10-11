@@ -169,6 +169,13 @@ function accepted(page, id, old, now, absentPage, chrome = false) {
       }
       if (same(copy, now)) return rule;
     }
+    if (rule.kind === 'section-text') {
+      let changed = false;
+      for (const el of copy.querySelectorAll(rule.selector)) {
+        for (const pair of rule.replace) changed = replaceText(el, pair.old, pair.new) || changed;
+      }
+      if (changed && same(copy, now)) return rule;
+    }
     if (rule.kind === 'empty-vacancies') {
       const list = copy.querySelector('.careers-opps__list');
       const paragraph = copy.ownerDocument.createElement('p');

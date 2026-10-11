@@ -108,6 +108,11 @@ describe('page composition', () => {
     }
     expect(footerEmail({ ...content.settings, careersEmail: null }, 'careers')).toBe('main@example.invalid');
   });
+  it('keeps the old Nexthink footer tagline on that page only', () => {
+    const site = createSite(snapshotContent());
+    expect(renderToStaticMarkup(<Footer site={site} set="hub" currentPath="/partners/nexthink" />)).toContain('<p class="footer-tagline">Empowering Digital Evolution — Egypt &amp; GCC</p>');
+    expect(renderToStaticMarkup(<Footer site={site} set="hub" currentPath="/partners/huawei" />)).toContain('<p class="footer-tagline">Empowering Digital Evolution</p>');
+  });
   it('dates the copyright with the year of the build, as one text node', () => {
     const footer = renderToStaticMarkup(<Footer site={createSite(snapshotContent())} set="home" />);
     expect(footer).toContain(`<span>© ${new Date().getUTCFullYear()} Digital Hub S.A.E. All rights reserved.</span>`);
