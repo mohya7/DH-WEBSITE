@@ -61,17 +61,24 @@ public class ApiFactory : WebApplicationFactory<Program>
         protected override int LoginPermitLimit => Limit;
     }
 
-    private static string TestConnectionString()
-    {
-        var content = new ConfigurationBuilder()
+    /// <summary>
+    /// Test configuration: environment variables when set (CI sets
+    /// ConnectionStrings__Content), otherwise the API's user-secrets, as on the
+    /// local machine. Environment variables are added last, so they win.
+    /// </summary>
+    internal static IConfiguration TestConfiguration() =>
+        new ConfigurationBuilder()
             .AddUserSecrets(SecretsId)
-            .Build()
-            .GetConnectionString("Content");
-        if (string.IsNullOrWhiteSpace(content))
-        {
-            throw new InvalidOperationException("ConnectionStrings:Content is not configured.");
-        }
+            .AddEnvironmentVariables()
+            .Build();
 
+    /// <summary>
+    /// Rewrites a connection string that names DigitalHubContent to the test
+    /// database, DigitalHubContent_Test. Anything else is refused, so a test can
+    /// never reach the real database.
+    /// </summary>
+    internal static string ToTestCatalog(string content)
+    {
         const string catalog = "Database=DigitalHubContent";
         var index = content.IndexOf(catalog, StringComparison.OrdinalIgnoreCase);
         if (index < 0)
@@ -85,7 +92,18 @@ public class ApiFactory : WebApplicationFactory<Program>
             throw new InvalidOperationException("The API connection string must name DigitalHubContent.");
         }
 
-        var test = string.Concat(content.AsSpan(0, after), "_Test", content.AsSpan(after));
+        return string.Concat(content.AsSpan(0, after), "_Test", content.AsSpan(after));
+    }
+
+    private static string TestConnectionString()
+    {
+        var content = TestConfiguration().GetConnectionString("Content");
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            throw new InvalidOperationException("ConnectionStrings:Content is not configured.");
+        }
+
+        var test = ToTestCatalog(content);
         if (test.Contains("Integrated Security=true", StringComparison.OrdinalIgnoreCase)
             || test.Contains("Trusted_Connection=true", StringComparison.OrdinalIgnoreCase)
             || (!test.Contains("User ID=", StringComparison.OrdinalIgnoreCase)
