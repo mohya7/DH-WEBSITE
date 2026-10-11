@@ -152,6 +152,23 @@ describe("web.config", () => {
     expect(careersEndpointError("")).toBeNull();
   });
 
+  it("rejects a careers endpoint that resolves to another origin, or hides a backslash", () => {
+    for (const endpoint of [
+      "/\\hiring.example/x",
+      "/\\\\hiring.example/x",
+      "/%5Chiring.example/x",
+      "//hiring.example/x",
+      "https://hiring.example/x",
+      "/x\ny",
+    ]) {
+      expect(careersEndpointError(endpoint), endpoint).not.toBeNull();
+    }
+    expect(careersEndpointError("https://hiring.example/x")).toMatch(/absolute URL/);
+    expect(careersEndpointError("//hiring.example/x")).toMatch(/absolute URL/);
+    expect(careersEndpointError("/\\hiring.example/x")).toMatch(/absolute URL/);
+    expect(careersEndpointError("/api/careers/applications")).toBeNull();
+  });
+
   it("builds a config with no redirect rules when the table is empty, as in the snapshot", () => {
     const xml = renderWebConfig(snapshotContent().redirects);
     expect(snapshotContent().redirects).toEqual([]);
