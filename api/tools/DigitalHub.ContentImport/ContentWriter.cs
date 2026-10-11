@@ -245,7 +245,7 @@ static partial class ContentWriter
         AddPages(model, documents, media, warnings);
         AddErrorPages(model);
         AddSections(model, documents, media, sourceRoot, warnings);
-        AddNavigation(model, documents["index.html"], warnings);
+        AddNavigation(model, documents, warnings);
         model.Settings = Settings(json.RootElement, documents);
         model.Warnings = warnings;
         foreach (var warning in warnings)
@@ -682,8 +682,23 @@ static partial class ContentWriter
         setAlt(row, !string.IsNullOrWhiteSpace(alt) && !string.Equals(alt.Trim(), asset.Alt, StringComparison.Ordinal) ? Cut(alt.Trim(), 300) : null);
     }
 
-    private static void AddNavigation(ImportModel model, AngleSharp.Html.Dom.IHtmlDocument index, List<string> warnings)
+    /// <summary>
+    /// The footer Company column, decided by the marketing lead: these four links, in
+    /// this order, on every page. No old page has exactly this set (every one has Case
+    /// Studies and Blogs; only News links News), so each link is taken from the first
+    /// listed source footer that has it, with that footer's label.
+    /// </summary>
+    internal static readonly (string Target, string[] Sources)[] CompanyColumn =
+    [
+        ("about-us.html", ["index.html"]),
+        ("partners/index.html", ["index.html"]),
+        ("careers/index.html", ["index.html"]),
+        ("news/index.html", ["news/index.html"]),
+    ];
+
+    private static void AddNavigation(ImportModel model, Dictionary<string, AngleSharp.Html.Dom.IHtmlDocument> documents, List<string> warnings)
     {
+        var index = documents["index.html"];
         var sort = 0;
         var list = index.QuerySelector("ul.nav-links");
         if (list is not null)
@@ -727,6 +742,21 @@ static partial class ContentWriter
             if (parent is null)
                 continue;
             var childSort = 0;
+            if (column.QuerySelector("a[href='about-us.html']") is not null)
+            {
+                foreach (var (target, from, anchor) in CompanyLinks(documents))
+                {
+                    var link = Nav("footer", Collapse(anchor.TextContent) ?? "", anchor.GetAttribute("href"), from, childSort, parent.Id, warnings);
+                    if (link is not null)
+                        model.Navigation.Add(link);
+                    else
+                        throw new InvalidOperationException(from + ": the Company link to " + target + " did not resolve to a page.");
+                    childSort += 10;
+                }
+
+                continue;
+            }
+
             foreach (var anchor in column.QuerySelectorAll("a"))
             {
                 var link = Nav("footer", Collapse(anchor.TextContent) ?? "", anchor.GetAttribute("href"), "index.html", childSort, parent.Id, warnings);
@@ -754,6 +784,21 @@ static partial class ContentWriter
                     model.Navigation.Add(link);
                 childSort += 10;
             }
+        }
+    }
+
+    /// <summary>Each Company link's anchor in its source footer, resolved against that page.</summary>
+    internal static IEnumerable<(string Target, string From, AngleSharp.Dom.IElement Anchor)> CompanyLinks(IReadOnlyDictionary<string, AngleSharp.Html.Dom.IHtmlDocument> documents)
+    {
+        foreach (var (target, sources) in CompanyColumn)
+        {
+            var found = sources
+                .Select(source => (Source: source, Anchor: documents[source].QuerySelectorAll("footer.footer .footer-col a")
+                    .FirstOrDefault(anchor => Links.Rewrite(anchor.GetAttribute("href") ?? "", source).Clean == Links.Rewrite(target, "index.html").Clean)))
+                .FirstOrDefault(match => match.Anchor is not null);
+            if (found.Anchor is null)
+                throw new InvalidOperationException("No source footer links " + target + " for the Company column.");
+            yield return (target, found.Source, found.Anchor);
         }
     }
 
@@ -827,7 +872,6 @@ static partial class ContentWriter
         var contact = documents["get-in-touch.html"];
         var social = root.GetProperty("pages").GetProperty("home").GetProperty("social");
         var phone = contact.QuerySelector("a[href^='tel:']");
-        var mail = contact.QuerySelector("a[href^='mailto:']");
         var whatsApp = contact.QuerySelector("a[href^='https://wa.me/']")?.GetAttribute("href");
         var bottom = string.Join(" ", home.QuerySelectorAll("footer.footer .footer-bottom span").Select(span => Collapse(span.TextContent)));
         var address = ReadPostalAddress(contact);
@@ -836,7 +880,8 @@ static partial class ContentWriter
             Id = IdFor("site-settings"),
             Phone = Cut(Collapse(phone?.TextContent), 40),
             WhatsApp = Cut(whatsApp, 40),
-            Email = Cut(mail?.GetAttribute("href")?.Replace("mailto:", "", StringComparison.OrdinalIgnoreCase), 320),
+            Email = MainEmail(documents),
+            CareersEmail = FooterEmail(documents, "careers/index.html"),
             LinkedIn = Cut(Text(social, "linkedin"), 300),
             Facebook = Cut(Text(social, "facebook"), 300),
             Instagram = Cut(Text(social, "instagram"), 300),
@@ -852,6 +897,34 @@ static partial class ContentWriter
             OrganizationName = "Digital Hub",
             LegalName = "Digital Hub S.A.E.",
         };
+    }
+
+    /// <summary>
+    /// The main email, decided by the marketing lead: the address in the old news and
+    /// article footers. The old pages disagree (info@ on About, another domain on the
+    /// home and hub pages), so the import stops if these footers ever disagree.
+    /// </summary>
+    private static string MainEmail(Dictionary<string, AngleSharp.Html.Dom.IHtmlDocument> documents)
+    {
+        var news = FooterEmail(documents, "news/index.html");
+        foreach (var article in Catalog.ArticlePages)
+        {
+            var email = FooterEmail(documents, article);
+            if (!string.Equals(email, news, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException(article + ": footer email " + email + " differs from the news footer's " + news + ".");
+        }
+
+        return news;
+    }
+
+    /// <summary>The mailto address in a source page's footer contact column.</summary>
+    internal static string FooterEmail(IReadOnlyDictionary<string, AngleSharp.Html.Dom.IHtmlDocument> documents, string source)
+    {
+        var href = documents[source].QuerySelector("footer.footer .footer-contact a[href^='mailto:']")?.GetAttribute("href");
+        var email = href?["mailto:".Length..].Trim();
+        return string.IsNullOrEmpty(email) || email.Length > 320
+            ? throw new InvalidOperationException(source + ": the footer has no usable mailto address.")
+            : email;
     }
 
     private static PostalAddressParts? ReadPostalAddress(AngleSharp.Html.Dom.IHtmlDocument contact)
@@ -1403,7 +1476,8 @@ static partial class ContentWriter
         && left.Url == right.Url && left.SortOrder == right.SortOrder;
 
     private static bool SameSettings(SiteSettings left, SiteSettings right) =>
-        left.Phone == right.Phone && left.WhatsApp == right.WhatsApp && left.Email == right.Email && left.LinkedIn == right.LinkedIn
+        left.Phone == right.Phone && left.WhatsApp == right.WhatsApp && left.Email == right.Email && left.CareersEmail == right.CareersEmail
+        && left.LinkedIn == right.LinkedIn
         && left.Facebook == right.Facebook && left.Instagram == right.Instagram && left.TikTok == right.TikTok && left.FooterText == right.FooterText
         && left.DefaultMetaTitle == right.DefaultMetaTitle && left.DefaultMetaDescription == right.DefaultMetaDescription
         && left.DefaultShareImageId == right.DefaultShareImageId && left.DefaultShareImageAltOverride == right.DefaultShareImageAltOverride

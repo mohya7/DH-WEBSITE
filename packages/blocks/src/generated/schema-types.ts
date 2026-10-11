@@ -517,7 +517,9 @@ export interface BlogPostsFields {
   answerBlock?: string | null;
   /** FAQ. longText */
   faq?: string | null;
-  /** Date modified */
+  /** Publication date. date: Calendar date, YYYY-MM-DD. No time and no zone. */
+  datePublished?: string | null;
+  /** Modified date. date: Calendar date, YYYY-MM-DD. No time and no zone. */
   dateModified?: string | null;
   /** Featured */
   featured?: boolean | null;

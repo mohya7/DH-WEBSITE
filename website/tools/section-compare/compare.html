@@ -107,10 +107,61 @@ const newDoc = async (url) => {
 
 const register = await (await fetch('/accepted-differences.json')).json();
 const same = (a, b) => sig(a).join('\n') === sig(b).join('\n');
+/** Text nodes under el whose trimmed text is exactly `old` become `now`. Returns whether any did. */
+function replaceText(el, old, now) {
+  let changed = false;
+  const walker = el.ownerDocument.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (node.nodeValue.trim() === old) { node.nodeValue = node.nodeValue.replace(old, now); changed = true; }
+  }
+  return changed;
+}
+/**
+ * One chrome rule applied to a copy of the old header or footer. Each kind rewrites only
+ * its exact old text; anything else that differs still fails the comparison.
+ */
+function applyChromeRule(rule, copy) {
+  if (rule.kind === 'chrome-text') {
+    let changed = false;
+    for (const el of copy.querySelectorAll(rule.selector)) {
+      for (const pair of rule.replace) changed = replaceText(el, pair.old, pair.new) || changed;
+    }
+    return changed;
+  }
+  if (rule.kind === 'footer-column') {
+    const column = [...copy.querySelectorAll('.footer-col')].find((col) =>
+      JSON.stringify([...col.querySelectorAll('a')].map((a) => a.textContent.trim())) === JSON.stringify(rule.oldLabels));
+    if (!column) return false;
+    for (const link of column.querySelectorAll('a')) link.remove();
+    for (const label of rule.labels) {
+      const link = copy.ownerDocument.createElement('a');
+      link.setAttribute('href', '#');
+      link.textContent = label;
+      column.append(link);
+    }
+    return true;
+  }
+  if (rule.kind === 'copyright-year') {
+    const old = `© ${rule.oldYear} Digital Hub S.A.E. All rights reserved.`;
+    const now = `© ${new Date().getUTCFullYear()} Digital Hub S.A.E. All rights reserved.`;
+    let changed = false;
+    for (const span of copy.querySelectorAll('.footer-bottom span')) changed = replaceText(span, old, now) || changed;
+    return changed;
+  }
+  return false;
+}
+function acceptedChrome(page, id, old, now) {
+  const copy = old.cloneNode(true);
+  const used = register.filter((rule) => rule.pages.includes(page) && rule.areas?.includes(id)).filter((rule) => applyChromeRule(rule, copy));
+  return used.length > 0 && same(copy, now) ? { id: used.map((rule) => rule.id).join(' + '), reason: used.map((rule) => rule.reason).join(' ') } : null;
+}
 function accepted(page, id, old, now, absentPage, chrome = false) {
   for (const rule of register.filter((rule) => rule.pages.includes(page))) {
     if (rule.kind === 'absent-page' && absentPage && (chrome || rule.sections.includes(id))) return rule;
-    if (chrome || !rule.sections.includes(id) || !old || !now) continue;
+  }
+  if (chrome) return old && now ? acceptedChrome(page, id, old, now) : null;
+  for (const rule of register.filter((rule) => rule.pages.includes(page))) {
+    if (!rule.sections?.includes(id) || !old || !now) continue;
     const copy = old.cloneNode(true);
     if (rule.kind === 'case-labels') {
       for (const link of copy.querySelectorAll('a.case-link[aria-label]')) {

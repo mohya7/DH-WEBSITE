@@ -30,9 +30,24 @@ describe("generated schema types", () => {
     fs.copyFileSync(path.join(packagesRoot, "sections", "defs.json"), path.join(sections, "defs.json"));
     fs.writeFileSync(
       path.join(sections, "odd.json"),
-      JSON.stringify({ $id: "https://digitalhub.local/sections/odd", type: "object", additionalProperties: false, properties: { code: { type: "string", pattern: "^[A-Z]+$" } } }),
+      JSON.stringify({ $id: "https://digitalhub.local/sections/odd", type: "object", additionalProperties: false, properties: { code: { type: "string", minLength: 2 } } }),
     );
-    expect(() => generate({ sections, collections })).toThrow(/unsupported keyword "pattern"/);
+    expect(() => generate({ sections, collections })).toThrow(/unsupported keyword "minLength"/);
+  });
+
+  it("keep a pattern-checked string a string, and refuse a pattern on anything else", () => {
+    const dir = tempDir("schemas");
+    const sections = path.join(dir, "sections");
+    const collections = path.join(dir, "collections");
+    fs.mkdirSync(sections);
+    fs.mkdirSync(collections);
+    fs.copyFileSync(path.join(packagesRoot, "sections", "defs.json"), path.join(sections, "defs.json"));
+    const odd = (code: object) =>
+      JSON.stringify({ $id: "https://digitalhub.local/sections/odd", type: "object", additionalProperties: false, properties: { code } });
+    fs.writeFileSync(path.join(sections, "odd.json"), odd({ type: ["string", "null"], pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", "x-dh-kind": "date" }));
+    expect(generate({ sections, collections })).toMatch(/\/\*\* date: Calendar date, YYYY-MM-DD\. No time and no zone\. \*\/\n\s+code\?: string \| null;/);
+    fs.writeFileSync(path.join(sections, "odd.json"), odd({ type: "integer", pattern: "^[0-9]+$" }));
+    expect(() => generate({ sections, collections })).toThrow(/pattern on a non-string type/);
   });
 
   it("type a section's fields by its type", () => {

@@ -8,6 +8,7 @@ type Settings = {
   phone?: string | null;
   whatsApp?: string | null;
   email?: string | null;
+  careersEmail?: string | null;
   linkedIn?: string | null;
   facebook?: string | null;
   instagram?: string | null;
@@ -63,6 +64,7 @@ export function SettingsPage() {
       {error !== null ? <Typography.Paragraph type="danger">{error}</Typography.Paragraph> : null}
       <Form form={form} layout="vertical" disabled={!canEdit} onFinish={(values) => void save(values)}>
         <Form.Item label="Email" name="email"><Input /></Form.Item>
+        <Form.Item label="Careers email" name="careersEmail" extra="Shown on the careers, apply, and vacancy pages in place of the main email."><Input /></Form.Item>
         <Form.Item label="Phone" name="phone"><Input /></Form.Item>
         <Form.Item label="WhatsApp" name="whatsApp"><Input /></Form.Item>
         <Form.Item label="LinkedIn" name="linkedIn"><Input /></Form.Item>

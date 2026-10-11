@@ -21,5 +21,115 @@
     "kind": "case-labels",
     "oldLabels": ["Read case study: Ministry of Planning and Economic Development", "Read case study: Credit Guarantee Corporation", "Read case study: Leading Egyptian Bank DEX"],
     "reason": "Accessible names now match visible case titles. One old label named the wrong client. Only these aria-label changes are accepted."
+  },
+  {
+    "id": "article-menu-ai-label",
+    "pages": ["/blogs/azure-digital-egypt-2030.html", "/blogs/digital-employee-experience.html", "/blogs/enterprise-ai-production.html"],
+    "areas": ["header", "mobile-header"],
+    "kind": "chrome-text",
+    "selector": "a",
+    "replace": [{ "old": "AI & Intelligent Automation Solutions", "new": "AI & Intelligent Automation" }],
+    "reason": "Marketing lead decision: menus use the shorter shared labels most old pages use. Only the three article pages had this longer menu label."
+  },
+  {
+    "id": "article-footer-service-labels",
+    "pages": ["/blogs/azure-digital-egypt-2030.html", "/blogs/digital-employee-experience.html", "/blogs/enterprise-ai-production.html"],
+    "areas": ["footer"],
+    "kind": "chrome-text",
+    "selector": ".footer-col a",
+    "replace": [
+      { "old": "Enterprise Software Solutions", "new": "Enterprise Software" },
+      { "old": "Data & Analytics Solutions", "new": "Data & Analytics" },
+      { "old": "AI & Intelligent Automation Solutions", "new": "AI & Automation" },
+      { "old": "Outsourcing Technical Talents", "new": "Outsourcing" }
+    ],
+    "reason": "Marketing lead decision: footer service labels are the shorter shared labels most old pages use. Only the three article pages had the longer ones."
+  },
+  {
+    "id": "footer-company-column-without-careers-news",
+    "pages": [
+      "/about-us.html", "/blogs/index.html", "/blogs/azure-digital-egypt-2030.html", "/blogs/digital-employee-experience.html", "/blogs/enterprise-ai-production.html",
+      "/cases/index.html", "/cases/data-center-transformation.html", "/cases/ministry-planning.html", "/cases/nexthink-dex-bank.html",
+      "/partners/index.html", "/partners/efinance.html", "/partners/huawei.html", "/partners/microsoft.html", "/partners/nexthink.html", "/partners/vodafone.html",
+      "/services/ai-automation.html", "/services/data-analytics.html", "/services/enterprise-software.html", "/services/outsourcing.html"
+    ],
+    "areas": ["footer"],
+    "kind": "footer-column",
+    "oldLabels": ["About Us", "Case Studies", "Blogs", "Partners"],
+    "labels": ["About Us", "Partners", "Careers", "News"],
+    "reason": "Marketing lead decision: the Company column is About, Partners, Careers, News, in that order, on every page. These pages listed Case Studies and Blogs, and had no Careers or News."
+  },
+  {
+    "id": "footer-company-column-home-contact",
+    "pages": ["/index.html", "/get-in-touch.html"],
+    "areas": ["footer"],
+    "kind": "footer-column",
+    "oldLabels": ["About Us", "Case Studies", "Blogs", "Partners", "Careers"],
+    "labels": ["About Us", "Partners", "Careers", "News"],
+    "reason": "Marketing lead decision: the Company column is About, Partners, Careers, News, in that order, on every page. These pages listed Case Studies and Blogs, and had no News."
+  },
+  {
+    "id": "footer-company-column-careers",
+    "pages": ["/careers/index.html", "/careers/apply.html"],
+    "areas": ["footer"],
+    "kind": "footer-column",
+    "oldLabels": ["About Us", "Case Studies", "Blogs", "Careers"],
+    "labels": ["About Us", "Partners", "Careers", "News"],
+    "reason": "Marketing lead decision: the Company column is About, Partners, Careers, News, in that order, on every page. These pages listed Case Studies and Blogs, and had no Partners or News."
+  },
+  {
+    "id": "footer-company-column-news",
+    "pages": ["/news/index.html"],
+    "areas": ["footer"],
+    "kind": "footer-column",
+    "oldLabels": ["About Us", "Case Studies", "Blogs", "News", "Partners"],
+    "labels": ["About Us", "Partners", "Careers", "News"],
+    "reason": "Marketing lead decision: the Company column is About, Partners, Careers, News, in that order, on every page. The news page listed Case Studies and Blogs, had no Careers, and put News before Partners."
+  },
+  {
+    "id": "footer-email-about",
+    "pages": ["/about-us.html"],
+    "areas": ["footer"],
+    "kind": "chrome-text",
+    "selector": ".footer-contact a",
+    "replace": [{ "old": "info@digitalhub.com.eg", "new": "sales@digitalhub.com.eg" }],
+    "reason": "Marketing lead decision: every page except careers, apply, and vacancies shows the main email, sales@digitalhub.com.eg, as in the old article and news footers. About showed info@."
+  },
+  {
+    "id": "footer-email-group-domain",
+    "pages": [
+      "/index.html", "/get-in-touch.html", "/blogs/index.html",
+      "/cases/index.html", "/cases/data-center-transformation.html", "/cases/ministry-planning.html", "/cases/nexthink-dex-bank.html",
+      "/partners/index.html", "/partners/efinance.html", "/partners/huawei.html", "/partners/microsoft.html", "/partners/nexthink.html", "/partners/vodafone.html",
+      "/services/ai-automation.html", "/services/data-analytics.html", "/services/enterprise-software.html", "/services/outsourcing.html"
+    ],
+    "areas": ["footer"],
+    "kind": "chrome-text",
+    "selector": ".footer-contact a",
+    "replace": [{ "old": "sales@digitalhubgroup.com", "new": "sales@digitalhub.com.eg" }],
+    "reason": "Marketing lead decision: every page except careers, apply, and vacancies shows the main email, sales@digitalhub.com.eg, as in the old article and news footers. These pages showed sales@digitalhubgroup.com."
+  },
+  {
+    "id": "copyright-build-year-2024",
+    "pages": [
+      "/index.html", "/about-us.html", "/get-in-touch.html", "/blogs/index.html",
+      "/blogs/azure-digital-egypt-2030.html", "/blogs/digital-employee-experience.html", "/blogs/enterprise-ai-production.html",
+      "/cases/index.html", "/cases/data-center-transformation.html", "/cases/ministry-planning.html", "/cases/nexthink-dex-bank.html",
+      "/partners/index.html", "/partners/efinance.html", "/partners/huawei.html", "/partners/microsoft.html", "/partners/nexthink.html", "/partners/vodafone.html",
+      "/careers/index.html", "/careers/apply.html",
+      "/services/ai-automation.html", "/services/data-analytics.html", "/services/enterprise-software.html", "/services/outsourcing.html"
+    ],
+    "areas": ["footer"],
+    "kind": "copyright-year",
+    "oldYear": 2024,
+    "reason": "Marketing lead decision: the copyright year is the year of the build, so it never goes stale. These pages showed 2024."
+  },
+  {
+    "id": "copyright-build-year-2026",
+    "pages": ["/news/index.html"],
+    "areas": ["footer"],
+    "kind": "copyright-year",
+    "oldYear": 2026,
+    "reason": "Marketing lead decision: the copyright year is the year of the build. The news page showed 2026; this applies only in a build year other than 2026."
   }
 ]

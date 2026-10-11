@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { BlogArticle } from '../src/components/BlogArticle';
-import { Header, Footer } from '../src/components/SiteChrome';
+import { BlogArticle, displayCalendarDate } from '../src/components/BlogArticle';
+import { Header, Footer, footerEmail, copyrightYear } from '../src/components/SiteChrome';
 import { createSite } from '../src/content/site';
 import { blockContext } from '../src/content/blocks';
 import { careersEndpoint } from '../src/content/forms';
@@ -90,6 +90,60 @@ describe('page composition', () => {
     expect(footer).not.toContain('sales@');
     expect(footer).toContain('tel:+20123');
     expect(footer).toContain('https://linkedin.com/company/edited');
+  });
+  it('shows the careers email on the careers, apply, and vacancy pages, and the main email everywhere else', () => {
+    const content = snapshotContent();
+    content.settings.email = 'main@example.invalid';
+    content.settings.careersEmail = 'jobs@example.invalid';
+    const site = createSite(content);
+    for (const set of ['careers', 'apply', 'vacancy'] as const) {
+      const footer = renderToStaticMarkup(<Footer site={site} set={set} />);
+      expect(footer).toContain('<a href="mailto:jobs@example.invalid">jobs@example.invalid</a>');
+      expect(footer).not.toContain('main@example.invalid');
+    }
+    for (const set of ['home', 'about', 'service', 'case-study', 'hub', 'blog-post', 'contact'] as const) {
+      const footer = renderToStaticMarkup(<Footer site={site} set={set} />);
+      expect(footer).toContain('<a href="mailto:main@example.invalid">main@example.invalid</a>');
+      expect(footer).not.toContain('jobs@example.invalid');
+    }
+    expect(footerEmail({ ...content.settings, careersEmail: null }, 'careers')).toBe('main@example.invalid');
+  });
+  it('dates the copyright with the year of the build, as one text node', () => {
+    const footer = renderToStaticMarkup(<Footer site={createSite(snapshotContent())} set="home" />);
+    expect(footer).toContain(`<span>© ${new Date().getUTCFullYear()} Digital Hub S.A.E. All rights reserved.</span>`);
+    expect(copyrightYear(new Date('2031-12-31T23:59:59Z'))).toBe(2031);
+    expect(copyrightYear(new Date('2032-01-01T00:00:00Z'))).toBe(2032);
+  });
+  it('writes the byline from the editorial calendar dates, never a publish time or a time zone', () => {
+    const content = snapshotContent();
+    const post = content.collections['blog-posts'][0];
+    post.publishedAt = '2026-10-04T09:30:00Z';
+    post.fields.datePublished = '2026-06-15';
+    post.fields.dateModified = '2026-08-12';
+    const site = createSite(content);
+    const render = () => renderToStaticMarkup(<BlogArticle item={post} ctx={blockContext(site, { kind: 'blog-post', slug: post.slug })} />);
+    expect(render()).toMatch(/<p class="blog-view-byline">Published 15 Jun 2026 · Updated 12 Aug 2026( · \d+ min read)?<\/p>/);
+    post.fields.dateModified = null;
+    expect(render()).toMatch(/<p class="blog-view-byline">Published 15 Jun 2026( · \d+ min read)?<\/p>/);
+    post.fields.datePublished = null;
+    expect(render()).not.toContain('Published');
+    expect(render()).not.toContain('4 Oct 2026');
+  });
+  it('formats only real calendar dates, identically in every time zone', () => {
+    expect(displayCalendarDate('2026-06-15')).toBe('15 Jun 2026');
+    expect(displayCalendarDate('2024-02-29')).toBe('29 Feb 2024');
+    for (const invalid of ['2026-02-29', '2026-02-30', '2026-13-01', '2026-00-10', '2026-06-15T00:00:00Z', '2026-06-15Z', '15 Jun 2026', '', null, undefined]) {
+      expect(displayCalendarDate(invalid)).toBeNull();
+    }
+    const zone = process.env.TZ;
+    try {
+      for (const tz of ['UTC', 'Africa/Cairo', 'America/Los_Angeles', 'Pacific/Kiritimati']) {
+        process.env.TZ = tz;
+        expect(displayCalendarDate('2026-01-01')).toBe('1 Jan 2026');
+      }
+    } finally {
+      process.env.TZ = zone;
+    }
   });
   it('sets page classes before scripts execute in the static output', () => {
     const html = stripRuntime('<html lang="en"><body><main data-body-class="page-hub page-partner-view"></main></body></html>').html;

@@ -53,10 +53,19 @@ export function Header({ site, set, currentPath }: { site: Site; set: DesignSetN
 function Logo({ className, alt = "Digital Hub", lazy = false }: { className: string; alt?: string; lazy?: boolean }) {
   return <img className={className} src="/assets/digital-hub-logo.png" alt={alt} decoding="async" width={180} height={48} loading={lazy ? "lazy" : "eager"} />;
 }
+/** The careers email on the careers, apply, and vacancy pages; the main email everywhere else. */
+export function footerEmail(settings: SiteSettings, set: DesignSetName): string | null {
+  return ["careers", "apply", "vacancy"].includes(set) ? settings.careersEmail || settings.email : settings.email;
+}
+/** The copyright year is the year of the build, so it never goes stale. */
+export function copyrightYear(now: Date = new Date()): number {
+  return now.getUTCFullYear();
+}
 export function Footer({ site, set }: { site: Site; set: DesignSetName }) {
   const home = set === "home";
   const styledContact = ["home", "about", "service", "case-study"].includes(set);
   const settings = site.content.settings;
+  const email = footerEmail(settings, set);
   const groups = visible(site.content.navigation.filter((node) => node.menu === "footer"));
   // Contact links in the imported menu are historical copies. Settings own them.
   const contact = groups.find((node) => node.children.some((child) => child.path === '/' || /^(mailto:|tel:)/.test(child.url ?? "")));
@@ -65,11 +74,11 @@ export function Footer({ site, set }: { site: Site; set: DesignSetName }) {
     <div className={home ? "footer-logo-wrap" : undefined}><Logo className="footer-logo" lazy />{home || set === "case-study" ? null : <p className="footer-tagline">Empowering Digital Evolution</p>}</div>
     <div className="footer-cols">{groups.filter((node) => node !== contact).map((node) => <div className="footer-col" key={node.id}><h4>{node.label}</h4>{node.kind === "group" ? visible(node.children).map((child) => <a key={child.id} href={navigationHref(child)}>{child.label}</a>) : <a href={navigationHref(node)}>{node.label}</a>}</div>)}</div>
     <div className="footer-contact"><h4 style={styledContact ? { fontSize: "11px", fontWeight: 600, color: `rgba(255,255,255,${home || set === "case-study" ? "0.6" : "0.55"})`, letterSpacing: "0.12em", textTransform: "uppercase", margin: "0 0 14px" } : undefined}>{contact?.label ?? "Contact"}</h4>
-      {settings.email ? <a href={`mailto:${settings.email}`}>{settings.email}</a> : null}
+      {email ? <a href={`mailto:${email}`}>{email}</a> : null}
       {settings.phone ? <a href={`tel:${settings.phone.replace(/[^+\d]/g, "")}`}>{settings.phone}</a> : null}
       {contact && (home || set === "contact") ? visible(contact.children).filter((node) => !/^(mailto:|tel:)/.test(navigationHref(node) ?? "")).map((node) => <a key={node.id} href={navigationHref(node)} target="_blank" rel="noopener">{node.label}</a>) : null}
       {home && socials.some(([key]) => settings[key]) ? <div className="footer-social">{socials.map(([key, label, icon]) => settings[key] && /^https?:\/\//.test(settings[key]!) ? <a key={key} href={settings[key]!} target="_blank" rel="noopener" aria-label={label}><i className={`ti ti-brand-${icon}`} /></a> : null)}</div> : null}
-    </div></div><div className="footer-bottom"><span>© 2024 Digital Hub S.A.E. All rights reserved.</span>{set !== "contact" ? <span>Microsoft Partner · Nexthink Authorized Reseller · Huawei · eFinance · Vodafone</span> : null}</div></div></footer>;
+    </div></div><div className="footer-bottom"><span>{`© ${copyrightYear()} Digital Hub S.A.E. All rights reserved.`}</span>{set !== "contact" ? <span>Microsoft Partner · Nexthink Authorized Reseller · Huawei · eFinance · Vodafone</span> : null}</div></div></footer>;
 }
 
 const waves = [

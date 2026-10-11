@@ -13,10 +13,21 @@ const pillarLabels: Record<string, string> = {
   "Technical Talent & Outsourcing": "Outsourcing Technical Talents",
 };
 
-function displayDate(value: string | null | undefined): string | null {
-  if (!value) return null;
-  const date = new Date(value.endsWith("Z") || /[+-]\d\d:\d\d$/.test(value) ? value : `${value}Z`);
-  return Number.isNaN(date.valueOf()) ? null : date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Africa/Cairo" });
+const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/**
+ * "15 Jun 2026" from an editorial calendar date, "2026-06-15". Split into numbers and
+ * named from a fixed list: no Date object and no time zone, so the day shown is the
+ * day stored, wherever the build runs. Anything else shows nothing.
+ */
+export function displayCalendarDate(value: string | null | undefined): string | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value ?? "");
+  if (!match) return null;
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (month < 1 || month > 12 || day < 1 || day > daysInMonth[month - 1]) return null;
+  return `${day} ${months[month - 1]} ${year}`;
 }
 export function BlogArticle({ item, ctx }: { item: ContentItem<"blog-posts">; ctx: BlockContext }) {
   const f = item.fields;
@@ -32,7 +43,9 @@ export function BlogArticle({ item, ctx }: { item: ContentItem<"blog-posts">; ct
   const pillars = related.filter(({ ref }) => ref.type !== "blog_post");
   let faq: { items: { question: string; answer: string }[] } = { items: [] };
   try { const parsed = JSON.parse(f.faq ?? "null"); if (Array.isArray(parsed?.items)) faq = parsed; } catch { /* An absent FAQ renders nothing. */ }
-  const byline = [displayDate(item.publishedAt) && `Published ${displayDate(item.publishedAt)}`, displayDate(f.dateModified) && `Updated ${displayDate(f.dateModified)}`, f.readTime ? `${f.readTime} min read` : null].filter(Boolean).join(" · ");
+  const published = displayCalendarDate(f.datePublished);
+  const modified = displayCalendarDate(f.dateModified);
+  const byline = [published && `Published ${published}`, modified && `Updated ${modified}`, f.readTime ? `${f.readTime} min read` : null].filter(Boolean).join(" · ");
   return <>
     <section className="blog-view-hero"><div className="section-inner blog-view-hero__grid">
       <div data-reveal=""><nav className="blog-view-crumb" aria-label="Breadcrumb"><a href="/blogs">Blogs</a><span aria-hidden="true">›</span><span>{cluster}</span></nav>
