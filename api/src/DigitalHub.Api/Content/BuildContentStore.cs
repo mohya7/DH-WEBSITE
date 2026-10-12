@@ -354,6 +354,11 @@ public sealed class BuildContentStore(ContentDbContext db)
             settings.LegalName,
             settings.AnalyticsContainerId,
             settings.CookieBannerText,
+            settings.CookieBannerTitle,
+            settings.CookieAcceptLabel,
+            settings.CookieRejectLabel,
+            settings.CookieAnalyticsLabel,
+            settings.CookieSettingsLabel,
         };
     }
 

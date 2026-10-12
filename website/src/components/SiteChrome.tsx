@@ -2,6 +2,7 @@ import type { NavigationNode, SiteSettings } from "@/content/build-content";
 import type { Site } from "@/content/site";
 import { DesignScripts } from "@/design/Design";
 import type { DesignSetName } from "@/design/sets";
+import { consentCopy, tagManagerId } from "./Consent";
 
 const icons: Record<string, string> = {
   "/services/enterprise-software": "code", "/services/data-analytics": "chart-bar",
@@ -82,7 +83,7 @@ export function Footer({ site, set, currentPath = "" }: { site: Site; set: Desig
       {settings.phone ? <a href={`tel:${settings.phone.replace(/[^+\d]/g, "")}`}>{settings.phone}</a> : null}
       {contact && (home || set === "contact") ? visible(contact.children).filter((node) => !/^(mailto:|tel:)/.test(navigationHref(node) ?? "")).map((node) => <a key={node.id} href={navigationHref(node)} target="_blank" rel="noopener">{node.label}</a>) : null}
       {home && socials.some(([key]) => settings[key]) ? <div className="footer-social">{socials.map(([key, label, icon]) => settings[key] && /^https?:\/\//.test(settings[key]!) ? <a key={key} href={settings[key]!} target="_blank" rel="noopener" aria-label={label}><i className={`ti ti-brand-${icon}`} /></a> : null)}</div> : null}
-    </div></div><div className="footer-bottom"><span>{`© ${copyrightYear()} Digital Hub S.A.E. All rights reserved.`}</span>{set !== "contact" ? <span>Microsoft Partner · Nexthink Authorized Reseller · Huawei · eFinance · Vodafone</span> : null}</div></div></footer>;
+    </div></div><div className="footer-bottom"><span>{`© ${copyrightYear()} Digital Hub S.A.E. All rights reserved.`}</span>{tagManagerId(settings) ? <a href="#cookie-settings" data-cookie-settings="">{consentCopy(settings).settings}</a> : null}{set !== "contact" ? <span>Microsoft Partner · Nexthink Authorized Reseller · Huawei · eFinance · Vodafone</span> : null}</div></div></footer>;
 }
 
 const waves = [

@@ -24,7 +24,9 @@
  *     module preloads each in the set's order (React places preconnects first
  *     and module preloads after the stylesheets), and its scripts in order and
  *     position, with nothing from another set
- *   - out/web.config is the file generated from this content's redirects
+ *   - out/web.config is the file generated from this content's redirects and
+ *     container id; the consent script and stylesheet are in out/behaviors/
+ *     only when the site settings name a container
  *   - Next's _not-found export is not in the output
  *   - the careers form endpoint, when present, is a same-site path
  */
@@ -41,7 +43,8 @@ import { runtimeTracesIn } from "../src/build/strip-runtime";
 import { designFileList, designHash } from "../src/design/folder";
 import { designSets, type DesignSetName, type ScriptSlot } from "../src/design/sets";
 import { parseRichText } from "@digitalhub/blocks/richtext/document";
-import { behaviorUrl } from "../src/design/behaviors";
+import { behaviorUrl, consentStyleUrl } from "../src/design/behaviors";
+import { tagManagerId } from "../src/content/tag-manager";
 import { careersEndpointError, careersEndpointsIn } from "../src/iis/careers-endpoint";
 import { renderWebConfig } from "../src/iis/web-config";
 
@@ -303,6 +306,7 @@ export function checkDesignLoading(file: string, html: string): string[] {
   const expected = expectedLoads(set as DesignSetName);
   if (set === "apply") expected["body-end"] = expected["body-end"].map((src) => src === "js/careers-apply.js" ? behaviorUrl("careers") : src);
   if (/\bid="contactForm"/.test(html)) expected["body-end"].unshift(behaviorUrl("contact"));
+  if (/\bid="cookieBanner"/.test(html)) expected["body-end"].unshift(behaviorUrl("consent"));
   const problems: string[] = [];
   for (const [kind, want] of Object.entries(expected)) {
     if (lists[kind].join("\n") !== want.join("\n")) {
@@ -337,6 +341,15 @@ export function checkDesignOutput(outDir: string, files: string[], designDir: st
   return problems;
 }
 
+/** The consent script and stylesheet ship only when the site settings name a container. */
+export function checkConsentFiles(outDir: string, tagManager: boolean): string[] {
+  const dir = path.join(outDir, "behaviors");
+  const present = fs.existsSync(dir) ? fs.readdirSync(dir).filter((name) => name.startsWith("consent.")) : [];
+  if (!tagManager) return present.map((name) => `behaviors/${name} is in the build output, but no container id is set.`);
+  const expected = [behaviorUrl("consent"), consentStyleUrl()].map((url) => url.replace(/^\/behaviors\//, ""));
+  return expected.filter((name) => !present.includes(name)).map((name) => `behaviors/${name} is missing, but a container id is set.`);
+}
+
 function main(): void {
   const websiteRoot = process.cwd();
   const manifest = JSON.parse(fs.readFileSync(path.join(websiteRoot, ".content", "manifest.json"), "utf8")) as Manifest;
@@ -357,11 +370,15 @@ function main(): void {
     if (error) report.problems.push(error);
   }
 
+  const tagManager = tagManagerId(content.settings) !== null;
   const configFile = path.join(websiteRoot, "out", "web.config");
-  const expectedConfig = renderWebConfig(content.redirects);
+  const expectedConfig = renderWebConfig(content.redirects, { tagManager });
   if (!fs.existsSync(configFile)) report.problems.push("web.config is missing from the build output.");
-  else if (fs.readFileSync(configFile, "utf8") !== expectedConfig) report.problems.push("out/web.config does not match the redirects in the content.");
-  else console.log(`web.config: ${content.redirects.length} redirect(s), report-only content security policy, custom 404 and 500.`);
+  else if (fs.readFileSync(configFile, "utf8") !== expectedConfig) report.problems.push("out/web.config does not match the redirects and the container id in the content.");
+  else console.log(`web.config: ${content.redirects.length} redirect(s), report-only content security policy${tagManager ? " with Tag Manager hosts" : ""}, custom 404 and 500.`);
+
+  report.problems.push(...checkConsentFiles(path.join(websiteRoot, "out"), tagManager));
+  console.log(tagManager ? "Consent: the banner script and stylesheet are in out/behaviors/." : "Consent: no container id, so no consent file is in out/behaviors/.");
 
   if (report.problems.length > 0) {
     console.error(`\nThe build output failed its checks:\n- ${report.problems.join("\n- ")}\n`);

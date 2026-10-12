@@ -40,12 +40,31 @@ function mediaFileName(mediaPath: string): string {
   return mediaPath.slice("/media/".length);
 }
 
-export function openSnapshot(snapshotDir: string): OpenedSource {
+/** Settings added after the snapshot was generated, which a settings fixture may also set. */
+const newerSettingKeys = ["cookieBannerTitle", "cookieAcceptLabel", "cookieRejectLabel", "cookieAnalyticsLabel", "cookieSettingsLabel"];
+
+/**
+ * The snapshot's content.json, unchanged, or with a test settings fixture laid
+ * over its site settings (SNAPSHOT_SETTINGS_FIXTURE). A fixture may set only
+ * keys the settings already have, or the newer cookie banner ones.
+ */
+export function readSnapshotRaw(snapshotDir: string, settingsFixture?: string): string {
   const file = path.join(snapshotDir, "content.json");
   if (!fs.existsSync(file)) {
     throw new ContentSourceError(`The content snapshot is missing: ${file} does not exist.`);
   }
   const raw = fs.readFileSync(file, "utf8");
+  if (!settingsFixture) return raw;
+  const content = parse(raw, "fixtures/snapshot/content.json");
+  const overlay = parse(fs.readFileSync(settingsFixture, "utf8"), settingsFixture) as unknown as Record<string, unknown>;
+  const known = new Set([...Object.keys(content.settings), ...newerSettingKeys]);
+  const unknown = Object.keys(overlay).filter((key) => !known.has(key));
+  if (unknown.length > 0) throw new ContentSourceError(`${settingsFixture} sets unknown settings: ${unknown.join(", ")}.`);
+  return JSON.stringify({ ...content, settings: { ...content.settings, ...overlay } });
+}
+
+export function openSnapshot(snapshotDir: string, settingsFixture?: string): OpenedSource {
+  const raw = readSnapshotRaw(snapshotDir, settingsFixture);
   return {
     content: parse(raw, "fixtures/snapshot/content.json"),
     raw,
@@ -105,5 +124,5 @@ export async function openApi(apiUrl: string, token: string, fetchImpl: Fetch = 
 }
 
 export async function openSource(config: ContentConfig, fetchImpl: Fetch = fetch): Promise<OpenedSource> {
-  return config.source === "snapshot" ? openSnapshot(config.snapshotDir) : openApi(config.apiUrl, config.token, fetchImpl);
+  return config.source === "snapshot" ? openSnapshot(config.snapshotDir, config.settingsFixture) : openApi(config.apiUrl, config.token, fetchImpl);
 }

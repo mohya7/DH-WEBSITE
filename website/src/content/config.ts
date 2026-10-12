@@ -7,12 +7,18 @@
  *
  * There is no default. Anything else stops the build with a message saying what
  * to set, so a build can never quietly use content from somewhere unexpected.
+ *
+ * Test only: SNAPSHOT_SETTINGS_FIXTURE=<name> (with CONTENT_SOURCE=snapshot)
+ * overlays website/fixtures/settings/<name>.json onto the snapshot's site
+ * settings, as if those settings had been saved in the Studio. The consent
+ * build uses it to set a container id. It is refused with CONTENT_SOURCE=api,
+ * so a real build only ever takes settings from the Content API.
  */
 import fs from "node:fs";
 import path from "node:path";
 
 export type ContentConfig =
-  | { source: "snapshot"; snapshotDir: string }
+  | { source: "snapshot"; snapshotDir: string; settingsFixture?: string }
   | { source: "api"; apiUrl: string; token: string };
 
 export class ContentConfigError extends Error {
@@ -36,6 +42,7 @@ function findWebsiteRoot(cwd: string): string {
 }
 
 export const snapshotDir = path.join(websiteRoot, "fixtures", "snapshot");
+export const settingsFixtureDir = path.join(websiteRoot, "fixtures", "settings");
 
 const howToConfigure =
   "Set CONTENT_SOURCE=snapshot to build from website/fixtures/snapshot/, " +
@@ -50,8 +57,20 @@ export function readContentConfig(env: Env = process.env): ContentConfig {
     throw new ContentConfigError(`No content source is configured. ${howToConfigure}`);
   }
 
+  const fixture = env.SNAPSHOT_SETTINGS_FIXTURE?.trim();
   if (source === "snapshot") {
-    return { source: "snapshot", snapshotDir };
+    if (!fixture) return { source: "snapshot", snapshotDir };
+    if (!/^[a-z0-9-]+$/.test(fixture)) {
+      throw new ContentConfigError(`SNAPSHOT_SETTINGS_FIXTURE must be a file name in website/fixtures/settings/ without .json, not "${fixture}".`);
+    }
+    const settingsFixture = path.join(settingsFixtureDir, `${fixture}.json`);
+    if (!fs.existsSync(settingsFixture)) {
+      throw new ContentConfigError(`SNAPSHOT_SETTINGS_FIXTURE names fixtures/settings/${fixture}.json, which does not exist.`);
+    }
+    return { source: "snapshot", snapshotDir, settingsFixture };
+  }
+  if (fixture) {
+    throw new ContentConfigError("SNAPSHOT_SETTINGS_FIXTURE is for snapshot test builds only. Unset it, or set CONTENT_SOURCE=snapshot.");
   }
 
   if (source === "api") {
@@ -80,7 +99,9 @@ export function readContentConfig(env: Env = process.env): ContentConfig {
 
 /** The configuration as it may be printed or recorded: never the token. */
 export function describeConfig(config: ContentConfig): string {
-  return config.source === "snapshot"
-    ? `snapshot (${path.relative(websiteRoot, config.snapshotDir).split(path.sep).join("/")})`
-    : `api (${config.apiUrl})`;
+  const relative = (file: string) => path.relative(websiteRoot, file).split(path.sep).join("/");
+  if (config.source === "api") return `api (${config.apiUrl})`;
+  return config.settingsFixture
+    ? `snapshot (${relative(config.snapshotDir)}, settings from ${relative(config.settingsFixture)})`
+    : `snapshot (${relative(config.snapshotDir)})`;
 }

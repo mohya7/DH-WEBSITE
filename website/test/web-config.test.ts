@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { Redirect } from "../src/content/build-content";
-import { WebConfigError, contentSecurityPolicy, homeContentSecurityPolicy, renderWebConfig } from "../src/iis/web-config";
+import {
+  WebConfigError,
+  contentSecurityPolicy,
+  homeContentSecurityPolicy,
+  renderWebConfig,
+  tagManagerContentSecurityPolicy,
+  tagManagerHomeContentSecurityPolicy,
+} from "../src/iis/web-config";
 import { careersEndpointError } from "../src/iis/careers-endpoint";
 import { snapshotContent } from "./helpers";
 
@@ -98,6 +105,29 @@ describe("web.config", () => {
     expect(xml).toContain('name="X-Content-Type-Options" value="nosniff"');
     expect(xml).toContain('name="Referrer-Policy" value="strict-origin-when-cross-origin"');
     expect(xml).toContain('name="X-Frame-Options" value="DENY"');
+  });
+
+  it("adds the Tag Manager and GA4 hosts only when a container id is set", () => {
+    const directive = (policy: string, name: string) => policy.split("; ").find((part) => part.startsWith(`${name} `)) ?? "";
+    expect(renderWebConfig([], { tagManager: false })).toBe(renderWebConfig([]));
+    for (const policy of [contentSecurityPolicy, homeContentSecurityPolicy]) {
+      expect(policy).not.toMatch(/googletagmanager|google-analytics|\*\.google\.com/);
+      expect(directive(policy, "img-src")).toBe("img-src 'self' data:");
+      expect(directive(policy, "connect-src")).toBe("connect-src 'self'");
+      expect(directive(policy, "frame-src")).toBe("frame-src 'none'");
+    }
+    const xml = renderWebConfig([], { tagManager: true });
+    expect(xml).toContain(`name="Content-Security-Policy-Report-Only" value="${tagManagerContentSecurityPolicy}"`);
+    expect(rule(xml, "Home page inline style elements")).toContain(`value="${tagManagerHomeContentSecurityPolicy}"`);
+    expect(xml).not.toContain(`value="${contentSecurityPolicy}"`);
+    for (const policy of [tagManagerContentSecurityPolicy, tagManagerHomeContentSecurityPolicy]) {
+      expect(directive(policy, "script-src")).toMatch(/ https:\/\/www\.googletagmanager\.com$/);
+      expect(directive(policy, "img-src")).toBe("img-src 'self' data: https://www.googletagmanager.com https://*.google-analytics.com");
+      expect(directive(policy, "connect-src")).toBe("connect-src 'self' https://www.googletagmanager.com https://*.google-analytics.com https://*.google.com");
+      expect(directive(policy, "frame-src")).toBe("frame-src https://www.googletagmanager.com");
+    }
+    expect(directive(tagManagerHomeContentSecurityPolicy, "style-src")).toContain("'unsafe-inline'");
+    expect(directive(tagManagerContentSecurityPolicy, "style-src")).not.toContain("'unsafe-inline'");
   });
 
   it("caches the design folder and media for a year, and keeps HTML short", () => {
