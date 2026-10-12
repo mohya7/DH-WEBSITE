@@ -35,6 +35,7 @@
  */
 import type { Redirect } from "../content/build-content";
 import { GOOGLE_FONTS, GOOGLE_FONTS_STATIC, GSAP, LENIS, SCROLL_TRIGGER, TABLER_ICONS } from "../design/sets";
+import { withScriptHashes } from "../seo/csp";
 
 export class WebConfigError extends Error {
   constructor(message: string) {
@@ -158,8 +159,18 @@ ${customHeaders([["Cache-Control", designCacheControl]], "        ")}
   </location>`;
 }
 
+export interface JsonLdPolicyHashes {
+  home: readonly string[];
+  pages: readonly string[];
+}
+
 /** The web.config for these redirects. Throws if a path cannot be expressed as a safe rule. */
-export function renderWebConfig(redirects: readonly Redirect[]): string {
+export function renderWebConfig(redirects: readonly Redirect[], hashes: JsonLdPolicyHashes = { home: [], pages: [] }): string {
+  const sitePolicy = withScriptHashes(contentSecurityPolicy, hashes.pages);
+  const homePolicy = withScriptHashes(homeContentSecurityPolicy, hashes.home);
+  const headers: [string, string][] = securityHeaders.map(([name, value]) =>
+    name === "Content-Security-Policy-Report-Only" ? [name, sitePolicy] : [name, value],
+  );
   const redirectsXml = redirectRules(redirects);
   const rules = redirectsXml === "" ? cleanUrls : `${redirectsXml}\n${cleanUrls}`;
   return `<?xml version="1.0" encoding="utf-8"?>
@@ -174,6 +185,10 @@ export function renderWebConfig(redirects: readonly Redirect[]): string {
     <staticContent>
       <remove fileExtension=".webp" />
       <mimeMap fileExtension=".webp" mimeType="image/webp" />
+      <remove fileExtension=".xml" />
+      <mimeMap fileExtension=".xml" mimeType="application/xml" />
+      <remove fileExtension=".txt" />
+      <mimeMap fileExtension=".txt" mimeType="text/plain" />
     </staticContent>
     <rewrite>
       <rules>
@@ -182,7 +197,7 @@ ${rules}
       <outboundRules rewriteBeforeCache="true">
         <rule name="Home page inline style elements" preCondition="IsHome">
           <match serverVariable="RESPONSE_Content_Security_Policy_Report_Only" pattern=".*" />
-          <action type="Rewrite" value="${xml(homeContentSecurityPolicy)}" />
+          <action type="Rewrite" value="${xml(homePolicy)}" />
         </rule>
         <preConditions>
           <preCondition name="IsHome">
@@ -199,7 +214,7 @@ ${rules}
       <error statusCode="500" path="/500.html" responseMode="ExecuteURL" />
     </httpErrors>
     <httpProtocol>
-${customHeaders(securityHeaders, "      ")}
+${customHeaders(headers, "      ")}
     </httpProtocol>
   </system.webServer>
 ${cacheLocation("design")}
@@ -207,7 +222,7 @@ ${cacheLocation("media")}
   <location path="index.html">
     <system.webServer>
       <httpProtocol>
-${customHeaders([["Content-Security-Policy-Report-Only", homeContentSecurityPolicy]], "        ")}
+${customHeaders([["Content-Security-Policy-Report-Only", homePolicy]], "        ")}
       </httpProtocol>
     </system.webServer>
   </location>

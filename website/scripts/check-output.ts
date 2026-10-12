@@ -24,7 +24,10 @@
  *     module preloads each in the set's order (React places preconnects first
  *     and module preloads after the stylesheets), and its scripts in order and
  *     position, with nothing from another set
- *   - out/web.config is the file generated from this content's redirects
+ *   - out/web.config is the file generated from this content's redirects, and its
+ *     content security policy allows each page's JSON-LD script by hash
+ *   - out/sitemap.xml, out/robots.txt, and out/llms.txt match the content
+ *   - every page has one JSON-LD script, and it matches the structured data
  *   - Next's _not-found export is not in the output
  *   - the careers form endpoint, when present, is a same-site path
  */
@@ -44,6 +47,10 @@ import { parseRichText } from "@digitalhub/blocks/richtext/document";
 import { behaviorUrl } from "../src/design/behaviors";
 import { careersEndpointError, careersEndpointsIn } from "../src/iis/careers-endpoint";
 import { renderWebConfig } from "../src/iis/web-config";
+import { jsonLdBodies, jsonLdHashes } from "../src/seo/csp";
+import { renderLlms, renderRobots, renderSitemap } from "../src/seo/files";
+import { graphProblems, jsonLdText, structuredData } from "../src/seo/jsonld";
+import { readSiteUrl } from "../src/seo/site-url";
 
 export interface OutputReport {
   pages: { route: string; file: string; pageType: string }[];
@@ -125,7 +132,7 @@ export function checkOutput(outDir: string, manifest: Manifest, options: { desig
   // No trace of Next's client runtime: the site ships static HTML plus the ported scripts.
   for (const file of files) {
     if (file.startsWith("_next/")) problems.push(`${file} is part of Next's client runtime and should not be in the output.`);
-    else if (file.endsWith(".txt")) problems.push(`${file} is a client-navigation payload and should not be in the output.`);
+    else if (file.endsWith(".txt") && file !== "robots.txt" && file !== "llms.txt") problems.push(`${file} is a client-navigation payload and should not be in the output.`);
     else if (file.endsWith(".html")) {
       const traces = runtimeTracesIn(fs.readFileSync(path.join(outDir, file), "utf8"));
       if (traces.length > 0) problems.push(`${file} still contains Next's client runtime: ${traces.join(", ")}.`);
@@ -358,10 +365,48 @@ function main(): void {
   }
 
   const configFile = path.join(websiteRoot, "out", "web.config");
-  const expectedConfig = renderWebConfig(content.redirects);
+  const html = walk(path.join(websiteRoot, "out"))
+    .filter((file) => file.endsWith(".html"))
+    .map((file) => ({ path: path.relative(path.join(websiteRoot, "out"), file).split(path.sep).join("/"), html: fs.readFileSync(file, "utf8") }));
+  const expectedConfig = renderWebConfig(content.redirects, jsonLdHashes(html));
   if (!fs.existsSync(configFile)) report.problems.push("web.config is missing from the build output.");
   else if (fs.readFileSync(configFile, "utf8") !== expectedConfig) report.problems.push("out/web.config does not match the redirects in the content.");
   else console.log(`web.config: ${content.redirects.length} redirect(s), report-only content security policy, custom 404 and 500.`);
+
+  const origin = readSiteUrl();
+  const site = createSite(content);
+  const outDir = path.join(websiteRoot, "out");
+  const expectedFiles: [string, string][] = [
+    ["sitemap.xml", renderSitemap(site, origin)],
+    ["robots.txt", renderRobots(origin)],
+    ["llms.txt", renderLlms(site, origin)],
+  ];
+  for (const [name, expected] of expectedFiles) {
+    const file = path.join(outDir, name);
+    if (!fs.existsSync(file)) report.problems.push(`${name} is missing from the build output.`);
+    else if (fs.readFileSync(file, "utf8") !== expected) report.problems.push(`out/${name} does not match the published content.`);
+  }
+  const pages = new Map<string, { item: AnyContentItem | null; pageType: "home" | "page" | "service" | "partner" | "case-study" | "blog-post" | "vacancy" | "error"; path: string }>(
+    site.routes.map((route) => [htmlFileFor(route.path), { item: route.item, pageType: route.pageType, path: route.path }]),
+  );
+  pages.set("404.html", { item: site.errorPage("404"), pageType: "error", path: "/404" });
+  pages.set("500.html", { item: site.errorPage("500"), pageType: "error", path: "/500" });
+  for (const file of html) {
+    const page = pages.get(file.path);
+    if (!page) continue;
+    const bodies = jsonLdBodies(file.html);
+    if (bodies.length !== 1) report.problems.push(`${file.path} has ${bodies.length} JSON-LD scripts; expected 1.`);
+    else {
+      const expected = jsonLdText(structuredData(site, page.item, page.pageType, page.path, origin));
+      if (bodies[0] !== expected) report.problems.push(`${file.path} JSON-LD does not match the content.`);
+      try {
+        const problems = graphProblems(JSON.parse(bodies[0]));
+        if (problems.length > 0) report.problems.push(`${file.path} JSON-LD: ${problems.join("; ")}.`);
+      } catch {
+        report.problems.push(`${file.path} JSON-LD is not valid JSON.`);
+      }
+    }
+  }
 
   if (report.problems.length > 0) {
     console.error(`\nThe build output failed its checks:\n- ${report.problems.join("\n- ")}\n`);

@@ -8,16 +8,19 @@ Next.js App Router, static export, TypeScript. Built in Phase C
 ```bash
 cd website
 npm ci
-CONTENT_SOURCE=snapshot CAREERS_APPLICATION_ENDPOINT=/api/careers/applications npm run build
+CONTENT_SOURCE=snapshot CAREERS_APPLICATION_ENDPOINT=/api/careers/applications PUBLIC_SITE_URL=https://digitalhub.com.eg npm run build
 CONTENT_SOURCE=api CONTENT_API_URL=http://localhost:5097 \
-  CONTENT_BUILD_TOKEN=<Build:Token> CAREERS_APPLICATION_ENDPOINT=/api/careers/applications npm run build
+  CONTENT_BUILD_TOKEN=<Build:Token> CAREERS_APPLICATION_ENDPOINT=/api/careers/applications \
+  PUBLIC_SITE_URL=https://digitalhub.com.eg npm run build
 ```
 
 The output is `out/`. There is no default source: with `CONTENT_SOURCE` unset,
 or set to anything but `snapshot` or `api`, the build stops and says what to set.
-On Windows PowerShell, set the variables with `$env:CONTENT_SOURCE = "snapshot"`.
+`PUBLIC_SITE_URL` is the same kind of setting: it must be an absolute http(s)
+origin, and the build stops if it is missing, empty, or not one. On Windows
+PowerShell, set the variables with `$env:CONTENT_SOURCE = "snapshot"`.
 
-`npm run build` runs seven steps, and any of them can stop the build:
+`npm run build` runs eight steps, and any of them can stop the build:
 
 | Step | What it does |
 |---|---|
@@ -26,6 +29,7 @@ On Windows PowerShell, set the variables with `$env:CONTENT_SOURCE = "snapshot"`
 | `prepare:design` | Copies `design/` to `public/design/<hash>/` |
 | `next build` | Renders every page from `.content/` |
 | `strip:runtime` | Removes Next's client runtime from every page: the site ships static HTML plus the ported scripts |
+| `seo` | Writes `sitemap.xml`, `robots.txt`, and `llms.txt` from the published content and `PUBLIC_SITE_URL` |
 | `webconfig` | Writes `out/web.config` from the redirects in the prepared content |
 | `check:output` | Checks `out/`, including that `web.config`, and prints the page count and every route |
 

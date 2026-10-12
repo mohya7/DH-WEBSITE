@@ -113,6 +113,18 @@ describe("web.config", () => {
     const xml = renderWebConfig([]);
     const block = xml.slice(xml.indexOf("<staticContent>"), xml.indexOf("</staticContent>"));
     expect(block.indexOf('<remove fileExtension=".webp" />')).toBeLessThan(block.indexOf('<mimeMap fileExtension=".webp" mimeType="image/webp" />'));
+    expect(block).toContain('<mimeMap fileExtension=".xml" mimeType="application/xml" />');
+    expect(block).toContain('<mimeMap fileExtension=".txt" mimeType="text/plain" />');
+  });
+
+  it("allows a page's JSON-LD script by its hash, and leaves the policy unchanged when there are none", () => {
+    const plain = renderWebConfig([]);
+    expect(plain).toContain(contentSecurityPolicy);
+    const xml = renderWebConfig([], { home: ["homehash"], pages: ["pagehash"] });
+    const home = xml.slice(xml.indexOf('<location path="index.html">'));
+    expect(home).toContain("'sha256-homehash'");
+    expect(home).not.toContain("pagehash");
+    expect(xml.slice(0, xml.indexOf('<location path="index.html">'))).toContain("'sha256-pagehash'");
   });
 
   it("does not route to the API or the hiring system", () => {

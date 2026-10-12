@@ -16,5 +16,6 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["test/**/*.test.ts", "test/**/*.test.tsx"],
+    env: { PUBLIC_SITE_URL: "https://digitalhub.com.eg" },
   },
 });
