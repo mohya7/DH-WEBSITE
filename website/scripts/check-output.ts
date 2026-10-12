@@ -47,7 +47,7 @@ import { parseRichText } from "@digitalhub/blocks/richtext/document";
 import { behaviorUrl } from "../src/design/behaviors";
 import { careersEndpointError, careersEndpointsIn } from "../src/iis/careers-endpoint";
 import { renderWebConfig } from "../src/iis/web-config";
-import { jsonLdBodies, jsonLdHashes } from "../src/seo/csp";
+import { jsonLdBodies } from "../src/seo/csp";
 import { renderLlms, renderRobots, renderSitemap } from "../src/seo/files";
 import { graphProblems, jsonLdText, structuredData } from "../src/seo/jsonld";
 import { readSiteUrl } from "../src/seo/site-url";
@@ -368,7 +368,7 @@ function main(): void {
   const html = walk(path.join(websiteRoot, "out"))
     .filter((file) => file.endsWith(".html"))
     .map((file) => ({ path: path.relative(path.join(websiteRoot, "out"), file).split(path.sep).join("/"), html: fs.readFileSync(file, "utf8") }));
-  const expectedConfig = renderWebConfig(content.redirects, jsonLdHashes(html));
+  const expectedConfig = renderWebConfig(content.redirects);
   if (!fs.existsSync(configFile)) report.problems.push("web.config is missing from the build output.");
   else if (fs.readFileSync(configFile, "utf8") !== expectedConfig) report.problems.push("out/web.config does not match the redirects in the content.");
   else console.log(`web.config: ${content.redirects.length} redirect(s), report-only content security policy, custom 404 and 500.`);

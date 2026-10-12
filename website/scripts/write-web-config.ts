@@ -8,7 +8,6 @@ import fs from "node:fs";
 import path from "node:path";
 import type { BuildContent } from "../src/content/build-content";
 import { WebConfigError, renderWebConfig } from "../src/iis/web-config";
-import { jsonLdHashes } from "../src/seo/csp";
 
 /** Next's app router also emits _not-found.html. The site uses 404.html; the extra file is not served. */
 function removeNotFound(outDir: string): void {
@@ -36,22 +35,8 @@ function main(): void {
   }
   const content = JSON.parse(fs.readFileSync(contentFile, "utf8")) as BuildContent;
   removeNotFound(outDir);
-  const html = walkHtml(outDir);
-  fs.writeFileSync(path.join(outDir, "web.config"), renderWebConfig(content.redirects, jsonLdHashes(html)));
+  fs.writeFileSync(path.join(outDir, "web.config"), renderWebConfig(content.redirects));
   console.log(`web.config: ${content.redirects.length} redirect(s) from the redirects table, written to out/web.config.`);
-}
-
-function walkHtml(outDir: string): { path: string; html: string }[] {
-  const files: { path: string; html: string }[] = [];
-  const walk = (dir: string): void => {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) walk(full);
-      else if (entry.name.endsWith(".html")) files.push({ path: path.relative(outDir, full).split(path.sep).join("/"), html: fs.readFileSync(full, "utf8") });
-    }
-  };
-  walk(outDir);
-  return files;
 }
 
 try {

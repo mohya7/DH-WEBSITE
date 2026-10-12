@@ -406,13 +406,26 @@ Organization uses the site settings, including the postal address fields.
 
 **6.3** `sitemap.xml` with last-modified dates from editorial dates, published and indexable pages only. `robots.txt`. `llms.txt`.
 
-The last-modified date is the **editorial date**: `dateModified` where the item has
-one, otherwise its most recent publish time. Never the snapshot's `generatedAt` or
-the export time. Snapshot timestamps reflect when the snapshot was exported, not
-when anyone changed the content, and they move on every refresh — they are
-acceptable for development builds only.
+The last-modified date is `dateModified`, otherwise `datePublished`. If neither
+is a calendar date, the sitemap omits `lastmod`. `publishedAt` and the build
+time are not used. JobPosting `datePosted` may use `publishedAt` when a vacancy
+has no editorial date; that is a separate function and is not the sitemap.
+
+Production builds set `PUBLIC_SITE_URL` and `EXPECTED_PUBLIC_ORIGIN` to
+`https://digitalhub.com.eg`. `PUBLIC_SITE_URL` must be https, except
+`http://localhost` and `http://127.0.0.1` for a local build. A trailing dot on
+the host is refused. When `EXPECTED_PUBLIC_ORIGIN` is set, a different origin
+stops the build. CI leaves `EXPECTED_PUBLIC_ORIGIN` unset.
 
 **6.4** Run Lighthouse against the snapshot build and report every page type's SEO score. Report what could not be run.
+
+Head differences, accepted (marketing lead):
+
+- Service pages repeat the meta description as `og:description` and `twitter:description`. The old pages had a separate social sentence.
+- `article:publisher` and `article:section` were on the three old blog posts and are not emitted.
+- Page-level JSON-LD types the old pages had (`WebPage`, `AboutPage`, `Blog`, `CollectionPage`, `BlogPosting`, and `Article` on case studies) are not emitted. Service and Article stay as in the table above.
+
+Round 4: the four home service-card links keep the visible words "Learn more" and add the service title in a visually hidden span (`.dh-sr-only`). The class is in `website/behaviors/home-sr.css`, hashed and served from this site, and linked only by the home page. It is outside `website/design/`. Ali approved that.
 
 ---
 

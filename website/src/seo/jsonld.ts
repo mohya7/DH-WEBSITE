@@ -6,6 +6,7 @@
 import type { AnyContentItem, SiteSettings } from "../content/build-content";
 import type { PageType } from "../content/routes";
 import type { Site } from "../content/site";
+import type { NavigationNode } from "../content/build-content";
 import { canonicalUrl, documentDescription, documentTitle } from "./head";
 
 const calendarDate = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
@@ -63,13 +64,43 @@ function postalAddress(settings: SiteSettings): Json | undefined {
   return Object.keys(address).length > 1 ? address : undefined;
 }
 
-/** dateModified, otherwise datePublished, otherwise the publish date. Never a build time. */
+/** dateModified, otherwise datePublished. No publish timestamp and no build time: the sitemap omits lastmod when this is null. */
 export function editorialLastMod(item: AnyContentItem): string | null {
   const fields = item.fields as { dateModified?: string | null; datePublished?: string | null };
   if (fields.dateModified && calendarDate.test(fields.dateModified)) return fields.dateModified;
   if (fields.datePublished && calendarDate.test(fields.datePublished)) return fields.datePublished;
+  return null;
+}
+
+/**
+ * JobPosting datePosted. An editorial date wins. A vacancy can be published
+ * without one, and Google's datePosted is the posting date, so the publish
+ * timestamp is used only here. The sitemap must not use this function.
+ */
+export function jobDatePosted(item: AnyContentItem): string | null {
+  const editorial = editorialLastMod(item);
+  if (editorial) return editorial;
   const published = item.publishedAt?.slice(0, 10);
   return published && calendarDate.test(published) ? published : null;
+}
+
+function navigationLabel(site: Site, path: string): string | undefined {
+  const walk = (nodes: NavigationNode[]): string | undefined => {
+    for (const node of nodes) {
+      if (node.kind === "internal" && node.path === path && node.label.trim()) return node.label.trim();
+      const nested = walk(node.children);
+      if (nested) return nested;
+    }
+    return undefined;
+  };
+  const header = site.content.navigation.filter((node) => node.menu === "header");
+  return walk(header) ?? walk(site.content.navigation);
+}
+
+/** The short name: Home, otherwise the navigation label, otherwise the item title. Never the SEO title. */
+export function shortName(site: Site, item: AnyContentItem, path: string): string {
+  if (path === "/") return "Home";
+  return navigationLabel(site, path) ?? item.title;
 }
 
 export function faqItems(item: AnyContentItem): FaqItem[] {
@@ -113,7 +144,7 @@ function breadcrumbs(site: Site, item: AnyContentItem | null, path: string, orig
     return [{
       "@type": "ListItem",
       position: 0,
-      name: documentTitle(source),
+      name: shortName(site, source, crumbPath),
       item: crumbPath === path && item ? canonicalUrl(origin, path, item.canonicalOverride) : canonicalUrl(origin, crumbPath, source.canonicalOverride),
     }];
   });
@@ -153,7 +184,7 @@ function pageEntity(site: Site, item: AnyContentItem, pageType: PageType | "erro
       "@type": "JobPosting",
       title: item.title,
       description,
-      datePosted: editorialLastMod(item) ?? undefined,
+      datePosted: jobDatePosted(item) ?? undefined,
       employmentType: item.fields.employmentType?.trim(),
       hiringOrganization: { "@id": org },
       jobLocation: place,

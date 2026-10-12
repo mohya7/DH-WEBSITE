@@ -16,9 +16,13 @@ CONTENT_SOURCE=api CONTENT_API_URL=http://localhost:5097 \
 
 The output is `out/`. There is no default source: with `CONTENT_SOURCE` unset,
 or set to anything but `snapshot` or `api`, the build stops and says what to set.
-`PUBLIC_SITE_URL` is the same kind of setting: it must be an absolute http(s)
-origin, and the build stops if it is missing, empty, or not one. On Windows
-PowerShell, set the variables with `$env:CONTENT_SOURCE = "snapshot"`.
+`PUBLIC_SITE_URL` is the same kind of setting. It must be an absolute https
+origin. `http` is accepted only for `localhost` and `127.0.0.1`. A trailing
+dot on the host is refused, and the build stops if the value is missing or
+not an origin. Set `EXPECTED_PUBLIC_ORIGIN` in production (for this site,
+`https://digitalhub.com.eg`) so a staging or local value fails the build.
+Leave it unset in CI. On Windows PowerShell, set the variables with
+`$env:CONTENT_SOURCE = "snapshot"`.
 
 `npm run build` runs eight steps, and any of them can stop the build:
 

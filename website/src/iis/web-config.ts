@@ -35,7 +35,6 @@
  */
 import type { Redirect } from "../content/build-content";
 import { GOOGLE_FONTS, GOOGLE_FONTS_STATIC, GSAP, LENIS, SCROLL_TRIGGER, TABLER_ICONS } from "../design/sets";
-import { withScriptHashes } from "../seo/csp";
 
 export class WebConfigError extends Error {
   constructor(message: string) {
@@ -159,15 +158,10 @@ ${customHeaders([["Cache-Control", designCacheControl]], "        ")}
   </location>`;
 }
 
-export interface JsonLdPolicyHashes {
-  home: readonly string[];
-  pages: readonly string[];
-}
-
 /** The web.config for these redirects. Throws if a path cannot be expressed as a safe rule. */
-export function renderWebConfig(redirects: readonly Redirect[], hashes: JsonLdPolicyHashes = { home: [], pages: [] }): string {
-  const sitePolicy = withScriptHashes(contentSecurityPolicy, hashes.pages);
-  const homePolicy = withScriptHashes(homeContentSecurityPolicy, hashes.home);
+export function renderWebConfig(redirects: readonly Redirect[]): string {
+  const sitePolicy = contentSecurityPolicy;
+  const homePolicy = homeContentSecurityPolicy;
   const headers: [string, string][] = securityHeaders.map(([name, value]) =>
     name === "Content-Security-Policy-Report-Only" ? [name, sitePolicy] : [name, value],
   );
@@ -188,7 +182,7 @@ export function renderWebConfig(redirects: readonly Redirect[], hashes: JsonLdPo
       <remove fileExtension=".xml" />
       <mimeMap fileExtension=".xml" mimeType="application/xml" />
       <remove fileExtension=".txt" />
-      <mimeMap fileExtension=".txt" mimeType="text/plain" />
+      <mimeMap fileExtension=".txt" mimeType="text/plain; charset=utf-8" />
     </staticContent>
     <rewrite>
       <rules>

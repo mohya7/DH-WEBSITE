@@ -36,28 +36,59 @@ export function documentDescription(item: { metaDescription: string | null }): s
   return description || undefined;
 }
 
-/** An absolute URL. A usable canonical override from the content wins; anything else uses the configured origin and the page path. */
-export function canonicalUrl(origin: string, path: string, override: string | null | undefined): string {
-  const value = override?.trim();
-  if (value) {
-    if (value.startsWith("/") && !value.startsWith("//")) return origin + value;
-    try {
-      const url = new URL(value);
-      if ((url.protocol === "http:" || url.protocol === "https:") && !url.username && !url.password && !url.search) return url.href;
-    } catch {
-      /* The override is not a URL. The path on this site is used instead. */
-    }
+export class CanonicalError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CanonicalError";
   }
-  return origin + (path.startsWith("/") ? path : `/${path}`);
+}
+
+const safePath = /^\/(?:[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)*)?$/;
+
+function canonicalProblem(page: string, raw: string, reason: string): CanonicalError {
+  return new CanonicalError(`${page}: canonical override "${raw}" ${reason}`);
+}
+
+/** One leading slash, no trailing index, and only the characters a site path uses. */
+function normaliseCanonicalPath(value: string, page: string, raw: string): string {
+  if (value.includes("#") || value.includes("?") || /\s/.test(value) || /[<>"'\\]/.test(value)) {
+    throw canonicalProblem(page, raw, "has a space, a fragment, or an unsafe character.");
+  }
+  let path = value.replace(/\/{2,}/g, "/");
+  if (path.length > 1 && path.endsWith("/")) path = path.slice(0, -1);
+  path = path.replace(/\/index(?:\.html)?$/, "");
+  if (path === "") path = "/";
+  if (!path.startsWith("/")) path = `/${path}`;
+  if (!safePath.test(path)) throw canonicalProblem(page, raw, "is not a safe path on this site.");
+  return path;
+}
+
+/** An absolute same-origin https URL. A bad override stops the build and names the page. */
+export function canonicalUrl(origin: string, path: string, override: string | null | undefined): string {
+  const page = path.startsWith("/") ? path : `/${path}`;
+  const value = override?.trim();
+  if (!value) return origin + page;
+  if (value.startsWith("/") && !value.startsWith("//")) return origin + normaliseCanonicalPath(value, page, value);
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw canonicalProblem(page, value, "is not a same-origin https URL.");
+  }
+  if (url.protocol !== "https:") throw canonicalProblem(page, value, "must be https.");
+  if (url.hash) throw canonicalProblem(page, value, "must not have a fragment.");
+  if (url.search || url.username || url.password) throw canonicalProblem(page, value, "is not a same-origin https URL.");
+  if (url.host !== new URL(origin).host) throw canonicalProblem(page, value, "is on another host.");
+  return origin + normaliseCanonicalPath(url.pathname, page, value);
 }
 
 function shareImage(site: Site, item: AnyContentItem): { image?: string; imageAlt?: string } {
   const id = item.shareImageId ?? site.content.settings.defaultShareImageId;
   const asset = site.media(id);
   if (!asset) return {};
-  const override = item.shareImageAltOverride?.trim() || site.content.settings.defaultShareImageAltOverride?.trim();
-  const alt = override || (!asset.decorative ? asset.alt?.trim() : "") || undefined;
-  return { image: asset.path, imageAlt: alt };
+  // A library alt describes the file, which may be reused from another page. Use it only when this page supplies its own alt.
+  const own = item.shareImageAltOverride?.trim();
+  return { image: asset.path, imageAlt: own || documentTitle(item) };
 }
 
 function calendar(value: string | null | undefined): string | undefined {

@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest";
 import { PageScaffold } from "../src/components/PageScaffold";
 import type { AnyContentItem, BuildContent } from "../src/content/build-content";
 import { createSite } from "../src/content/site";
-import { canonicalUrl, documentTitle, dropNextNoIndexTag, headMetadata, indexableRobots, noIndexRobots, pageHead } from "../src/seo/head";
+import { CanonicalError, canonicalUrl, documentTitle, dropNextNoIndexTag, headMetadata, indexableRobots, noIndexRobots, pageHead } from "../src/seo/head";
 import { indexablePages, renderLlms, renderRobots, renderSitemap } from "../src/seo/files";
-import { editorialLastMod, faqItems, graphProblems, jsonLdText, structuredData } from "../src/seo/jsonld";
+import { editorialLastMod, faqItems, graphProblems, jsonLdText, jobDatePosted, shortName, structuredData } from "../src/seo/jsonld";
 import { readSiteUrl, SiteUrlError } from "../src/seo/site-url";
 import { snapshotContent } from "./helpers";
 
@@ -20,10 +20,14 @@ describe("site URL", () => {
   it("accepts an absolute http or https origin and refuses the rest", () => {
     expect(readSiteUrl({ PUBLIC_SITE_URL: "https://digitalhub.com.eg" })).toBe("https://digitalhub.com.eg");
     expect(readSiteUrl({ PUBLIC_SITE_URL: " http://127.0.0.1:4380/ " })).toBe("http://127.0.0.1:4380");
-    for (const value of ["", "   ", "ftp://x", "//x", "https://user:pw@x", "https://x?y=1", "javascript:alert(1)", "https://digitalhub.com.eg/about", "not a url"]) {
+    expect(readSiteUrl({ PUBLIC_SITE_URL: "http://localhost:3000" })).toBe("http://localhost:3000");
+    expect(readSiteUrl({ PUBLIC_SITE_URL: "https://staging.digitalhub.com.eg" })).toBe("https://staging.digitalhub.com.eg");
+    expect(readSiteUrl({ PUBLIC_SITE_URL: "https://digitalhub.com.eg", EXPECTED_PUBLIC_ORIGIN: "https://digitalhub.com.eg" })).toBe("https://digitalhub.com.eg");
+    for (const value of ["", "   ", "ftp://x", "//x", "https://user:pw@x", "https://x?y=1", "javascript:alert(1)", "https://digitalhub.com.eg/about", "not a url", "http://digitalhub.com.eg", "https://digitalhub.com.eg."]) {
       expect(() => readSiteUrl({ PUBLIC_SITE_URL: value })).toThrow(SiteUrlError);
     }
     expect(() => readSiteUrl({})).toThrow(/PUBLIC_SITE_URL is not set/);
+    expect(() => readSiteUrl({ PUBLIC_SITE_URL: "https://staging.digitalhub.com.eg", EXPECTED_PUBLIC_ORIGIN: "https://digitalhub.com.eg" })).toThrow(/expected origin/);
   });
 });
 
@@ -38,7 +42,8 @@ describe("page head", () => {
     expect(head.canonical).toBe("https://digitalhub.com.eg/");
     expect(head.noIndex).toBe(false);
     expect(head.image).toMatch(/^https:\/\/digitalhub.com.eg\/media\//);
-    expect(head.imageAlt).toBeTruthy();
+    expect(head.imageAlt).toBe(home.metaTitle);
+    expect(head.imageAlt).not.toContain("From pilots to production");
 
     const service = site.routes.find((route) => route.path === "/services/enterprise-software")!.item;
     const serviceHead = pageHead(site, service, "service", service.path!, origin);
@@ -58,10 +63,22 @@ describe("page head", () => {
     expect(national.shareImageId).toBeNull();
   });
 
-  it("uses a content canonical override only when it is a usable URL", () => {
-    expect(canonicalUrl(origin, "/about", "https://example.invalid/legal")).toBe("https://example.invalid/legal");
+  it("accepts a same-origin canonical and refuses the others, naming the page", () => {
     expect(canonicalUrl(origin, "/about", "/legal")).toBe("https://digitalhub.com.eg/legal");
-    expect(canonicalUrl(origin, "/about", "javascript:alert(1)")).toBe("https://digitalhub.com.eg/about");
+    expect(canonicalUrl(origin, "/about", "/about/index")).toBe("https://digitalhub.com.eg/about");
+    expect(canonicalUrl(origin, "/about", "https://digitalhub.com.eg/about/index")).toBe("https://digitalhub.com.eg/about");
+    const refused: [string, RegExp][] = [
+      ["https://evil.example/page", /another host/],
+      ["http://digitalhub.com.eg/about", /must be https/],
+      ["/a b", /unsafe character/],
+      ["/about#frag", /fragment/],
+      ["javascript:alert(1)", /must be https/],
+    ];
+    for (const [override, reason] of refused) {
+      expect(() => canonicalUrl(origin, "/about", override)).toThrow(CanonicalError);
+      expect(() => canonicalUrl(origin, "/about", override)).toThrow(reason);
+      expect(() => canonicalUrl(origin, "/about", override)).toThrow(/\/about:/);
+    }
   });
 });
 
@@ -134,6 +151,7 @@ describe("structured data", () => {
     const job = (graph["@graph"] as { "@type": string; description?: string; datePosted?: string; employmentType?: string }[]).find((node) => node["@type"] === "JobPosting");
     expect(job?.description).toBe("Build the platform.");
     expect(job?.datePosted).toBe("2026-04-02");
+    expect(jobDatePosted(vacancy)).toBe("2026-04-02");
     expect(job?.employmentType).toBeUndefined();
     expect(editorialLastMod({ ...vacancy, publishedAt: null, fields: { ...vacancy.fields, datePublished: null, dateModified: null } } as AnyContentItem)).toBeNull();
   });
@@ -209,10 +227,12 @@ describe("sitemap, robots, and llms", () => {
     expect(indexablePages(site).some((item) => item.noIndex)).toBe(false);
     const blog = site.routes.find((route) => route.path === "/blogs/digital-employee-experience")!.item;
     expect(editorialLastMod(blog)).toBe("2026-08-12");
+    expect(xml).toMatch(/<loc>https:\/\/digitalhub\.com\.eg\/about<\/loc><\/url>/);
+    expect(xml).not.toMatch(/<loc>https:\/\/digitalhub\.com\.eg\/<\/loc><lastmod>/);
     if (blog.collection === "blog-posts") {
       blog.fields.dateModified = null;
       blog.fields.datePublished = null;
-      blog.publishedAt = "not-a-date";
+      blog.publishedAt = "2026-10-12T10:07:28.746Z";
       expect(editorialLastMod(blog)).toBeNull();
       const again = renderSitemap(siteOf(content), origin);
       expect(again).toContain("<loc>https://digitalhub.com.eg/blogs/digital-employee-experience</loc></url>");
@@ -222,7 +242,15 @@ describe("sitemap, robots, and llms", () => {
     const llms = renderLlms(site, origin);
     expect(llms).toContain("# Digital Hub");
     expect(llms).toContain("https://digitalhub.com.eg/services/enterprise-software");
+    expect(llms).toContain("[About Us](https://digitalhub.com.eg/about)");
+    expect(llms).toContain("https://digitalhub.com.eg/blogs/digital-employee-experience");
+    expect(llms).toContain("https://digitalhub.com.eg/cases/ministry-planning");
+    expect(llms).not.toContain("Built in Egypt");
     expect(llms).not.toContain(".html");
     expect(llms).not.toContain("UNPUBLISHED");
+    const about = site.routes.find((route) => route.path === "/about")!.item;
+    expect(shortName(site, about, "/about")).toBe("About Us");
+    const crumbs = (structuredData(site, about, "page", "/about", origin)["@graph"] as { "@type": string; itemListElement: { name: string }[] }[]).find((node) => node["@type"] === "BreadcrumbList");
+    expect(crumbs?.itemListElement.map((crumb) => crumb.name)).toEqual(["Home", "About Us"]);
   });
 });
