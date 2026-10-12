@@ -2,7 +2,14 @@
  * Cookie banner only. The ported design stylesheets are not edited.
  * The footer "Cookie settings" control is an ordinary footer link, so it
  * uses those styles and has no rule here.
+ *
+ * While the banner is open, consent.js sets data-cookie-banner-open and the
+ * banner's height (--cookie-banner-space) on <html>. The page gets that much
+ * bottom padding, so the end of the footer can scroll clear of the banner.
  */
+html[data-cookie-banner-open] body {
+  padding-bottom: var(--cookie-banner-space, 0px);
+}
 .cookie-banner {
   position: fixed;
   z-index: 80;
@@ -40,6 +47,10 @@
   border-radius: 4px;
   padding: 8px 12px;
   cursor: pointer;
+}
+.cookie-banner button[aria-pressed="true"] {
+  font-weight: 600;
+  box-shadow: inset 0 0 0 2px #0b1b33;
 }
 .cookie-banner button:focus-visible {
   outline: 2px solid #fff;

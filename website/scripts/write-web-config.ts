@@ -7,6 +7,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { BuildContent } from "../src/content/build-content";
+import { tagManagerId } from "../src/content/tag-manager";
 import { WebConfigError, renderWebConfig } from "../src/iis/web-config";
 
 /** Next's app router also emits _not-found.html. The site uses 404.html; the extra file is not served. */
@@ -35,8 +36,10 @@ function main(): void {
   }
   const content = JSON.parse(fs.readFileSync(contentFile, "utf8")) as BuildContent;
   removeNotFound(outDir);
-  fs.writeFileSync(path.join(outDir, "web.config"), renderWebConfig(content.redirects));
+  const tagManager = tagManagerId(content.settings) !== null;
+  fs.writeFileSync(path.join(outDir, "web.config"), renderWebConfig(content.redirects, { tagManager }));
   console.log(`web.config: ${content.redirects.length} redirect(s) from the redirects table, written to out/web.config.`);
+  console.log(`web.config: content security policy ${tagManager ? "with the Tag Manager and GA4 hosts (a container id is set)" : "without Tag Manager hosts (no container id)"}.`);
 }
 
 try {

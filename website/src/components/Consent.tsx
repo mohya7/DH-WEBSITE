@@ -1,5 +1,8 @@
 import type { SiteSettings } from "@/content/build-content";
+import { tagManagerId } from "@/content/tag-manager";
 import { behaviorUrl, consentStyleUrl } from "@/design/behaviors";
+
+export { tagManagerId };
 
 export const consentDefaults = {
   title: "Cookies on this site",
@@ -9,12 +12,6 @@ export const consentDefaults = {
   analytics: "Analytics only",
   settings: "Cookie settings",
 };
-
-/** A container id the site will load, or null when Tag Manager must stay absent. */
-export function tagManagerId(settings: SiteSettings, env: Record<string, string | undefined> = process.env): string | null {
-  const value = (env.ANALYTICS_CONTAINER_ID?.trim() || settings.analyticsContainerId || "").trim();
-  return /^GTM-[A-Z0-9]{7,}$/.test(value) ? value : null;
-}
 
 function text(value: string | null | undefined, fallback: string): string {
   const trimmed = value?.trim();
@@ -32,14 +29,18 @@ export function consentCopy(settings: SiteSettings) {
   };
 }
 
-/** Banner, stylesheet, and script. Renders nothing when there is no container id. */
+/**
+ * Banner, stylesheet, and script. Renders nothing when there is no container id.
+ * A non-modal bottom banner: a dialog role without aria-modal, because the page
+ * behind it stays usable. consent.js reserves its height below the footer.
+ */
 export function Consent({ settings }: { settings: SiteSettings }) {
   const container = tagManagerId(settings);
   if (!container) return null;
   const copy = consentCopy(settings);
   return <>
     <link rel="stylesheet" href={consentStyleUrl()} />
-    <div className="cookie-banner" id="cookieBanner" role="dialog" aria-modal="true" aria-labelledby="cookieBannerTitle" hidden>
+    <div className="cookie-banner" id="cookieBanner" role="dialog" aria-labelledby="cookieBannerTitle" hidden>
       <h2 id="cookieBannerTitle">{copy.title}</h2>
       <p>{copy.body}</p>
       <div className="cookie-banner__actions">

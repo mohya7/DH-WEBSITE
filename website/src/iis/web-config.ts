@@ -26,12 +26,17 @@
  *
  * Content security policy. Report-only. jsDelivr is allowed only for the
  * three scripts and the Tabler Icons package the design loads, not the whole
- * host. Tag Manager and GA4 hosts come from
+ * host. Inline style elements are allowed only on the home page, which is the
+ * only page that injects one. Inline style attributes are allowed on every
+ * page, because the markup uses them.
+ *
+ * Only when the site settings name a Tag Manager container, the policy adds
+ * the Tag Manager and GA4 hosts from
  * https://developers.google.com/tag-platform/security/guides/csp
  * (container tag, and Google Analytics without Ads features, plus frame-src
- * from the Google Analytics table). Inline style elements are allowed only on
- * the home page, which is the only page that injects one. Inline style
- * attributes are allowed on every page, because the markup uses them.
+ * from the Google Analytics table). With no container the policy is the one
+ * from before Tag Manager existed. Preview Mode, Custom HTML tags, and Ads
+ * features need more hosts; they are added when the container needs them.
  *
  * Strict-Transport-Security is max-age=31536000 without includeSubDomains.
  * That is revisited once decision D1 (the domains) is settled.
@@ -54,43 +59,56 @@ export const strictTransportSecurity = "max-age=31536000";
 /** Directory of the Tabler package, so its stylesheet and font files are both covered. */
 const tablerDirectory = TABLER_ICONS.slice(0, TABLER_ICONS.lastIndexOf("/") + 1);
 
-const scriptSrc = `script-src 'self' ${GSAP} ${SCROLL_TRIGGER} ${LENIS} https://www.googletagmanager.com`;
+const scriptSrc = `script-src 'self' ${GSAP} ${SCROLL_TRIGGER} ${LENIS}`;
 const styleSrc = `style-src 'self' ${GOOGLE_FONTS} ${TABLER_ICONS}`;
 const fontSrc = `font-src 'self' ${GOOGLE_FONTS_STATIC} ${tablerDirectory}`;
+const tagManagerScript = "https://www.googletagmanager.com";
 const tagManagerImg = "https://www.googletagmanager.com https://*.google-analytics.com";
 const tagManagerConnect = "https://www.googletagmanager.com https://*.google-analytics.com https://*.google.com";
 
-function policy(style: string): string {
+/** Whether the site loads Tag Manager, which widens the policy. */
+export interface WebConfigOptions {
+  tagManager?: boolean;
+}
+
+function policy(style: string, tagManager: boolean): string {
+  const plus = (directive: string, hosts: string) => (tagManager ? `${directive} ${hosts}` : directive);
   return [
     "default-src 'self'",
-    scriptSrc,
+    plus(scriptSrc, tagManagerScript),
     style,
     "style-src-attr 'unsafe-inline'",
     fontSrc,
-    `img-src 'self' data: ${tagManagerImg}`,
-    `connect-src 'self' ${tagManagerConnect}`,
+    plus("img-src 'self' data:", tagManagerImg),
+    plus("connect-src 'self'", tagManagerConnect),
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
-    "frame-src https://www.googletagmanager.com",
+    tagManager ? "frame-src https://www.googletagmanager.com" : "frame-src 'none'",
   ].join("; ");
 }
 
 /** Every page except the home page. No inline style elements. */
-export const contentSecurityPolicy = policy(styleSrc);
+export const contentSecurityPolicy = policy(styleSrc, false);
 
 /** The home page, whose webgl-fluid-lib.js appends a style element as it loads. */
-export const homeContentSecurityPolicy = policy(`${styleSrc} 'unsafe-inline'`);
+export const homeContentSecurityPolicy = policy(`${styleSrc} 'unsafe-inline'`, false);
 
-const securityHeaders: [string, string][] = [
-  ["Content-Security-Policy-Report-Only", contentSecurityPolicy],
-  ["Strict-Transport-Security", strictTransportSecurity],
-  ["X-Content-Type-Options", "nosniff"],
-  ["Referrer-Policy", "strict-origin-when-cross-origin"],
-  ["X-Frame-Options", "DENY"],
-  ["Cache-Control", htmlCacheControl],
-];
+/** The same two policies when the site settings name a Tag Manager container. */
+export const tagManagerContentSecurityPolicy = policy(styleSrc, true);
+export const tagManagerHomeContentSecurityPolicy = policy(`${styleSrc} 'unsafe-inline'`, true);
+
+function securityHeaders(sitePolicy: string): [string, string][] {
+  return [
+    ["Content-Security-Policy-Report-Only", sitePolicy],
+    ["Strict-Transport-Security", strictTransportSecurity],
+    ["X-Content-Type-Options", "nosniff"],
+    ["Referrer-Policy", "strict-origin-when-cross-origin"],
+    ["X-Frame-Options", "DENY"],
+    ["Cache-Control", htmlCacheControl],
+  ];
+}
 
 function xml(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -164,7 +182,9 @@ ${customHeaders([["Cache-Control", designCacheControl]], "        ")}
 }
 
 /** The web.config for these redirects. Throws if a path cannot be expressed as a safe rule. */
-export function renderWebConfig(redirects: readonly Redirect[]): string {
+export function renderWebConfig(redirects: readonly Redirect[], options: WebConfigOptions = {}): string {
+  const sitePolicy = options.tagManager ? tagManagerContentSecurityPolicy : contentSecurityPolicy;
+  const homePolicy = options.tagManager ? tagManagerHomeContentSecurityPolicy : homeContentSecurityPolicy;
   const redirectsXml = redirectRules(redirects);
   const rules = redirectsXml === "" ? cleanUrls : `${redirectsXml}\n${cleanUrls}`;
   return `<?xml version="1.0" encoding="utf-8"?>
@@ -187,7 +207,7 @@ ${rules}
       <outboundRules rewriteBeforeCache="true">
         <rule name="Home page inline style elements" preCondition="IsHome">
           <match serverVariable="RESPONSE_Content_Security_Policy_Report_Only" pattern=".*" />
-          <action type="Rewrite" value="${xml(homeContentSecurityPolicy)}" />
+          <action type="Rewrite" value="${xml(homePolicy)}" />
         </rule>
         <preConditions>
           <preCondition name="IsHome">
@@ -204,7 +224,7 @@ ${rules}
       <error statusCode="500" path="/500.html" responseMode="ExecuteURL" />
     </httpErrors>
     <httpProtocol>
-${customHeaders(securityHeaders, "      ")}
+${customHeaders(securityHeaders(sitePolicy), "      ")}
     </httpProtocol>
   </system.webServer>
 ${cacheLocation("design")}
@@ -212,7 +232,7 @@ ${cacheLocation("media")}
   <location path="index.html">
     <system.webServer>
       <httpProtocol>
-${customHeaders([["Content-Security-Policy-Report-Only", homeContentSecurityPolicy]], "        ")}
+${customHeaders([["Content-Security-Policy-Report-Only", homePolicy]], "        ")}
       </httpProtocol>
     </system.webServer>
   </location>
