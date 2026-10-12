@@ -103,6 +103,13 @@ export function shortName(site: Site, item: AnyContentItem, path: string): strin
   return navigationLabel(site, path) ?? item.title;
 }
 
+/** Partner detail crumbs are "{name} Partnership". Other crumbs use the short name. */
+function breadcrumbName(site: Site, item: AnyContentItem, path: string): string {
+  const name = shortName(site, item, path);
+  if (item.collection === "partners") return `${name} Partnership`;
+  return name;
+}
+
 export function faqItems(item: AnyContentItem): FaqItem[] {
   const fromSections = item.sections.flatMap((section) => {
     if (section.type !== "faq") return [];
@@ -144,7 +151,7 @@ function breadcrumbs(site: Site, item: AnyContentItem | null, path: string, orig
     return [{
       "@type": "ListItem",
       position: 0,
-      name: shortName(site, source, crumbPath),
+      name: breadcrumbName(site, source, crumbPath),
       item: crumbPath === path && item ? canonicalUrl(origin, path, item.canonicalOverride) : canonicalUrl(origin, crumbPath, source.canonicalOverride),
     }];
   });

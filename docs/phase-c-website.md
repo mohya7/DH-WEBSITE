@@ -424,6 +424,17 @@ Head differences, accepted (marketing lead):
 - Service pages repeat the meta description as `og:description` and `twitter:description`. The old pages had a separate social sentence.
 - `article:publisher` and `article:section` were on the three old blog posts and are not emitted.
 - Page-level JSON-LD types the old pages had (`WebPage`, `AboutPage`, `Blog`, `CollectionPage`, `BlogPosting`, and `Article` on case studies) are not emitted. Service and Article stay as in the table above.
+- `/careers/apply` ends with "Apply to join Digital Hub". The old crumb was "Apply".
+- `/cases` uses "Case Studies". The old hub crumb was "Cases".
+- `/contact` uses "Get in touch". The old crumb was "Get in Touch".
+- `/services/ai-automation` ends with "AI & Intelligent Automation", not "AI that works for you.", and has no "Services" ancestor.
+- `/services/data-analytics` ends with "Data & Analytics Solutions", not "Enterprise intelligence, simplified.", and has no "Services" ancestor.
+- `/services/enterprise-software` ends with "Enterprise Software Solutions", not "Software that fits the work.", and has no "Services" ancestor.
+- `/services/outsourcing` ends with "Outsourcing Technical Talents", not "Teams that ship with you.", and has no "Services" ancestor.
+- `/blogs/azure-digital-egypt-2030` has no "Data, Cloud & Digital Egypt 2030" category crumb.
+- `/blogs/digital-employee-experience` has no "DEX & Digital Employee Experience" category crumb.
+- `/blogs/enterprise-ai-production` has no "AI & Automation" category crumb.
+- Case detail crumbs stay the item title. Long headlines are accepted. A short-name field for case studies is a later change. `/cases/data-center-transformation` ends with "End-to-end data center transformation for Central Bank of Egypt" (old "Data Center Transformation Case Study"). `/cases/ministry-planning` ends with "3+ years powering Egypt’s national planning systems" (old "Ministry of Planning Case Study"). `/cases/nexthink-dex-bank` ends with "500+ endpoints under real-time Nexthink DEX monitoring" (old "Nexthink DEX Banking Case Study").
 
 Round 4: the four home service-card links keep the visible words "Learn more" and add the service title in a visually hidden span (`.dh-sr-only`). The class is in `website/behaviors/home-sr.css`, hashed and served from this site, and linked only by the home page. It is outside `website/design/`. Ali approved that.
 

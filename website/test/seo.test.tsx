@@ -207,6 +207,32 @@ describe("structured data", () => {
     expect(renderSitemap(built, origin)).not.toContain("secret-draft");
     expect(renderLlms(built, origin)).not.toContain("UNPUBLISHED DRAFT TITLE");
   });
+
+  it("keeps one exact breadcrumb trail for every page type", () => {
+    const names = (path: string, pageType: Parameters<typeof structuredData>[2], item: AnyContentItem) => {
+      const graph = structuredData(site, item, pageType, path, origin);
+      const list = (graph["@graph"] as { "@type": string; itemListElement: { name: string }[] }[]).find((node) => node["@type"] === "BreadcrumbList");
+      return list?.itemListElement.map((crumb) => crumb.name);
+    };
+    const page = (path: string) => {
+      const route = site.routes.find((entry) => entry.path === path)!;
+      return names(path, route.pageType, route.item);
+    };
+
+    expect(page("/")).toEqual(["Home"]);
+    expect(page("/about")).toEqual(["Home", "About Us"]);
+    expect(page("/blogs")).toEqual(["Home", "Blogs"]);
+    expect(page("/partners")).toEqual(["Home", "Partners"]);
+    expect(page("/partners/microsoft")).toEqual(["Home", "Partners", "Microsoft Partnership"]);
+    expect(page("/cases")).toEqual(["Home", "Case Studies"]);
+    expect(page("/cases/ministry-planning")).toEqual(["Home", "Case Studies", "3+ years powering Egypt\u2019s national planning systems"]);
+    expect(page("/services/ai-automation")).toEqual(["Home", "AI & Intelligent Automation"]);
+    expect(page("/blogs/digital-employee-experience")).toEqual(["Home", "Blogs", "What is Digital Employee Experience and why Egyptian banks can\u2019t ignore it"]);
+    expect(page("/careers/apply")).toEqual(["Home", "Careers", "Apply to join Digital Hub"]);
+    expect(page("/contact")).toEqual(["Home", "Get in touch"]);
+    expect(names("/404", "error", site.errorPage("404")!)).toEqual(["Home", "Page not found"]);
+    expect(names("/500", "error", site.errorPage("500")!)).toEqual(["Home", "Something went wrong"]);
+  });
 });
 
 describe("sitemap, robots, and llms", () => {
