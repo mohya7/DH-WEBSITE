@@ -624,7 +624,7 @@ namespace DigitalHub.Api.Data.Migrations
 
                     b.ToTable("navigation_items", null, t =>
                         {
-                            t.HasCheckConstraint("ck_navigation_items_link_shape", "(link_kind = 'group' AND target_type IS NULL AND target_id IS NULL AND url IS NULL)\r\nOR (link_kind = 'external' AND target_type IS NULL AND target_id IS NULL AND url IS NOT NULL AND url <> '')\r\nOR (link_kind = 'internal' AND target_type IS NOT NULL AND target_id IS NOT NULL AND url IS NULL)");
+                            t.HasCheckConstraint("ck_navigation_items_link_shape", "(link_kind = 'group' AND target_type IS NULL AND target_id IS NULL AND url IS NULL)\nOR (link_kind = 'external' AND target_type IS NULL AND target_id IS NULL AND url IS NOT NULL AND url <> '')\nOR (link_kind = 'internal' AND target_type IS NOT NULL AND target_id IS NOT NULL AND url IS NULL)");
                         });
                 });
 
