@@ -11,13 +11,16 @@
     "prepare:content": "tsx scripts/prepare-content.ts",
     "prepare:design": "tsx scripts/prepare-design.ts",
     "dev": "npm run gen:types -- --check && npm run prepare:content && npm run prepare:design && next dev",
-    "build": "npm run gen:types -- --check && npm run prepare:content && npm run prepare:design && next build && tsx scripts/strip-runtime.ts && tsx scripts/check-output.ts",
+    "build": "npm run gen:types -- --check && npm run prepare:content && npm run prepare:design && next build && tsx scripts/strip-runtime.ts && tsx scripts/write-web-config.ts && tsx scripts/check-output.ts",
+    "webconfig": "tsx scripts/write-web-config.ts",
+    "check:csp": "tsx scripts/check-csp.ts",
     "strip:runtime": "tsx scripts/strip-runtime.ts",
     "check:output": "tsx scripts/check-output.ts",
     "design:check": "tsx scripts/design-sources.ts",
     "design:port": "tsx scripts/design-sources.ts --write",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:browser": "playwright test",
     "compare:sections": "node tools/section-compare/run.mjs"
   },
   "dependencies": {
@@ -26,6 +29,7 @@
     "react-dom": "19.3.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.56.1",
     "@types/node": "26.6.2",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.2.3",

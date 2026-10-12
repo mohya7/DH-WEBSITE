@@ -56,6 +56,13 @@ export function stripRuntime(html: string): { html: string; removed: Record<stri
     removed[removal.name] = (out.match(removal.pattern) ?? []).length;
     out = out.replace(removal.pattern, "");
   }
+  // The shared Next root layout cannot see the route. Apply the original body
+  // classes from the build-rendered page before any ported script executes.
+  const bodyClass = /\bdata-body-class="([^"]*)"/.exec(out)?.[1];
+  if (bodyClass !== undefined) {
+    out = out.replace(/<body(?: class="[^"]*")?>/, `<body${bodyClass ? ` class="${bodyClass}"` : ""}>`);
+    if (bodyClass) out = out.replace(/<html lang="en">/, `<html lang="en" class="nav-shown${bodyClass === "page-case" ? " subpage" : ""}">`);
+  }
   return { html: out, removed };
 }
 

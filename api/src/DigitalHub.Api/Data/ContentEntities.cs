@@ -159,7 +159,10 @@ public sealed class BlogPost : ContentRecord
     /// </summary>
     public string Faq { get; set; } = """{"items":[]}""";
 
-    public DateTime? DateModified { get; set; }
+    /// <summary>Editorial calendar dates, YYYY-MM-DD. Never system or publish times.</summary>
+    public DateOnly? DatePublished { get; set; }
+
+    public DateOnly? DateModified { get; set; }
 
     public bool Featured { get; set; }
 }
@@ -345,6 +348,10 @@ public sealed class SiteSettings
 
     [MaxLength(320)]
     public string? Email { get; set; }
+
+    /// <summary>Shown on the careers and apply pages in place of Email.</summary>
+    [MaxLength(320)]
+    public string? CareersEmail { get; set; }
 
     [MaxLength(300)]
     public string? LinkedIn { get; set; }

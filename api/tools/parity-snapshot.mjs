@@ -29,7 +29,7 @@ const mediaRoot = path.join(repoRoot, "artifacts", "parity-media");
 
 const catalog = "DigitalHubContent_Parity";
 const forbidden = ["DigitalHubContent", "DigitalHubContent_Studio", "DigitalHubContent_Test", "DigitalHubContent_E2e"];
-const origin = "http://127.0.0.1:5097";
+const origin = `http://127.0.0.1:${process.env.PARITY_API_PORT ?? 5097}`;
 const adminEmail = "parity-admin@digitalhub.test";
 const adminPassword = "Parity-Only-Passw0rd!";
 const buildToken = "parity-only-build-token-" + Math.random().toString(36).slice(2, 12);
@@ -122,6 +122,10 @@ async function waitForApi() {
   throw new Error("The parity API did not start.");
 }
 
+// Check before reading credentials, building, or touching the parity database.
+const dirty = run("git", ["status", "--porcelain", "--untracked-files=no"], { cwd: repoRoot }).trim();
+if (dirty) throw new Error("Refusing snapshot refresh: tracked files have uncommitted changes. Commit them first so the recorded API commit reproduces the snapshot.");
+
 const secret = secretConnectionString();
 const server = valueOf(secret, "Server", "Data Source") ?? "localhost";
 const appLogin = valueOf(secret, "User ID", "UID") ?? "dh_content_app";
@@ -136,6 +140,10 @@ if (resolved !== catalog || forbidden.includes(resolved)) {
 
 let child = null;
 try {
+  step("Restore migration tools and API dependencies");
+  run("dotnet", ["tool", "restore"], { cwd: apiRoot });
+  run("dotnet", ["restore", apiProject], { cwd: apiRoot });
+
   step("Drop and recreate " + catalog);
   sql("master", `
 IF DB_ID(N'${catalog}') IS NOT NULL
@@ -147,10 +155,9 @@ CREATE DATABASE [${catalog}];
 `);
 
   step("Apply migrations with the elevated account");
-  run("dotnet", ["tool", "restore"], { cwd: apiRoot });
   run("dotnet", [
     "tool", "run", "dotnet-ef", "--", "database", "update",
-    "--project", apiProject, "--connection", elevatedConnection,
+    "--project", apiProject, "--configuration", "Release", "--connection", elevatedConnection,
   ], { cwd: apiRoot });
 
   step("Grant the application login");
@@ -200,6 +207,7 @@ ALTER ROLE db_datawriter ADD MEMBER [${appLogin.replace(/]/g, "]]")}];
     cwd: repoRoot,
     stdio: ["ignore", logHandle, logHandle],
     env: apiEnv,
+    windowsHide: true,
   });
 
   try {
@@ -216,9 +224,8 @@ ALTER ROLE db_datawriter ADD MEMBER [${appLogin.replace(/]/g, "]]")}];
 
   step("Publish the placeholder case studies, blog posts, and error pages");
   const published = {};
-  const listed = listedBlogTitles();
   published["case-studies"] = await publishDrafts("case-studies", token);
-  published["blog-posts"] = await publishDrafts("blog-posts", token, listed);
+  published["blog-posts"] = await publishDrafts("blog-posts", token, listedBlogTitles());
   published["error-pages"] = await publishErrorPages(token);
 
   step("Export the snapshot");
@@ -275,26 +282,19 @@ async function publishDrafts(collection, token, keep = null) {
   const names = [];
   const left = [];
   for (const row of drafts) {
-    /* Only what the old site listed. Two blog posts exist as HTML but were never
-       in site-content.js, so no page linked to them and no visitor saw them.
-       They stay drafts, as they are on the real database. */
-    if (keep !== null && !keep.has(row.title)) {
-      left.push(row.slug);
-      continue;
-    }
+    // HTML-only posts were never listed. They stay drafts, as on the real database.
+    if (keep && !keep.has(row.title)) { left.push(row.slug); continue; }
     await publishOne(collection, row.id, token);
     names.push(row.slug);
   }
 
-  console.log(`  ${collection}: published ${names.length}${left.length > 0 ? `, left as drafts ${left.length} (${left.join(", ")})` : ""}`);
+  console.log(`  ${collection}: published ${names.length}; left as drafts ${left.length}${left.length ? " (" + left.join(", ") + ")" : ""}`);
   return names;
 }
 
-/** The blog posts the old site listed, read from the same file its runtime read. */
 function listedBlogTitles() {
-  const file = path.join(sourceRoot, "content", "site-content.json");
-  const site = JSON.parse(fs.readFileSync(file, "utf8"));
-  return new Set((site.collections?.blogs ?? []).map((post) => post.title).filter(Boolean));
+  const content = JSON.parse(fs.readFileSync(path.join(sourceRoot, "content", "site-content.json"), "utf8"));
+  return new Set(content.collections.blogs.map((post) => post.title));
 }
 
 /** The list endpoint caps pageSize at 100, so read every page. */
@@ -435,9 +435,9 @@ commit produce the same content, the same counts, and the same structure — but
 
 - **Item ids are new GUIDs.** Do not store a snapshot id anywhere that has to
   survive a refresh, and do not hard-code one in a test.
-- **\`publishedAt\` and \`updatedAt\` are the time of the run**, not an editorial
-  date. Anything that reads them, such as the sitemap's last-modified dates, will
-  move on every refresh. A real editorial date has to come from the content.
+- **\`publishedAt\` and \`updatedAt\`** can reflect the time of the run.
+  They are system timestamps, not editorial publication dates. Blog
+  \`dateModified\` is the imported editorial modification date.
 
 Everything else compares byte for byte.
 

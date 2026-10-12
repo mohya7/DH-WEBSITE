@@ -17,6 +17,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="DigitalHub.Api.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\DigitalHub.Api\DigitalHub.Api.csproj" />
     <ProjectReference Include="..\..\src\DigitalHub.Images\DigitalHub.Images.csproj" />
   </ItemGroup>

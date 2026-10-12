@@ -1,6 +1,6 @@
 /*
- * Root layout. The ported stylesheets, fonts, header, and footer arrive in
- * Sections 3 and 5.
+ * Shared root. The page supplies its design set and original body classes;
+ * strip-runtime transfers the latter to this body in the static export.
  */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

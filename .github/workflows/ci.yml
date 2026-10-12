@@ -156,6 +156,9 @@ jobs:
       - name: Snapshot build
         env:
           CONTENT_SOURCE: snapshot
+          # Section 5.5: the careers form's endpoint is configuration, and the
+          # build refuses to run without it. The value the website README uses.
+          CAREERS_APPLICATION_ENDPOINT: /api/careers/applications
         run: npm run build
 
       - name: Upload test report

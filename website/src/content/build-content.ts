@@ -70,6 +70,8 @@ export interface SiteSettings {
   phone: string | null;
   whatsApp: string | null;
   email: string | null;
+  /** Shown on the careers, apply, and vacancy pages in place of email. */
+  careersEmail: string | null;
   linkedIn: string | null;
   facebook: string | null;
   instagram: string | null;

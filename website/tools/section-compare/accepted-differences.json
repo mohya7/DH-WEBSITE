@@ -1,282 +1,144 @@
-{
-  "_about": [
-    "Differences between feature/interviewer-portal and the build that the section comparison accepts.",
-    "npm run compare:sections (website/tools/section-compare/run.mjs) fails on any section that is not a match unless it is listed here with the same status and, for 'differs', exactly the same reported differences (the harness reports up to the first eight).",
-    "An entry that no longer occurs is reported as stale; remove it in the same change that fixes it.",
-    "Changing this file is changing what CI accepts: say why in the pull request."
-  ],
-  "accepted": [
-    {
-      "page": "/index.html",
-      "id": "top",
-      "status": "differs",
-      "reason": "The new hero carries js/hero-fluid.js as a module script at its Section 3 position (inside the hero, after .hero-wires). The harness strips the old page's scripts but parses the new page as built, so the script is the first difference and shifts every line after it.",
-      "diff": [
-        {
-          "old": "1<div class=hero-inner",
-          "now": "1<script type=module"
-        },
-        {
-          "old": "2<div class=hero-left",
-          "now": "1<div class=hero-inner"
-        },
-        {
-          "old": "3<div class=eyebrow",
-          "now": "2<div class=hero-left"
-        },
-        {
-          "old": "4<span aria-hidden=true|class=bar",
-          "now": "3<div class=eyebrow"
-        },
-        {
-          "old": "4<span ",
-          "now": "4<span aria-hidden=true|class=bar"
-        },
-        {
-          "old": "5#text:AI & Software provider",
-          "now": "4<span "
-        },
-        {
-          "old": "3<h1 aria-label=Your strategy is right. Your systems are holding it back.|class=h1-wrap",
-          "now": "5#text:AI & Software provider"
-        },
-        {
-          "old": "4<span class=h1-line",
-          "now": "3<h1 aria-label=Your strategy is right. Your systems are holding it back.|class=h1-wrap"
-        }
-      ]
-    },
-    {
-      "page": "/blogs/augment-vs-outsource-tech-team.html",
-      "id": "blog-view-hero",
-      "status": "renders nothing",
-      "reason": "Blog-post pages are built in Section 5; until then the page renders none of its sections.",
-      "diff": []
-    },
-    {
-      "page": "/blogs/augment-vs-outsource-tech-team.html",
-      "id": "blog-view-body",
-      "status": "renders nothing",
-      "reason": "Blog-post pages are built in Section 5; until then the page renders none of its sections.",
-      "diff": []
-    },
-    {
-      "page": "/blogs/augment-vs-outsource-tech-team.html",
-      "id": "blog-view-related",
-      "status": "renders nothing",
-      "reason": "Blog-post pages are built in Section 5; until then the page renders none of its sections.",
-      "diff": []
-    },
-    {
-      "page": "/blogs/azure-digital-egypt-2030.html",
-      "id": "blog-view-hero",
-      "status": "renders nothing",
-      "reason": "Blog-post pages are built in Section 5; until then the page renders none of its sections.",
-      "diff": []
-    },
-    {
-      "page": "/blogs/azure-digital-egypt-2030.html",
-      "id": "blog-view-body",
-      "status": "renders nothing",
-      "reason": "Blog-post pages are built in Section 5; until then the page renders none of its sections.",
-      "diff": []
-    },
-    {
-      "page": "/blogs/azure-digital-egypt-2030.html",
-      "id": "blog-view-related",
-      "status": "renders nothing",
-      "reason": "Blog-post pages are built in Section 5; until then the page renders none of its sections.",
-      "diff": []
-    },
-    {
-      "page": "/blogs/digital-employee-experience.html",
-      "id": "blog-view-hero",
-      "status": "renders nothing",
-      "reason": "Blog-post pages are built in Section 5; until then the page renders none of its sections.",
-      "diff": []
-    },
-    {
-      "page": "/blogs/digital-employee-experience.html",
-      "id": "blog-view-body",
-      "status": "renders nothing",
-      "reason": "Blog-post pages are built in Section 5; until then the page renders none of its sections.",
-      "diff": []
-    },
-    {
-      "page": "/blogs/digital-employee-experience.html",
-      "id": "blog-view-related",
-      "status": "renders nothing",
-      "reason": "Blog-post pages are built in Section 5; until then the page renders none of its sections.",
-      "diff": []
-    },
-    {
-      "page": "/blogs/digital-transformation-signs.html",
-      "id": "blog-view-hero",
-      "status": "renders nothing",
-      "reason": "Blog-post pages are built in Section 5; until then the page renders none of its sections.",
-      "diff": []
-    },
-    {
-      "page": "/blogs/digital-transformation-signs.html",
-      "id": "blog-view-body",
-      "status": "renders nothing",
-      "reason": "Blog-post pages are built in Section 5; until then the page renders none of its sections.",
-      "diff": []
-    },
-    {
-      "page": "/blogs/digital-transformation-signs.html",
-      "id": "blog-view-related",
-      "status": "renders nothing",
-      "reason": "Blog-post pages are built in Section 5; until then the page renders none of its sections.",
-      "diff": []
-    },
-    {
-      "page": "/blogs/enterprise-ai-production.html",
-      "id": "blog-view-hero",
-      "status": "renders nothing",
-      "reason": "Blog-post pages are built in Section 5; until then the page renders none of its sections.",
-      "diff": []
-    },
-    {
-      "page": "/blogs/enterprise-ai-production.html",
-      "id": "blog-view-body",
-      "status": "renders nothing",
-      "reason": "Blog-post pages are built in Section 5; until then the page renders none of its sections.",
-      "diff": []
-    },
-    {
-      "page": "/blogs/enterprise-ai-production.html",
-      "id": "blog-view-related",
-      "status": "renders nothing",
-      "reason": "Blog-post pages are built in Section 5; until then the page renders none of its sections.",
-      "diff": []
-    },
-    {
-      "page": "/careers/index.html",
-      "id": "opportunities",
-      "status": "differs",
-      "reason": "No vacancy is published, so the list shows its empty-state message instead of the old page's test job (allowed differences register).",
-      "diff": [
-        {
-          "old": "3<article class=careers-job-card",
-          "now": "3<p "
-        },
-        {
-          "old": "4<div ",
-          "now": "4#text:No open roles right now."
-        },
-        {
-          "old": "5<h3 ",
-          "now": "(end)"
-        },
-        {
-          "old": "6#text:asdasd",
-          "now": "(end)"
-        },
-        {
-          "old": "5<p class=cms-job-meta",
-          "now": "(end)"
-        },
-        {
-          "old": "6#text:dasdasdadasd · Hybrid · sadadadsad",
-          "now": "(end)"
-        },
-        {
-          "old": "4<a class=btn-pill",
-          "now": "(end)"
-        },
-        {
-          "old": "5#text:More Info",
-          "now": "(end)"
-        }
-      ]
-    },
-    {
-      "page": "/careers/apply.html",
-      "id": "section",
-      "status": "renders nothing",
-      "reason": "The apply form is built in Section 5.5; until then the section renders nothing.",
-      "diff": []
-    },
-    {
-      "page": "/services/ai-automation.html",
-      "id": "cases",
-      "status": "differs",
-      "reason": "The old cards' aria-labels named the client (\"Read case study: Credit Guarantee Corporation\"). No content field stores client names, so the build labels each card with the case study's title. Content gap, accessible name only.",
-      "diff": [
-        {
-          "old": "4<a aria-label=Read case study: Ministry of Planning and Economic Development|class=case-link",
-          "now": "4<a aria-label=Read case study: 3+ years powering Egypt’s national planning systems|class=case-link"
-        },
-        {
-          "old": "4<a aria-label=Read case study: Credit Guarantee Corporation|class=case-link",
-          "now": "4<a aria-label=Read case study: End-to-end data center transformation for Central Bank of Egypt|class=case-link"
-        },
-        {
-          "old": "4<a aria-label=Read case study: Leading Egyptian Bank DEX|class=case-link",
-          "now": "4<a aria-label=Read case study: 500+ endpoints under real-time Nexthink DEX monitoring|class=case-link"
-        }
-      ]
-    },
-    {
-      "page": "/services/data-analytics.html",
-      "id": "cases",
-      "status": "differs",
-      "reason": "The old cards' aria-labels named the client (\"Read case study: Credit Guarantee Corporation\"). No content field stores client names, so the build labels each card with the case study's title. Content gap, accessible name only.",
-      "diff": [
-        {
-          "old": "4<a aria-label=Read case study: Ministry of Planning and Economic Development|class=case-link",
-          "now": "4<a aria-label=Read case study: 3+ years powering Egypt’s national planning systems|class=case-link"
-        },
-        {
-          "old": "4<a aria-label=Read case study: Credit Guarantee Corporation|class=case-link",
-          "now": "4<a aria-label=Read case study: End-to-end data center transformation for Central Bank of Egypt|class=case-link"
-        },
-        {
-          "old": "4<a aria-label=Read case study: Leading Egyptian Bank DEX|class=case-link",
-          "now": "4<a aria-label=Read case study: 500+ endpoints under real-time Nexthink DEX monitoring|class=case-link"
-        }
-      ]
-    },
-    {
-      "page": "/services/enterprise-software.html",
-      "id": "cases",
-      "status": "differs",
-      "reason": "The old cards' aria-labels named the client (\"Read case study: Credit Guarantee Corporation\"). No content field stores client names, so the build labels each card with the case study's title. Content gap, accessible name only.",
-      "diff": [
-        {
-          "old": "4<a aria-label=Read case study: Ministry of Planning and Economic Development|class=case-link",
-          "now": "4<a aria-label=Read case study: 3+ years powering Egypt’s national planning systems|class=case-link"
-        },
-        {
-          "old": "4<a aria-label=Read case study: Credit Guarantee Corporation|class=case-link",
-          "now": "4<a aria-label=Read case study: End-to-end data center transformation for Central Bank of Egypt|class=case-link"
-        },
-        {
-          "old": "4<a aria-label=Read case study: Leading Egyptian Bank DEX|class=case-link",
-          "now": "4<a aria-label=Read case study: 500+ endpoints under real-time Nexthink DEX monitoring|class=case-link"
-        }
-      ]
-    },
-    {
-      "page": "/services/outsourcing.html",
-      "id": "cases",
-      "status": "differs",
-      "reason": "The old cards' aria-labels named the client (\"Read case study: Credit Guarantee Corporation\"). No content field stores client names, so the build labels each card with the case study's title. Content gap, accessible name only.",
-      "diff": [
-        {
-          "old": "4<a aria-label=Read case study: Ministry of Planning and Economic Development|class=case-link",
-          "now": "4<a aria-label=Read case study: 3+ years powering Egypt’s national planning systems|class=case-link"
-        },
-        {
-          "old": "4<a aria-label=Read case study: Credit Guarantee Corporation|class=case-link",
-          "now": "4<a aria-label=Read case study: End-to-end data center transformation for Central Bank of Egypt|class=case-link"
-        },
-        {
-          "old": "4<a aria-label=Read case study: Leading Egyptian Bank DEX|class=case-link",
-          "now": "4<a aria-label=Read case study: 500+ endpoints under real-time Nexthink DEX monitoring|class=case-link"
-        }
-      ]
-    }
-  ]
-}
+[
+  {
+    "id": "unlisted-articles",
+    "pages": ["/blogs/digital-transformation-signs.html", "/blogs/augment-vs-outsource-tech-team.html"],
+    "sections": ["blog-view-hero", "blog-view-body", "blog-view-related"],
+    "kind": "absent-page",
+    "reason": "The two HTML-only articles were not listed by the old site. They stay drafts, as on the real database. All six sections remain in the 119 denominator; their page chrome is also absent."
+  },
+  {
+    "id": "careers-empty-state",
+    "pages": ["/careers/index.html"],
+    "sections": ["opportunities"],
+    "kind": "empty-vacancies",
+    "message": "No open roles right now.",
+    "reason": "No test vacancies were migrated. Only the vacancy list is replaced; the rest of the section must match."
+  },
+  {
+    "id": "service-case-accessible-names",
+    "pages": ["/services/ai-automation.html", "/services/data-analytics.html", "/services/enterprise-software.html", "/services/outsourcing.html"],
+    "sections": ["cases"],
+    "kind": "case-labels",
+    "oldLabels": ["Read case study: Ministry of Planning and Economic Development", "Read case study: Credit Guarantee Corporation", "Read case study: Leading Egyptian Bank DEX"],
+    "reason": "Accessible names now match visible case titles. One old label named the wrong client. Only these aria-label changes are accepted."
+  },
+  {
+    "id": "article-menu-ai-label",
+    "pages": ["/blogs/azure-digital-egypt-2030.html", "/blogs/digital-employee-experience.html", "/blogs/enterprise-ai-production.html"],
+    "areas": ["header", "mobile-header"],
+    "kind": "chrome-text",
+    "selector": "a",
+    "replace": [{ "old": "AI & Intelligent Automation Solutions", "new": "AI & Intelligent Automation" }],
+    "reason": "Marketing lead decision: menus use the shorter shared labels most old pages use. Only the three article pages had this longer menu label."
+  },
+  {
+    "id": "article-footer-service-labels",
+    "pages": ["/blogs/azure-digital-egypt-2030.html", "/blogs/digital-employee-experience.html", "/blogs/enterprise-ai-production.html"],
+    "areas": ["footer"],
+    "kind": "chrome-text",
+    "selector": ".footer-col a",
+    "replace": [
+      { "old": "Enterprise Software Solutions", "new": "Enterprise Software" },
+      { "old": "Data & Analytics Solutions", "new": "Data & Analytics" },
+      { "old": "AI & Intelligent Automation Solutions", "new": "AI & Automation" },
+      { "old": "Outsourcing Technical Talents", "new": "Outsourcing" }
+    ],
+    "reason": "Marketing lead decision: footer service labels are the shorter shared labels most old pages use. Only the three article pages had the longer ones."
+  },
+  {
+    "id": "footer-company-column-without-careers-news",
+    "pages": [
+      "/about-us.html", "/blogs/index.html", "/blogs/azure-digital-egypt-2030.html", "/blogs/digital-employee-experience.html", "/blogs/enterprise-ai-production.html",
+      "/cases/index.html", "/cases/data-center-transformation.html", "/cases/ministry-planning.html", "/cases/nexthink-dex-bank.html",
+      "/partners/index.html", "/partners/efinance.html", "/partners/huawei.html", "/partners/microsoft.html", "/partners/nexthink.html", "/partners/vodafone.html",
+      "/services/ai-automation.html", "/services/data-analytics.html", "/services/enterprise-software.html", "/services/outsourcing.html"
+    ],
+    "areas": ["footer"],
+    "kind": "footer-column",
+    "oldLabels": ["About Us", "Case Studies", "Blogs", "Partners"],
+    "labels": ["About Us", "Partners", "Careers", "News"],
+    "reason": "Marketing lead decision: the Company column is About, Partners, Careers, News, in that order, on every page. These pages listed Case Studies and Blogs, and had no Careers or News."
+  },
+  {
+    "id": "footer-company-column-home-contact",
+    "pages": ["/index.html", "/get-in-touch.html"],
+    "areas": ["footer"],
+    "kind": "footer-column",
+    "oldLabels": ["About Us", "Case Studies", "Blogs", "Partners", "Careers"],
+    "labels": ["About Us", "Partners", "Careers", "News"],
+    "reason": "Marketing lead decision: the Company column is About, Partners, Careers, News, in that order, on every page. These pages listed Case Studies and Blogs, and had no News."
+  },
+  {
+    "id": "footer-company-column-careers",
+    "pages": ["/careers/index.html", "/careers/apply.html"],
+    "areas": ["footer"],
+    "kind": "footer-column",
+    "oldLabels": ["About Us", "Case Studies", "Blogs", "Careers"],
+    "labels": ["About Us", "Partners", "Careers", "News"],
+    "reason": "Marketing lead decision: the Company column is About, Partners, Careers, News, in that order, on every page. These pages listed Case Studies and Blogs, and had no Partners or News."
+  },
+  {
+    "id": "footer-company-column-news",
+    "pages": ["/news/index.html"],
+    "areas": ["footer"],
+    "kind": "footer-column",
+    "oldLabels": ["About Us", "Case Studies", "Blogs", "News", "Partners"],
+    "labels": ["About Us", "Partners", "Careers", "News"],
+    "reason": "Marketing lead decision: the Company column is About, Partners, Careers, News, in that order, on every page. The news page listed Case Studies and Blogs, had no Careers, and put News before Partners."
+  },
+  {
+    "id": "footer-email-about",
+    "pages": ["/about-us.html"],
+    "areas": ["footer"],
+    "kind": "chrome-text",
+    "selector": ".footer-contact a",
+    "replace": [{ "old": "info@digitalhub.com.eg", "new": "sales@digitalhub.com.eg" }],
+    "reason": "Marketing lead decision: every page except careers, apply, and vacancies shows the main email, sales@digitalhub.com.eg, as in the old article and news footers. About showed info@."
+  },
+  {
+    "id": "footer-email-group-domain",
+    "pages": [
+      "/index.html", "/get-in-touch.html", "/blogs/index.html",
+      "/cases/index.html", "/cases/data-center-transformation.html", "/cases/ministry-planning.html", "/cases/nexthink-dex-bank.html",
+      "/partners/index.html", "/partners/efinance.html", "/partners/huawei.html", "/partners/microsoft.html", "/partners/nexthink.html", "/partners/vodafone.html",
+      "/services/ai-automation.html", "/services/data-analytics.html", "/services/enterprise-software.html", "/services/outsourcing.html"
+    ],
+    "areas": ["footer"],
+    "kind": "chrome-text",
+    "selector": ".footer-contact a",
+    "replace": [{ "old": "sales@digitalhubgroup.com", "new": "sales@digitalhub.com.eg" }],
+    "reason": "Marketing lead decision: every page except careers, apply, and vacancies shows the main email, sales@digitalhub.com.eg, as in the old article and news footers. These pages showed sales@digitalhubgroup.com."
+  },
+  {
+    "id": "contact-section-email",
+    "pages": ["/get-in-touch.html"],
+    "sections": ["contact"],
+    "kind": "section-text",
+    "selector": "a",
+    "replace": [{ "old": "sales@digitalhubgroup.com", "new": "sales@digitalhub.com.eg" }],
+    "reason": "Marketing lead decision: every page except careers, apply, and vacancies shows the main email, sales@digitalhub.com.eg. The contact page's contact details showed sales@digitalhubgroup.com; only that link text is accepted."
+  },
+  {
+    "id": "copyright-build-year-2024",
+    "pages": [
+      "/index.html", "/about-us.html", "/get-in-touch.html", "/blogs/index.html",
+      "/blogs/azure-digital-egypt-2030.html", "/blogs/digital-employee-experience.html", "/blogs/enterprise-ai-production.html",
+      "/cases/index.html", "/cases/data-center-transformation.html", "/cases/ministry-planning.html", "/cases/nexthink-dex-bank.html",
+      "/partners/index.html", "/partners/efinance.html", "/partners/huawei.html", "/partners/microsoft.html", "/partners/nexthink.html", "/partners/vodafone.html",
+      "/careers/index.html", "/careers/apply.html",
+      "/services/ai-automation.html", "/services/data-analytics.html", "/services/enterprise-software.html", "/services/outsourcing.html"
+    ],
+    "areas": ["footer"],
+    "kind": "copyright-year",
+    "oldYear": 2024,
+    "reason": "Marketing lead decision: the copyright year is the year of the build, so it never goes stale. These pages showed 2024."
+  },
+  {
+    "id": "copyright-build-year-2026",
+    "pages": ["/news/index.html"],
+    "areas": ["footer"],
+    "kind": "copyright-year",
+    "oldYear": 2026,
+    "reason": "Marketing lead decision: the copyright year is the year of the build. The news page showed 2026; this applies only in a build year other than 2026."
+  }
+]

@@ -27,7 +27,7 @@ function span(int: number): number | undefined {
   return Number.isInteger(int) && int > 1 ? int : undefined;
 }
 
-export function RichText({ doc, ctx }: { doc: RichDocument | null; ctx: BlockContext }) {
+export function RichText({ doc, ctx, compactParagraphs = false }: { doc: RichDocument | null; ctx: BlockContext; compactParagraphs?: boolean }) {
   if (!doc) return null;
   const anchors = headingAnchors(doc);
   let heading = 0;
@@ -47,7 +47,14 @@ export function RichText({ doc, ctx }: { doc: RichDocument | null; ctx: BlockCon
   };
 
   const children = (node: RichNode): ReactNode[] =>
-    (node.content ?? []).map((child, index) => (allowedHere(node.type, child.type) ? render(child, index) : null));
+    (node.content ?? []).map((child, index) => {
+      if (!allowedHere(node.type, child.type)) return null;
+      // Original articles use bare text in simple list items and quotes.
+      if (compactParagraphs && ["listItem", "blockquote"].includes(node.type) && node.content?.length === 1 && child.type === "paragraph") {
+        return <Fragment key={index}>{children(child)}</Fragment>;
+      }
+      return render(child, index);
+    });
 
   const render = (node: RichNode, key: number): ReactNode => {
     switch (node.type) {

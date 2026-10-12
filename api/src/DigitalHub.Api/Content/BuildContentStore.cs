@@ -335,6 +335,7 @@ public sealed class BuildContentStore(ContentDbContext db)
             settings.Phone,
             settings.WhatsApp,
             settings.Email,
+            settings.CareersEmail,
             settings.LinkedIn,
             settings.Facebook,
             settings.Instagram,

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Globalization;
 using System.Text.Json;
 using DigitalHub.Api.Data;
 
@@ -107,7 +108,7 @@ public static class ContentFields
         ["services"] = ["summary", "icon", "visual", "featured"],
         ["partners"] = ["summary", "imageId", "imageAltOverride", "variant", "featured"],
         ["case-studies"] = ["summary", "imageId", "imageAltOverride", "metric", "categories", "featured"],
-        ["blog-posts"] = ["summary", "imageId", "imageAltOverride", "category", "categoryLabel", "readTime", "accent", "cluster", "body", "answerBlock", "faq", "dateModified", "featured"],
+        ["blog-posts"] = ["summary", "imageId", "imageAltOverride", "category", "categoryLabel", "readTime", "accent", "cluster", "body", "answerBlock", "faq", "datePublished", "dateModified", "featured"],
         ["vacancies"] = ["summary", "department", "location", "employmentType", "aboutRole", "keyResponsibilities", "requiredSkills", "niceToHave", "roleOffers", "interviewStages", "featured"],
         ["team-members"] = ["role", "imageId", "imageAltOverride", "email", "linkedIn", "featured"],
         ["news-items"] = ["summary", "details", "imageId", "imageAltOverride", "category", "location", "year", "month", "featured"],
@@ -225,7 +226,8 @@ public static class ContentFields
                 OptionalLong(draft, errors, "body");
                 OptionalLong(draft, errors, "answerBlock");
                 OptionalLong(draft, errors, "faq");
-                OptionalDate(draft, errors, "dateModified");
+                OptionalCalendarDate(draft, errors, "datePublished");
+                OptionalCalendarDate(draft, errors, "dateModified");
                 OptionalBool(draft, errors, "featured");
                 break;
             case "vacancies":
@@ -300,7 +302,8 @@ public static class ContentFields
                 post.Body = Long(fields, "body", post.Body);
                 post.AnswerBlock = LongNull(fields, "answerBlock", post.AnswerBlock);
                 post.Faq = Long(fields, "faq", post.Faq);
-                post.DateModified = Date(fields, "dateModified", post.DateModified);
+                post.DatePublished = CalendarDateValue(fields, "datePublished", post.DatePublished);
+                post.DateModified = CalendarDateValue(fields, "dateModified", post.DateModified);
                 post.Featured = Bool(fields, "featured", post.Featured);
                 break;
             case Vacancy vacancy:
@@ -365,6 +368,7 @@ public static class ContentFields
                 post.Body,
                 post.AnswerBlock,
                 post.Faq,
+                post.DatePublished,
                 post.DateModified,
                 post.Featured,
             },
@@ -453,13 +457,21 @@ public static class ContentFields
             Add(errors, name, "must be a list of text.");
     }
 
-    private static void OptionalDate(DraftDocument draft, Dictionary<string, List<string>> errors, string name)
+    private static void OptionalCalendarDate(DraftDocument draft, Dictionary<string, List<string>> errors, string name)
     {
         if (!draft.Fields.TryGetValue(name, out var value) || value.ValueKind == JsonValueKind.Null)
             return;
-        if (value.ValueKind != JsonValueKind.String || !DateTime.TryParse(value.GetString(), out _))
-            Add(errors, name, "must be a date or null.");
+        if (value.ValueKind != JsonValueKind.String || ParseCalendarDate(value.GetString()) is null)
+            Add(errors, name, "must be a calendar date (YYYY-MM-DD) or null.");
     }
+
+    /// <summary>
+    /// Exactly YYYY-MM-DD and a real day: no time, no zone, no 2026-02-30.
+    /// </summary>
+    public static DateOnly? ParseCalendarDate(string? value) =>
+        value is { Length: 10 } && DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
+            ? date
+            : null;
 
     private static string Long(IReadOnlyDictionary<string, JsonElement> fields, string name, string current) =>
         fields.TryGetValue(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() ?? "" : current;
@@ -507,13 +519,13 @@ public static class ContentFields
         return value.EnumerateArray().Select(item => item.GetString() ?? "").ToList();
     }
 
-    private static DateTime? Date(IReadOnlyDictionary<string, JsonElement> fields, string name, DateTime? current)
+    private static DateOnly? CalendarDateValue(IReadOnlyDictionary<string, JsonElement> fields, string name, DateOnly? current)
     {
         if (!fields.TryGetValue(name, out var value))
             return current;
         if (value.ValueKind == JsonValueKind.Null)
             return null;
-        return DateTime.TryParse(value.GetString(), out var parsed) ? DateTime.SpecifyKind(parsed.ToUniversalTime(), DateTimeKind.Utc) : current;
+        return value.ValueKind == JsonValueKind.String ? ParseCalendarDate(value.GetString()) ?? current : current;
     }
 
     private static void Limit(Dictionary<string, List<string>> errors, string name, string? value, int max)

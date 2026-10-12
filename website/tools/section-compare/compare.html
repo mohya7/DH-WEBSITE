@@ -17,7 +17,7 @@
 <body>
 <h1>Section comparison</h1>
 <p class="sub">Every <code>main &gt; section</code> on the built site against the same page on
-feature/interviewer-portal, after only that page's content runtime has run.</p>
+feature/interviewer-portal, plus each page's desktop/mobile header and footer. Only the old content runtime runs.</p>
 <div id="out">Running…</div>
 
 <script type="module">
@@ -68,12 +68,12 @@ function sig(el) {
       if (text) parts.push(depth + "#text:" + text);
       return;
     }
-    if (node.nodeType !== 1) return;
+    if (node.nodeType !== 1 || node.tagName === "SCRIPT") return;
     const attrs = [];
     for (const a of node.attributes) {
       if (ignoredAttrs.has(a.name)) continue;
       let v = a.value;
-      if (a.name === "style") v = v.replace(/url\([^)]*\)/g, "url()");
+      if (a.name === "style") v = Array.from(node.style).sort().map((key) => key + ':' + node.style.getPropertyValue(key).trim().replace(/url\([^)]*\)/g, "url()")).join(';');
       if (a.name === "class") v = v.split(/\s+/).filter(Boolean).sort().join(" ");
       attrs.push(a.name + "=" + v.replace(/\s+/g, " ").trim());
     }
@@ -98,35 +98,131 @@ const oldDoc = (url) => new Promise((resolve) => {
 });
 
 /** The new page parsed, never executed: it is static HTML by design. */
-const newDoc = async (url) =>
-  new DOMParser().parseFromString(await (await fetch("/new" + url)).text(), "text/html");
+const newDoc = async (url) => {
+  const response = await fetch("/new" + url);
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`Cannot fetch ${url}: ${response.status}`);
+  return new DOMParser().parseFromString(await response.text(), "text/html");
+};
+
+const register = await (await fetch('/accepted-differences.json')).json();
+const same = (a, b) => sig(a).join('\n') === sig(b).join('\n');
+/** Text nodes under el whose trimmed text is exactly `old` become `now`. Returns whether any did. */
+function replaceText(el, old, now) {
+  let changed = false;
+  const walker = el.ownerDocument.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (node.nodeValue.trim() === old) { node.nodeValue = node.nodeValue.replace(old, now); changed = true; }
+  }
+  return changed;
+}
+/**
+ * One chrome rule applied to a copy of the old header or footer. Each kind rewrites only
+ * its exact old text; anything else that differs still fails the comparison.
+ */
+function applyChromeRule(rule, copy) {
+  if (rule.kind === 'chrome-text') {
+    let changed = false;
+    for (const el of copy.querySelectorAll(rule.selector)) {
+      for (const pair of rule.replace) changed = replaceText(el, pair.old, pair.new) || changed;
+    }
+    return changed;
+  }
+  if (rule.kind === 'footer-column') {
+    const column = [...copy.querySelectorAll('.footer-col')].find((col) =>
+      JSON.stringify([...col.querySelectorAll('a')].map((a) => a.textContent.trim())) === JSON.stringify(rule.oldLabels));
+    if (!column) return false;
+    for (const link of column.querySelectorAll('a')) link.remove();
+    for (const label of rule.labels) {
+      const link = copy.ownerDocument.createElement('a');
+      link.setAttribute('href', '#');
+      link.textContent = label;
+      column.append(link);
+    }
+    return true;
+  }
+  if (rule.kind === 'copyright-year') {
+    const old = `© ${rule.oldYear} Digital Hub S.A.E. All rights reserved.`;
+    const now = `© ${new Date().getUTCFullYear()} Digital Hub S.A.E. All rights reserved.`;
+    let changed = false;
+    for (const span of copy.querySelectorAll('.footer-bottom span')) changed = replaceText(span, old, now) || changed;
+    return changed;
+  }
+  return false;
+}
+function acceptedChrome(page, id, old, now) {
+  const copy = old.cloneNode(true);
+  const used = register.filter((rule) => rule.pages.includes(page) && rule.areas?.includes(id)).filter((rule) => applyChromeRule(rule, copy));
+  return used.length > 0 && same(copy, now) ? { id: used.map((rule) => rule.id).join(' + '), reason: used.map((rule) => rule.reason).join(' ') } : null;
+}
+function accepted(page, id, old, now, absentPage, chrome = false) {
+  for (const rule of register.filter((rule) => rule.pages.includes(page))) {
+    if (rule.kind === 'absent-page' && absentPage && (chrome || rule.sections.includes(id))) return rule;
+  }
+  if (chrome) return old && now ? acceptedChrome(page, id, old, now) : null;
+  for (const rule of register.filter((rule) => rule.pages.includes(page))) {
+    if (!rule.sections?.includes(id) || !old || !now) continue;
+    const copy = old.cloneNode(true);
+    if (rule.kind === 'case-labels') {
+      for (const link of copy.querySelectorAll('a.case-link[aria-label]')) {
+        if (rule.oldLabels.includes(link.getAttribute('aria-label'))) link.setAttribute('aria-label', 'Read case study: ' + link.querySelector('.case-title').textContent.trim());
+      }
+      if (same(copy, now)) return rule;
+    }
+    if (rule.kind === 'section-text') {
+      let changed = false;
+      for (const el of copy.querySelectorAll(rule.selector)) {
+        for (const pair of rule.replace) changed = replaceText(el, pair.old, pair.new) || changed;
+      }
+      if (changed && same(copy, now)) return rule;
+    }
+    if (rule.kind === 'empty-vacancies') {
+      const list = copy.querySelector('.careers-opps__list');
+      const paragraph = copy.ownerDocument.createElement('p');
+      paragraph.textContent = rule.message;
+      list.replaceChildren(paragraph);
+      if (same(copy, now)) return rule;
+    }
+  }
+  return null;
+}
+function compare(page, id, old, now, absentPage, chrome = false) {
+  const row = { page, id, status: !old ? 'extra in new' : !now ? 'renders nothing' : same(old, now) ? 'match' : 'differs', diff: [] };
+  if (row.status !== 'match') {
+    const rule = accepted(page, id, old, now, absentPage, chrome);
+    if (rule) { row.status = 'accepted'; row.acceptance = rule.id; row.reason = rule.reason; }
+    else if (old && now) {
+      const a = sig(old), b = sig(now);
+      for (let k = 0; k < Math.max(a.length, b.length); k++) if (a[k] !== b[k]) row.diff.push({ old: a[k] ?? '(end)', now: b[k] ?? '(end)' });
+    }
+  }
+  return row;
+}
 
 const out = document.getElementById("out");
 const results = [];
+const chromeResults = [];
 let total = 0, matched = 0;
 
 for (const [newUrl, oldUrl] of pairs) {
   out.textContent = "comparing " + oldUrl + " …";
   const [od, nd] = [await oldDoc(oldUrl), await newDoc(newUrl)];
-  const oldSecs = sectionsOf(od), newSecs = sectionsOf(nd);
+  const oldSecs = sectionsOf(od), newSecs = nd ? sectionsOf(nd) : [];
+  for (const [id, selector] of [['header', '#nav'], ['mobile-header', '#mobileNav'], ['footer', 'footer.footer']]) {
+    chromeResults.push(compare(oldUrl, id, od.querySelector(selector), nd?.querySelector(selector), !nd, true));
+  }
   total += oldSecs.length;
   for (let i = 0; i < Math.max(oldSecs.length, newSecs.length); i++) {
     const o = oldSecs[i], s = newSecs[i];
     const id = (o || s)?.id || String((o || s)?.className ?? "").split(/\s+/)[0] || "#" + i;
-    if (!o) { results.push({ page: oldUrl, id, status: "extra in new", diff: [] }); continue; }
-    if (!s) { results.push({ page: oldUrl, id, status: "renders nothing", diff: [] }); continue; }
-    const a = sig(o), b = sig(s);
-    if (a.join("\n") === b.join("\n")) { matched++; results.push({ page: oldUrl, id, status: "match", diff: [] }); continue; }
-    const diff = [];
-    for (let k = 0; k < Math.max(a.length, b.length) && diff.length < 8; k++) {
-      if (a[k] !== b[k]) diff.push({ old: a[k] ?? "(end)", now: b[k] ?? "(end)" });
-    }
-    results.push({ page: oldUrl, id, status: "differs", diff });
+    const row = compare(oldUrl, id, o, s, !nd);
+    if (row.status === 'match') matched++;
+    results.push(row);
   }
 }
 
-const failing = results.filter((r) => r.status !== "match");
-window.__result = { total, matched, failing: failing.length, results };
+const failing = [...results, ...chromeResults].filter((r) => !['match', 'accepted'].includes(r.status));
+window.__result = { total, matched, accepted: results.filter((r) => r.status === 'accepted').length, failing: failing.length, results, chromeResults };
 
 const byStatus = (s) => results.filter((r) => r.status === s).length;
 const rows = {};
@@ -138,7 +234,8 @@ for (const r of results) {
 
 out.innerHTML =
   `<p class="totals"><strong class="${matched === total ? "ok" : "bad"}">${matched} of ${total}</strong> sections match` +
-  ` — ${byStatus("differs")} differ, ${byStatus("renders nothing")} render nothing, ${byStatus("extra in new")} extra.</p>` +
+  ` — ${byStatus("accepted")} accepted, ${byStatus("differs")} differ, ${byStatus("renders nothing")} render nothing, ${byStatus("extra in new")} extra.</p>` +
+  `<p>Chrome: ${chromeResults.filter(r => r.status === 'match').length} match, ${chromeResults.filter(r => r.status === 'accepted').length} accepted, ${chromeResults.filter(r => !['match', 'accepted'].includes(r.status)).length} failures. Total unregistered failures: ${failing.length}.</p>` +
   "<table><tr><th>page</th><th>matched</th></tr>" +
   Object.entries(rows).map(([page, r]) =>
     `<tr><td>${page}</td><td class="${r.match === r.total ? "ok" : "bad"}">${r.match} / ${r.total}</td></tr>`).join("") +

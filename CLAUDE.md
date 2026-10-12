@@ -16,7 +16,7 @@ website, is next.
   Evidence — shows evidence for every item. Moved items name their destination.
 - Never start the next section without confirmation.
 - Verify by running it. Report failures before fixing them; never fix silently.
-- One agent at a time in this folder, and never on the same branch as the cloud agent.
+- One agent per worktree, and never two agents on the same branch.
 
 ## Agents
 - Three agents: Codex, Claude Code, and Cursor's agent. Any of them builds, checks,

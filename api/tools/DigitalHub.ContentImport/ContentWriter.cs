@@ -245,7 +245,7 @@ static partial class ContentWriter
         AddPages(model, documents, media, warnings);
         AddErrorPages(model);
         AddSections(model, documents, media, sourceRoot, warnings);
-        AddNavigation(model, documents["index.html"], warnings);
+        AddNavigation(model, documents, warnings);
         model.Settings = Settings(json.RootElement, documents);
         model.Warnings = warnings;
         foreach (var warning in warnings)
@@ -469,9 +469,7 @@ static partial class ContentWriter
     {
         var title = htmlOnly ? HeadingText(document!) ?? slug : Text(item, "title");
         var summary = htmlOnly ? Meta(document!, "description") ?? "" : Text(item, "summary");
-        var modified = htmlOnly ? BylineDate(document!, "Updated") : ParseDate(Text(item, "dateModified"));
-        var created = htmlOnly ? BylineDate(document!, "Published") ?? modified : ParseDate(Text(item, "datePublished")) ?? modified;
-        modified ??= created;
+        var (published, modified) = BlogDates(item, document, source, htmlOnly);
         var imagePath = htmlOnly
             ? Catalog.NormalizeAsset(document!.QuerySelector(".blog-view-media img")?.GetAttribute("src") ?? "", source, sourceRoot)
             : Catalog.NormalizeAsset(Text(item, "image"), "index.html", sourceRoot);
@@ -484,15 +482,16 @@ static partial class ContentWriter
             Status = ContentStatus.Draft,
             SortOrder = htmlOnly ? 0 : Int(item, "order"),
             PublishedAt = null,
-            CreatedAt = created ?? default,
-            UpdatedAt = modified ?? created ?? default,
+            CreatedAt = default,
+            UpdatedAt = default,
+            DatePublished = published,
             DateModified = modified,
             Version = 1,
             Category = Required(htmlOnly ? Slugify(document!.QuerySelector(".blog-view-tag")?.TextContent) : Text(item, "category"), 80),
             CategoryLabel = Required(htmlOnly ? Collapse(document!.QuerySelector(".blog-view-tag")?.TextContent) : Text(item, "categoryLabel"), 80),
             ReadTime = htmlOnly ? ReadTime(document!) : Int(item, "readTime"),
             Accent = Required(htmlOnly ? Accent(document!) : Text(item, "accent"), 40),
-            Cluster = htmlOnly ? "" : Required(Text(item, "cluster"), 80),
+            Cluster = Required(htmlOnly ? Collapse(document!.QuerySelector(".blog-view-tag")?.TextContent) : Text(item, "cluster"), 80),
             Body = ArticleBody(document, source, media, warnings),
             AnswerBlock = Blank(Text(item, "answerBlock")),
             Faq = """{"items":[]}""",
@@ -683,8 +682,23 @@ static partial class ContentWriter
         setAlt(row, !string.IsNullOrWhiteSpace(alt) && !string.Equals(alt.Trim(), asset.Alt, StringComparison.Ordinal) ? Cut(alt.Trim(), 300) : null);
     }
 
-    private static void AddNavigation(ImportModel model, AngleSharp.Html.Dom.IHtmlDocument index, List<string> warnings)
+    /// <summary>
+    /// The footer Company column, decided by the marketing lead: these four links, in
+    /// this order, on every page. No old page has exactly this set (every one has Case
+    /// Studies and Blogs; only News links News), so each link is taken from the first
+    /// listed source footer that has it, with that footer's label.
+    /// </summary>
+    internal static readonly (string Target, string[] Sources)[] CompanyColumn =
+    [
+        ("about-us.html", ["index.html"]),
+        ("partners/index.html", ["index.html"]),
+        ("careers/index.html", ["index.html"]),
+        ("news/index.html", ["news/index.html"]),
+    ];
+
+    private static void AddNavigation(ImportModel model, Dictionary<string, AngleSharp.Html.Dom.IHtmlDocument> documents, List<string> warnings)
     {
+        var index = documents["index.html"];
         var sort = 0;
         var list = index.QuerySelector("ul.nav-links");
         if (list is not null)
@@ -728,6 +742,21 @@ static partial class ContentWriter
             if (parent is null)
                 continue;
             var childSort = 0;
+            if (column.QuerySelector("a[href='about-us.html']") is not null)
+            {
+                foreach (var (target, from, anchor) in CompanyLinks(documents))
+                {
+                    var link = Nav("footer", Collapse(anchor.TextContent) ?? "", anchor.GetAttribute("href"), from, childSort, parent.Id, warnings);
+                    if (link is not null)
+                        model.Navigation.Add(link);
+                    else
+                        throw new InvalidOperationException(from + ": the Company link to " + target + " did not resolve to a page.");
+                    childSort += 10;
+                }
+
+                continue;
+            }
+
             foreach (var anchor in column.QuerySelectorAll("a"))
             {
                 var link = Nav("footer", Collapse(anchor.TextContent) ?? "", anchor.GetAttribute("href"), "index.html", childSort, parent.Id, warnings);
@@ -755,6 +784,21 @@ static partial class ContentWriter
                     model.Navigation.Add(link);
                 childSort += 10;
             }
+        }
+    }
+
+    /// <summary>Each Company link's anchor in its source footer, resolved against that page.</summary>
+    internal static IEnumerable<(string Target, string From, AngleSharp.Dom.IElement Anchor)> CompanyLinks(IReadOnlyDictionary<string, AngleSharp.Html.Dom.IHtmlDocument> documents)
+    {
+        foreach (var (target, sources) in CompanyColumn)
+        {
+            var found = sources
+                .Select(source => (Source: source, Anchor: documents[source].QuerySelectorAll("footer.footer .footer-col a")
+                    .FirstOrDefault(anchor => Links.Rewrite(anchor.GetAttribute("href") ?? "", source).Clean == Links.Rewrite(target, "index.html").Clean)))
+                .FirstOrDefault(match => match.Anchor is not null);
+            if (found.Anchor is null)
+                throw new InvalidOperationException("No source footer links " + target + " for the Company column.");
+            yield return (target, found.Source, found.Anchor);
         }
     }
 
@@ -828,7 +872,6 @@ static partial class ContentWriter
         var contact = documents["get-in-touch.html"];
         var social = root.GetProperty("pages").GetProperty("home").GetProperty("social");
         var phone = contact.QuerySelector("a[href^='tel:']");
-        var mail = contact.QuerySelector("a[href^='mailto:']");
         var whatsApp = contact.QuerySelector("a[href^='https://wa.me/']")?.GetAttribute("href");
         var bottom = string.Join(" ", home.QuerySelectorAll("footer.footer .footer-bottom span").Select(span => Collapse(span.TextContent)));
         var address = ReadPostalAddress(contact);
@@ -837,7 +880,8 @@ static partial class ContentWriter
             Id = IdFor("site-settings"),
             Phone = Cut(Collapse(phone?.TextContent), 40),
             WhatsApp = Cut(whatsApp, 40),
-            Email = Cut(mail?.GetAttribute("href")?.Replace("mailto:", "", StringComparison.OrdinalIgnoreCase), 320),
+            Email = MainEmail(documents),
+            CareersEmail = FooterEmail(documents, "careers/index.html"),
             LinkedIn = Cut(Text(social, "linkedin"), 300),
             Facebook = Cut(Text(social, "facebook"), 300),
             Instagram = Cut(Text(social, "instagram"), 300),
@@ -853,6 +897,34 @@ static partial class ContentWriter
             OrganizationName = "Digital Hub",
             LegalName = "Digital Hub S.A.E.",
         };
+    }
+
+    /// <summary>
+    /// The main email, decided by the marketing lead: the address in the old news and
+    /// article footers. The old pages disagree (info@ on About, another domain on the
+    /// home and hub pages), so the import stops if these footers ever disagree.
+    /// </summary>
+    private static string MainEmail(Dictionary<string, AngleSharp.Html.Dom.IHtmlDocument> documents)
+    {
+        var news = FooterEmail(documents, "news/index.html");
+        foreach (var article in Catalog.ArticlePages)
+        {
+            var email = FooterEmail(documents, article);
+            if (!string.Equals(email, news, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException(article + ": footer email " + email + " differs from the news footer's " + news + ".");
+        }
+
+        return news;
+    }
+
+    /// <summary>The mailto address in a source page's footer contact column.</summary>
+    internal static string FooterEmail(IReadOnlyDictionary<string, AngleSharp.Html.Dom.IHtmlDocument> documents, string source)
+    {
+        var href = documents[source].QuerySelector("footer.footer .footer-contact a[href^='mailto:']")?.GetAttribute("href");
+        var email = href?["mailto:".Length..].Trim();
+        return string.IsNullOrEmpty(email) || email.Length > 320
+            ? throw new InvalidOperationException(source + ": the footer has no usable mailto address.")
+            : email;
     }
 
     private static PostalAddressParts? ReadPostalAddress(AngleSharp.Html.Dom.IHtmlDocument contact)
@@ -1374,7 +1446,8 @@ static partial class ContentWriter
         SameRecord(left, right) && left.Summary == right.Summary && left.ImageId == right.ImageId && left.ImageAltOverride == right.ImageAltOverride
         && left.Category == right.Category && left.CategoryLabel == right.CategoryLabel && left.ReadTime == right.ReadTime
         && left.Accent == right.Accent && left.Cluster == right.Cluster && left.Body == right.Body && left.AnswerBlock == right.AnswerBlock
-        && left.Faq == right.Faq && left.Featured == right.Featured && T(left.DateModified) == T(right.DateModified);
+        && left.Faq == right.Faq && left.Featured == right.Featured
+        && left.DatePublished == right.DatePublished && left.DateModified == right.DateModified;
 
     private static bool SameTeam(TeamMember left, TeamMember right) =>
         SameRecord(left, right) && left.Role == right.Role && left.ImageId == right.ImageId && left.ImageAltOverride == right.ImageAltOverride
@@ -1403,7 +1476,8 @@ static partial class ContentWriter
         && left.Url == right.Url && left.SortOrder == right.SortOrder;
 
     private static bool SameSettings(SiteSettings left, SiteSettings right) =>
-        left.Phone == right.Phone && left.WhatsApp == right.WhatsApp && left.Email == right.Email && left.LinkedIn == right.LinkedIn
+        left.Phone == right.Phone && left.WhatsApp == right.WhatsApp && left.Email == right.Email && left.CareersEmail == right.CareersEmail
+        && left.LinkedIn == right.LinkedIn
         && left.Facebook == right.Facebook && left.Instagram == right.Instagram && left.TikTok == right.TikTok && left.FooterText == right.FooterText
         && left.DefaultMetaTitle == right.DefaultMetaTitle && left.DefaultMetaDescription == right.DefaultMetaDescription
         && left.DefaultShareImageId == right.DefaultShareImageId && left.DefaultShareImageAltOverride == right.DefaultShareImageAltOverride
@@ -1622,13 +1696,35 @@ static partial class ContentWriter
         return match.Success ? int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture) : 0;
     }
 
-    private static DateTime? BylineDate(AngleSharp.Html.Dom.IHtmlDocument document, string label)
+    /// <summary>
+    /// Editorial calendar dates, each from its own source field: the listed
+    /// article's JSON, or an HTML-only article's byline. A missing date stays
+    /// null; one is never copied into the other or into a system time.
+    /// </summary>
+    internal static (DateOnly? Published, DateOnly? Modified) BlogDates(JsonElement item, AngleSharp.Html.Dom.IHtmlDocument? document, string source, bool htmlOnly) =>
+        htmlOnly
+            ? (BylineCalendarDate(document!, "Published", source), BylineCalendarDate(document!, "Updated", source))
+            : (SourceCalendarDate(Text(item, "datePublished"), source, "datePublished"), SourceCalendarDate(Text(item, "dateModified"), source, "dateModified"));
+
+    /// <summary>A listed article's YYYY-MM-DD field. Blank is null; anything else invalid stops the import.</summary>
+    private static DateOnly? SourceCalendarDate(string? value, string source, string field)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+        return ContentFields.ParseCalendarDate(value.Trim())
+            ?? throw new InvalidOperationException(source + ": " + field + " \"" + value + "\" is not a YYYY-MM-DD calendar date.");
+    }
+
+    /// <summary>"Published 15 Jun 2026" in an HTML-only article's byline. Absent is null; unreadable stops the import.</summary>
+    private static DateOnly? BylineCalendarDate(AngleSharp.Html.Dom.IHtmlDocument document, string label, string source)
     {
         var byline = document.QuerySelector(".blog-view-byline")?.TextContent ?? "";
-        var match = Regex.Match(byline, label + @"\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})");
-        return match.Success && DateTime.TryParse(match.Groups[1].Value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var parsed)
-            ? Stamp(parsed)
-            : null;
+        var match = Regex.Match(byline, Regex.Escape(label) + @"\s+(\S+\s+\S+\s+\S+)");
+        if (!match.Success)
+            return null;
+        return DateOnly.TryParseExact(match.Groups[1].Value, ["d MMM yyyy", "dd MMM yyyy"], CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
+            ? date
+            : throw new InvalidOperationException(source + ": byline date \"" + match.Groups[0].Value + "\" is not a day, month and year.");
     }
 
     private static ImportModel Prepare(string sourceRoot, ImportPlan plan, MediaWrite written)

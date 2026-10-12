@@ -215,6 +215,7 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         settings.Phone = TrimOrNull(request.Phone);
         settings.WhatsApp = TrimOrNull(request.WhatsApp);
         settings.Email = TrimOrNull(request.Email);
+        settings.CareersEmail = TrimOrNull(request.CareersEmail);
         settings.LinkedIn = TrimOrNull(request.LinkedIn);
         settings.Facebook = TrimOrNull(request.Facebook);
         settings.Instagram = TrimOrNull(request.Instagram);
@@ -693,6 +694,8 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         var errors = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         if (!string.IsNullOrWhiteSpace(request.Email) && !IsEmail(request.Email))
             Add(errors, "email", "Enter a valid email address.");
+        if (!string.IsNullOrWhiteSpace(request.CareersEmail) && !IsEmail(request.CareersEmail))
+            Add(errors, "careersEmail", "Enter a valid email address.");
         if (!string.IsNullOrWhiteSpace(request.Phone) && !Phone.IsMatch(request.Phone.Trim()))
             Add(errors, "phone", "Enter a reasonable phone number.");
         if (!string.IsNullOrWhiteSpace(request.WhatsApp))
@@ -798,6 +801,7 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         settings.Phone,
         settings.WhatsApp,
         settings.Email,
+        settings.CareersEmail,
         settings.LinkedIn,
         settings.Facebook,
         settings.Instagram,
@@ -957,6 +961,7 @@ public sealed class SiteSettingsUpdate
     public string? Phone { get; set; }
     public string? WhatsApp { get; set; }
     public string? Email { get; set; }
+    public string? CareersEmail { get; set; }
     public string? LinkedIn { get; set; }
     public string? Facebook { get; set; }
     public string? Instagram { get; set; }

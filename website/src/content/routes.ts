@@ -41,7 +41,7 @@ const cleanPath = /^\/(?:[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)*
  * First segments the site itself uses: framework assets, media files, the ported
  * design folder, the API the contact form posts to, and the error pages.
  */
-const reservedFirstSegments = new Set(["_next", "media", "design", "api", "404", "500", "_not-found"]);
+const reservedFirstSegments = new Set(["_next", "media", "design", "assets", "behaviors", "api", "404", "500", "_not-found"]);
 
 export class RouteError extends Error {
   constructor(message: string) {

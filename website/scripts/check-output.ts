@@ -24,6 +24,9 @@
  *     module preloads each in the set's order (React places preconnects first
  *     and module preloads after the stylesheets), and its scripts in order and
  *     position, with nothing from another set
+ *   - out/web.config is the file generated from this content's redirects
+ *   - Next's _not-found export is not in the output
+ *   - the careers form endpoint, when present, is a same-site path
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -37,6 +40,10 @@ import { createSite, type Site } from "../src/content/site";
 import { runtimeTracesIn } from "../src/build/strip-runtime";
 import { designFileList, designHash } from "../src/design/folder";
 import { designSets, type DesignSetName, type ScriptSlot } from "../src/design/sets";
+import { parseRichText } from "@digitalhub/blocks/richtext/document";
+import { behaviorUrl } from "../src/design/behaviors";
+import { careersEndpointError, careersEndpointsIn } from "../src/iis/careers-endpoint";
+import { renderWebConfig } from "../src/iis/web-config";
 
 export interface OutputReport {
   pages: { route: string; file: string; pageType: string }[];
@@ -57,7 +64,7 @@ export function htmlFileFor(route: string): string {
   return route === "/" ? "index.html" : `${route.slice(1)}.html`;
 }
 
-const errorFiles = ["404.html", "500.html", "_not-found.html"];
+const errorFiles = ["404.html", "500.html"];
 
 /** A URL served by this site: no scheme and not protocol-relative. */
 function isOwnUrl(url: string): boolean {
@@ -101,8 +108,18 @@ export function checkOutput(outDir: string, manifest: Manifest, options: { desig
   for (const file of ["404.html", "500.html"]) {
     if (!fileSet.has(file)) problems.push(`${file} is missing.`);
   }
+  for (const file of files) {
+    if (file === "_not-found.html" || file.startsWith("_not-found/") || file.includes("/_not-found")) {
+      problems.push(`${file} is Next's not-found export and must not be in the output.`);
+    }
+  }
   for (const file of files.filter((name) => name.endsWith(".html"))) {
+    if (file === "_not-found.html" || file.startsWith("_not-found/")) continue;
     if (!expected.has(file) && !errorFiles.includes(file)) problems.push(`${file} is not a route of the published content.`);
+    for (const endpoint of careersEndpointsIn(fs.readFileSync(path.join(outDir, file), "utf8"))) {
+      const error = careersEndpointError(endpoint);
+      if (error) problems.push(`${file}: ${error}`);
+    }
   }
 
   // No trace of Next's client runtime: the site ships static HTML plus the ported scripts.
@@ -123,7 +140,6 @@ export function checkOutput(outDir: string, manifest: Manifest, options: { desig
     );
     items.set("404.html", { item: site.errorPage("404"), kind: "error" });
     items.set("500.html", { item: site.errorPage("500"), kind: "error" });
-    items.set("_not-found.html", { item: site.errorPage("404"), kind: "error" });
     for (const [file, { item, kind }] of items) {
       if (fileSet.has(file)) problems.push(...checkStaticPage(file, fs.readFileSync(path.join(outDir, file), "utf8"), item, expectedSections(site, item, kind)));
     }
@@ -151,7 +167,7 @@ export function checkOutput(outDir: string, manifest: Manifest, options: { desig
 
     for (const match of text.matchAll(/<(?:script|link)\b[^>]*?\b(?:src|href)="([^"]+)"/g)) {
       const url = match[1];
-      if (!url.startsWith("/_next/") && !url.startsWith("/design/")) continue;
+      if (!url.startsWith("/_next/") && !url.startsWith("/design/") && !url.startsWith("/behaviors/")) continue;
       if (url.includes("?")) problems.push(`${file} loads ${url} with a query string.`);
       else if (!fileSet.has(url.slice(1))) problems.push(`${file} loads ${url}, which is not in the output.`);
       else assets += 1;
@@ -167,7 +183,7 @@ export function checkOutput(outDir: string, manifest: Manifest, options: { desig
       const srcset = /\bsrcSet="([^"]+)"/i.exec(tag)?.[1] ?? "";
       const urls = [src, ...srcset.split(",").map((entry) => entry.trim().split(/\s+/)[0])].filter(Boolean) as string[];
       for (const url of urls) {
-        if (!url.startsWith("/media/") && !url.startsWith("/_next/static/")) problems.push(`${file} has an image that is not served from the build output: ${url}`);
+        if (!url.startsWith("/media/") && !url.startsWith("/_next/static/") && url !== "/assets/digital-hub-logo.png") problems.push(`${file} has an image that is not served from the build output: ${url}`);
         else if (!fileSet.has(url.slice(1))) problems.push(`${file} uses ${url}, which is not in the output.`);
       }
       images += 1;
@@ -190,8 +206,15 @@ const decode = (text: string) =>
 /** How many sections of an item render: listing sections with nothing to list render nothing. */
 export function expectedSections(site: Site, item: AnyContentItem | null, kind: PageKind): number {
   if (!item) return 0;
+  if (item.collection === "vacancies") return 2;
+  if (item.collection === "blog-posts") {
+    const related = parseRichText(item.fields.body)?.relatedItems ?? [];
+    return 2 + (related.some((ref) => ref.id !== item.id && site.resolve(ref as never)) ? 1 : 0);
+  }
   const ctx = blockData(site, { kind, slug: item.slug });
-  return item.sections.filter((section) => sectionRenders(section, { ...ctx, Image: () => null, Link: () => null })).length;
+  return item.sections.filter((section) => sectionRenders(section, { ...ctx, Image: () => null, Link: () => null })).length
+    + (item.sections.some((section) => headingSections.has(section.type)) ? 0 : 1)
+    + (kind === "page" && item.slug === "apply" ? 1 : 0);
 }
 
 /** The <section> elements directly inside <main>. */
@@ -225,7 +248,7 @@ export function checkStaticPage(file: string, html: string, item: AnyContentItem
   if (!/<meta name="viewport" content="width=device-width, initial-scale=1"\/?>/.test(head)) problems.push(`${file} has no viewport in its <head>.`);
   if (!item) return problems;
 
-  const h1s = [...html.matchAll(/<h1\b[^>]*>([\s\S]*?)<\/h1>/g)].map((match) => decode(match[1]));
+  const h1s = [...html.matchAll(/<h1\b[^>]*>([\s\S]*?)<\/h1>/g)].map((match) => decode(match[1].replace(/<[^>]+>/g, "")));
   const inHero = item.sections.some((section) => headingSections.has(section.type));
   if (h1s.length !== 1) problems.push(`${file} should have one <h1>; it has ${h1s.length}.`);
   else if (!inHero && h1s[0] !== item.title) problems.push(`${file} should have the <h1> "${item.title}"; it has "${h1s[0]}".`);
@@ -278,6 +301,8 @@ export function checkDesignLoading(file: string, html: string): string[] {
   const { set, lists } = pageLoads(html);
   if (!set || !(set in designSets)) return [`${file} does not name its design set.`];
   const expected = expectedLoads(set as DesignSetName);
+  if (set === "apply") expected["body-end"] = expected["body-end"].map((src) => src === "js/careers-apply.js" ? behaviorUrl("careers") : src);
+  if (/\bid="contactForm"/.test(html)) expected["body-end"].unshift(behaviorUrl("contact"));
   const problems: string[] = [];
   for (const [kind, want] of Object.entries(expected)) {
     if (lists[kind].join("\n") !== want.join("\n")) {
@@ -325,6 +350,18 @@ function main(): void {
   console.log(`Static HTML: no page contains Next's client runtime; every page's head tags and content are in its HTML.`);
   console.log(`Loading order: every page loads exactly its design set.`);
   console.log(`Design: out/design/${designHash(path.join(websiteRoot, "design"))}/ matches website/design/ byte for byte (${designFileList(path.join(websiteRoot, "design")).length} files).`);
+
+  const careersEndpoint = process.env.CAREERS_APPLICATION_ENDPOINT;
+  if (careersEndpoint !== undefined) {
+    const error = careersEndpointError(careersEndpoint);
+    if (error) report.problems.push(error);
+  }
+
+  const configFile = path.join(websiteRoot, "out", "web.config");
+  const expectedConfig = renderWebConfig(content.redirects);
+  if (!fs.existsSync(configFile)) report.problems.push("web.config is missing from the build output.");
+  else if (fs.readFileSync(configFile, "utf8") !== expectedConfig) report.problems.push("out/web.config does not match the redirects in the content.");
+  else console.log(`web.config: ${content.redirects.length} redirect(s), report-only content security policy, custom 404 and 500.`);
 
   if (report.problems.length > 0) {
     console.error(`\nThe build output failed its checks:\n- ${report.problems.join("\n- ")}\n`);

@@ -15,7 +15,8 @@
     "body": { "type": ["string", "null"], "x-dh-kind": "richText", "x-dh-label": "Article" },
     "answerBlock": { "type": ["string", "null"], "x-dh-kind": "longText", "x-dh-label": "Answer" },
     "faq": { "type": ["string", "null"], "x-dh-kind": "longText", "x-dh-label": "FAQ" },
-    "dateModified": { "type": ["string", "null"], "x-dh-kind": "text", "x-dh-label": "Date modified" },
+    "datePublished": { "type": ["string", "null"], "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", "x-dh-kind": "date", "x-dh-label": "Publication date" },
+    "dateModified": { "type": ["string", "null"], "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", "x-dh-kind": "date", "x-dh-label": "Modified date" },
     "featured": { "type": ["boolean", "null"], "x-dh-kind": "boolean", "x-dh-label": "Featured" }
   }
 }

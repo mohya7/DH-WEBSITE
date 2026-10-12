@@ -36,13 +36,15 @@ type Schema = {
   const?: string;
   oneOf?: Schema[];
   format?: string;
+  /** Checked at runtime by the schema and the API; the TypeScript type stays string. */
+  pattern?: string;
   "x-dh-kind"?: string;
   "x-dh-label"?: string;
 };
 
 const allowedKeywords = new Set([
   "$schema", "$id", "$defs", "$ref", "type", "properties", "required", "additionalProperties",
-  "items", "enum", "const", "oneOf", "format", "x-dh-kind", "x-dh-label",
+  "items", "enum", "const", "oneOf", "format", "pattern", "x-dh-kind", "x-dh-label",
 ]);
 
 /**
@@ -52,6 +54,7 @@ const allowedKeywords = new Set([
 const kindNotes: Record<string, string> = {
   richText: "TipTap JSON document, serialized as a string.",
   mediaId: "Id of a media library item.",
+  date: "Calendar date, YYYY-MM-DD. No time and no zone.",
   inlineText:
     "TipTap JSON document of one paragraph, serialized as a string: text with bold, italic, and link marks only; " +
     "a link is a { type, id } reference or a #fragment. At most 4096 UTF-8 bytes.",
@@ -156,6 +159,7 @@ function typeOf(schema: Schema, where: string, indent: string): string {
   }
 
   if (schema.enum !== undefined && concrete[0] !== "string") fail(where, "enum on a non-string type");
+  if (schema.pattern !== undefined && concrete[0] !== "string") fail(where, "pattern on a non-string type");
   return nullable ? `${base} | null` : base;
 }
 
