@@ -244,5 +244,8 @@ describe('cookie consent', () => {
     expect(contact).toContain("dataLayer.push({ event: 'contact_form_submitted' })");
     expect(careers).toContain("dataLayer.push({ event: 'application_submitted' })");
     expect(consent).toContain("dataLayer.push({ event: 'cta_clicked' })");
+    for (const value of ['v=1&a=0&m=0', 'v=1&a=1&m=0', 'v=1&a=1&m=1']) expect(consent).toContain(`'${value}'`);
+    expect(consent).toContain('v=1&a=0&m=1');
+    expect(consent).not.toMatch(/\^v=1&a=\(\[01\]\)&m=\(\[01\]\)\$/);
   });
 });

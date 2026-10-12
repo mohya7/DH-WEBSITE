@@ -12,9 +12,11 @@
  * Tag Manager script already on the page stays until the next page load; it
  * is not requested again on later pages while nothing is granted.
  *
- * The saved choice is the first-party cookie dh_consent=v=1&a=0|1&m=0|1. A
- * cookie with no version, another version, a duplicate or unknown key, or a
- * value that does not decode is no choice, and the banner asks again.
+ * The saved choice is one of the three values the buttons write:
+ * v=1&a=0&m=0 (reject), v=1&a=1&m=0 (analytics only), v=1&a=1&m=1 (accept all).
+ * Anything else is no choice, and the banner asks again. That includes no
+ * version, another version, a duplicate or unknown key, a value that does not
+ * decode, and marketing without analytics (v=1&a=0&m=1).
  *
  * The banner is a non-modal bottom banner. It does not take focus when it
  * opens by itself, does not trap Tab, and Escape deliberately does nothing:
@@ -53,9 +55,8 @@
     } catch (_) {
       return null;
     }
-    var match = /^v=1&a=([01])&m=([01])$/.exec(value);
-    if (!match) return null;
-    return { analytics: match[1] === '1', marketing: match[2] === '1' };
+    if (value !== 'v=1&a=0&m=0' && value !== 'v=1&a=1&m=0' && value !== 'v=1&a=1&m=1') return null;
+    return { analytics: value !== 'v=1&a=0&m=0', marketing: value === 'v=1&a=1&m=1' };
   }
   function write(choice) {
     var value = 'v=1&a=' + (choice.analytics ? '1' : '0') + '&m=' + (choice.marketing ? '1' : '0');
@@ -94,9 +95,13 @@
   var banner = document.getElementById('cookieBanner');
   var opener = null;
   function buttons() { return banner ? Array.prototype.slice.call(banner.querySelectorAll('button[data-consent]')) : []; }
+  /** The three button values only. Marketing without analytics is not one of them. */
   function kindOf(choice) {
     if (!choice) return null;
-    return choice.marketing ? 'accept' : choice.analytics ? 'analytics' : 'reject';
+    if (choice.analytics && choice.marketing) return 'accept';
+    if (choice.analytics) return 'analytics';
+    if (!choice.marketing) return 'reject';
+    return null;
   }
   function reserve() {
     if (!banner || banner.hidden) return;
