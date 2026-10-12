@@ -223,6 +223,22 @@ for (const [path, selector] of [
   });
 }
 
+test('after Reject all a contact form submission pushes no event', async ({ page }) => {
+  const tags = await watchTags(page);
+  await page.route('**/api/v1/public/contact', (route) => route.fulfill({ status: 200, body: '{}' }));
+  await page.goto('/contact');
+  await choose(page, 'reject');
+  await page.locator('[name="situation"]').selectOption('dx');
+  await page.locator('[name="name"]').fill(name);
+  await page.locator('[name="org"]').fill('Quill Organisation');
+  await page.locator('[name="email"]').fill(email);
+  await page.locator('[name="message"]').fill('Please call Zelda about the private brief.');
+  await page.locator('#contactForm button[type="submit"]').click();
+  await expect(page.getByRole('status')).toBeVisible();
+  expect(await dataLayer(page)).toEqual([['consent', 'default', denied]]);
+  expect(tags.requests).toEqual([]);
+});
+
 test('a submitted name and email never appear in the data layer', async ({ page }) => {
   await watchTags(page);
   await page.route('**/api/v1/public/contact', (route) => route.fulfill({ status: 200, body: '{}' }));
