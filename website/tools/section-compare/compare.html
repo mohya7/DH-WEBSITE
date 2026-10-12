@@ -176,14 +176,18 @@ function accepted(page, id, old, now, absentPage, chrome = false) {
       }
       if (changed && same(copy, now)) return rule;
     }
-    if (rule.kind === 'added-aria-label') {
+    if (rule.kind === 'hidden-link-text') {
       const links = [...copy.querySelectorAll(rule.selector)];
       if (links.length !== rule.count) continue;
       let changed = true;
       for (const link of links) {
         const title = link.closest(rule.card)?.querySelector(rule.title)?.textContent.trim();
-        if (!title || link.hasAttribute('aria-label')) { changed = false; break; }
-        link.setAttribute('aria-label', rule.prefix + title);
+        const icon = link.querySelector('i');
+        if (!title || !icon || link.querySelector('span.' + rule.hiddenClass)) { changed = false; break; }
+        const span = copy.ownerDocument.createElement('span');
+        span.className = rule.hiddenClass;
+        span.textContent = rule.prefix + title;
+        icon.before(span);
       }
       if (changed && same(copy, now)) return rule;
     }

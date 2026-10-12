@@ -10,7 +10,7 @@ import { Header, Footer, SiteBackground } from "./SiteChrome";
 import { BlogArticle } from "./BlogArticle";
 import { ApplicationForm } from "./ApplicationForm";
 import { VacancyPage } from "./VacancyPage";
-import { behaviorUrl } from "@/design/behaviors";
+import { behaviorUrl, homeSrStyleUrl } from "@/design/behaviors";
 import { jsonLdText, structuredData } from "@/seo/jsonld";
 import { readSiteUrl } from "@/seo/site-url";
 
@@ -23,6 +23,7 @@ export function PageScaffold({ item, pageType, site = getSite(), path = item?.pa
   const hasHeading = item.sections.some((section) => headingSections.has(section.type));
   const bodyClass = set === "home" ? "" : set === "about" ? "page-about" : set === "service" ? "page-service" : set === "case-study" ? "page-case" : `page-hub${pageType === "partner" ? " page-partner-view" : set === "blog-post" ? " page-blog-view" : set === "contact" ? " page-contact" : ["careers", "apply", "vacancy"].includes(set) ? " page-careers" : ""}`;
   return <DesignFrame set={set}>
+    {set === "home" ? <link rel="stylesheet" href={homeSrStyleUrl()} /> : null}
     <SiteBackground set={set} /><Header site={site} set={set} currentPath={item.path ?? ""} />
     <main data-page-type={pageType} data-collection={item.collection} data-slug={item.slug} data-design-set={set} data-body-class={bodyClass}>
       {item.collection === "blog-posts" ? <BlogArticle item={item} ctx={ctx} /> : item.collection === "vacancies" ? <VacancyPage item={item} /> : <>
