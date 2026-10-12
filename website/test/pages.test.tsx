@@ -172,6 +172,7 @@ describe('build requirements', () => {
     expect(() => careersEndpoint({})).toThrow(/CAREERS_APPLICATION_ENDPOINT/);
     for (const value of ['javascript:alert(1)', '//outside.invalid', '/\\outside', 'https://user:password@example.invalid']) expect(() => careersEndpoint({ CAREERS_APPLICATION_ENDPOINT: value })).toThrow();
     expect(careersEndpoint({ CAREERS_APPLICATION_ENDPOINT: '/api/careers/applications' })).toBe('/api/careers/applications');
-    expect(careersEndpoint({ CAREERS_APPLICATION_ENDPOINT: 'https://hiring.example.invalid/apply' })).toBe('https://hiring.example.invalid/apply');
+    expect(careersEndpoint({ CAREERS_APPLICATION_ENDPOINT: '/careers/apply' })).toBe('/careers/apply');
+    expect(() => careersEndpoint({ CAREERS_APPLICATION_ENDPOINT: 'https://hiring.example.invalid/apply' })).toThrow(/same-site path/);
   });
 });
