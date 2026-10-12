@@ -176,6 +176,17 @@ function accepted(page, id, old, now, absentPage, chrome = false) {
       }
       if (changed && same(copy, now)) return rule;
     }
+    if (rule.kind === 'added-aria-label') {
+      const links = [...copy.querySelectorAll(rule.selector)];
+      if (links.length !== rule.count) continue;
+      let changed = true;
+      for (const link of links) {
+        const title = link.closest(rule.card)?.querySelector(rule.title)?.textContent.trim();
+        if (!title || link.hasAttribute('aria-label')) { changed = false; break; }
+        link.setAttribute('aria-label', rule.prefix + title);
+      }
+      if (changed && same(copy, now)) return rule;
+    }
     if (rule.kind === 'empty-vacancies') {
       const list = copy.querySelector('.careers-opps__list');
       const paragraph = copy.ownerDocument.createElement('p');

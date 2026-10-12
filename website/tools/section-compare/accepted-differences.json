@@ -140,5 +140,17 @@
     "kind": "copyright-year",
     "oldYear": 2026,
     "reason": "Marketing lead decision: the copyright year is the year of the build. The news page showed 2026; this applies only in a build year other than 2026."
+  },
+  {
+    "id": "home-service-learn-more",
+    "pages": ["/index.html"],
+    "sections": ["services"],
+    "kind": "added-aria-label",
+    "selector": "a.svc-card__link",
+    "card": "article.svc-card",
+    "title": ".svc-card__title",
+    "prefix": "Learn more about ",
+    "count": 4,
+    "reason": "Marketing lead decision: the four home service-card links keep the visible text Learn more and gain an accessible name that includes the service title. The old links had no aria-label. Only that attribute is accepted."
   }
 ]
