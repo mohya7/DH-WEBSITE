@@ -22,6 +22,10 @@ export interface PageHead {
 
 const calendarDate = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
 
+/** The robots meta the old indexable pages carried, and the one noindex pages carried. */
+export const indexableRobots = "index, follow, max-image-preview:large";
+export const noIndexRobots = "noindex, follow";
+
 export function documentTitle(item: { title: string; metaTitle: string | null }): string {
   const meta = item.metaTitle?.trim();
   return meta || item.title;
@@ -89,7 +93,7 @@ export function headMetadata(head: PageHead) {
     title: head.title,
     description: head.description,
     alternates: { canonical: head.canonical },
-    robots: head.noIndex ? ("noindex" as const) : undefined,
+    robots: head.noIndex ? noIndexRobots : indexableRobots,
     openGraph: {
       type: head.openGraphType,
       siteName: head.siteName,

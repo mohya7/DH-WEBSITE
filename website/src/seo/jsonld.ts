@@ -39,6 +39,18 @@ function sameAs(settings: SiteSettings): string[] {
   });
 }
 
+function siteLogo(site: Site, origin: string): string | undefined {
+  const asset = site.content.media.find((item) => item.originalName === "digital-hub-logo.png");
+  return asset?.path ? `${origin}${asset.path}` : undefined;
+}
+
+function contactPoint(settings: SiteSettings): Json | undefined {
+  const telephone = settings.phone?.trim();
+  const email = settings.email?.trim();
+  if (!telephone && !email) return undefined;
+  return kept({ "@type": "ContactPoint", telephone, email });
+}
+
 function postalAddress(settings: SiteSettings): Json | undefined {
   const address = kept({
     "@type": "PostalAddress",
@@ -161,6 +173,8 @@ export function structuredData(site: Site, item: AnyContentItem | null, pageType
     url: `${origin}/`,
     email: settings.email?.trim(),
     telephone: settings.phone?.trim(),
+    logo: siteLogo(site, origin),
+    contactPoint: contactPoint(settings),
     address: postalAddress(settings),
     sameAs: sameAs(settings),
   });

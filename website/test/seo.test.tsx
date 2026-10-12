@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { PageScaffold } from "../src/components/PageScaffold";
 import type { AnyContentItem, BuildContent } from "../src/content/build-content";
 import { createSite } from "../src/content/site";
-import { canonicalUrl, documentTitle, pageHead } from "../src/seo/head";
+import { canonicalUrl, documentTitle, headMetadata, indexableRobots, noIndexRobots, pageHead } from "../src/seo/head";
 import { indexablePages, renderLlms, renderRobots, renderSitemap } from "../src/seo/files";
 import { editorialLastMod, faqItems, graphProblems, jsonLdText, structuredData } from "../src/seo/jsonld";
 import { readSiteUrl, SiteUrlError } from "../src/seo/site-url";
@@ -42,10 +42,19 @@ describe("page head", () => {
 
     const service = site.routes.find((route) => route.path === "/services/enterprise-software")!.item;
     const serviceHead = pageHead(site, service, "service", service.path!, origin);
-    expect(serviceHead.title).toBe(service.title);
-    expect(serviceHead.description).toBeUndefined();
-    expect(serviceHead.image).toBeUndefined();
+    expect(serviceHead.title).toBe("Enterprise Software Solutions | Digital Hub S.A.E");
+    expect(serviceHead.description).toBe("We build secure, scalable, and integration-ready digital platforms that power complex operations and accelerate enterprise transformation.");
+    expect(serviceHead.image).toMatch(/^https:\/\/digitalhub.com.eg\/media\//);
+    expect(headMetadata(serviceHead).robots).toBe(indexableRobots);
+    expect(headMetadata({ ...serviceHead, noIndex: true }).robots).toBe(noIndexRobots);
     expect(documentTitle({ title: "Visible", metaTitle: null })).toBe("Visible");
+
+    const apply = site.routes.find((route) => route.path === "/careers/apply")!.item;
+    expect(apply.noIndex).toBe(true);
+    const national = site.routes.find((route) => route.path === "/cases/national-portal")!.item;
+    expect(national.metaTitle).toBeNull();
+    expect(national.metaDescription).toBeNull();
+    expect(national.shareImageId).toBeNull();
   });
 
   it("uses a content canonical override only when it is a usable URL", () => {
@@ -79,8 +88,17 @@ describe("structured data", () => {
   it("omits optional properties that the content does not have", () => {
     const service = site.routes.find((route) => route.path === "/services/enterprise-software")!.item;
     const node = (structuredData(site, service, "service", service.path!, origin)["@graph"] as { "@type": string; description?: string }[]).find((entry) => entry["@type"] === "Service");
-    expect(node?.description).toBeUndefined();
-    const organization = (structuredData(site, service, "service", service.path!, origin)["@graph"] as { "@type": string; address?: { postalCode?: string } }[])[0];
+    expect(node?.description).toBe(service.metaDescription);
+    const without = structuredData(site, { ...service, metaDescription: null }, "service", service.path!, origin);
+    const blank = (without["@graph"] as { "@type": string; description?: string }[]).find((entry) => entry["@type"] === "Service");
+    expect(blank?.description).toBeUndefined();
+    const organization = (structuredData(site, service, "service", service.path!, origin)["@graph"] as { "@type": string; address?: { postalCode?: string }; logo?: string; contactPoint?: { telephone?: string; email?: string }; alternateName?: string; foundingDate?: string; slogan?: string; knowsAbout?: string[] }[])[0];
+    expect(organization.logo).toMatch(/^https:\/\/digitalhub.com.eg\/media\//);
+    expect(organization.contactPoint).toEqual({ "@type": "ContactPoint", telephone: content.settings.phone, email: content.settings.email });
+    expect(organization.alternateName).toBeUndefined();
+    expect(organization.foundingDate).toBeUndefined();
+    expect(organization.slogan).toBeUndefined();
+    expect(organization.knowsAbout).toBeUndefined();
     expect(organization.address?.postalCode).toBeUndefined();
     const post = site.routes.find((route) => route.pageType === "blog-post")!.item;
     if (post.collection === "blog-posts") post.fields.dateModified = null;
@@ -179,6 +197,7 @@ describe("sitemap, robots, and llms", () => {
     const site = siteOf(content);
     const xml = renderSitemap(site, origin);
     expect(xml).not.toContain("/news");
+    expect(xml).not.toContain("/careers/apply");
     expect(xml).not.toContain("/404");
     expect(xml).not.toContain("/500");
     expect(xml).toContain("<loc>https://digitalhub.com.eg/</loc>");
