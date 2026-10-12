@@ -140,5 +140,38 @@
     "kind": "copyright-year",
     "oldYear": 2026,
     "reason": "Marketing lead decision: the copyright year is the year of the build. The news page showed 2026; this applies only in a build year other than 2026."
+  },
+  {
+    "id": "footer-cookie-settings-link",
+    "pages": [
+      "/index.html", "/about-us.html", "/get-in-touch.html", "/blogs/index.html",
+      "/blogs/azure-digital-egypt-2030.html", "/blogs/digital-employee-experience.html", "/blogs/enterprise-ai-production.html",
+      "/cases/index.html", "/cases/data-center-transformation.html", "/cases/ministry-planning.html", "/cases/nexthink-dex-bank.html",
+      "/partners/index.html", "/partners/efinance.html", "/partners/huawei.html", "/partners/microsoft.html", "/partners/nexthink.html", "/partners/vodafone.html",
+      "/news/index.html", "/careers/index.html", "/careers/apply.html",
+      "/services/ai-automation.html", "/services/data-analytics.html", "/services/enterprise-software.html", "/services/outsourcing.html"
+    ],
+    "areas": ["footer"],
+    "kind": "footer-link",
+    "selector": ".footer-bottom > a[data-cookie-settings]",
+    "after": ".footer-bottom > span:first-child",
+    "attributes": { "href": "#cookie-settings", "data-cookie-settings": "" },
+    "text": "Cookie settings",
+    "reason": "Marketing lead decision (Section 7): when the site settings name a Tag Manager container, every footer has one Cookie settings link, <a href=\"#cookie-settings\" data-cookie-settings=\"\">Cookie settings</a>, directly after the copyright line in .footer-bottom. It reopens the consent banner. Only that element is accepted; a build with no container must match the old footer."
+  },
+  {
+    "id": "consent-banner-absent-in-old",
+    "pages": [
+      "/index.html", "/about-us.html", "/get-in-touch.html", "/blogs/index.html",
+      "/blogs/azure-digital-egypt-2030.html", "/blogs/digital-employee-experience.html", "/blogs/enterprise-ai-production.html",
+      "/cases/index.html", "/cases/data-center-transformation.html", "/cases/ministry-planning.html", "/cases/nexthink-dex-bank.html",
+      "/partners/index.html", "/partners/efinance.html", "/partners/huawei.html", "/partners/microsoft.html", "/partners/nexthink.html", "/partners/vodafone.html",
+      "/news/index.html", "/careers/index.html", "/careers/apply.html",
+      "/services/ai-automation.html", "/services/data-analytics.html", "/services/enterprise-software.html", "/services/outsourcing.html"
+    ],
+    "areas": ["cookie-banner"],
+    "kind": "absent-in-old",
+    "selector": "div#cookieBanner.cookie-banner[role=\"dialog\"][aria-labelledby=\"cookieBannerTitle\"][hidden]:not([aria-modal])",
+    "reason": "Marketing lead decision (Section 7): the cookie consent banner is new; the old site had none. Accepted as an element absent in the old site, and only as the non-modal banner, hidden in the static HTML. This tool compares markup, not screenshots, so the banner's layout is checked by the browser tests at 1280, 768, 390, and 320 px."
   }
 ]

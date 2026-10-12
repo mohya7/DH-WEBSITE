@@ -1,4 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { BlogArticle, displayCalendarDate } from '../src/components/BlogArticle';
 import { Header, Footer, footerEmail, copyrightYear } from '../src/components/SiteChrome';
@@ -11,6 +12,7 @@ import { stripRuntime } from '../src/build/strip-runtime';
 import { parseRichText, headingAnchors, type RichNode } from '@digitalhub/blocks';
 import { VacancyPage } from '../src/components/VacancyPage';
 import { PageScaffold } from '../src/components/PageScaffold';
+import { consentCopy, consentDefaults, tagManagerId } from '../src/components/Consent';
 import { count } from './blocks/harness';
 
 vi.mock('@/content/site', async (original) => {
@@ -174,5 +176,76 @@ describe('build requirements', () => {
     expect(careersEndpoint({ CAREERS_APPLICATION_ENDPOINT: '/api/careers/applications' })).toBe('/api/careers/applications');
     expect(careersEndpoint({ CAREERS_APPLICATION_ENDPOINT: '/careers/apply' })).toBe('/careers/apply');
     expect(() => careersEndpoint({ CAREERS_APPLICATION_ENDPOINT: 'https://hiring.example.invalid/apply' })).toThrow(/same-site path/);
+  });
+});
+
+describe('cookie consent', () => {
+  const withContainer = (id: string | null) => {
+    const content = snapshotContent();
+    return createSite({ ...content, settings: { ...content.settings, analyticsContainerId: id } });
+  };
+
+  it('renders no banner, script, stylesheet, or footer control when the container id is empty', () => {
+    const site = withContainer(null);
+    expect(tagManagerId(site.content.settings)).toBeNull();
+    for (const html of [
+      renderToStaticMarkup(<PageScaffold site={site} item={null} pageType="error" />),
+      renderToStaticMarkup(<Footer site={site} set="home" />),
+    ]) {
+      expect(html).not.toContain('cookieBanner');
+      expect(html).not.toContain('googletagmanager');
+      expect(html).not.toContain('data-cookie-settings');
+      expect(html).not.toContain('consent.');
+    }
+  });
+
+  it('takes the container id from the site setting only, never from a build variable', () => {
+    const previous = process.env.ANALYTICS_CONTAINER_ID;
+    process.env.ANALYTICS_CONTAINER_ID = 'GTM-FROMENV1';
+    try {
+      expect(tagManagerId(withContainer(null).content.settings)).toBeNull();
+      expect(renderToStaticMarkup(<PageScaffold site={withContainer(null)} item={null} pageType="error" />)).not.toContain('cookieBanner');
+      expect(tagManagerId(withContainer('GTM-TEST1234').content.settings)).toBe('GTM-TEST1234');
+    } finally {
+      if (previous === undefined) delete process.env.ANALYTICS_CONTAINER_ID;
+      else process.env.ANALYTICS_CONTAINER_ID = previous;
+    }
+    expect(tagManagerId({ analyticsContainerId: 'GTM-SHORT' })).toBeNull();
+    expect(tagManagerId({ analyticsContainerId: ' GTM-TEST1234 ' })).toBe('GTM-TEST1234');
+  });
+
+  it('uses English defaults and renders a non-modal banner for a valid container id', () => {
+    const site = withContainer('GTM-TEST1234');
+    expect(consentCopy(site.content.settings)).toEqual(consentDefaults);
+    const html = renderToStaticMarkup(<PageScaffold site={site} item={null} pageType="error" />);
+    expect(html).toContain('id="cookieBanner"');
+    expect(html).toContain('role="dialog"');
+    expect(html).not.toContain('aria-modal');
+    expect(html).toContain('Cookies on this site');
+    expect(html).toContain('Accept all');
+    expect(html).toContain('Reject all');
+    expect(html).toContain('Analytics only');
+    expect(html).toContain('<a href="#cookie-settings" data-cookie-settings="">Cookie settings</a>');
+    expect(html).toContain('data-container="GTM-TEST1234"');
+    expect(html).toContain('rel="stylesheet"');
+    expect(html).not.toContain('googletagmanager');
+  });
+
+  it('pushes the gtm.js start event before it inserts Tag Manager, and events carry only a name', () => {
+    const consent = readFileSync(new URL('../behaviors/consent.js', import.meta.url), 'utf8');
+    const contact = readFileSync(new URL('../behaviors/contact.js', import.meta.url), 'utf8');
+    const careers = readFileSync(new URL('../behaviors/careers.js', import.meta.url), 'utf8');
+    expect(consent).toContain("window.dataLayer.push({ 'gtm.start': new Date().getTime(), event: 'gtm.js' });");
+    expect(consent.indexOf("event: 'gtm.js'")).toBeLessThan(consent.indexOf('googletagmanager.com/gtm.js'));
+    for (const source of [contact, careers, consent]) {
+      expect(source).not.toContain('innerHTML');
+      expect(source).not.toMatch(/dataLayer\.push\(\{[^}]*name/);
+    }
+    expect(contact).toContain("dataLayer.push({ event: 'contact_form_submitted' })");
+    expect(careers).toContain("dataLayer.push({ event: 'application_submitted' })");
+    expect(consent).toContain("dataLayer.push({ event: 'cta_clicked' })");
+    for (const value of ['v=1&a=0&m=0', 'v=1&a=1&m=0', 'v=1&a=1&m=1']) expect(consent).toContain(`'${value}'`);
+    expect(consent).toContain('v=1&a=0&m=1');
+    expect(consent).not.toMatch(/\^v=1&a=\(\[01\]\)&m=\(\[01\]\)\$/);
   });
 });

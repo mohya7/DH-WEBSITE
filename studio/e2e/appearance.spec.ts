@@ -45,6 +45,11 @@ test("12.5 admin sees every screen on DigitalHubContent_E2e", async ({ page }) =
   await page.getByRole("button", { name: "Add page" }).click();
   await expect(page.getByRole("button", { name: "Save content" })).toBeVisible();
   await expectOldStudio(page);
+
+  await openArea(page, "Site settings");
+  for (const label of ["Analytics container ID", "Cookie banner title", "Cookie banner text", "Accept all label", "Reject all label", "Analytics only label", "Cookie settings label"]) {
+    await expect(page.getByLabel(label)).toBeVisible();
+  }
 });
 
 test("12.5 editor sees every allowed screen and not administration", async ({ page }) => {

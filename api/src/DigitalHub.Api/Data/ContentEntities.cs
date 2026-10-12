@@ -401,10 +401,28 @@ public sealed class SiteSettings
     [MaxLength(200)]
     public string? LegalName { get; set; }
 
+    /// <summary>Google Tag Manager container, GTM- followed by at least seven letters or digits. Empty means nothing loads.</summary>
     [MaxLength(40)]
     public string? AnalyticsContainerId { get; set; }
 
+    /// <summary>Cookie banner body. Empty uses the website's English default.</summary>
     public string? CookieBannerText { get; set; }
+
+    /// <summary>Cookie banner title. Empty uses the website's English default.</summary>
+    [MaxLength(200)]
+    public string? CookieBannerTitle { get; set; }
+
+    [MaxLength(80)]
+    public string? CookieAcceptLabel { get; set; }
+
+    [MaxLength(80)]
+    public string? CookieRejectLabel { get; set; }
+
+    [MaxLength(80)]
+    public string? CookieAnalyticsLabel { get; set; }
+
+    [MaxLength(80)]
+    public string? CookieSettingsLabel { get; set; }
 }
 
 public sealed class WorkingCopy

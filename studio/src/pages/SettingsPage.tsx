@@ -25,6 +25,11 @@ type Settings = {
   legalName?: string | null;
   analyticsContainerId?: string | null;
   cookieBannerText?: string | null;
+  cookieBannerTitle?: string | null;
+  cookieAcceptLabel?: string | null;
+  cookieRejectLabel?: string | null;
+  cookieAnalyticsLabel?: string | null;
+  cookieSettingsLabel?: string | null;
 };
 
 export function SettingsPage() {
@@ -80,9 +85,14 @@ export function SettingsPage() {
         <Form.Item label="Legal name" name="legalName"><Input /></Form.Item>
         <Form.Item label="Default meta title" name="defaultMetaTitle"><Input /></Form.Item>
         <Form.Item label="Default meta description" name="defaultMetaDescription"><Input.TextArea rows={3} /></Form.Item>
-        <Form.Item label="Analytics container ID" name="analyticsContainerId"><Input placeholder="GTM-XXXXXXX" /></Form.Item>
+        <Form.Item label="Analytics container ID" name="analyticsContainerId" extra="Google Tag Manager, GTM- followed by at least seven letters or digits. Empty means the site loads no tag, banner, or cookie."><Input placeholder="GTM-XXXXXXX" /></Form.Item>
+        <Form.Item label="Cookie banner title" name="cookieBannerTitle" extra="Empty uses “Cookies on this site”."><Input /></Form.Item>
+        <Form.Item label="Cookie banner text" name="cookieBannerText" extra="The banner body. Empty uses the built-in English sentence."><Input.TextArea rows={3} /></Form.Item>
+        <Form.Item label="Accept all label" name="cookieAcceptLabel"><Input /></Form.Item>
+        <Form.Item label="Reject all label" name="cookieRejectLabel"><Input /></Form.Item>
+        <Form.Item label="Analytics only label" name="cookieAnalyticsLabel"><Input /></Form.Item>
+        <Form.Item label="Cookie settings label" name="cookieSettingsLabel" extra="The footer control that reopens the banner."><Input /></Form.Item>
         <Form.Item label="Footer text" name="footerText"><Input.TextArea rows={3} /></Form.Item>
-        <Form.Item label="Cookie banner text" name="cookieBannerText"><Input.TextArea rows={3} /></Form.Item>
         {canEdit ? <Button type="primary" htmlType="submit">Save</Button> : null}
       </Form>
     </section>

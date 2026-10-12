@@ -120,7 +120,18 @@ function replaceText(el, old, now) {
  * One chrome rule applied to a copy of the old header or footer. Each kind rewrites only
  * its exact old text; anything else that differs still fails the comparison.
  */
-function applyChromeRule(rule, copy) {
+function applyChromeRule(rule, copy, now) {
+  if (rule.kind === 'footer-link') {
+    // Only when the build has exactly this link: it follows a site setting, so a build without it must match the old footer.
+    const link = now.querySelector(rule.selector);
+    const after = copy.querySelector(rule.after);
+    if (!link || link.textContent.trim() !== rule.text || !after) return false;
+    const added = copy.ownerDocument.createElement('a');
+    for (const [name, value] of Object.entries(rule.attributes)) added.setAttribute(name, value);
+    added.textContent = rule.text;
+    after.after(added);
+    return true;
+  }
   if (rule.kind === 'chrome-text') {
     let changed = false;
     for (const el of copy.querySelectorAll(rule.selector)) {
@@ -152,12 +163,16 @@ function applyChromeRule(rule, copy) {
 }
 function acceptedChrome(page, id, old, now) {
   const copy = old.cloneNode(true);
-  const used = register.filter((rule) => rule.pages.includes(page) && rule.areas?.includes(id)).filter((rule) => applyChromeRule(rule, copy));
+  const used = register.filter((rule) => rule.pages.includes(page) && rule.areas?.includes(id)).filter((rule) => applyChromeRule(rule, copy, now));
   return used.length > 0 && same(copy, now) ? { id: used.map((rule) => rule.id).join(' + '), reason: used.map((rule) => rule.reason).join(' ') } : null;
 }
 function accepted(page, id, old, now, absentPage, chrome = false) {
   for (const rule of register.filter((rule) => rule.pages.includes(page))) {
     if (rule.kind === 'absent-page' && absentPage && (chrome || rule.sections.includes(id))) return rule;
+  }
+  if (chrome && !old && now) {
+    // An element the old site never had, accepted only where the register names it and only in this exact form.
+    return register.find((rule) => rule.kind === 'absent-in-old' && rule.pages.includes(page) && rule.areas?.includes(id) && now.matches(rule.selector)) ?? null;
   }
   if (chrome) return old && now ? acceptedChrome(page, id, old, now) : null;
   for (const rule of register.filter((rule) => rule.pages.includes(page))) {
@@ -211,6 +226,9 @@ for (const [newUrl, oldUrl] of pairs) {
   for (const [id, selector] of [['header', '#nav'], ['mobile-header', '#mobileNav'], ['footer', 'footer.footer']]) {
     chromeResults.push(compare(oldUrl, id, od.querySelector(selector), nd?.querySelector(selector), !nd, true));
   }
+  // The cookie banner sits outside main, the header, and the footer. A row only when either page has one.
+  const [oldBanner, newBanner] = [od.querySelector('#cookieBanner'), nd?.querySelector('#cookieBanner')];
+  if (oldBanner || newBanner) chromeResults.push(compare(oldUrl, 'cookie-banner', oldBanner, newBanner, !nd, true));
   total += oldSecs.length;
   for (let i = 0; i < Math.max(oldSecs.length, newSecs.length); i++) {
     const o = oldSecs[i], s = newSecs[i];

@@ -14,6 +14,7 @@ import path from "node:path";
 import type { UnresolvedReference } from "./build-content";
 import { describeConfig, websiteRoot, type ContentConfig } from "./config";
 import type { PageType } from "./routes";
+import { readSnapshotRaw } from "./sources";
 
 export const preparedDir = path.join(websiteRoot, ".content");
 export const publicMediaDir = path.join(websiteRoot, "public", "media");
@@ -65,7 +66,7 @@ export function readPrepared(config: ContentConfig, dir: string = preparedDir): 
   }
 
   if (config.source === "snapshot") {
-    const snapshot = fs.readFileSync(path.join(config.snapshotDir, "content.json"), "utf8");
+    const snapshot = readSnapshotRaw(config.snapshotDir, config.settingsFixture);
     if (sha256(snapshot) !== manifest.contentSha256) {
       throw new PreparedContentError(`The snapshot has changed since the content was prepared. ${rerun}`);
     }

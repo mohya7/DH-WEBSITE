@@ -1,0 +1,65 @@
+/*
+ * Cookie banner only. The ported design stylesheets are not edited.
+ * The footer "Cookie settings" control is an ordinary footer link, so it
+ * uses those styles and has no rule here.
+ *
+ * While the banner is open, consent.js sets data-cookie-banner-open and the
+ * banner's height (--cookie-banner-space) on <html>. The page gets that much
+ * bottom padding, so the end of the footer can scroll clear of the banner.
+ */
+html[data-cookie-banner-open] body {
+  padding-bottom: var(--cookie-banner-space, 0px);
+}
+.cookie-banner {
+  position: fixed;
+  z-index: 80;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  box-sizing: border-box;
+  max-width: 100%;
+  margin: 0;
+  padding: 16px;
+  background: #0b1b33;
+  color: #fff;
+  font: 14px/1.5 Poppins, system-ui, sans-serif;
+}
+.cookie-banner h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  line-height: 1.3;
+}
+.cookie-banner p {
+  margin: 0 0 12px;
+  overflow-wrap: anywhere;
+}
+.cookie-banner__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 100%;
+}
+.cookie-banner button {
+  font: inherit;
+  color: #0b1b33;
+  background: #fff;
+  border: 0;
+  border-radius: 4px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.cookie-banner button[aria-pressed="true"] {
+  font-weight: 600;
+  box-shadow: inset 0 0 0 2px #0b1b33;
+}
+.cookie-banner button:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cookie-banner,
+  .cookie-banner button {
+    transition: none;
+    animation: none;
+  }
+}
