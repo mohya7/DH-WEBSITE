@@ -3,7 +3,13 @@
  * prepared content must not appear on the home page, the blogs page, careers,
  * or the apply page's vacancy data.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@/content/site", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/content/site")>();
+  const { snapshotContent: load } = await import("./helpers");
+  return { ...actual, getSite: () => actual.createSite(load()) };
+});
 import type { ContentItem } from "../src/content/build-content";
 import { snapshotContent } from "./helpers";
 import { instances, render, siteFrom } from "./blocks/harness";
@@ -59,8 +65,9 @@ describe("published listings", () => {
     const careers = instances(site, "vacancy_list").find((instance) => instance.path === "/careers");
     expect(home && blogs && careers).toBeTruthy();
     for (const instance of [home!, blogs!, careers!]) {
-      expect(render(site, instance.section, instance)).not.toContain(draftPost.title);
-      expect(render(site, instance.section, instance)).not.toContain(draftVacancy.title);
+      const html = render(site, instance.section, instance);
+      expect(html).not.toContain(draftPost.title);
+      expect(html).not.toContain(draftVacancy.title);
     }
     const offered = JSON.stringify(site.content.collections.vacancies.map((vacancy) => ({ slug: vacancy.slug, title: vacancy.title })));
     expect(offered).not.toContain(draftVacancy.title);
