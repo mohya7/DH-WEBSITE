@@ -134,6 +134,7 @@ for (const [label, value] of [
   ['another version', 'v=2&a=1&m=1'],
   ['a duplicate key', 'v=1&a=1&m=1&a=0'],
   ['an unknown key', 'v=1&a=1&m=1&x=1'],
+  ['marketing without analytics', 'v=1&a=0&m=1'],
   ['garbage', 'yes'],
 ] as const) {
   test(`a cookie with ${label} is no choice: the banner asks again and Cookie settings works`, async ({ page, baseURL }) => {
@@ -144,6 +145,7 @@ for (const [label, value] of [
     await page.goto('/');
     await expect(page.locator('#cookieBanner')).toBeVisible();
     expect(tags.requests).toEqual([]);
+    expect(await dataLayer(page)).toEqual([['consent', 'default', denied]]);
     await choose(page, 'analytics');
     await expectChoice(page, { analytics: true, marketing: false });
     await page.getByRole('link', { name: 'Cookie settings' }).click();
