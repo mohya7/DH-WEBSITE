@@ -25,7 +25,7 @@ const websiteRoot = path.resolve(here, "..", "..");
 
 const oldRoot = path.resolve(process.argv[2] ?? "D:\\work\\DigitalHub\\New Website\\DH-WEBSITE-main");
 const newRoot = path.resolve(process.argv[3] ?? path.join(websiteRoot, "out"));
-const port = Number(process.argv[4] ?? 4190);
+const port = Number(process.env.SECTION_COMPARE_PORT ?? process.argv[4] ?? 4190);
 
 for (const [label, root] of [["old", oldRoot], ["new", newRoot]]) {
   if (!fs.existsSync(root)) {
@@ -73,6 +73,10 @@ http.createServer((req, res) => {
   if (url === "/" || url === "/index.html") {
     res.writeHead(200, { "Content-Type": types[".html"] });
     return res.end(fs.readFileSync(path.join(here, "compare.html")));
+  }
+  if (url === "/accepted-differences.json") {
+    res.writeHead(200, { "Content-Type": types[".json"] });
+    return res.end(fs.readFileSync(path.join(here, "accepted-differences.json")));
   }
 
   const [, prefix, ...restParts] = url.split("/");

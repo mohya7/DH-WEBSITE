@@ -5,11 +5,11 @@ the script again instead.
 
 | | |
 |---|---|
-| Generated | 2026-09-29T15:03:32.007Z |
+| Generated | 2026-10-11T10:24:46.803Z |
 | Source database | `DigitalHubContent_Parity` (throwaway, rebuilt each run) |
 | Content imported from | `feature/interviewer-portal` at `eb05f0647c3458cc612f8a9ed8625fbb0ebc7752` |
-| API commit | `7343a3838c67b09082ab621a0f395599fe85999d` |
-| content.json | 156,398 bytes |
+| API commit | `e80f83460703d5e906887823c1742ca41e54bb7b` |
+| content.json | 156,338 bytes |
 | media | 104 files, 2,938,496 bytes |
 
 ## Item counts
@@ -40,9 +40,9 @@ commit produce the same content, the same counts, and the same structure — but
 
 - **Item ids are new GUIDs.** Do not store a snapshot id anywhere that has to
   survive a refresh, and do not hard-code one in a test.
-- **`publishedAt` and `updatedAt` are the time of the run**, not an editorial
-  date. Anything that reads them, such as the sitemap's last-modified dates, will
-  move on every refresh. A real editorial date has to come from the content.
+- **`publishedAt` and `updatedAt`** can reflect the time of the run.
+  They are system timestamps, not editorial publication dates. Blog
+  `dateModified` is the imported editorial modification date.
 
 Everything else compares byte for byte.
 

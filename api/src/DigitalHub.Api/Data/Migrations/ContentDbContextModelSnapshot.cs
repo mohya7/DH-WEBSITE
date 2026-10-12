@@ -187,9 +187,13 @@ namespace DigitalHub.Api.Data.Migrations
                         .HasColumnType("datetime2")
                         .HasColumnName("created_at");
 
-                    b.Property<DateTime?>("DateModified")
-                        .HasColumnType("datetime2")
+                    b.Property<DateOnly?>("DateModified")
+                        .HasColumnType("date")
                         .HasColumnName("date_modified");
+
+                    b.Property<DateOnly?>("DatePublished")
+                        .HasColumnType("date")
+                        .HasColumnName("date_published");
 
                     b.Property<string>("Faq")
                         .IsRequired()
@@ -1270,6 +1274,11 @@ namespace DigitalHub.Api.Data.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)")
                         .HasColumnName("analytics_container_id");
+
+                    b.Property<string>("CareersEmail")
+                        .HasMaxLength(320)
+                        .HasColumnType("nvarchar(320)")
+                        .HasColumnName("careers_email");
 
                     b.Property<string>("CookieBannerText")
                         .HasColumnType("nvarchar(max)")

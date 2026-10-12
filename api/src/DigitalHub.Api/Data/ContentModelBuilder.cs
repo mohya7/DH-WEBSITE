@@ -83,6 +83,8 @@ public static class ContentModelBuilder
             entity.Property(post => post.Faq)
                 .IsRequired()
                 .HasDefaultValue("""{"items":[]}""");
+            entity.Property(post => post.DatePublished).HasColumnType("date");
+            entity.Property(post => post.DateModified).HasColumnType("date");
         });
 
         builder.Entity<Redirect>(entity =>

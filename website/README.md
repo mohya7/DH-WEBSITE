@@ -8,9 +8,9 @@ Next.js App Router, static export, TypeScript. Built in Phase C
 ```bash
 cd website
 npm ci
-CONTENT_SOURCE=snapshot npm run build                 # from fixtures/snapshot/
+CONTENT_SOURCE=snapshot CAREERS_APPLICATION_ENDPOINT=/api/careers/applications npm run build
 CONTENT_SOURCE=api CONTENT_API_URL=http://localhost:5097 \
-  CONTENT_BUILD_TOKEN=<Build:Token> npm run build       # from the Content API
+  CONTENT_BUILD_TOKEN=<Build:Token> CAREERS_APPLICATION_ENDPOINT=/api/careers/applications npm run build
 ```
 
 The output is `out/`. There is no default source: with `CONTENT_SOURCE` unset,
@@ -125,6 +125,23 @@ npm test            # Vitest
 npm run typecheck   # tsc, including the compile-time checks in test/schema-types.test.ts
 ```
 
+Browser checks run against the built output. Install Chromium once with
+`npx playwright install chromium`, or use installed Chrome by setting
+`PLAYWRIGHT_CHANNEL=chrome`. For example, in PowerShell:
+
+```powershell
+$env:PLAYWRIGHT_CHANNEL = 'chrome'
+$env:WEBSITE_TEST_PORT = '4177'
+npm run test:browser
+$env:SECTION_COMPARE_PORT = '4190'
+npm run compare:sections
+```
+
+`WEBSITE_TEST_PORT` controls both Playwright and `tools/serve-built.mjs` (default
+4177). `SECTION_COMPARE_PORT` controls both comparison entry points (default
+4190). `PARITY_API_PORT` controls the snapshot API (legacy default 5097); use
+4197 for the Section 5 task's 41xx rule. Servers never reuse an occupied port.
+
 `test/blocks/` renders every section of the snapshot through `packages/blocks`
 with the website's adapters (4.6), and the rich-text renderer (4.3).
 
@@ -133,13 +150,13 @@ build endpoint. It checks the token, returns 401 and 429, and serves media.
 
 ## Section comparison — `tools/section-compare`
 
-Compares every `main > section` on the built site with the same page on
+Compares every `main > section`, desktop/mobile header, and footer with the same page on
 `feature/interviewer-portal`, after only that page's content runtime has run.
 Every verification of a website change uses it.
 
 ```bash
 cd website
-CONTENT_SOURCE=snapshot npm run build
+CONTENT_SOURCE=snapshot CAREERS_APPLICATION_ENDPOINT=/api/careers/applications npm run build
 node tools/section-compare/server.mjs
 ```
 
@@ -155,4 +172,15 @@ executed: the site ships static HTML.
 A section that renders nothing in the new build **counts as a failure**, and the
 denominator is every section on the old pages — not only the ones the new build
 happens to render. Link targets, image file details, and `url()` inside style
-attributes are ignored.
+attributes are ignored. Script elements are ignored on both sides; the build's
+loading-order checks and browser tests verify scripts separately. Inline styles
+are compared as sorted CSS declarations, so equivalent serialization matches.
+
+`tools/section-compare/accepted-differences.json` is the committed register, with
+reasons. Its rules accept six absent article sections, the careers empty state,
+and the four service case-label corrections only. Other changes in those same
+sections still fail. The section denominator stays 119; chrome is counted
+separately. Absent draft pages have no chrome. `npm run compare:sections` writes
+`artifacts/section-comparison.json` and exits nonzero for an unregistered
+difference or a changed denominator. Part B's publication-date issue remains a
+failure until the content-model change is approved; it is not an accepted difference.

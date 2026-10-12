@@ -32,14 +32,16 @@ export function headingLevel(node: RichNode): 2 | 3 | 4 {
 /** Every heading the renderer renders, in document order, with its unique anchor. */
 export function headingAnchors(doc: RichDocument | null): HeadingAnchor[] {
   const anchors: HeadingAnchor[] = [];
-  const used = new Map<string, number>();
+  const used = new Set<string>();
   const walk = (node: RichNode) => {
     if (node.type === "heading") {
       const text = textOf(node).trim();
       const base = slugify(text);
-      const seen = used.get(base) ?? 0;
-      used.set(base, seen + 1);
-      anchors.push({ level: headingLevel(node), text, id: seen === 0 ? base : `${base}-${seen + 1}` });
+      let id = base;
+      let suffix = 2;
+      while (used.has(id)) id = `${base}-${suffix++}`;
+      used.add(id);
+      anchors.push({ level: headingLevel(node), text, id });
       return;
     }
     for (const child of node.content ?? []) if (allowedHere(node.type, child.type)) walk(child);

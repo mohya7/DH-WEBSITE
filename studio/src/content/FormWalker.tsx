@@ -161,6 +161,11 @@ function Control({
   if (kind === "number") {
     return <InputNumber value={typeof value === "number" ? value : undefined} onChange={(next) => onChange(next)} />;
   }
+  if (kind === "date") {
+    // A calendar date picker. The native input's value is already YYYY-MM-DD: no Date
+    // object and no time zone, so the stored day is the day picked. Cleared is null.
+    return <input type="date" className="native-control" value={text(value)} onChange={(event) => onChange(event.target.value === "" ? null : event.target.value)} />;
+  }
   if (kind === "media" || schema.properties?.mediaId !== undefined) {
     const media = isRecord(value) ? value : { mediaId: "", alt: "", decorative: false };
     return (
