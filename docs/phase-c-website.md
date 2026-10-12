@@ -442,6 +442,8 @@ acceptable for development builds only.
 
 **8.2** Routing to the API and the Node hiring system is Phase D. Do not add it here.
 
+*Decided at the Section 8 check:* `Strict-Transport-Security` is `max-age=31536000`, without `includeSubDomains`. Revisit that once decision D1 (staging and production domains) is settled.
+
 ---
 
 ## Section 9 [CLOUD] — Studio preview and website address
