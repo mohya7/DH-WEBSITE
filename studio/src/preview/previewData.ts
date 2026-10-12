@@ -28,6 +28,17 @@ export interface PreviewData {
   collections: BlockCollections;
   /** "type:id" of every published, linkable item, to its public path. */
   paths: Map<string, string>;
+  /**
+   * Published items left out because their published revision could not be
+   * loaded. Named by collection and id, never by the working copy's title or slug.
+   */
+  omitted: string[];
+}
+
+/** The drawer's warning for a published dependency whose revision could not be loaded. */
+export function previewDependencyWarning(omitted: string[]): string | null {
+  if (omitted.length === 0) return null;
+  return `Not shown: ${omitted.join(", ")}. The published revision could not be loaded.`;
 }
 
 /** Reference types (packages/sections/defs.json) and vacancies, to their collections. */
@@ -40,7 +51,7 @@ export const referenceCollections: Record<string, CollectionName> = {
   vacancy: "vacancies",
 };
 
-async function published(collection: CollectionName): Promise<BlockItem[]> {
+async function published(collection: CollectionName): Promise<{ items: BlockItem[]; omitted: string[] }> {
   const rows: ListRow[] = [];
   for (let page = 1; ; page++) {
     const list = await request(`/api/v1/${collection}?page=${page}&pageSize=100&status=published`);
@@ -49,18 +60,25 @@ async function published(collection: CollectionName): Promise<BlockItem[]> {
     rows.push(...body.items);
     if (body.items.length === 0 || rows.length >= body.total) break;
   }
-  const items = await Promise.all(rows.map(async (row) => {
+  const omitted: string[] = [];
+  const items: BlockItem[] = [];
+  for (const row of rows) {
     const document = row.hasWorkingCopy ? await latestRevision(collection, row.id) : await current(collection, row.id);
-    return {
+    if (document === null) {
+      omitted.push(`${collection}/${row.id}`);
+      continue;
+    }
+    items.push({
       id: row.id,
       slug: document.slug,
       path: publicPath(collection, document.slug),
       title: document.title,
       sortOrder: document.sortOrder ?? row.sortOrder,
       fields: (document.fields ?? {}) as never,
-    } satisfies BlockItem;
-  }));
-  return items.sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title));
+    });
+  }
+  items.sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title));
+  return { items, omitted };
 }
 
 async function current(collection: CollectionName, id: string): Promise<Document> {
@@ -69,13 +87,14 @@ async function current(collection: CollectionName, id: string): Promise<Document
   return (result.body as { content: Document }).content;
 }
 
-async function latestRevision(collection: CollectionName, id: string): Promise<Document> {
+async function latestRevision(collection: CollectionName, id: string): Promise<Document | null> {
   const list = await request(`/api/v1/${collection}/${id}/revisions`);
-  const revisions = list.ok && list.body !== null ? (list.body as { items: Array<{ id: string; version: number }> }).items : [];
+  if (!list.ok || list.body === null) return null;
+  const revisions = (list.body as { items?: Array<{ id: string; version: number }> }).items;
+  if (!Array.isArray(revisions) || revisions.length === 0) return null;
   const newest = revisions.slice().sort((a, b) => b.version - a.version)[0];
-  if (newest === undefined) return current(collection, id);
   const result = await request(`/api/v1/${collection}/${id}/revisions/${newest.id}`);
-  if (!result.ok || result.body === null) return current(collection, id);
+  if (!result.ok || result.body === null) return null;
   return (result.body as { snapshot: Document }).snapshot;
 }
 
@@ -90,22 +109,24 @@ export async function loadPreviewData(): Promise<PreviewData> {
     published("team-members"),
     published("news-items"),
   ]);
+  const omitted = [pages, services, partners, caseStudies, blogPosts, vacancies, teamMembers, newsItems].flatMap((result) => result.omitted);
   const paths = new Map<string, string>();
-  const linkable: Array<[string, BlockItem[]]> = [["page", pages], ["service", services], ["partner", partners], ["case_study", caseStudies], ["blog_post", blogPosts], ["vacancy", vacancies]];
-  for (const [type, items] of linkable) {
-    for (const item of items) if (item.path !== null) paths.set(`${type}:${item.id}`, item.path);
+  const linkable: Array<[string, { items: BlockItem[] }]> = [["page", pages], ["service", services], ["partner", partners], ["case_study", caseStudies], ["blog_post", blogPosts], ["vacancy", vacancies]];
+  for (const [type, result] of linkable) {
+    for (const item of result.items) if (item.path !== null) paths.set(`${type}:${item.id}`, item.path);
   }
   return {
     collections: {
-      services: services as BlockCollections["services"],
-      partners: partners as BlockCollections["partners"],
-      caseStudies: caseStudies as BlockCollections["caseStudies"],
-      blogPosts: blogPosts as BlockCollections["blogPosts"],
-      newsItems: newsItems as BlockCollections["newsItems"],
-      vacancies: vacancies as BlockCollections["vacancies"],
-      teamMembers: teamMembers as BlockCollections["teamMembers"],
+      services: services.items as BlockCollections["services"],
+      partners: partners.items as BlockCollections["partners"],
+      caseStudies: caseStudies.items as BlockCollections["caseStudies"],
+      blogPosts: blogPosts.items as BlockCollections["blogPosts"],
+      newsItems: newsItems.items as BlockCollections["newsItems"],
+      vacancies: vacancies.items as BlockCollections["vacancies"],
+      teamMembers: teamMembers.items as BlockCollections["teamMembers"],
     },
     paths,
+    omitted,
   };
 }
 

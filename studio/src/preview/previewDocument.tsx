@@ -13,6 +13,9 @@ import { designSetFor, designSets } from "@digitalhub/website-design/sets";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { CollectionName } from "../content/model";
 import type { PreviewData, PreviewMedia } from "./previewData";
+import { materialiseCounters } from "./counters";
+
+export { materialiseCounters } from "./counters";
 
 declare const __WEBSITE_DESIGN_BASE__: string;
 
@@ -40,10 +43,11 @@ const headingSections = new Set(["hero", "hub_hero", "service_hero"]);
 /**
  * The state the website's reveal scripts end in. The design keeps [data-reveal] and
  * friends invisible until a script adds .in; the preview runs no scripts, so it
- * renders them revealed. The stylesheets themselves are untouched.
+ * renders them revealed. The stylesheets themselves are untouched. Counters show
+ * their final values here; the shared section markup still starts at zero.
  */
 export function revealed(html: string): string {
-  const document = new DOMParser().parseFromString(html, "text/html");
+  const document = new DOMParser().parseFromString(materialiseCounters(html), "text/html");
   for (const element of document.querySelectorAll("[data-reveal], [data-section-reveal], [data-stagger-item]")) element.classList.add("in");
   return document.body.innerHTML;
 }

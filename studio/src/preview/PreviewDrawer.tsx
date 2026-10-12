@@ -9,7 +9,7 @@ import { Alert, Drawer, Typography } from "antd";
 import { useEffect, useState } from "react";
 import { websiteOrigin } from "../content/model";
 import { renderSections, previewDocument, type PreviewInput } from "./previewDocument";
-import { loadMedia, loadPreviewData, type PreviewMedia } from "./previewData";
+import { loadMedia, loadPreviewData, previewDependencyWarning, type PreviewMedia } from "./previewData";
 
 export function PreviewDrawer({ open, onClose, input }: { open: boolean; onClose: () => void; input: PreviewInput }) {
   const data = useQuery({ queryKey: ["preview-data"], queryFn: loadPreviewData, enabled: open, staleTime: 30_000 });
@@ -35,17 +35,14 @@ export function PreviewDrawer({ open, onClose, input }: { open: boolean; onClose
   }, [open, missing]);
 
   const ready = result !== null && result.missingMedia.length === 0;
+  const sectionWarning = result !== null && result.failed.length > 0
+    ? `Not shown: ${result.failed.map((entry) => `section ${entry.index + 1} (${entry.type})`).join(", ")}. Finish its fields to preview it.`
+    : null;
+  const warning = [sectionWarning, previewDependencyWarning(data.data?.omitted ?? [])].filter(Boolean).join(" ");
   return (
     <Drawer title="Preview" open={open} onClose={onClose} size="min(1280px, 96vw)" destroyOnHidden>
       {data.isError ? <Alert type="error" showIcon title={data.error instanceof Error ? data.error.message : "The preview could not be loaded."} /> : null}
-      {result !== null && result.failed.length > 0 ? (
-        <Alert
-          className="!mb-3"
-          type="warning"
-          showIcon
-          title={`Not shown: ${result.failed.map((entry) => `section ${entry.index + 1} (${entry.type})`).join(", ")}. Finish its fields to preview it.`}
-        />
-      ) : null}
+      {warning ? <Alert className="!mb-3" type="warning" showIcon title={warning} /> : null}
       {ready ? (
         <iframe
           title="Website preview"

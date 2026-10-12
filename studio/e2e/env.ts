@@ -13,9 +13,20 @@ export const e2eApiPort = process.env.DH_E2E_API_PORT ?? "5099";
 export const e2eStudioPort = process.env.DH_E2E_STUDIO_PORT ?? "5174";
 export const e2eApiOrigin = `http://127.0.0.1:${e2eApiPort}`;
 export const e2eStudioOrigin = `http://127.0.0.1:${e2eStudioPort}`;
-/* The website address the e2e Studio links to (VITE_PUBLIC_SITE_URL, Phase C 9.2). No website
-   needs to run: tests compare links with it and never follow them. */
-export const e2eSiteUrl = process.env.DH_E2E_SITE_URL ?? "http://127.0.0.1:8765";
+/* The website address the e2e Studio links to (VITE_PUBLIC_SITE_URL, Phase C 9.2).
+   No website needs to run: tests compare links with it and never follow them.
+   DH_E2E_SITE_URL overrides it. Otherwise it is built from the Studio port this
+   harness already allocated. There is no hard-coded address. */
+export function e2eSiteAddress(configured: string | undefined, studioPort: string): string {
+  const url = configured?.trim();
+  if (url) return url;
+  if (!/^[1-9][0-9]*$/.test(studioPort)) {
+    throw new Error("Set DH_E2E_SITE_URL to the website address for this end-to-end run. DH_E2E_STUDIO_PORT is not a port, so the address cannot be derived from it.");
+  }
+  return `http://127.0.0.1:${studioPort}`;
+}
+
+export const e2eSiteUrl = e2eSiteAddress(process.env.DH_E2E_SITE_URL, e2eStudioPort);
 
 const studioRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = path.resolve(studioRoot, "..");

@@ -6,15 +6,17 @@
  * It serves that folder, byte for byte, at /website-design/<hash>/ in development
  * and emits it into dist/website-design/<hash>/ when it builds, using the
  * website's own file list and content hash (website/src/design/folder.ts).
- * After a build the emitted copy is compared with the source and the build
- * fails on any difference; `npm run check:preview-design` runs the same check
- * on an existing dist.
+ * After a build, website/design/ is checked against the hashes recorded in
+ * website/scripts/design-sources.ts, and the emitted copy is checked against
+ * that folder. `npm run check:preview-design` runs the same checks on an
+ * existing dist. A changed, deleted, or added design file fails the build.
  */
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Plugin } from "vite";
 import { designFileList, designHash } from "../../website/src/design/folder.ts";
+import { lockedDesignProblems } from "../../website/src/design/lock.ts";
 
 export const designSource = fileURLToPath(new URL("../../website/design/", import.meta.url));
 export const designMount = "website-design";
@@ -87,9 +89,10 @@ export function websiteDesign(): Plugin {
     },
     closeBundle() {
       if (!isBuild) return;
-      const problems = designDifferences(path.join(outDir, ...base.split("/").filter(Boolean)));
+      const copy = path.join(outDir, ...base.split("/").filter(Boolean));
+      const problems = [...lockedDesignProblems(designSource), ...designDifferences(copy)];
       if (problems.length > 0) {
-        throw new Error(`The preview's design files differ from website/design/:\n${problems.join("\n")}`);
+        throw new Error(`The preview's design files do not match the locked design set:\n${problems.join("\n")}`);
       }
     },
   };

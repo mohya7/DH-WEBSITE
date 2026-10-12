@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 import { parseSiteUrl } from "../src/content/siteUrl";
+import { e2eSiteAddress } from "../e2e/env";
 
 describe("VITE_PUBLIC_SITE_URL (Phase C, 9.2)", () => {
   afterEach(() => {
@@ -42,5 +44,14 @@ describe("VITE_PUBLIC_SITE_URL (Phase C, 9.2)", () => {
     vi.stubEnv("VITE_PUBLIC_SITE_URL", "https://www.digitalhub.com.eg/");
     const model = await import("../src/content/model");
     expect(model.websiteOrigin).toBe("https://www.digitalhub.com.eg");
+  });
+});
+
+describe("end-to-end website address", () => {
+  it("comes from DH_E2E_SITE_URL or the Studio port, and has no hard-coded fallback", () => {
+    expect(e2eSiteAddress(undefined, "4374")).toBe("http://127.0.0.1:4374");
+    expect(e2eSiteAddress("  http://127.0.0.1:4380 ", "4374")).toBe("http://127.0.0.1:4380");
+    expect(() => e2eSiteAddress("  ", "nope")).toThrow("Set DH_E2E_SITE_URL");
+    expect(readFileSync(new URL("../e2e/env.ts", import.meta.url), "utf8")).not.toContain("8765");
   });
 });
