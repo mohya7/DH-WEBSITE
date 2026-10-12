@@ -1,5 +1,5 @@
 import { defineConfig } from "@playwright/test";
-import { e2eApiOrigin, e2eEnv, e2eStudioOrigin } from "./e2e/env";
+import { e2eApiOrigin, e2eEnv, e2eStudioOrigin, e2eStudioPort } from "./e2e/env";
 
 const env = e2eEnv();
 
@@ -28,7 +28,7 @@ export default defineConfig({
       env: env.apiEnv,
     },
     {
-      command: "npx vite --host 127.0.0.1 --port 5174 --strictPort",
+      command: `npx vite --host 127.0.0.1 --port ${e2eStudioPort} --strictPort`,
       url: e2eStudioOrigin,
       reuseExistingServer: false,
       timeout: 60_000,

@@ -8,8 +8,11 @@ export const productionCatalog = "DigitalHubContent";
 export const e2eAdminEmail = "e2e-admin@digitalhub.test";
 export const e2eEditorEmail = "e2e-editor@digitalhub.test";
 export const e2ePassword = "E2e-Only-Passw0rd!";
-export const e2eApiOrigin = "http://127.0.0.1:5099";
-export const e2eStudioOrigin = "http://127.0.0.1:5174";
+/* Ports: these defaults, unless the running agent sets its own range. */
+export const e2eApiPort = process.env.DH_E2E_API_PORT ?? "5099";
+export const e2eStudioPort = process.env.DH_E2E_STUDIO_PORT ?? "5174";
+export const e2eApiOrigin = `http://127.0.0.1:${e2eApiPort}`;
+export const e2eStudioOrigin = `http://127.0.0.1:${e2eStudioPort}`;
 
 const studioRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = path.resolve(studioRoot, "..");
@@ -66,7 +69,7 @@ export function e2eEnv() {
     },
     studioEnv: {
       DH_API_URL: e2eApiOrigin,
-      DH_STUDIO_PORT: "5174",
+      DH_STUDIO_PORT: e2eStudioPort,
     },
   };
 }
