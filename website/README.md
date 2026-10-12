@@ -43,7 +43,7 @@ Leave it unset in CI. On Windows PowerShell, set the variables with
 
 | File | Role |
 |---|---|
-| `config.ts` | Reads `CONTENT_SOURCE`, `CONTENT_API_URL`, and `CONTENT_BUILD_TOKEN`. No default |
+| `config.ts` | Reads `CONTENT_SOURCE`, `CONTENT_API_URL`, and `CONTENT_BUILD_TOKEN`. No default. Test only: `SNAPSHOT_SETTINGS_FIXTURE` |
 | `sources.ts` | `snapshot`: `fixtures/snapshot/content.json` and `fixtures/snapshot/media/`. `api`: `GET {CONTENT_API_URL}/api/v1/build/content` with the `X-Build-Token` header, and media from `{CONTENT_API_URL}/media/` |
 | `validate.ts` | Checks every section and item against its JSON Schema (Ajv, the same files the API uses), the counts, and the media |
 | `routes.ts` | One route per published item with a path, at exactly the path the API resolved. Clean, unique, not reserved |
@@ -149,6 +149,27 @@ npm run compare:sections
 4177). `SECTION_COMPARE_PORT` controls both comparison entry points (default
 4190). `PARITY_API_PORT` controls the snapshot API (legacy default 5097); use
 4197 for the Section 5 task's 41xx rule. Servers never reuse an occupied port.
+
+### Cookie consent and Tag Manager
+
+The Tag Manager container id comes only from the site settings (Studio, Site
+settings, "Analytics container ID"); there is no build variable for it. With no
+id, the build has no banner, no consent script or stylesheet, no footer
+"Cookie settings" link, and the content security policy has no Google tag hosts.
+The snapshot has no id, so test the consent build with the test-only settings
+fixture, which `CONTENT_SOURCE=api` refuses:
+
+```powershell
+$env:CONTENT_SOURCE = 'snapshot'
+$env:SNAPSHOT_SETTINGS_FIXTURE = 'consent'   # fixtures/settings/consent.json: GTM-TEST1234
+$env:CAREERS_APPLICATION_ENDPOINT = '/api/careers/applications'
+npm run build
+npm run test:browser       # browser-tests/consent.spec.ts runs only on this build
+npm run compare:sections
+```
+
+`browser-tests/pages.spec.ts` checks the build without an id. Both specs read
+`out/index.html` to tell the two builds apart.
 
 `test/blocks/` renders every section of the snapshot through `packages/blocks`
 with the website's adapters (4.6), and the rich-text renderer (4.3).

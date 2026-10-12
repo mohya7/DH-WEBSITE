@@ -1502,7 +1502,10 @@ static partial class ContentWriter
         && left.OrganizationName == right.OrganizationName && left.LegalName == right.LegalName
         && left.StreetAddress == right.StreetAddress && left.Locality == right.Locality && left.Region == right.Region
         && left.PostalCode == right.PostalCode && left.Country == right.Country
-        && left.AnalyticsContainerId == right.AnalyticsContainerId && left.CookieBannerText == right.CookieBannerText;
+        && left.AnalyticsContainerId == right.AnalyticsContainerId && left.CookieBannerText == right.CookieBannerText
+        && left.CookieBannerTitle == right.CookieBannerTitle && left.CookieAcceptLabel == right.CookieAcceptLabel
+        && left.CookieRejectLabel == right.CookieRejectLabel && left.CookieAnalyticsLabel == right.CookieAnalyticsLabel
+        && left.CookieSettingsLabel == right.CookieSettingsLabel;
 
     private static string T(DateTime? value) => value is null ? "" : value.Value.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
 

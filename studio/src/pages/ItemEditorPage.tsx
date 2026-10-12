@@ -78,6 +78,7 @@ export function ItemEditorPage({ collection }: { collection: CollectionName }) {
   const blocker = useBlocker(dirty);
 
   useEffect(() => {
+    setItem(null);
     void load();
   }, [id]);
 
@@ -250,6 +251,12 @@ export function ItemEditorPage({ collection }: { collection: CollectionName }) {
     ? `Publishing will redirect ${livePath} to ${nextPath}. Saving does not create it.`
     : null;
   const collectionSchema = schemas.data?.collections[collection];
+
+  /* No fields until the item has loaded: loading it sets every field, so anything
+     typed before it arrived would be overwritten without a word. */
+  if (item === null) {
+    return <section><Typography.Paragraph>{message ?? "Loading…"}</Typography.Paragraph></section>;
+  }
 
   return (
     <section>

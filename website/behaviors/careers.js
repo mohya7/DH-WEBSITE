@@ -66,6 +66,10 @@
       reset.setAttribute('data-careers-apply-reset', '');
       success.append(reset);
       form.replaceWith(success);
+      if (document.documentElement.hasAttribute('data-analytics')) {
+        window.dataLayer = window.dataLayer || [];
+        window.dataLayer.push({ event: 'application_submitted' });
+      }
       reset.addEventListener('click', function () { success.replaceWith(form); form.reset(); role = setRole(); });
     } catch (error) {
       showError(error.message || failureMessage);

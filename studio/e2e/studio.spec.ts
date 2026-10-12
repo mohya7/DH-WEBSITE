@@ -2,7 +2,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import { e2eApiOrigin, e2eCatalog, e2eEditorEmail, e2eEnv, e2ePassword, productionCatalog } from "./env";
-import { expectNoStoredToken, openArea, signIn } from "./helpers";
+import { addSection, expectNoStoredToken, openArea, signIn } from "./helpers";
 
 const pixel = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures", "pixel.png");
 const scriptMessage = "<script>alert(1)</script> Please call about a programme.";
@@ -210,10 +210,4 @@ async function fillItemField(page: import("@playwright/test").Page, field: strin
   const control = page.locator(`[data-field='${field}']`).locator("input, textarea").first();
   await expect(control).toBeVisible();
   await control.fill(value);
-}
-
-async function addSection(page: import("@playwright/test").Page, label: string) {
-  await page.locator(".ant-select").filter({ hasText: "Add section" }).click();
-  await page.getByRole("option", { name: label, exact: true }).click();
-  await expect(page.locator("article").filter({ hasText: label })).toBeVisible();
 }

@@ -8,7 +8,9 @@
 import { publishDesign } from "../src/design/folder";
 import fs from "node:fs";
 import path from "node:path";
-import { behaviorUrl, homeSrStyleUrl } from "../src/design/behaviors";
+import { behaviorUrl, consentStyleUrl, homeSrStyleUrl } from "../src/design/behaviors";
+import type { BuildContent } from "../src/content/build-content";
+import { tagManagerId } from "../src/content/tag-manager";
 
 const { hash, files } = publishDesign();
 console.log(`Design: ${files} files copied to public/design/${hash}/`);
@@ -21,3 +23,12 @@ fs.mkdirSync(behaviorDir, { recursive: true });
 const publicFile = (url: string) => path.join("public", url.replace(/^\/+/, ""));
 for (const name of ["contact", "careers"] as const) fs.copyFileSync(`behaviors/${name}.js`, publicFile(behaviorUrl(name)));
 fs.copyFileSync("behaviors/home-sr.css", publicFile(homeSrStyleUrl()));
+// The consent files ship only when the prepared content's site settings name a container.
+const content = JSON.parse(fs.readFileSync(path.join(".content", "content.json"), "utf8")) as BuildContent;
+if (tagManagerId(content.settings)) {
+  fs.copyFileSync("behaviors/consent.js", publicFile(behaviorUrl("consent")));
+  fs.copyFileSync("behaviors/consent.css", publicFile(consentStyleUrl()));
+  console.log("Consent: banner script and stylesheet copied (a container id is set).");
+} else {
+  console.log("Consent: no container id, so no consent file is copied.");
+}

@@ -32,6 +32,10 @@
       form.reset();
       label.textContent = config.successMessage;
       label.setAttribute('role', 'status');
+      if (document.documentElement.hasAttribute('data-analytics')) {
+        window.dataLayer = window.dataLayer || [];
+        window.dataLayer.push({ event: 'contact_form_submitted' });
+      }
     } catch (_) {
       error.textContent = config.errorMessage;
       error.hidden = false;

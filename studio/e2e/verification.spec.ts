@@ -7,7 +7,7 @@ import path from "node:path";
 import zlib from "node:zlib";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { e2eAdminEmail, e2eApiOrigin, e2eEditorEmail, e2ePassword } from "./env";
-import { openArea, signIn } from "./helpers";
+import { addSection, openArea, signIn } from "./helpers";
 
 /* Mirrors collectionRoutes in src/content/model.ts. Kept here rather than
    imported so a change to the app's list is caught by a failing count instead
@@ -530,12 +530,6 @@ async function saveItem(page: Page) {
 async function publishItem(page: Page) {
   await page.getByRole("button", { name: "Publish", exact: true }).click();
   await expect(page.getByText("Published. Changes appear on the website at the next build.")).toBeVisible();
-}
-
-async function addSection(page: Page, label: string) {
-  await page.locator(".ant-select").filter({ hasText: "Add section" }).click();
-  await page.getByRole("option", { name: label, exact: true }).click();
-  await expect(page.locator("article").filter({ hasText: label })).toBeVisible();
 }
 
 async function changePassword(page: Page, email: string, current: string, next: string) {

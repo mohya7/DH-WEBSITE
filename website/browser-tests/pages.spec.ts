@@ -1,4 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
+import fs from 'node:fs';
+
+/** Whether out/ was built with a container id: the banner is in the static HTML only then. */
+const builtWithContainer = fs.readFileSync('out/index.html', 'utf8').includes('id="cookieBanner"');
 
 test('the skipped home intro moves the logo and its classes persist after load', async ({ page }) => {
   const errors: string[] = [];
@@ -106,4 +110,18 @@ test('careers checks file limits, submits multipart to configuration, and safely
   await expect(page.locator('form.careers-apply-form')).toBeVisible();
   await expect(page.locator('[name="fullName"]')).toHaveValue('');
   await expect(page.locator('button[type="submit"]')).toBeEnabled();
+});
+
+test('nothing from Tag Manager loads when the container id is empty', async ({ page }) => {
+  test.skip(builtWithContainer, 'this build sets a container id (SNAPSHOT_SETTINGS_FIXTURE=consent)');
+  const google: string[] = [];
+  page.on('request', (request) => { if (/google/.test(new URL(request.url()).hostname)) google.push(request.url()); });
+  await page.goto('/');
+  expect(fs.readdirSync('out/behaviors').filter((name) => name.startsWith('consent.'))).toEqual([]);
+  expect(google.filter((url) => !/fonts\.(googleapis|gstatic)\.com/.test(url))).toEqual([]);
+  await expect(page.locator('#cookieBanner')).toHaveCount(0);
+  await expect(page.locator('script[src*="googletagmanager"]')).toHaveCount(0);
+  await expect(page.locator('[data-cookie-settings]')).toHaveCount(0);
+  expect(await page.evaluate(() => window.dataLayer)).toBeUndefined();
+  expect((await page.context().cookies()).some((cookie) => cookie.name === 'dh_consent')).toBe(false);
 });
