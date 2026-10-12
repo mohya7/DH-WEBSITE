@@ -87,6 +87,15 @@ async function current(collection: CollectionName, id: string): Promise<Document
   return (result.body as { content: Document }).content;
 }
 
+/** A revision snapshot the preview can list: a slug and a title. The item id comes from the list row. */
+function usableSnapshot(value: unknown): Document | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const snapshot = value as { slug?: unknown; title?: unknown };
+  if (typeof snapshot.slug !== "string" || snapshot.slug.trim() === "") return null;
+  if (typeof snapshot.title !== "string") return null;
+  return value as Document;
+}
+
 async function latestRevision(collection: CollectionName, id: string): Promise<Document | null> {
   const list = await request(`/api/v1/${collection}/${id}/revisions`);
   if (!list.ok || list.body === null) return null;
@@ -94,8 +103,8 @@ async function latestRevision(collection: CollectionName, id: string): Promise<D
   if (!Array.isArray(revisions) || revisions.length === 0) return null;
   const newest = revisions.slice().sort((a, b) => b.version - a.version)[0];
   const result = await request(`/api/v1/${collection}/${id}/revisions/${newest.id}`);
-  if (!result.ok || result.body === null) return null;
-  return (result.body as { snapshot: Document }).snapshot;
+  if (!result.ok || result.body === null || typeof result.body !== "object") return null;
+  return usableSnapshot((result.body as { snapshot?: unknown }).snapshot);
 }
 
 export async function loadPreviewData(): Promise<PreviewData> {

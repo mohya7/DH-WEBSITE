@@ -12,13 +12,17 @@ describe("published revision failures", () => {
     vi.resetModules();
   });
 
-  async function load(response: { ok: boolean; body: unknown }) {
+  async function load(response: { ok: boolean; body: unknown }, revision?: { ok: boolean; body: unknown }) {
     const http = await import("../src/api/http");
     vi.mocked(http.request).mockImplementation(async (path) => {
       if (path.startsWith("/api/v1/services?")) {
         return { ok: true, status: 200, body: { items: [{ id, slug: workingSlug, title: workingTitle, sortOrder: 1, hasWorkingCopy: true }], total: 1 }, problem: null };
       }
       if (path === `/api/v1/services/${id}/revisions`) return { ok: response.ok, status: response.ok ? 200 : 500, body: response.body, problem: null };
+      if (path === `/api/v1/services/${id}/revisions/rev-1`) {
+        const document = revision ?? { ok: false, body: null };
+        return { ok: document.ok, status: document.ok ? 200 : 500, body: document.body, problem: null };
+      }
       if (path === `/api/v1/services/${id}`) {
         return { ok: true, status: 200, body: { content: { slug: workingSlug, title: workingTitle, fields: {} } }, problem: null };
       }
@@ -26,6 +30,21 @@ describe("published revision failures", () => {
       throw new Error(`unexpected ${path}`);
     });
     return import("../src/preview/previewData");
+  }
+
+  async function expectOmitted(revisionBody: unknown) {
+    const { loadPreviewData, previewDependencyWarning } = await load(
+      { ok: true, body: { items: [{ id: "rev-1", version: 1 }] } },
+      { ok: true, body: revisionBody },
+    );
+    const data = await loadPreviewData();
+    const warning = previewDependencyWarning(data.omitted);
+    const dumped = JSON.stringify({ collections: data.collections, paths: [...data.paths], omitted: data.omitted, warning });
+    expect(data.collections.services).toEqual([]);
+    expect(data.omitted).toEqual([`services/${id}`]);
+    expect(warning).toContain(`services/${id}`);
+    expect(dumped).not.toContain(workingTitle);
+    expect(dumped).not.toContain(workingSlug);
   }
 
   it("omits the dependency on a revision HTTP 500 and does not use the working copy", async () => {
@@ -49,5 +68,15 @@ describe("published revision failures", () => {
     expect(data.omitted).toEqual([`services/${id}`]);
     expect(dumped).not.toContain(workingTitle);
     expect(dumped).not.toContain(workingSlug);
+  });
+
+  it.each([
+    ["an empty snapshot", { snapshot: {} }],
+    ["no snapshot", {}],
+    ["a missing slug", { snapshot: { title: "Published service" } }],
+    ["a non-string title", { snapshot: { slug: "published-service", title: 12 } }],
+    ["a null snapshot", { snapshot: null }],
+  ])("omits the dependency when the revision has %s", async (_label, body) => {
+    await expectOmitted(body);
   });
 });
