@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { PageScaffold } from "../src/components/PageScaffold";
 import type { AnyContentItem, BuildContent } from "../src/content/build-content";
 import { createSite } from "../src/content/site";
-import { canonicalUrl, documentTitle, headMetadata, indexableRobots, noIndexRobots, pageHead } from "../src/seo/head";
+import { canonicalUrl, documentTitle, dropNextNoIndexTag, headMetadata, indexableRobots, noIndexRobots, pageHead } from "../src/seo/head";
 import { indexablePages, renderLlms, renderRobots, renderSitemap } from "../src/seo/files";
 import { editorialLastMod, faqItems, graphProblems, jsonLdText, structuredData } from "../src/seo/jsonld";
 import { readSiteUrl, SiteUrlError } from "../src/seo/site-url";
@@ -47,6 +47,7 @@ describe("page head", () => {
     expect(serviceHead.image).toMatch(/^https:\/\/digitalhub.com.eg\/media\//);
     expect(headMetadata(serviceHead).robots).toBe(indexableRobots);
     expect(headMetadata({ ...serviceHead, noIndex: true }).robots).toBe(noIndexRobots);
+    expect(dropNextNoIndexTag('<meta name="robots" content="noindex"/><meta name="robots" content="noindex, follow"/>')).toBe('<meta name="robots" content="noindex, follow"/>');
     expect(documentTitle({ title: "Visible", metaTitle: null })).toBe("Visible");
 
     const apply = site.routes.find((route) => route.path === "/careers/apply")!.item;

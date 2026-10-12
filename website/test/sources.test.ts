@@ -65,9 +65,9 @@ describe("CONTENT_SOURCE=api", () => {
     expect(seenTokens).toEqual([TOKEN]);
     expect(manifest.source).toBe(`api (${apiUrl})`);
     expect(manifest.routes).toHaveLength(25);
-    // Every listed asset is used; 104 files with their stored widths (fixtures/snapshot/README.md).
-    expect(manifest.media).toMatchObject({ assetsListed: 63, assetsUsed: 63, files: 104 });
-    expect(fs.readdirSync(mediaDir)).toHaveLength(104);
+    // Every listed asset is used; 108 files with their stored widths (fixtures/snapshot/README.md).
+    expect(manifest.media).toMatchObject({ assetsListed: 65, assetsUsed: 65, files: 108 });
+    expect(fs.readdirSync(mediaDir)).toHaveLength(108);
     expect(fs.readFileSync(path.join(outDir, "content.json"), "utf8")).toBe(snapshotRaw);
     expect(fs.readFileSync(path.join(outDir, "manifest.json"), "utf8")).not.toContain(TOKEN);
 

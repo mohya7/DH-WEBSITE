@@ -8,8 +8,16 @@ import fs from "node:fs";
 import path from "node:path";
 import type { BuildContent } from "../src/content/build-content";
 import { createSite } from "../src/content/site";
+import { dropNextNoIndexTag } from "../src/seo/head";
 import { renderLlms, renderRobots, renderSitemap } from "../src/seo/files";
 import { readSiteUrl, SiteUrlError } from "../src/seo/site-url";
+
+function walk(dir: string): string[] {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name);
+    return entry.isDirectory() ? walk(full) : [full];
+  });
+}
 
 function main(): void {
   const root = process.cwd();
@@ -23,6 +31,12 @@ function main(): void {
   fs.writeFileSync(path.join(outDir, "sitemap.xml"), renderSitemap(site, origin));
   fs.writeFileSync(path.join(outDir, "robots.txt"), renderRobots(origin));
   fs.writeFileSync(path.join(outDir, "llms.txt"), renderLlms(site, origin));
+  const pages = walk(outDir).filter((file) => file.endsWith(".html"));
+  for (const file of pages) {
+    const html = fs.readFileSync(file, "utf8");
+    const next = dropNextNoIndexTag(html);
+    if (next !== html) fs.writeFileSync(file, next);
+  }
   console.log(`SEO files: sitemap.xml, robots.txt, and llms.txt for ${origin}.`);
 }
 

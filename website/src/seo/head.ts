@@ -113,4 +113,13 @@ export function headMetadata(head: PageHead) {
   };
 }
 
+/**
+ * Next adds its own `<meta name="robots" content="noindex">` on the 404 and 500
+ * pages, in front of the tag from headMetadata. Remove that extra tag so the
+ * page keeps the one robots value.
+ */
+export function dropNextNoIndexTag(html: string): string {
+  return html.replace(/<meta name="robots" content="noindex"\s*\/?>/g, "");
+}
+
 export type { MediaAsset };
