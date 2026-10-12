@@ -107,3 +107,13 @@ test('careers checks file limits, submits multipart to configuration, and safely
   await expect(page.locator('[name="fullName"]')).toHaveValue('');
   await expect(page.locator('button[type="submit"]')).toBeEnabled();
 });
+
+test('nothing from Tag Manager loads when the container id is empty', async ({ page }) => {
+  test.skip(process.env.WEBSITE_CONSENT === '1', 'this build includes a container id');
+  await page.goto('/');
+  await expect(page.locator('#cookieBanner')).toHaveCount(0);
+  await expect(page.locator('script[src*="googletagmanager"]')).toHaveCount(0);
+  await expect(page.locator('[data-cookie-settings]')).toHaveCount(0);
+  expect(await page.evaluate(() => window.dataLayer)).toBeUndefined();
+  expect((await page.context().cookies()).some((cookie) => cookie.name === 'dh_consent')).toBe(false);
+});

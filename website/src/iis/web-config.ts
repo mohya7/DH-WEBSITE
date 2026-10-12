@@ -26,9 +26,12 @@
  *
  * Content security policy. Report-only. jsDelivr is allowed only for the
  * three scripts and the Tabler Icons package the design loads, not the whole
- * host. Inline style elements are allowed only on the home page, which is the
- * only page that injects one. Inline style attributes are allowed on every
- * page, because the markup uses them.
+ * host. Tag Manager and GA4 hosts come from
+ * https://developers.google.com/tag-platform/security/guides/csp
+ * (container tag, and Google Analytics without Ads features, plus frame-src
+ * from the Google Analytics table). Inline style elements are allowed only on
+ * the home page, which is the only page that injects one. Inline style
+ * attributes are allowed on every page, because the markup uses them.
  *
  * Strict-Transport-Security is max-age=31536000 without includeSubDomains.
  * That is revisited once decision D1 (the domains) is settled.
@@ -51,9 +54,11 @@ export const strictTransportSecurity = "max-age=31536000";
 /** Directory of the Tabler package, so its stylesheet and font files are both covered. */
 const tablerDirectory = TABLER_ICONS.slice(0, TABLER_ICONS.lastIndexOf("/") + 1);
 
-const scriptSrc = `script-src 'self' ${GSAP} ${SCROLL_TRIGGER} ${LENIS}`;
+const scriptSrc = `script-src 'self' ${GSAP} ${SCROLL_TRIGGER} ${LENIS} https://www.googletagmanager.com`;
 const styleSrc = `style-src 'self' ${GOOGLE_FONTS} ${TABLER_ICONS}`;
 const fontSrc = `font-src 'self' ${GOOGLE_FONTS_STATIC} ${tablerDirectory}`;
+const tagManagerImg = "https://www.googletagmanager.com https://*.google-analytics.com";
+const tagManagerConnect = "https://www.googletagmanager.com https://*.google-analytics.com https://*.google.com";
 
 function policy(style: string): string {
   return [
@@ -62,13 +67,13 @@ function policy(style: string): string {
     style,
     "style-src-attr 'unsafe-inline'",
     fontSrc,
-    "img-src 'self' data:",
-    "connect-src 'self'",
+    `img-src 'self' data: ${tagManagerImg}`,
+    `connect-src 'self' ${tagManagerConnect}`,
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
-    "frame-src 'none'",
+    "frame-src https://www.googletagmanager.com",
   ].join("; ");
 }
 

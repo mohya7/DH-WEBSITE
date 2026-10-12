@@ -90,6 +90,11 @@ export interface SiteSettings {
   legalName: string | null;
   analyticsContainerId: string | null;
   cookieBannerText: string | null;
+  cookieBannerTitle: string | null;
+  cookieAcceptLabel: string | null;
+  cookieRejectLabel: string | null;
+  cookieAnalyticsLabel: string | null;
+  cookieSettingsLabel: string | null;
 }
 
 export interface Redirect {

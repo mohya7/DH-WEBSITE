@@ -1,4 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { BlogArticle, displayCalendarDate } from '../src/components/BlogArticle';
 import { Header, Footer, footerEmail, copyrightYear } from '../src/components/SiteChrome';
@@ -11,6 +12,7 @@ import { stripRuntime } from '../src/build/strip-runtime';
 import { parseRichText, headingAnchors, type RichNode } from '@digitalhub/blocks';
 import { VacancyPage } from '../src/components/VacancyPage';
 import { PageScaffold } from '../src/components/PageScaffold';
+import { consentCopy, consentDefaults, tagManagerId } from '../src/components/Consent';
 import { count } from './blocks/harness';
 
 vi.mock('@/content/site', async (original) => {
@@ -173,5 +175,62 @@ describe('build requirements', () => {
     for (const value of ['javascript:alert(1)', '//outside.invalid', '/\\outside', 'https://user:password@example.invalid']) expect(() => careersEndpoint({ CAREERS_APPLICATION_ENDPOINT: value })).toThrow();
     expect(careersEndpoint({ CAREERS_APPLICATION_ENDPOINT: '/api/careers/applications' })).toBe('/api/careers/applications');
     expect(careersEndpoint({ CAREERS_APPLICATION_ENDPOINT: 'https://hiring.example.invalid/apply' })).toBe('https://hiring.example.invalid/apply');
+  });
+});
+
+describe('cookie consent', () => {
+  it('renders no banner, script, stylesheet, or footer control when the container id is empty', () => {
+    const previous = process.env.ANALYTICS_CONTAINER_ID;
+    delete process.env.ANALYTICS_CONTAINER_ID;
+    try {
+      const site = createSite(snapshotContent());
+      expect(tagManagerId(site.content.settings)).toBeNull();
+      const html = renderToStaticMarkup(<PageScaffold site={site} item={null} pageType="error" />);
+      expect(html).not.toContain('cookieBanner');
+      expect(html).not.toContain('googletagmanager');
+      expect(html).not.toContain('data-cookie-settings');
+      expect(html).not.toContain('consent.');
+    } finally {
+      if (previous === undefined) delete process.env.ANALYTICS_CONTAINER_ID;
+      else process.env.ANALYTICS_CONTAINER_ID = previous;
+    }
+  });
+
+  it('uses English defaults and renders the banner only for a valid container id', () => {
+    const site = createSite(snapshotContent());
+    expect(consentCopy(site.content.settings)).toEqual(consentDefaults);
+    expect(tagManagerId(site.content.settings, { ANALYTICS_CONTAINER_ID: 'GTM-SHORT' })).toBeNull();
+    expect(tagManagerId(site.content.settings, { ANALYTICS_CONTAINER_ID: 'GTM-TEST1234' })).toBe('GTM-TEST1234');
+    const previous = process.env.ANALYTICS_CONTAINER_ID;
+    process.env.ANALYTICS_CONTAINER_ID = 'GTM-TEST1234';
+    try {
+      const html = renderToStaticMarkup(<PageScaffold site={site} item={null} pageType="error" />);
+      expect(html).toContain('id="cookieBanner"');
+      expect(html).toContain('Cookies on this site');
+      expect(html).toContain('Accept all');
+      expect(html).toContain('Reject all');
+      expect(html).toContain('Analytics only');
+      expect(html).toContain('Cookie settings');
+      expect(html).toContain('data-container="GTM-TEST1234"');
+      expect(html).toContain('rel="stylesheet"');
+      expect(html).not.toContain('innerHTML');
+    } finally {
+      if (previous === undefined) delete process.env.ANALYTICS_CONTAINER_ID;
+      else process.env.ANALYTICS_CONTAINER_ID = previous;
+    }
+  });
+
+  it('sets consent default denied before it loads Tag Manager, and events carry only a name', () => {
+    const consent = readFileSync(new URL('../behaviors/consent.js', import.meta.url), 'utf8');
+    const contact = readFileSync(new URL('../behaviors/contact.js', import.meta.url), 'utf8');
+    const careers = readFileSync(new URL('../behaviors/careers.js', import.meta.url), 'utf8');
+    expect(consent.indexOf("gtag('consent', 'default'")).toBeLessThan(consent.indexOf('googletagmanager.com/gtm.js'));
+    for (const source of [contact, careers, consent]) {
+      expect(source).not.toContain('innerHTML');
+      expect(source).not.toMatch(/dataLayer\.push\(\{[^}]*name/);
+    }
+    expect(contact).toContain("dataLayer.push({ event: 'contact_form_submitted' })");
+    expect(careers).toContain("dataLayer.push({ event: 'application_submitted' })");
+    expect(consent).toContain("dataLayer.push({ event: 'cta_clicked' })");
   });
 });

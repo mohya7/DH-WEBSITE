@@ -73,7 +73,7 @@ describe("web.config", () => {
     expect(xml).not.toContain('name="Content-Security-Policy"');
     const directive = (policy: string, name: string) => policy.split("; ").find((part) => part.startsWith(`${name} `)) ?? "";
     expect(directive(contentSecurityPolicy, "script-src")).toBe(
-      "script-src 'self' https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js https://cdn.jsdelivr.net/gh/studio-freight/lenis@1.0.23/bundled/lenis.min.js",
+      "script-src 'self' https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js https://cdn.jsdelivr.net/gh/studio-freight/lenis@1.0.23/bundled/lenis.min.js https://www.googletagmanager.com",
     );
     expect(directive(contentSecurityPolicy, "style-src")).toBe(
       "style-src 'self' https://fonts.googleapis.com https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css",

@@ -234,6 +234,11 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         settings.LegalName = TrimOrNull(request.LegalName);
         settings.AnalyticsContainerId = TrimOrNull(request.AnalyticsContainerId);
         settings.CookieBannerText = TrimOrNull(request.CookieBannerText);
+        settings.CookieBannerTitle = TrimOrNull(request.CookieBannerTitle);
+        settings.CookieAcceptLabel = TrimOrNull(request.CookieAcceptLabel);
+        settings.CookieRejectLabel = TrimOrNull(request.CookieRejectLabel);
+        settings.CookieAnalyticsLabel = TrimOrNull(request.CookieAnalyticsLabel);
+        settings.CookieSettingsLabel = TrimOrNull(request.CookieSettingsLabel);
 
         Audit(userId, "update_settings", "settings", settings.Id.ToString());
         await db.SaveChangesAsync(cancellationToken);
@@ -714,6 +719,11 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         RequireHttps(errors, "tikTok", request.TikTok);
         if (!string.IsNullOrWhiteSpace(request.AnalyticsContainerId) && !GtmId.IsMatch(request.AnalyticsContainerId.Trim()))
             Add(errors, "analyticsContainerId", "Analytics container ID must look like GTM-XXXXXXX.");
+        LimitText(errors, "cookieBannerTitle", request.CookieBannerTitle, 200);
+        LimitText(errors, "cookieAcceptLabel", request.CookieAcceptLabel, 80);
+        LimitText(errors, "cookieRejectLabel", request.CookieRejectLabel, 80);
+        LimitText(errors, "cookieAnalyticsLabel", request.CookieAnalyticsLabel, 80);
+        LimitText(errors, "cookieSettingsLabel", request.CookieSettingsLabel, 80);
         return errors;
     }
 
@@ -820,6 +830,11 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         settings.LegalName,
         settings.AnalyticsContainerId,
         settings.CookieBannerText,
+        settings.CookieBannerTitle,
+        settings.CookieAcceptLabel,
+        settings.CookieRejectLabel,
+        settings.CookieAnalyticsLabel,
+        settings.CookieSettingsLabel,
     };
 
     private static object PresentContact(ContactRequest request) => new
@@ -912,6 +927,12 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
 
     private static string? TrimOrNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
+    private static void LimitText(Dictionary<string, List<string>> errors, string name, string? value, int max)
+    {
+        if (value is not null && value.Trim().Length > max)
+            Add(errors, name, "is longer than " + max + " characters.");
+    }
+
     private const string EmptyDoc = """{"type":"doc","content":[{"type":"paragraph"}]}""";
 }
 
@@ -980,6 +1001,11 @@ public sealed class SiteSettingsUpdate
     public string? LegalName { get; set; }
     public string? AnalyticsContainerId { get; set; }
     public string? CookieBannerText { get; set; }
+    public string? CookieBannerTitle { get; set; }
+    public string? CookieAcceptLabel { get; set; }
+    public string? CookieRejectLabel { get; set; }
+    public string? CookieAnalyticsLabel { get; set; }
+    public string? CookieSettingsLabel { get; set; }
 }
 
 public sealed class UserCreateRequest

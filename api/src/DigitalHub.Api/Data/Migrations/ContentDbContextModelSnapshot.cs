@@ -621,7 +621,7 @@ namespace DigitalHub.Api.Data.Migrations
 
                     b.ToTable("navigation_items", null, t =>
                         {
-                            t.HasCheckConstraint("ck_navigation_items_link_shape", "(link_kind = 'group' AND target_type IS NULL AND target_id IS NULL AND url IS NULL)\nOR (link_kind = 'external' AND target_type IS NULL AND target_id IS NULL AND url IS NOT NULL AND url <> '')\nOR (link_kind = 'internal' AND target_type IS NOT NULL AND target_id IS NOT NULL AND url IS NULL)");
+                            t.HasCheckConstraint("ck_navigation_items_link_shape", "(link_kind = 'group' AND target_type IS NULL AND target_id IS NULL AND url IS NULL)\r\nOR (link_kind = 'external' AND target_type IS NULL AND target_id IS NULL AND url IS NOT NULL AND url <> '')\r\nOR (link_kind = 'internal' AND target_type IS NOT NULL AND target_id IS NOT NULL AND url IS NULL)");
                         });
                 });
 
@@ -1280,9 +1280,34 @@ namespace DigitalHub.Api.Data.Migrations
                         .HasColumnType("nvarchar(320)")
                         .HasColumnName("careers_email");
 
+                    b.Property<string>("CookieAcceptLabel")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)")
+                        .HasColumnName("cookie_accept_label");
+
+                    b.Property<string>("CookieAnalyticsLabel")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)")
+                        .HasColumnName("cookie_analytics_label");
+
                     b.Property<string>("CookieBannerText")
                         .HasColumnType("nvarchar(max)")
                         .HasColumnName("cookie_banner_text");
+
+                    b.Property<string>("CookieBannerTitle")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("cookie_banner_title");
+
+                    b.Property<string>("CookieRejectLabel")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)")
+                        .HasColumnName("cookie_reject_label");
+
+                    b.Property<string>("CookieSettingsLabel")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)")
+                        .HasColumnName("cookie_settings_label");
 
                     b.Property<string>("Country")
                         .HasMaxLength(80)

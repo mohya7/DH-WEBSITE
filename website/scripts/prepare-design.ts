@@ -8,7 +8,7 @@
 import { publishDesign } from "../src/design/folder";
 import fs from "node:fs";
 import path from "node:path";
-import { behaviorUrl } from "../src/design/behaviors";
+import { behaviorUrl, consentStyleUrl } from "../src/design/behaviors";
 
 const { hash, files } = publishDesign();
 console.log(`Design: ${files} files copied to public/design/${hash}/`);
@@ -18,4 +18,6 @@ const behaviorDir = path.resolve("public/behaviors");
 if (!behaviorDir.startsWith(path.resolve("public") + path.sep)) throw new Error("Invalid behavior output directory");
 fs.rmSync(behaviorDir, { recursive: true, force: true });
 fs.mkdirSync(behaviorDir, { recursive: true });
-for (const name of ["contact", "careers"] as const) fs.copyFileSync(`behaviors/${name}.js`, path.join("public", behaviorUrl(name)));
+const publicFile = (url: string) => path.join("public", url.replace(/^\/+/, ""));
+for (const name of ["contact", "careers", "consent"] as const) fs.copyFileSync(`behaviors/${name}.js`, publicFile(behaviorUrl(name)));
+fs.copyFileSync("behaviors/consent.css", publicFile(consentStyleUrl()));

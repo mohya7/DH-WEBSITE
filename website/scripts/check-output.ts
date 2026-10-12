@@ -303,6 +303,7 @@ export function checkDesignLoading(file: string, html: string): string[] {
   const expected = expectedLoads(set as DesignSetName);
   if (set === "apply") expected["body-end"] = expected["body-end"].map((src) => src === "js/careers-apply.js" ? behaviorUrl("careers") : src);
   if (/\bid="contactForm"/.test(html)) expected["body-end"].unshift(behaviorUrl("contact"));
+  if (/\bid="cookieBanner"/.test(html)) expected["body-end"].unshift(behaviorUrl("consent"));
   const problems: string[] = [];
   for (const [kind, want] of Object.entries(expected)) {
     if (lists[kind].join("\n") !== want.join("\n")) {
