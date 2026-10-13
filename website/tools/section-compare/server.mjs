@@ -5,6 +5,7 @@
  *
  * Serves three things from one origin, so one page can compare them:
  *   /           the comparison page
+ *   /snapshot-settings.json  careers email from the snapshot fixture
  *   /old/...    the source branch's working tree, untouched
  *   /oldrt/...  the same page with every script removed except site-content.js
  *               and content-runtime.js, so only the content runtime runs — not
@@ -77,6 +78,12 @@ http.createServer((req, res) => {
   if (url === "/accepted-differences.json") {
     res.writeHead(200, { "Content-Type": types[".json"] });
     return res.end(fs.readFileSync(path.join(here, "accepted-differences.json")));
+  }
+  if (url === "/snapshot-settings.json") {
+    const content = JSON.parse(fs.readFileSync(path.join(websiteRoot, "fixtures", "snapshot", "content.json"), "utf8"));
+    const settings = content.settings ?? {};
+    res.writeHead(200, { "Content-Type": types[".json"] });
+    return res.end(JSON.stringify({ careersEmail: settings.careersEmail ?? null, email: settings.email ?? null }));
   }
 
   const [, prefix, ...restParts] = url.split("/");

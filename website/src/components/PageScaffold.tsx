@@ -34,7 +34,7 @@ export function PageScaffold({ item, pageType, site = getSite(), path = item?.pa
     {set === "home" ? <link rel="stylesheet" href={homeSrStyleUrl()} /> : null}
     <SiteBackground set={set} /><Header site={site} set={set} currentPath={item.path ?? ""} />
     <main data-page-type={pageType} data-collection={item.collection} data-slug={item.slug} data-design-set={set} data-body-class={bodyClass}>
-      {item.collection === "blog-posts" ? <BlogArticle item={item} ctx={ctx} /> : item.collection === "vacancies" ? <VacancyPage item={item} /> : <>
+      {item.collection === "blog-posts" ? <BlogArticle item={item} ctx={ctx} /> : item.collection === "vacancies" ? <VacancyPage item={item} email={site.content.settings.careersEmail || site.content.settings.email || ""} /> : <>
         {hasHeading ? null : <Section section={{ type: "hub_hero", fields: { heading: item.title } }} ctx={ctx} />}
         {item.sections.map((section, index) => {
           if (pageType === "error" && section.type === "rich_text") return <section className="hub-cta" key={index}><div className="section-inner"><div className="hub-cta__card" data-reveal=""><div><RichText doc={parseRichText(section.fields.body)} ctx={ctx} /></div></div></div></section>;

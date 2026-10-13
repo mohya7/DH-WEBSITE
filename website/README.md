@@ -184,7 +184,7 @@ Every verification of a website change uses it.
 
 ```bash
 cd website
-CONTENT_SOURCE=snapshot npm run build
+PUBLIC_SITE_URL=https://digitalhub.com.eg CONTENT_SOURCE=snapshot npm run build
 node tools/section-compare/server.mjs
 ```
 

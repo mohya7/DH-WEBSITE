@@ -23,7 +23,7 @@ The company's engineering standard is React and .NET, and the internal review re
 2. **Hiring platform** rebuilt next, on the same shared identity
 3. **The existing Node system** keeps serving hiring until its replacement is live
 
-Staging carries temporary integration costs — two applications on one domain, a vacancy bridge, two login systems for a period. All of them end when hiring moves. One decision prevents them becoming permanent: **the new identity covers every role from day one**, so the hiring rebuild joins it rather than merging a second user store later.
+Staging carries temporary integration costs — two applications on one domain, a vacancy bridge (dropped until Phase G; the website, Studio and Content API stand alone), two login systems for a period. All of them end when hiring moves. One decision prevents them becoming permanent: **the new identity covers every role from day one**, so the hiring rebuild joins it rather than merging a second user store later.
 
 **At a glance**
 
@@ -260,11 +260,13 @@ Shared by the Content API now and the Hiring API later, so both look and behave 
 
 ## 7. Transition state
 
+This transition is dropped until Phase G; the website, Studio and Content API stand alone. The paragraphs and the routing table below stay as the record of the future hiring phase.
+
 While the website and Studio are new and hiring is still on Node, both systems share one domain.
 
-The transition routing and the vacancy bridge are dropped until Phase G.
-
 ### Routing on IIS
+
+This routing is dropped until Phase G; the website, Studio and Content API stand alone.
 
 | Path | Served by |
 |---|---|
@@ -336,7 +338,7 @@ The previous site is kept deployable until the new one has run without incident.
 1. Editor signs in to the Studio
 2. Edits a draft — sections, rich text, images, SEO fields
 3. Previews it using the website's own components
-4. Publishes. The Studio checks alt text and SEO fields, stores a revision, records an audit entry, creates a redirect if the slug changed, and writes the vacancy bridge if relevant
+4. Publishes. The Studio checks alt text and SEO fields, stores a revision, records an audit entry, creates a redirect if the slug changed, and writes the vacancy bridge if relevant (dropped until Phase G; the website, Studio and Content API stand alone)
 5. A website build is triggered
 6. The build fetches published content, generates pages, sitemap, robots file, structured data, and redirect rules
 7. The build fails if any page type scores below 100 for SEO
@@ -517,7 +519,7 @@ Unchanged in this stage. Recorded here so the hiring rebuild has the reference.
 | R10 | CSP blocks analytics or site features | Medium | Medium | Report-only first, then enforce |
 | R11 | Image library licence costs | Low | Medium | Use a permissively licensed library |
 | R12 | Backups never scheduled | Medium | High | IT owns the schedule; go-live blocked until it runs |
-| R13 | Vacancy bridge drifts from what Node expects | Medium | Medium | A test that Node reads the exported file |
+| R13 | Vacancy bridge drifts from what Node expects. This risk is dropped until Phase G; the website, Studio and Content API stand alone. The row stays as the record of the future hiring phase | Medium | Medium | A test that Node reads the exported file |
 | R14 | Page builder grows beyond scope | Medium | Medium | A fixed list of section types; new types by change request |
 | R15 | Studio routing constrained by static export | Low | Medium | Resolved — Studio built with Vite + React (D7) |
 
@@ -576,7 +578,7 @@ Unchanged in this stage. Recorded here so the hiring rebuild has the reference.
 | A — Foundation | Repository, Content API, schema, shared identity with five roles, migration and seed | **Done** — commit `8c2f0d0` on `rebuild/dotnet-platform` |
 | B — Studio | Every Studio requirement | All FR-S requirements accepted |
 | C — Website | Every website requirement, shared section components | All FR-W and NFR-01 to 05 met on staging |
-| D — Transition setup | IIS routing, vacancy bridge, Node content editing switch-off prepared | Booking links and careers form work through the new routing |
+| D — Transition setup | This phase is dropped until Phase G; the website, Studio and Content API stand alone. Record of the future hiring phase: IIS routing, vacancy bridge, Node content editing switch-off prepared | Booking links and careers form work through the new routing |
 | E — Parallel run | New site on staging beside the current system | Content parity sign-off; screenshot parity passed; reachability test passed |
 | F — Cutover | New website and Studio live | Rollback tested; backups scheduled and verified |
 | G — Hiring rebuild | .NET hiring platform on the shared identity | Separate analysis |

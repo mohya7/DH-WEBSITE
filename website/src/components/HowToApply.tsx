@@ -1,7 +1,6 @@
 /**
  * The apply page has no form. Applications go by email until the hiring
- * application exists (Phase G). The second sentence is the apply page's
- * existing hero lead.
+ * application exists (Phase G). The hero lead is separate and is not repeated here.
  */
 export function HowToApply({ email }: { email: string }) {
   const address = email.trim();
@@ -13,8 +12,9 @@ export function HowToApply({ email }: { email: string }) {
     </nav>
     <section className="careers-apply" id="apply" data-reveal="">
       <h2>How to apply</h2>
-      <p>Email your CV. Our careers team reviews every application.</p>
+      <p>Email your CV, your LinkedIn profile and your availability to</p>
       {address ? <a className="btn-pill" href={`mailto:${address}`}>{address}</a> : null}
+      <p>Put the role you are applying for in the subject line.</p>
     </section>
   </div></section>;
 }

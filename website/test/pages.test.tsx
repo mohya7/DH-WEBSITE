@@ -31,10 +31,11 @@ describe('page composition', () => {
       expect(count(html, '.cs-section')).toBe(0);
     }
     const item = { ...site.content.pages[0], collection: 'vacancies' as const, slug: 'engineer', title: 'Engineer', sections: [], fields: { aboutRole: 'Build things.', keyResponsibilities: 'Design\nDeliver', requiredSkills: 'TypeScript', interviewStages: ['Introduction'] } };
-    const html = renderToStaticMarkup(<VacancyPage item={item} />);
+    const html = renderToStaticMarkup(<VacancyPage item={item} email="careers@digitalhub.com.eg" />);
     expect(count(html, 'h1')).toBe(1);
     expect(html).toContain('<li>Design</li><li>Deliver</li>');
-    expect(html).toContain('href="/careers/apply?role=engineer"');
+    expect(html).toContain('href="mailto:careers@digitalhub.com.eg?subject=Application%3A%20Engineer"');
+    expect(html).not.toContain('/careers/apply?role=');
   });
   it('puts the hub page class on the blogs and partners body, which the design uses for spacing, chips, and the intro width', () => {
     const site = createSite(snapshotContent());
@@ -50,7 +51,10 @@ describe('page composition', () => {
     const apply = site.routes.find((route) => route.path === '/careers/apply')!.item;
     const html = renderToStaticMarkup(<PageScaffold site={site} item={apply} pageType="page" path="/careers/apply" />);
     expect(html).toContain('How to apply');
-    expect(html).toContain('Our careers team reviews every application.');
+    expect(html).toContain('Send your CV and a short note about the role you want. Our careers team reviews every application.');
+    expect(html).toContain('Email your CV, your LinkedIn profile and your availability to');
+    expect(html).toContain('Put the role you are applying for in the subject line.');
+    expect(html.match(/Our careers team reviews every application\./g)).toHaveLength(1);
     expect(html).toContain('href="mailto:careers@digitalhub.com.eg"');
     expect(html).toContain('Apply to join Digital Hub');
     expect(html).not.toContain('<form');

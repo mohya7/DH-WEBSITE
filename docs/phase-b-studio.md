@@ -21,7 +21,7 @@ Work in `D:\work\DigitalHub\dh-platform`, branch `rebuild/dotnet-platform`. Work
 | Preview | **Deferred to Phase C.** It renders the website's own section components, which are built there. Record this; do not build a separate preview renderer |
 | Unpublished references | **Phase C.** A reference to an unpublished item is never rendered as a link. The card is skipped at build |
 | Error pages | **Phase C.** The current site has no 404 or 500 pages. Build them as new pages from existing design components — header, footer, hub hero, and call to action — with no new styles. Content is edited in the Studio (`error-404` / `error-500`) |
-| Vacancy bridge to Node | **Phase D**, not this phase |
+| Vacancy bridge to Node | This bridge is dropped until Phase G; the website, Studio and Content API stand alone. Phase D is now Deployment setup. The bridge was Phase D, not this phase, and stays as the record of the future hiring phase |
 | ForwardedHeaders:KnownProxies | **Phase D deployment.** Set this to the production IIS proxy address. If it is empty, `X-Forwarded-For` is ignored and the contact rate limit counts every visitor as one |
 | Website design | Untouched by this phase |
 
