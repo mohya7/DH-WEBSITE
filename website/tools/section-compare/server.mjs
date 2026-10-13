@@ -5,6 +5,7 @@
  *
  * Serves three things from one origin, so one page can compare them:
  *   /           the comparison page
+ *   /page-pairs.mjs  the shared page pairs (website/tools/page-pairs.mjs)
  *   /old/...    the source branch's working tree, untouched
  *   /oldrt/...  the same page with every script removed except site-content.js
  *               and content-runtime.js, so only the content runtime runs — not
@@ -73,6 +74,10 @@ http.createServer((req, res) => {
   if (url === "/" || url === "/index.html") {
     res.writeHead(200, { "Content-Type": types[".html"] });
     return res.end(fs.readFileSync(path.join(here, "compare.html")));
+  }
+  if (url === "/page-pairs.mjs") {
+    res.writeHead(200, { "Content-Type": types[".mjs"] });
+    return res.end(fs.readFileSync(path.join(here, "..", "page-pairs.mjs")));
   }
   if (url === "/accepted-differences.json") {
     res.writeHead(200, { "Content-Type": types[".json"] });

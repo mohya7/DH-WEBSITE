@@ -1,5 +1,5 @@
 {
   "maxDifferentPixels": 0,
   "pixelmatchThreshold": 0,
-  "explanation": "Both captures are the same browser, the same width, and a page that has been settled: reduced motion, animations and transitions finished or stopped, fonts and images loaded. The same drawing twice is the same picture, so the allowed difference is zero pixels. pixelmatch's per-pixel threshold is 0, which counts any channel change. A tolerance for anti-aliasing is not used, because both sides are drawn by that same browser. One differing pixel fails unless that page, width, and browser is in the accepted-differences register."
+  "explanation": "Both captures are the same browser, the same width, and a page that has been settled: reduced motion, the page scrolled once, animations and transitions finished or stopped, fonts loaded, every image loaded and decoded, and two consecutive captures identical. The same drawing twice is the same picture, so the allowed difference is zero pixels. pixelmatch's per-pixel threshold is 0 and anti-aliased pixels are included (includeAA true), so every changed pixel counts. Image pixels are flattened to one colour on both sides before the diff, because the media pipeline re-encodes images; each image's box and aspect ratio are compared instead, and its similarity is reported. One differing pixel fails unless a register entry hides that element."
 }

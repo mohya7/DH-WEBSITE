@@ -12,8 +12,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { pairs } from "./pairs.mjs";
-import { BROWSERS, WIDTHS, withBrowser } from "./capture.mjs";
-import { compareSites, portFromEnv } from "./compare.mjs";
+import { WIDTHS } from "./capture.mjs";
+import { browsersFromEnv, compareSites, portFromEnv } from "./compare.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const oldRoot = process.env.SCREENSHOT_OLD_ROOT ?? "D:\\work\\DigitalHub\\New Website\\DH-WEBSITE-main";
@@ -40,30 +40,14 @@ function stylesheetCopy() {
   return file;
 }
 
-async function browsersThatLaunch() {
-  const ready = [];
-  const blocked = [];
-  for (const name of BROWSERS) {
-    try {
-      await withBrowser(name, [WIDTHS[0]], async () => {});
-      ready.push(name);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      blocked.push({ name, message });
-    }
-  }
-  if (ready.length === 0) throw new Error("No browser could be launched.");
-  return { ready, blocked };
-}
-
 async function main() {
   const before = hashFile(stylesheet);
   const baselinePort = portFromEnv("SCREENSHOT_PORT", 4390);
   const candidatePort = portFromEnv("SCREENSHOT_CANDIDATE_PORT", 4391);
-  const output = path.join(here, "output");
-  const { ready, blocked } = await browsersThatLaunch();
+  const output = process.env.SCREENSHOT_OUT ?? path.join(here, "output");
+  // SCREENSHOT_BROWSERS chooses the browsers; one that is asked for and cannot launch stops the proof.
+  const ready = browsersFromEnv();
   console.log(`Browsers: ${ready.join(", ")}`);
-  for (const block of blocked) console.log(`Could not launch ${block.name}: ${block.message.split("\n")[0]}`);
 
   console.log("\n1. Old against old");
   const same = await compareSites({

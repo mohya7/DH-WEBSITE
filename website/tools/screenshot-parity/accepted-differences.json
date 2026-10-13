@@ -1,4 +1,4 @@
 {
-  "description": "Visual differences that are allowed. Each entry needs old (the feature/interviewer-portal path), new (the built site path), width, browser, and a reason. The list starts empty. Any difference that is not listed here fails the comparison. Add an entry only when a difference has been decided.",
+  "description": "Visual differences that are allowed, scoped to elements. Each entry has an id, the page pairs it covers ([{ \"old\": feature/interviewer-portal path, \"new\": built site path }]), the widths and browsers it covers, one or more selectors, and a reason. The selectors are hidden on both sides of those captures only; everything else on the page is still compared with zero tolerance. An entry whose selectors hide nothing on either side is an error, so a stale entry cannot linger. A whole capture can never be accepted. Add an entry only when a difference has been decided.",
   "differences": []
 }
