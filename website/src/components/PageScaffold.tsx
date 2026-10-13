@@ -10,17 +10,21 @@ import { Header, Footer, SiteBackground } from "./SiteChrome";
 import { BlogArticle } from "./BlogArticle";
 import { ApplicationForm } from "./ApplicationForm";
 import { VacancyPage } from "./VacancyPage";
-import { behaviorUrl } from "@/design/behaviors";
+import { behaviorUrl, homeSrStyleUrl } from "@/design/behaviors";
+import { jsonLdText, structuredData } from "@/seo/jsonld";
+import { readSiteUrl } from "@/seo/site-url";
 import { Consent } from "./Consent";
 
 const headingSections = new Set(["hero", "hub_hero", "service_hero"]);
-export function PageScaffold({ item, pageType, site = getSite() }: { item: AnyContentItem | null; pageType: PageType | "error"; site?: Site }) {
+export function PageScaffold({ item, pageType, site = getSite(), path = item?.path ?? "" }: { item: AnyContentItem | null; pageType: PageType | "error"; site?: Site; path?: string }) {
   const set = designSetFor(pageType, item?.slug ?? "");
-  if (!item) return <DesignFrame set={set}><Header site={site} set={set} currentPath="" /><main data-page-type={pageType} data-design-set={set} /><Footer site={site} set={set} /><Consent settings={site.content.settings} /></DesignFrame>;
+  const jsonLd = <script type="application/ld+json">{jsonLdText(structuredData(site, item, pageType, path || "/", readSiteUrl()))}</script>;
+  if (!item) return <DesignFrame set={set}><Header site={site} set={set} currentPath="" /><main data-page-type={pageType} data-design-set={set} /><Footer site={site} set={set} /><Consent settings={site.content.settings} />{jsonLd}</DesignFrame>;
   const ctx = { ...blockContext(site, { kind: pageType as PageKind, slug: item.slug }), slots: { hero: <DesignScripts set={set} slot="hero" /> } };
   const hasHeading = item.sections.some((section) => headingSections.has(section.type));
   const bodyClass = set === "home" ? "" : set === "about" ? "page-about" : set === "service" ? "page-service" : set === "case-study" ? "page-case" : `page-hub${pageType === "partner" ? " page-partner-view" : set === "blog-post" ? " page-blog-view" : set === "contact" ? " page-contact" : ["careers", "apply", "vacancy"].includes(set) ? " page-careers" : ""}`;
   return <DesignFrame set={set}>
+    {set === "home" ? <link rel="stylesheet" href={homeSrStyleUrl()} /> : null}
     <SiteBackground set={set} /><Header site={site} set={set} currentPath={item.path ?? ""} />
     <main data-page-type={pageType} data-collection={item.collection} data-slug={item.slug} data-design-set={set} data-body-class={bodyClass}>
       {item.collection === "blog-posts" ? <BlogArticle item={item} ctx={ctx} /> : item.collection === "vacancies" ? <VacancyPage item={item} /> : <>
@@ -44,5 +48,6 @@ export function PageScaffold({ item, pageType, site = getSite() }: { item: AnyCo
     <Footer site={site} set={set} currentPath={item.path ?? ""} />
     <Consent settings={site.content.settings} />
     {item.sections.some((section) => section.type === "contact_details") ? <script src={behaviorUrl("contact")} data-contact-messages={JSON.stringify(item.sections.find((section) => section.type === "contact_details")!.fields)} /> : null}
+    {jsonLd}
   </DesignFrame>;
 }

@@ -142,6 +142,19 @@
     "reason": "Marketing lead decision: the copyright year is the year of the build. The news page showed 2026; this applies only in a build year other than 2026."
   },
   {
+    "id": "home-service-hidden-learn-more",
+    "pages": ["/index.html"],
+    "sections": ["services"],
+    "kind": "hidden-link-text",
+    "selector": "a.svc-card__link",
+    "card": "article.svc-card",
+    "title": ".svc-card__title",
+    "hiddenClass": "dh-sr-only",
+    "prefix": " about ",
+    "count": 4,
+    "reason": "Marketing lead decision: the four home service-card links keep the visible words Learn more and add the service title as visually hidden text, so the link text is Learn more about that service. The old links had only Learn more. Only that hidden text is accepted."
+  },
+  {
     "id": "footer-cookie-settings-link",
     "pages": [
       "/index.html", "/about-us.html", "/get-in-touch.html", "/blogs/index.html",

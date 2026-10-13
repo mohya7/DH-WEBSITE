@@ -20,8 +20,30 @@ export interface Site {
   errorPage(code: "404" | "500"): ContentItem<"pages"> | null;
 }
 
+/** Listings read this copy. Unpublished items stay out of every collection, not out of each component. */
+function published<T extends { publishedAt: string | null }>(items: T[]): T[] {
+  return items.filter((item) => item.publishedAt !== null);
+}
+
+function publishedContent(content: BuildContent): BuildContent {
+  const collections = content.collections;
+  return {
+    ...content,
+    collections: {
+      services: published(collections.services),
+      partners: published(collections.partners),
+      "case-studies": published(collections["case-studies"]),
+      "blog-posts": published(collections["blog-posts"]),
+      vacancies: published(collections.vacancies),
+      "team-members": published(collections["team-members"]),
+      "news-items": published(collections["news-items"]),
+    },
+  };
+}
+
 export function createSite(content: BuildContent): Site {
   const { routes } = buildRoutes(content);
+  content = publishedContent(content);
   const byPath = new Map(routes.map((route) => [route.path, route]));
   const mediaById = new Map(content.media.map((asset) => [asset.id, asset]));
 

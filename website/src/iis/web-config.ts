@@ -199,6 +199,10 @@ export function renderWebConfig(redirects: readonly Redirect[], options: WebConf
     <staticContent>
       <remove fileExtension=".webp" />
       <mimeMap fileExtension=".webp" mimeType="image/webp" />
+      <remove fileExtension=".xml" />
+      <mimeMap fileExtension=".xml" mimeType="application/xml" />
+      <remove fileExtension=".txt" />
+      <mimeMap fileExtension=".txt" mimeType="text/plain; charset=utf-8" />
     </staticContent>
     <rewrite>
       <rules>

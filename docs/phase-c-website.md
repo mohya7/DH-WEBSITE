@@ -406,13 +406,37 @@ Organization uses the site settings, including the postal address fields.
 
 **6.3** `sitemap.xml` with last-modified dates from editorial dates, published and indexable pages only. `robots.txt`. `llms.txt`.
 
-The last-modified date is the **editorial date**: `dateModified` where the item has
-one, otherwise its most recent publish time. Never the snapshot's `generatedAt` or
-the export time. Snapshot timestamps reflect when the snapshot was exported, not
-when anyone changed the content, and they move on every refresh — they are
-acceptable for development builds only.
+The last-modified date is `dateModified`, otherwise `datePublished`. If neither
+is a calendar date, the sitemap omits `lastmod`. `publishedAt` and the build
+time are not used. JobPosting `datePosted` may use `publishedAt` when a vacancy
+has no editorial date; that is a separate function and is not the sitemap.
+
+Production builds set `PUBLIC_SITE_URL` and `EXPECTED_PUBLIC_ORIGIN` to
+`https://digitalhub.com.eg`. `PUBLIC_SITE_URL` must be https, except
+`http://localhost` and `http://127.0.0.1` for a local build. A trailing dot on
+the host is refused. When `EXPECTED_PUBLIC_ORIGIN` is set, a different origin
+stops the build. CI leaves `EXPECTED_PUBLIC_ORIGIN` unset.
 
 **6.4** Run Lighthouse against the snapshot build and report every page type's SEO score. Report what could not be run.
+
+Head differences, accepted (marketing lead):
+
+- Service pages repeat the meta description as `og:description` and `twitter:description`. The old pages had a separate social sentence.
+- `article:publisher` and `article:section` were on the three old blog posts and are not emitted.
+- Page-level JSON-LD types the old pages had (`WebPage`, `AboutPage`, `Blog`, `CollectionPage`, `BlogPosting`, and `Article` on case studies) are not emitted. Service and Article stay as in the table above.
+- `/careers/apply` ends with "Apply to join Digital Hub". The old crumb was "Apply".
+- `/cases` uses "Case Studies". The old hub crumb was "Cases".
+- `/contact` uses "Get in touch". The old crumb was "Get in Touch".
+- `/services/ai-automation` ends with "AI & Intelligent Automation", not "AI that works for you.", and has no "Services" ancestor.
+- `/services/data-analytics` ends with "Data & Analytics Solutions", not "Enterprise intelligence, simplified.", and has no "Services" ancestor.
+- `/services/enterprise-software` ends with "Enterprise Software Solutions", not "Software that fits the work.", and has no "Services" ancestor.
+- `/services/outsourcing` ends with "Outsourcing Technical Talents", not "Teams that ship with you.", and has no "Services" ancestor.
+- `/blogs/azure-digital-egypt-2030` has no "Data, Cloud & Digital Egypt 2030" category crumb.
+- `/blogs/digital-employee-experience` has no "DEX & Digital Employee Experience" category crumb.
+- `/blogs/enterprise-ai-production` has no "AI & Automation" category crumb.
+- Case detail crumbs stay the item title. Long headlines are accepted. A short-name field for case studies is a later change. `/cases/data-center-transformation` ends with "End-to-end data center transformation for Central Bank of Egypt" (old "Data Center Transformation Case Study"). `/cases/ministry-planning` ends with "3+ years powering Egypt’s national planning systems" (old "Ministry of Planning Case Study"). `/cases/nexthink-dex-bank` ends with "500+ endpoints under real-time Nexthink DEX monitoring" (old "Nexthink DEX Banking Case Study").
+
+Round 4: the four home service-card links keep the visible words "Learn more" and add the service title in a visually hidden span (`.dh-sr-only`). The class is in `website/behaviors/home-sr.css`, hashed and served from this site, and linked only by the home page. It is outside `website/design/`. Ali approved that.
 
 ---
 

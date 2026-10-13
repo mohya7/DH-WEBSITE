@@ -159,6 +159,8 @@ jobs:
           # Section 5.5: the careers form's endpoint is configuration, and the
           # build refuses to run without it. The value the website README uses.
           CAREERS_APPLICATION_ENDPOINT: /api/careers/applications
+          # Section 6: canonical URLs and the sitemap. The build refuses to run without it.
+          PUBLIC_SITE_URL: https://digitalhub.com.eg
         run: npm run build
 
       - name: Upload test report

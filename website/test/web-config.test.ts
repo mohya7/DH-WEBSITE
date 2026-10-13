@@ -143,6 +143,8 @@ describe("web.config", () => {
     const xml = renderWebConfig([]);
     const block = xml.slice(xml.indexOf("<staticContent>"), xml.indexOf("</staticContent>"));
     expect(block.indexOf('<remove fileExtension=".webp" />')).toBeLessThan(block.indexOf('<mimeMap fileExtension=".webp" mimeType="image/webp" />'));
+    expect(block).toContain('<mimeMap fileExtension=".xml" mimeType="application/xml" />');
+    expect(block).toContain('<mimeMap fileExtension=".txt" mimeType="text/plain; charset=utf-8" />');
   });
 
   it("does not route to the API or the hiring system", () => {

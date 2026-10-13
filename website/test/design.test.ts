@@ -256,7 +256,7 @@ describe("static HTML only", () => {
 
   it("the build strips Next's client runtime and then checks for it", () => {
     const build = JSON.parse(fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8")).scripts.build as string;
-    expect(build).toMatch(/next build && tsx scripts\/strip-runtime\.ts && tsx scripts\/write-web-config\.ts && tsx scripts\/check-output\.ts$/);
+    expect(build).toMatch(/next build && tsx scripts\/strip-runtime\.ts && tsx scripts\/write-seo\.ts && tsx scripts\/write-web-config\.ts && tsx scripts\/check-output\.ts$/);
   });
 });
 
