@@ -1,3 +1,5 @@
+import { parseSiteUrl } from "./siteUrl";
+
 export type CollectionName =
   | "pages"
   | "services"
@@ -81,4 +83,5 @@ export function labelFromKey(key: string): string {
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
-export const websiteOrigin = import.meta.env.VITE_PUBLIC_SITE_URL ?? "http://127.0.0.1:8765";
+/** The public website's address. No default: a missing or malformed value throws (see siteUrl.ts). */
+export const websiteOrigin = parseSiteUrl(import.meta.env.VITE_PUBLIC_SITE_URL);
