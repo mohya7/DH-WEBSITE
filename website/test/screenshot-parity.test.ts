@@ -145,6 +145,10 @@ describe("screenshot parity: images", () => {
     expect(imageSimilarity(null, white)).toBeNull();
     const result = (old: string, similarity: number) => ({ old, width: 1440, browser: "chromium", scores: [{ index: 1, element: "img", oldSrc: "a", newSrc: "b", similarity }] });
     expect(worstImages([result("/a", 0.99), result("/b", 0.4), result("/c", 0.8)], 2).map((score) => score.old)).toEqual(["/b", "/c"]);
+    // One row per image: the same picture at three widths is listed once, at its worst.
+    const widths = [1440, 768, 390].map((width, i) => ({ ...result("/b", 0.4 + i / 100), width }));
+    const listed = worstImages([...widths, result("/c", 0.8)]);
+    expect(listed.map((score) => [score.old, score.width])).toEqual([["/b", 1440], ["/c", 1440]]);
   });
 });
 

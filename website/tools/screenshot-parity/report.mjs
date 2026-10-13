@@ -4,12 +4,21 @@ import path from "node:path";
 /** How many of the least similar images the report lists. */
 export const WORST_IMAGES = 10;
 
-/** The least similar image pairs across all captures, worst first. Reported, never failed. */
+/**
+ * The least similar images across all captures, worst first: one row per image (its page and position),
+ * the worst of its widths and browsers, so one wrong picture does not fill the list. Reported, never failed.
+ */
 export function worstImages(results, count = WORST_IMAGES) {
-  return results
-    .flatMap((result) => (result.scores ?? []).filter((score) => score.similarity !== null).map((score) => ({ ...score, old: result.old, width: result.width, browser: result.browser })))
-    .sort((a, b) => a.similarity - b.similarity)
-    .slice(0, count);
+  const worst = new Map();
+  for (const result of results) {
+    for (const score of result.scores ?? []) {
+      if (score.similarity === null) continue;
+      const key = `${result.old}#${score.index}`;
+      const row = { ...score, old: result.old, width: result.width, browser: result.browser };
+      if (!worst.has(key) || row.similarity < worst.get(key).similarity) worst.set(key, row);
+    }
+  }
+  return [...worst.values()].sort((a, b) => a.similarity - b.similarity).slice(0, count);
 }
 
 export function writeReport(outDir, { results, threshold, masks, register }) {
