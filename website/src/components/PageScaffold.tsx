@@ -3,12 +3,11 @@ import { blockContext } from "@/content/blocks";
 import type { AnyContentItem, Site } from "@/content/site";
 import { getSite } from "@/content/site";
 import type { PageType } from "@/content/routes";
-import { careersEndpoint } from "@/content/forms";
 import { DesignFrame, DesignScripts } from "@/design/Design";
 import { designSetFor } from "@/design/sets";
 import { Header, Footer, SiteBackground } from "./SiteChrome";
 import { BlogArticle } from "./BlogArticle";
-import { ApplicationForm } from "./ApplicationForm";
+import { HowToApply } from "./HowToApply";
 import { VacancyPage } from "./VacancyPage";
 import { behaviorUrl, homeSrStyleUrl } from "@/design/behaviors";
 import { jsonLdText, structuredData } from "@/seo/jsonld";
@@ -50,7 +49,7 @@ export function PageScaffold({ item, pageType, site = getSite(), path = item?.pa
           }
           return <Section key={index} section={section} ctx={ctx} />;
         })}
-        {set === "apply" ? <ApplicationForm endpoint={careersEndpoint()} /> : null}
+        {set === "apply" ? <HowToApply email={site.content.settings.careersEmail || site.content.settings.email || ""} /> : null}
       </>}
     </main>
     <Footer site={site} set={set} currentPath={item.path ?? ""} />

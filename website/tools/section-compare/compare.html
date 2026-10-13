@@ -213,6 +213,12 @@ function accepted(page, id, old, now, absentPage, chrome = false) {
       list.replaceChildren(paragraph);
       if (same(copy, now)) return rule;
     }
+    if (rule.kind === 'apply-by-email') {
+      const link = now.querySelector('a[href^="mailto:"]');
+      if (now.querySelector('form') || !link) continue;
+      if (rule.selector && !now.matches(rule.selector)) continue;
+      return rule;
+    }
   }
   return null;
 }

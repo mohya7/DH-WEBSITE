@@ -29,7 +29,7 @@ Sections run in order. A section starts only when the previous one is merged and
 | Table of contents | Anchors generated from heading text at build, unique within each article |
 | Images | Served from the build output with explicit width and height, responsive sizes from the stored variants, and the per-usage alt text or decorative flag |
 | Contact form | Posts to `/api/v1/public/contact` on the same origin. Reaching the API is IIS routing, set up in Phase D |
-| Careers application | Posts to the existing Node hiring system during the transition. The endpoint is configuration, not code |
+| Careers application | Applying is by email: `careersEmail`, or the main email when that is empty. No hiring system until Phase G |
 | Error pages | 404 and 500 built from existing components only — header, footer, hub hero, call to action. No new styles |
 | SEO | Lighthouse SEO 100 on every page type. The build fails below it |
 | Analytics | Google Tag Manager and GA4, Consent Mode v2 defaulting to denied. Nothing non-essential loads before consent |
@@ -172,7 +172,7 @@ If neither is configured, the build **fails** with a clear message. No silent de
 | `#eswdDeck`, `#eswdStage`, `#eswdMenu`, `#eswdProgressBar`, `#eswdSceneNum`, `#eswdSceneName`, `#eswdStageGlow`, `.eswd-scene`, `.eswd-menu__item`, `.eswd-menu__title`, `.eswd-menu__media`, `.eswd-deck__progress`, `.eswd-scene__label`, `.eswd-scene__photo`, `[data-feature-block]` | `js/service-page.js` | 4.1 `feature_grid` (service pages) |
 | `#method`, `#methodRows`, `#methodWire`, `#methodWireLine`, `#methodWireBg`, `#methodWireDot`, `#methodWireNodes`, `.method-wire-wrap`, `.method-row`, `.method-spine-node`, `.method-frame` | `js/service-page.js` | 4.1 `methodology` |
 | `#contactForm`, `#situation`, `#submitBtn`, `#submitText`, `button[type="submit"]` | `js/about-page.js`, `js/service-page.js`, `index.inline-3.js` | 5.4 contact form, where a page renders one |
-| `form.careers-apply-form`, `.careers-apply-form__error`, `.submit-btn`, `[data-careers-apply-lead]`, `[data-careers-apply-intro]`, `[data-careers-apply-reset]`, and the inputs `resume`, `role`, `roleSlug`, `yearsOfExperience`, `expectedSalary`, `expectedSalaryRange`, `noticePeriod`, `noticePeriodWeeks` | `js/careers-apply.js` | 5.5 careers form |
+| `form.careers-apply-form` and the apply inputs | `js/careers-apply.js` | The design script stays in the apply set and no-ops: the page renders no form. Applying is by email (5.5) |
 | `#dg-local-explain`, `#dg-local-storage`, `#dg-save-locally`, `#dg-new-constructor`, `head` | `js/webgl-fluid-lib.js` | Nothing: the library's own debug panel creates them |
 
 **Script positions Sections 4 and 5 must keep.** `index.inline-2.js` straight after the header's `</nav>`; `js/hero-fluid.js` (module) inside the home hero, after `.hero-wires`; everything else after the footer. `index.inline-3.js` sets the fallback logo to `assets/digital-hub-logo.png`, relative to the page, so Section 5 serves that file at `/assets/digital-hub-logo.png`.
@@ -244,9 +244,9 @@ The website uses ordinary full-page links, never Next's client-side navigation, 
 
 **5.4** Contact form posts to the relative path `/api/v1/public/contact`: the honeypot field, client-side validation for convenience, and the labels, placeholders, button texts, success, and error messages from the section's fields.
 
-**5.5** Careers application form posts to the Node hiring endpoint, from configuration. Same file limits as today: 5 MB, PDF, DOC, DOCX.
+**5.5** Applying is by email. `/careers/apply` keeps its address, hero, title, SEO, and noindex. The page shows a short "How to apply" block and a `mailto:` to `careersEmail`, or the main email when `careersEmail` is empty. There is no form, no CV upload, and no hiring endpoint.
 
-*Decided at Section 3 — 5.4 and 5.5:* the contact form's and careers form's behaviour — validation, submission, and messages — are plain scripts in the ported style, not React client components: the website ships no client runtime. React renders the forms' markup at build. The same rules apply: no `innerHTML` with content, and no personal data sent to analytics.
+*Decided at Section 3 — 5.4:* the contact form's behaviour — validation, submission, and messages — is a plain script in the ported style, not a React client component: the website ships no client runtime. React renders the form's markup at build. The same rules apply: no `innerHTML` with content, and no personal data sent to analytics. The careers page does not use that pattern: applying is the email block in 5.5.
 
 *Recorded at Section 3 — header and logo:*
 
@@ -261,8 +261,7 @@ The website uses ordinary full-page links, never Next's client-side navigation, 
   items, and FAQ where present. Today they render only the title and image —
   `/blogs/azure-digital-egypt-2030` is 1,783 bytes with 85 characters of text —
   so all 15 of the five pages' sections render nothing.
-- **The apply page renders its application form** (5.5). Today its second section
-  renders nothing.
+- **The apply page later replaced that empty section with email** (5.5). Section 4 recorded a form that was not yet rendered.
 - **The section comparison counts a section that renders nothing as a failure**,
   and reports the full denominator: **119**, every section on the old pages, not
   103. At Section 4 it stands at 80 of 119 — 23 differing, 16 rendering nothing.
@@ -448,7 +447,7 @@ Round 4: the four home service-card links keep the visible words "Learn more" an
 
 *Decided at Section 3:* the consent banner is a plain script, not a React client component: the website ships no client runtime. React renders its markup at build. The same rules apply: no `innerHTML` with content, and no personal data sent to analytics.
 
-**7.3** Events: contact form submitted, application submitted, calls to action clicked. **No personal data** — no names, email addresses, or form content.
+**7.3** Events: contact form submitted, calls to action clicked. **No personal data** — no names, email addresses, or form content.
 
 **7.4** List every domain Tag Manager and GA4 need, for the content security policy in Section 8.
 
@@ -464,7 +463,7 @@ Round 4: the four home service-card links keep the visible words "Learn more" an
 - The Content-Security-Policy extended for the domains from 7.4, shipped in **report-only** mode first
 - Cache headers: hashed assets immutable for a year; HTML short
 
-**8.2** Routing to the API and the Node hiring system is Phase D. Do not add it here.
+**8.2** Routing to the Content API is Phase D. The website does not connect to the Node hiring system. Hiring is Phase G.
 
 *Decided at the Section 8 check:* `Strict-Transport-Security` is `max-age=31536000`, without `includeSubDomains`. Revisit that once decision D1 (staging and production domains) is settled.
 
@@ -498,7 +497,7 @@ Round 4: the four home service-card links keep the visible words "Learn more" an
 
 **10.8** The build output contains no source files, fixtures, configuration, or secrets.
 
-**10.9** The contact form submits end to end to the API; the honeypot stores nothing.
+**10.9** The contact form submits end to end to the API; the honeypot stores nothing. The apply page is not that check: applying is by email.
 
 **10.10** Studio preview renders a draft correctly; the Studio's end-to-end suite still passes.
 

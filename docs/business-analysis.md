@@ -262,6 +262,8 @@ Shared by the Content API now and the Hiring API later, so both look and behave 
 
 While the website and Studio are new and hiring is still on Node, both systems share one domain.
 
+The transition routing and the vacancy bridge are dropped until Phase G.
+
 ### Routing on IIS
 
 | Path | Served by |

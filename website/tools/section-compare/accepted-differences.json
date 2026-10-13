@@ -186,5 +186,13 @@
     "kind": "absent-in-old",
     "selector": "div#cookieBanner.cookie-banner[role=\"dialog\"][aria-labelledby=\"cookieBannerTitle\"][hidden]:not([aria-modal])",
     "reason": "Marketing lead decision (Section 7): the cookie consent banner is new; the old site had none. Accepted as an element absent in the old site, and only as the non-modal banner, hidden in the static HTML. This tool compares markup, not screenshots, so the banner's layout is checked by the browser tests at 1280, 768, 390, and 320 px."
+  },
+  {
+    "id": "apply-by-email",
+    "pages": ["/careers/apply.html"],
+    "sections": ["section"],
+    "kind": "apply-by-email",
+    "selector": "section.section.careers-detail",
+    "reason": "Marketing lead decision: no hiring system until Phase G; applying is by email."
   }
 ]

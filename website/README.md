@@ -8,9 +8,9 @@ Next.js App Router, static export, TypeScript. Built in Phase C
 ```bash
 cd website
 npm ci
-CONTENT_SOURCE=snapshot CAREERS_APPLICATION_ENDPOINT=/api/careers/applications PUBLIC_SITE_URL=https://digitalhub.com.eg npm run build
+CONTENT_SOURCE=snapshot PUBLIC_SITE_URL=https://digitalhub.com.eg npm run build
 CONTENT_SOURCE=api CONTENT_API_URL=http://localhost:5097 \
-  CONTENT_BUILD_TOKEN=<Build:Token> CAREERS_APPLICATION_ENDPOINT=/api/careers/applications \
+  CONTENT_BUILD_TOKEN=<Build:Token> \
   PUBLIC_SITE_URL=https://digitalhub.com.eg npm run build
 ```
 
@@ -162,7 +162,6 @@ fixture, which `CONTENT_SOURCE=api` refuses:
 ```powershell
 $env:CONTENT_SOURCE = 'snapshot'
 $env:SNAPSHOT_SETTINGS_FIXTURE = 'consent'   # fixtures/settings/consent.json: GTM-TEST1234
-$env:CAREERS_APPLICATION_ENDPOINT = '/api/careers/applications'
 npm run build
 npm run test:browser       # browser-tests/consent.spec.ts runs only on this build
 npm run compare:sections
@@ -185,7 +184,7 @@ Every verification of a website change uses it.
 
 ```bash
 cd website
-CONTENT_SOURCE=snapshot CAREERS_APPLICATION_ENDPOINT=/api/careers/applications npm run build
+CONTENT_SOURCE=snapshot npm run build
 node tools/section-compare/server.mjs
 ```
 
