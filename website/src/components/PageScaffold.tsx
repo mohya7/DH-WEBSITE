@@ -22,7 +22,8 @@ export function PageScaffold({ item, pageType, site = getSite(), path = item?.pa
   if (!item) return <DesignFrame set={set}><Header site={site} set={set} currentPath="" /><main data-page-type={pageType} data-design-set={set} /><Footer site={site} set={set} /><Consent settings={site.content.settings} />{jsonLd}</DesignFrame>;
   const ctx = { ...blockContext(site, { kind: pageType as PageKind, slug: item.slug }), slots: { hero: <DesignScripts set={set} slot="hero" /> } };
   const hasHeading = item.sections.some((section) => headingSections.has(section.type));
-  const bodyClass = set === "home" ? "" : set === "about" ? "page-about" : set === "service" ? "page-service" : set === "case-study" ? "page-case" : `page-hub${pageType === "partner" ? " page-partner-view" : set === "blog-post" ? " page-blog-view" : set === "contact" ? " page-contact" : ["careers", "apply", "vacancy"].includes(set) ? " page-careers" : ""}`;
+  const hubPage = item?.slug === "blogs" ? " page-blogs" : item?.slug === "partners" ? " page-partners" : "";
+  const bodyClass = set === "home" ? "" : set === "about" ? "page-about" : set === "service" ? "page-service" : set === "case-study" ? "page-case" : `page-hub${pageType === "partner" ? " page-partner-view" : set === "blog-post" ? " page-blog-view" : set === "contact" ? " page-contact" : ["careers", "apply", "vacancy"].includes(set) ? " page-careers" : hubPage}`;
   return <DesignFrame set={set}>
     {set === "home" ? <link rel="stylesheet" href={homeSrStyleUrl()} /> : null}
     <SiteBackground set={set} /><Header site={site} set={set} currentPath={item.path ?? ""} />
