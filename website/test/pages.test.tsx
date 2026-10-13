@@ -160,10 +160,45 @@ describe('page composition', () => {
       process.env.TZ = zone;
     }
   });
+  it('keeps subpage on a themed case study when the static body class is applied', () => {
+    for (const body of ["page-case", "theme-orange page-case", "theme-teal page-case"]) {
+      const html = stripRuntime(`<html lang="en"><body><main data-body-class="${body}"></main></body></html>`).html;
+      expect(html).toContain('<html lang="en" class="nav-shown subpage">');
+      expect(html).toContain(`<body class="${body}">`);
+    }
+  });
   it('sets page classes before scripts execute in the static output', () => {
     const html = stripRuntime('<html lang="en"><body><main data-body-class="page-hub page-partner-view"></main></body></html>').html;
     expect(html).toContain('<html lang="en" class="nav-shown">');
     expect(html).toContain('<body class="page-hub page-partner-view">');
+  });
+  it('puts theme-orange or theme-teal next to page-case, and nothing for any other theme', () => {
+    const site = createSite(snapshotContent());
+    const studies = site.content.collections["case-studies"];
+    const renderStudy = (slug: string, theme: string | null) => {
+      const item = studies.find((study) => study.slug === slug);
+      expect(item, slug).toBeDefined();
+      const themed = { ...item!, fields: { ...item!.fields, theme } } as typeof item;
+      return renderToStaticMarkup(<PageScaffold site={site} item={themed ?? null} pageType="case-study" />);
+    };
+    expect(renderStudy("data-center-transformation", "orange")).toContain('data-body-class="theme-orange page-case"');
+    expect(renderStudy("nexthink-dex-bank", "teal")).toContain('data-body-class="theme-teal page-case"');
+    expect(renderStudy("ministry-planning", null)).toContain('data-body-class="page-case"');
+    expect(renderStudy("ministry-planning", "")).toContain('data-body-class="page-case"');
+    expect(renderStudy("ministry-planning", "blue")).toContain('data-body-class="page-case"');
+    for (const html of [
+      renderStudy("ministry-planning", null),
+      renderStudy("ministry-planning", ""),
+      renderStudy("ministry-planning", "blue"),
+    ]) {
+      expect(html).not.toContain("theme-orange");
+      expect(html).not.toContain("theme-teal");
+    }
+    const themeOf = (slug: string) => studies.find((study) => study.slug === slug)?.fields.theme ?? null;
+    expect(themeOf("data-center-transformation")).toBe("orange");
+    expect(themeOf("nexthink-dex-bank")).toBe("teal");
+    expect(themeOf("ministry-planning")).toBeNull();
+    expect(themeOf("national-portal")).toBeNull();
   });
 });
 

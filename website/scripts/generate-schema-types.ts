@@ -32,7 +32,7 @@ type Schema = {
   required?: string[];
   additionalProperties?: boolean;
   items?: Schema;
-  enum?: string[];
+  enum?: (string | null)[];
   const?: string;
   oneOf?: Schema[];
   format?: string;
@@ -40,11 +40,12 @@ type Schema = {
   pattern?: string;
   "x-dh-kind"?: string;
   "x-dh-label"?: string;
+  "x-dh-help"?: string;
 };
 
 const allowedKeywords = new Set([
   "$schema", "$id", "$defs", "$ref", "type", "properties", "required", "additionalProperties",
-  "items", "enum", "const", "oneOf", "format", "pattern", "x-dh-kind", "x-dh-label",
+  "items", "enum", "const", "oneOf", "format", "pattern", "x-dh-kind", "x-dh-label", "x-dh-help",
 ]);
 
 /**
@@ -61,7 +62,7 @@ const kindNotes: Record<string, string> = {
 };
 
 /** Kinds the TypeScript type already says everything about. */
-const plainKinds = new Set(["text", "boolean", "number", "media", "reference"]);
+const plainKinds = new Set(["text", "boolean", "number", "media", "reference", "select"]);
 
 /** The shared definitions in defs.json, by name, to the exported type name. */
 const defTypeNames: Record<string, string> = {
@@ -98,6 +99,7 @@ function checkKeywords(schema: Schema, where: string): void {
 function docComment(schema: Schema, indent: string): string {
   const parts: string[] = [];
   if (schema["x-dh-label"]) parts.push(schema["x-dh-label"]);
+  if (schema["x-dh-help"]) parts.push(schema["x-dh-help"]);
   const kind = schema["x-dh-kind"];
   if (kind && !plainKinds.has(kind)) parts.push(kindNotes[kind] ? `${kind}: ${kindNotes[kind]}` : kind);
   return parts.length === 0 ? "" : `${indent}/** ${parts.join(". ")} */\n`;
@@ -136,7 +138,9 @@ function typeOf(schema: Schema, where: string, indent: string): string {
   let base: string;
   switch (concrete[0]) {
     case "string":
-      base = schema.enum ? schema.enum.map((value) => JSON.stringify(value)).join(" | ") : "string";
+      base = schema.enum
+        ? schema.enum.filter((value): value is string => value !== null).map((value) => JSON.stringify(value)).join(" | ")
+        : "string";
       break;
     case "boolean":
       base = "boolean";

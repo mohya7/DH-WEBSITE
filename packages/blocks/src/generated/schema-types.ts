@@ -537,6 +537,8 @@ export interface CaseStudiesFields {
   metric?: string | null;
   /** Categories */
   categories?: string[] | null;
+  /** Theme. Accent colour of the case-study page. Leave empty for the default blue. */
+  theme?: "orange" | "teal" | null;
   /** Featured */
   featured?: boolean | null;
 }

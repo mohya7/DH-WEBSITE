@@ -16,6 +16,13 @@ import { readSiteUrl } from "@/seo/site-url";
 import { Consent } from "./Consent";
 
 const headingSections = new Set(["hero", "hub_hero", "service_hero"]);
+
+/** Orange and teal remap the locked accent. Anything else, including empty, stays the default blue. */
+function caseStudyBodyClass(item: AnyContentItem): string {
+  const theme = item.collection === "case-studies" ? item.fields.theme : null;
+  const accent = theme === "orange" ? "theme-orange " : theme === "teal" ? "theme-teal " : "";
+  return `${accent}page-case`;
+}
 export function PageScaffold({ item, pageType, site = getSite(), path = item?.path ?? "" }: { item: AnyContentItem | null; pageType: PageType | "error"; site?: Site; path?: string }) {
   const set = designSetFor(pageType, item?.slug ?? "");
   const jsonLd = <script type="application/ld+json">{jsonLdText(structuredData(site, item, pageType, path || "/", readSiteUrl()))}</script>;
@@ -23,7 +30,7 @@ export function PageScaffold({ item, pageType, site = getSite(), path = item?.pa
   const ctx = { ...blockContext(site, { kind: pageType as PageKind, slug: item.slug }), slots: { hero: <DesignScripts set={set} slot="hero" /> } };
   const hasHeading = item.sections.some((section) => headingSections.has(section.type));
   const hubPage = item?.slug === "blogs" ? " page-blogs" : item?.slug === "partners" ? " page-partners" : "";
-  const bodyClass = set === "home" ? "" : set === "about" ? "page-about" : set === "service" ? "page-service" : set === "case-study" ? "page-case" : `page-hub${pageType === "partner" ? " page-partner-view" : set === "blog-post" ? " page-blog-view" : set === "contact" ? " page-contact" : ["careers", "apply", "vacancy"].includes(set) ? " page-careers" : hubPage}`;
+  const bodyClass = set === "home" ? "" : set === "about" ? "page-about" : set === "service" ? "page-service" : set === "case-study" ? caseStudyBodyClass(item) : `page-hub${pageType === "partner" ? " page-partner-view" : set === "blog-post" ? " page-blog-view" : set === "contact" ? " page-contact" : ["careers", "apply", "vacancy"].includes(set) ? " page-careers" : hubPage}`;
   return <DesignFrame set={set}>
     {set === "home" ? <link rel="stylesheet" href={homeSrStyleUrl()} /> : null}
     <SiteBackground set={set} /><Header site={site} set={set} currentPath={item.path ?? ""} />
