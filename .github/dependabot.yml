@@ -1,0 +1,45 @@
+# Dependabot version updates: weekly, minor and patch grouped, at most five open
+# pull requests per ecosystem. Scope: the website, the Studio, the Content API,
+# and the workflows. Major updates still arrive one pull request each, so they
+# get their own review.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /website
+    target-branch: rebuild/dotnet-platform
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      website-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /studio
+    target-branch: rebuild/dotnet-platform
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      studio-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: nuget
+    directory: /api
+    target-branch: rebuild/dotnet-platform
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      api-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: rebuild/dotnet-platform
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      actions-minor-and-patch:
+        update-types: [minor, patch]

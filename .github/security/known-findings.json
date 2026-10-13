@@ -1,0 +1,50 @@
+{
+  "description": "Findings that existed when the security jobs were added (2026-10-13). They are NOT fixed or suppressed here: the gate reports them as warnings and fails only on findings that are not listed. Each entry has an owner. Remove an entry when its finding is fixed; the gate names entries that are no longer found.",
+  "npm": {
+    "website": [
+      {
+        "id": "GHSA-cjq9-62q9-8jv4",
+        "package": "next 16.3.6",
+        "severity": "high",
+        "title": "Next.js has Server-Side Request Forgery in Image Optimization",
+        "fixedIn": "next 16.4.0",
+        "owner": "website (Next.js upgrade)",
+        "reason": "Existing finding. The site is a static export with no Next server in production, so Image Optimization does not run there; the build machine still runs next."
+      },
+      {
+        "id": "GHSA-wq5f-xc86-pv6w",
+        "package": "sharp 0.35.4 (via next)",
+        "severity": "high",
+        "title": "sharp: vulnerability in its librsvg dependency (CVE-2026-96889)",
+        "fixedIn": "sharp 0.35.5",
+        "owner": "website (Next.js upgrade)",
+        "reason": "Existing finding. Build-time image processing only."
+      },
+      {
+        "id": "GHSA-68fv-2mgg-jv7q",
+        "package": "source-map-js 1.2.1 (via next > postcss)",
+        "severity": "high",
+        "title": "source-map-js allows event-loop denial of service through indexed source-map section offsets",
+        "fixedIn": "a later source-map-js",
+        "owner": "website (Next.js upgrade)",
+        "reason": "Existing finding. Build-time only."
+      }
+    ],
+    "studio": []
+  },
+  "dotnet": [],
+  "gitleaks": [
+    {
+      "fingerprint": "2fd80758a3f3074306fd663812da9966238bd924:api/tests/DigitalHub.Api.Tests/ApiFactory.cs:generic-api-key:17",
+      "rule": "generic-api-key",
+      "owner": "api",
+      "reason": "Existing finding, judged a false positive: the constant SecretsId is the dotnet user-secrets store id (an identifier, not a secret). It is still in HEAD."
+    },
+    {
+      "fingerprint": "c7a73ed6d012aa32728a6b4b035e4f6a130f61d5:api/tools/DigitalHub.ContentImport/Catalog.cs:generic-api-key:9",
+      "rule": "generic-api-key",
+      "owner": "api (importer)",
+      "reason": "Existing finding, judged a false positive: the constant SecretsId is the dotnet user-secrets store id (an identifier, not a secret). It is still in HEAD."
+    }
+  ]
+}
