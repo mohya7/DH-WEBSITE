@@ -1,6 +1,9 @@
 using DigitalHub.ContentImport;
 using Microsoft.Extensions.Configuration;
 
+if (args.Length > 0 && args[0] is "export" or "import")
+    return await BundleCommands.RunAsync(args);
+
 if (args.Contains("--convert-references"))
 {
     if (args.Contains("--dry-run") || args.Contains("--apply") || args.Contains("--source"))
