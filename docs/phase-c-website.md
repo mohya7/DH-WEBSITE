@@ -29,7 +29,7 @@ Sections run in order. A section starts only when the previous one is merged and
 | Table of contents | Anchors generated from heading text at build, unique within each article |
 | Images | Served from the build output with explicit width and height, responsive sizes from the stored variants, and the per-usage alt text or decorative flag |
 | Contact form | Posts to `/api/v1/public/contact` on the same origin. Reaching the API is IIS routing, set up in Phase D |
-| Careers application | Applying is by email: `careersEmail`, or the main email when that is empty. No hiring system until Phase G |
+| Careers application | Applying is by email: `careersEmail`, or the main email when that is empty |
 | Error pages | 404 and 500 built from existing components only — header, footer, hub hero, call to action. No new styles |
 | SEO | Lighthouse SEO 100 on every page type. The build fails below it |
 | Analytics | Google Tag Manager and GA4, Consent Mode v2 defaulting to denied. Nothing non-essential loads before consent |
@@ -244,7 +244,7 @@ The website uses ordinary full-page links, never Next's client-side navigation, 
 
 **5.4** Contact form posts to the relative path `/api/v1/public/contact`: the honeypot field, client-side validation for convenience, and the labels, placeholders, button texts, success, and error messages from the section's fields.
 
-**5.5** Applying is by email. `/careers/apply` keeps its address, hero, title, SEO, and noindex. The page shows a short "How to apply" block and a `mailto:` to `careersEmail`, or the main email when `careersEmail` is empty. There is no form, no CV upload, and no hiring endpoint.
+**5.5** Applying is by email. `/careers/apply` keeps its address, hero, title, SEO, and noindex. The page shows a short "How to apply" block and a `mailto:` to `careersEmail`, or the main email when `careersEmail` is empty. There is no form and no CV upload.
 
 *Decided at Section 3 — 5.4:* the contact form's behaviour — validation, submission, and messages — is a plain script in the ported style, not a React client component: the website ships no client runtime. React renders the form's markup at build. The same rules apply: no `innerHTML` with content, and no personal data sent to analytics. The careers page does not use that pattern: applying is the email block in 5.5.
 
@@ -303,7 +303,6 @@ No content-date or unified-navigation difference is silently accepted.
 | Social icons/accessible labels | LinkedIn/linkedin, Facebook/facebook, Instagram/instagram, TikTok/tiktok from the old footer. |
 | Background | Old SVG wave paths, six on home/service, four on other sets, none on case pages; strokes #1A9AD6/#36B0E5/#F4970B with original opacity/width; grid/wave class names unchanged. |
 | Article pillar labels | Old `scripts/blog-pages.js` labels for DEX, enterprise software, data/cloud, AI and outsourcing. This existing article-only map is outside site-chrome logic; links still resolve stored references. |
-| Application form | Old apply markup, labels, placeholders, option labels, file-validation and response messages; API endpoint is configuration. Failure text is passed on the behavior script and used for non-JSON responses. (dropped until Phase G; the website, Studio and Content API stand alone) |
 
 **5.6 Page report.** Direct `main > section` selectors, in rendered order. All
 pages also render the shared header/mobile navigation and footer. This lists the
@@ -324,7 +323,7 @@ portal placeholder has no designed source page; its generated hero is listed.
 | `/blogs/digital-employee-experience` | `.blog-view-hero`, `.blog-view-body`, `.blog-view-related` | Article hero; body with TOC and FAQ; related items |
 | `/blogs/enterprise-ai-production` | `.blog-view-hero`, `.blog-view-body`, `.blog-view-related` | Article hero; body with TOC and FAQ; related items |
 | `/careers` | `.hub-hero`, `.section.careers-values.hub-section--tight`, `#opportunities`, `.hub-cta` | hub_hero, values, vacancy_list, call_to_action |
-| `/careers/apply` | `.hub-hero`, `.section.careers-detail.hub-section--tight` | hub_hero; application form (dropped until Phase G; the website, Studio and Content API stand alone) |
+| `/careers/apply` | `.hub-hero`, `.section.careers-detail.hub-section--tight` | hub_hero; how to apply (email) |
 | `/cases` | `.hub-hero`, `.section.hub-section.hub-section--tight`, `.hub-cta` | hub_hero, case_cards, call_to_action |
 | `/cases/data-center-transformation` | `.section.cs-hero`, `.section`, `.section`, `.section`, `.section`, `.section` | hero, problem, rich_text, rich_text, related_items, call_to_action |
 | `/cases/ministry-planning` | `.section.cs-hero`, `.section`, `.section`, `.section`, `.section`, `.section` | hero, problem, rich_text, rich_text, related_items, call_to_action |
@@ -463,7 +462,7 @@ Round 4: the four home service-card links keep the visible words "Learn more" an
 - The Content-Security-Policy extended for the domains from 7.4, shipped in **report-only** mode first
 - Cache headers: hashed assets immutable for a year; HTML short
 
-**8.2** Routing to the Content API is Phase D. The website does not connect to the Node hiring system. Hiring is Phase G.
+**8.2** Routing to the Content API is Phase D.
 
 *Decided at the Section 8 check:* `Strict-Transport-Security` is `max-age=31536000`, without `includeSubDomains`. Revisit that once decision D1 (staging and production domains) is settled.
 

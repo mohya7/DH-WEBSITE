@@ -20,7 +20,7 @@ This is a new project, separate from `DH-WEBSITE-main`. Read that repository for
 | Website | Next.js App Router, static export — built in Phase C |
 | Studio | **Vite + React**, Ant Design, Tailwind — built in Phase B |
 | Rich text | TipTap, stored as structured JSON |
-| Identity | ASP.NET Core Identity, local accounts, **five roles from day one** |
+| Identity | ASP.NET Core Identity, local accounts, `admin` and `editor` |
 | Tokens | Access token in memory; refresh token in an `HttpOnly` cookie |
 | Images | Filesystem under the API, metadata in the database |
 | Hosting | IIS on Windows Server. The Studio and its API are on their own subdomain, never the website's domain. See Hosting below |
@@ -72,7 +72,7 @@ docs/
 
 ## Section 2 — API scaffold and conventions
 
-Build the conventions once, here, so every controller in every later phase follows them. The Hiring API will use the same conventions when it is rebuilt.
+Build the conventions once, here, so every controller in every later phase follows them.
 
 **2.1** .NET 10 solution with a Web API project using controllers. EF Core with the SQL Server provider, plus design and tools packages. Connection string from user-secrets.
 
@@ -107,17 +107,12 @@ Report the conventions as implemented, with one example controller showing each 
 
 **3.1** ASP.NET Core Identity against `DigitalHubContent`.
 
-**3.2** Five roles, created on first run:
+**3.2** Roles, created on first run:
 
 | Role | Used by | From |
 |---|---|---|
 | `admin` | Studio | Phase B |
 | `editor` | Studio | Phase B |
-| `hr` | Hiring platform | Hiring rebuild |
-| `marketing` | Hiring platform | Hiring rebuild |
-| `interviewer` | Hiring platform | Hiring rebuild |
-
-All five exist now so the hiring rebuild joins this identity instead of merging a second user store later.
 
 **3.3** The initial admin user is created from configuration on first run. **If the password is not configured, the application refuses to start.** No default value anywhere in code, configuration, or documentation.
 
@@ -203,7 +198,7 @@ After my confirmation:
 
 **5.1** Create `DigitalHubContent` on the local instance, and `DigitalHubContent_Test` for integration tests.
 
-**5.2** Create a dedicated login for the API with read and write on `DigitalHubContent` only. The same read and write grants exist on `DigitalHubContent_Test`, because the API under test uses this login. Not sysadmin. Not `db_owner`. No DDL. Not the existing hiring login. Password in user-secrets; never printed. The API connection string uses this login, not Windows authentication.
+**5.2** Create a dedicated login for the API with read and write on `DigitalHubContent` only. The same read and write grants exist on `DigitalHubContent_Test`, because the API under test uses this login. Not sysadmin. Not `db_owner`. No DDL. Password in user-secrets; never printed. The API connection string uses this login, not Windows authentication.
 
 **5.3** Apply the migration with an elevated account, not the API login. Migrations are a deployment step. The application does not run them at startup.
 
@@ -278,7 +273,7 @@ Report each result. If any step fails, stop and show it.
 - 7.8 Login, refresh, and logout work end to end
 - 7.9 A reused refresh token revokes the chain
 - 7.10 The login rate limit trips on repeated failures for one username without locking out a different username from the same IP
-- 7.11 Each of the five roles exists
+- 7.11 The `admin` and `editor` roles exist
 - 7.12 A user with no role, or an unknown role, is refused everywhere
 
 **Migration**
