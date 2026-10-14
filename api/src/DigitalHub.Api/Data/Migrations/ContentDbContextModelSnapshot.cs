@@ -418,7 +418,7 @@ namespace DigitalHub.Api.Data.Migrations
                         {
                             t.HasCheckConstraint("ck_case_studies_status", "status IN ('draft', 'published', 'ended')");
 
-                            t.HasCheckConstraint("ck_case_studies_theme", "theme IS NULL OR theme IN ('orange', 'teal')");
+                            t.HasCheckConstraint("ck_case_studies_theme", "theme IS NULL OR (theme COLLATE Latin1_General_BIN2 IN ('orange', 'teal') AND theme NOT LIKE '% ')");
                         });
                 });
 
