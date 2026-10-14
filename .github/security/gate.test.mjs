@@ -353,7 +353,7 @@ const mutationFixtures = {
         start: { line: 12, col: 3 },
         extra: { severity: "WARNING", message: canary, lines: canary },
       }],
-      errors: [{ level: "warn", path: "api/Example.cs", message: canary }],
+      errors: [{ level: "warn", path: "api/Example.cs", type: ["PartialParsing", []], message: canary }],
     },
   },
 };
@@ -410,9 +410,12 @@ const acceptedValues = {
       extra: { severity: "WARNING" },
     }] },
     '["errors"]': { array: [] },
-    '["errors",0]': { object: { level: "warn", path: "api/Example.cs" } },
+    '["errors",0]': { object: { level: "warn", path: "api/Example.cs", type: ["PartialParsing", []] } },
     '["errors",0,"level"]': { string: "warn" },
     '["errors",0,"path"]': { string: "api/Other.cs" },
+    '["errors",0,"type"]': { array: ["PartialParsing", []] },
+    '["errors",0,"type",0]': { string: "PartialParsing" },
+    '["errors",0,"type",1]': { array: [] },
     '["results",0]': { object: {
       check_id: "javascript.lang.security.audit.detect-eval-with-expression.detect-eval-with-expression",
       path: "website/src/example.ts",
@@ -765,12 +768,97 @@ test("a semgrep scan error fails and does not print the error body", () => {
   assert.equal(result.out.includes(canary), false, result.out);
 });
 
-test("a semgrep parse warning prints the path and does not print the snippet", () => {
-  const file = write("semgrep-parse.json", JSON.stringify(semgrepReport([], [{ level: "warn", path: "api\\src\\Example.cs", message: canary }])));
+const partialParse = ["PartialParsing", [{
+  path: "api\\src\\Example.cs",
+  start: { line: 301, col: 1, offset: 0 },
+  end: { line: 301, col: 29, offset: 28 },
+}]];
+
+test("a semgrep PartialParsing warning prints the path and does not print the snippet", () => {
+  const file = write("semgrep-parse.json", JSON.stringify(semgrepReport([], [{
+    type: partialParse,
+    level: "warn",
+    path: "api\\src\\Example.cs",
+    message: canary,
+  }])));
   const result = run(["semgrep", file]);
   assert.equal(result.code, 0, result.out);
   assert.match(result.out, /semgrep parse warning: api\/src\/Example\.cs/);
   assert.equal(result.out.includes(canary), false, result.out);
+});
+
+for (const errorType of ["Timeout", "Out of memory", "Stack overflow", "Fatal error", "Rule parse error"]) {
+  test(`a semgrep ${errorType} at warn level fails with zero results`, () => {
+    const file = write(`semgrep-${errorType}.json`, JSON.stringify(semgrepReport([], [{
+      type: errorType,
+      level: "warn",
+      path: "api\\src\\Example.cs",
+      message: canary,
+    }])));
+    const result = run(["semgrep", file]);
+    assert.equal(result.code, 1, result.out);
+    assert.match(result.out, /field type is not a partial parse/);
+    assert.ok(result.out.includes(file), result.out);
+    assert.equal(result.out.includes(canary), false, result.out);
+    assert.equal(result.out.includes("semgrep parse warning"), false, result.out);
+  });
+}
+
+test("an unknown semgrep error type fails", () => {
+  const file = write("semgrep-unknown-type.json", JSON.stringify(semgrepReport([], [{
+    type: "NotARealSemgrepError",
+    level: "warn",
+    path: "api\\src\\Example.cs",
+    message: canary,
+  }])));
+  const result = run(["semgrep", file]);
+  assert.equal(result.code, 1, result.out);
+  assert.match(result.out, /field type is not a partial parse/);
+  assert.equal(result.out.includes(canary), false, result.out);
+});
+
+test("a semgrep error with no type fails", () => {
+  const file = write("semgrep-missing-type.json", JSON.stringify(semgrepReport([], [{
+    level: "warn",
+    path: "api\\src\\Example.cs",
+    message: canary,
+  }])));
+  const result = run(["semgrep", file]);
+  assert.equal(result.code, 1, result.out);
+  assert.match(result.out, /field type is not a partial parse/);
+  assert.equal(result.out.includes(canary), false, result.out);
+});
+
+test("a malformed semgrep PartialParsing type fails", () => {
+  for (const type of ["PartialParsing", ["PartialParsing"], ["PartialParsing", "locations"]]) {
+    const file = write(`semgrep-malformed-${JSON.stringify(type).length}.json`, JSON.stringify(semgrepReport([], [{
+      type,
+      level: "warn",
+      path: "api\\src\\Example.cs",
+      message: canary,
+    }])));
+    const result = run(["semgrep", file]);
+    assert.equal(result.code, 1, result.out);
+    assert.match(result.out, /field type is not a partial parse/);
+    assert.equal(result.out.includes(canary), false, result.out);
+  }
+});
+
+test("the semgrep scan roots are the required source roots", () => {
+  const requiredRoots = ["api", "website/src", "website/scripts", "website/behaviors", "studio/src", "packages"];
+  const workflow = fs.readFileSync(path.join(here, "..", "workflows", "security.yml"), "utf8");
+  const listed = workflow.match(/^ {2}SEMGREP_ROOTS: (.+)$/m);
+  assert.ok(listed, "SEMGREP_ROOTS is missing from security.yml");
+  assert.deepEqual(listed[1].split(" "), requiredRoots);
+  const command = workflow.slice(workflow.indexOf("semgrep scan"), workflow.indexOf("code=$?"));
+  assert.match(command, /\$SEMGREP_ROOTS\s*$/);
+  const ignore = fs.readFileSync(path.join(here, "..", "..", ".semgrepignore"), "utf8");
+  for (const root of requiredRoots) {
+    assert.equal(ignore.split(/\r?\n/).some((line) => {
+      const trimmed = line.trim();
+      return trimmed === root || trimmed === `${root}/`;
+    }), false, `${root} is excluded by .semgrepignore`);
+  }
 });
 
 test("known semgrep findings stay listed, and a missing one is named", () => {

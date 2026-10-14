@@ -15,9 +15,13 @@
 //             path, start.line (a positive integer), and extra.severity
 //             (INFO, WARNING, or ERROR, case-sensitive). extra.lines,
 //             extra.message, and extra.metavars are not read: they can contain
-//             matched source or a secret. An error whose level is "warn" is a
-//             partial parse: the path is printed and the job does not fail.
-//             Any other error means the scan itself failed.
+//             matched source or a secret. An error is a partial parse only when
+//             level is "warn" and type is the tagged array Semgrep 1.180 writes:
+//             ["PartialParsing", locations]. The path is printed and the job
+//             does not fail. Any other type, including Timeout, out of memory,
+//             stack overflow, a fatal error, and a rule parse error, fails.
+//             A missing or malformed type fails. The error message and spans
+//             are not read.
 //
 // An empty file, a blank file, a report of the wrong shape, or an npm audit that
 // could not run fails the job. A missing file and malformed JSON still fail.
@@ -82,6 +86,9 @@ export const consumedFields = {
     { field: "error", path: ["errors", 0], accepts: ["object"], optional: true },
     { field: "level", path: ["errors", 0, "level"], accepts: ["string"], optional: false },
     { field: "path", path: ["errors", 0, "path"], accepts: ["string"], optional: false },
+    { field: "type", path: ["errors", 0, "type"], accepts: ["array"], optional: false },
+    { field: "type", path: ["errors", 0, "type", 0], accepts: ["string"], optional: false },
+    { field: "type", path: ["errors", 0, "type", 1], accepts: ["array"], optional: false },
     { field: "result", path: ["results", 0], accepts: ["object"], optional: true },
     { field: "check_id", path: ["results", 0, "check_id"], accepts: ["string"], optional: false },
     { field: "path", path: ["results", 0, "path"], accepts: ["string"], optional: false },
@@ -353,6 +360,13 @@ export function validateGitleaks(report) {
   return found;
 }
 
+function isPartialParse(type) {
+  return Array.isArray(type)
+    && type.length === 2
+    && type[0] === "PartialParsing"
+    && Array.isArray(type[1]);
+}
+
 export function validateSemgrep(report) {
   if (!isRecord(report)) reject("semgrep report is not an object");
   if (!Array.isArray(report.results)) reject("semgrep report field results is not an array");
@@ -363,6 +377,7 @@ export function validateSemgrep(report) {
     if (!isRecord(error)) reject("semgrep report field error is not an object");
     if (error.level !== "warn") reject("semgrep report field level is not a parse warning");
     if (!nonEmpty(error.path)) reject("semgrep report field path is missing");
+    if (!isPartialParse(error.type)) reject("semgrep report field type is not a partial parse");
     parseWarnings.push(error.path.replaceAll("\\", "/"));
   }
   found.parseWarnings = parseWarnings;
