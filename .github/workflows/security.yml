@@ -6,6 +6,18 @@
 # Findings that already existed are listed with an owner in
 # .github/security/known-findings.json and reported as warnings; nothing is
 # suppressed in the tools. .github/security/gate.mjs does the comparison.
+#
+# Semgrep Community Edition 1.180.0 scans api/, website/src, website/scripts,
+# studio/src, and packages/ with the public packs p/javascript, p/typescript,
+# p/csharp, p/owasp-top-ten, and p/secrets. No login and no token; metrics are
+# off. It does not catch logic flaws, or bugs that only show up when a real
+# request is made. An ERROR fails unless it is listed under semgrep in
+# known-findings.json with an owner and a reason (id is rule:path:line). A
+# WARNING is printed as rule, file, and line and does not fail. INFO is
+# validated and not printed. A warn-level parse error is printed as a path
+# and does not fail: Semgrep 1.180's C# parser warns on primary constructors
+# and on the top-level Program class. Any other scan error fails the job.
+# The uploaded report drops matched lines and metavars, which can contain a secret.
 
 name: Security
 
@@ -29,6 +41,7 @@ env:
   GITLEAKS_VERSION: "8.30.1"
   # sha256 of gitleaks_8.30.1_linux_x64.tar.gz, from the release's checksums.txt.
   GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+  SEMGREP_VERSION: "1.180.0"
 
 jobs:
   gate-self-test:
@@ -148,4 +161,94 @@ jobs:
         with:
           name: gitleaks-history-redacted
           path: ${{ runner.temp }}/gitleaks-history.json
+          if-no-files-found: warn
+
+  semgrep:
+    name: Semgrep (ERROR fails, WARNING reported)
+    needs: gate-self-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Semgrep ${{ env.SEMGREP_VERSION }}
+        run: pip install "semgrep==${SEMGREP_VERSION}"
+
+      # Scanned: api/ (including tests), website/src, website/scripts, studio/src, packages/.
+      # Excluded, and why:
+      #   node_modules, bin, obj, dist, out — dependencies and build output
+      #   website/design — locked stylesheets, not code we change
+      #   website/fixtures — snapshot content and settings fixtures, not application code
+      #   *.Designer.cs and *ModelSnapshot.cs — Entity Framework generated files.
+      #     A pattern with a slash did not match Windows paths, and a trailing /**
+      #     exclude makes semgrep-core fail to list targets. "generated" is the
+      #     directory name excluded for schema types from npm run gen:types.
+      # studio/e2e is outside studio/src, so its pixel fixture is not scanned.
+      - name: Scan
+        env:
+          SEMGREP_SEND_METRICS: "off"
+        run: |
+          set +e
+          semgrep scan \
+            --metrics=off \
+            --disable-version-check \
+            --quiet \
+            --json \
+            --output "$RUNNER_TEMP/semgrep.json" \
+            --config p/javascript \
+            --config p/typescript \
+            --config p/csharp \
+            --config p/owasp-top-ten \
+            --config p/secrets \
+            --exclude node_modules \
+            --exclude bin \
+            --exclude obj \
+            --exclude dist \
+            --exclude out \
+            --exclude website/design \
+            --exclude website/fixtures \
+            --exclude "*.Designer.cs" \
+            --exclude "*ModelSnapshot.cs" \
+            --exclude generated \
+            api website/src website/scripts studio/src packages
+          code=$?
+          set -e
+          if [ "$code" -gt 1 ]; then
+            echo "semgrep exited $code"
+            exit "$code"
+          fi
+          node .github/security/gate.mjs semgrep "$RUNNER_TEMP/semgrep.json"
+
+      - name: Redact matched source before upload
+        if: always()
+        env:
+          SEMGREP_REPORT: ${{ runner.temp }}/semgrep.json
+          SEMGREP_REDACTED: ${{ runner.temp }}/semgrep-redacted.json
+        run: |
+          node --input-type=module -e '
+            import { readFileSync, writeFileSync } from "node:fs";
+            const report = JSON.parse(readFileSync(process.env.SEMGREP_REPORT, "utf8"));
+            if (Array.isArray(report.results)) {
+              for (const result of report.results) {
+                const severity = result && result.extra && typeof result.extra.severity === "string" ? result.extra.severity : "";
+                if (result && typeof result === "object") result.extra = { severity };
+              }
+            }
+            if (Array.isArray(report.errors)) report.errors = report.errors.map(() => ({ type: "redacted" }));
+            writeFileSync(process.env.SEMGREP_REDACTED, JSON.stringify(report));
+          '
+
+      - name: Upload the redacted report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-redacted
+          path: ${{ runner.temp }}/semgrep-redacted.json
           if-no-files-found: warn

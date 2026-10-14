@@ -54,7 +54,7 @@ const cleanNuget = JSON.stringify({
 });
 
 test("an empty report fails and names the file", () => {
-  for (const [kind, label] of [["npm", "website"], ["npm", "studio"], ["dotnet", ""], ["gitleaks", "pr-diff"], ["gitleaks", "full-history"]]) {
+  for (const [kind, label] of [["npm", "website"], ["npm", "studio"], ["dotnet", ""], ["gitleaks", "pr-diff"], ["gitleaks", "full-history"], ["semgrep", ""]]) {
     const file = write(`empty-${kind}-${label || "none"}.json`, "");
     const result = run([kind, file, label].filter((part, index) => index < 2 || part));
     assert.equal(result.code, 1, result.out);
@@ -64,7 +64,7 @@ test("an empty report fails and names the file", () => {
 });
 
 test("a blank report fails and names the file", () => {
-  for (const [kind, label] of [["npm", "website"], ["dotnet", ""], ["gitleaks", "full-history"]]) {
+  for (const [kind, label] of [["npm", "website"], ["dotnet", ""], ["gitleaks", "full-history"], ["semgrep", ""]]) {
     const file = write(`blank-${kind}.json`, " \n\t");
     const result = run([kind, file, label].filter((part, index) => index < 2 || part));
     assert.equal(result.code, 1, result.out);
@@ -77,6 +77,8 @@ test("malformed JSON fails", () => {
   const file = write("malformed.json", "{");
   const result = run(["npm", file, "website"]);
   assert.equal(result.code, 1);
+  const semgrep = run(["semgrep", write("malformed-semgrep.json", "{")]);
+  assert.equal(semgrep.code, 1, semgrep.out);
 });
 
 test("a missing report fails", () => {
@@ -95,6 +97,15 @@ test("the wrong shape fails", () => {
   const leaks = run(["gitleaks", write("shape-leaks.json", "{}"), "full-history"]);
   assert.equal(leaks.code, 1, leaks.out);
   assert.match(leaks.out, /not an array/);
+  const semgrepArray = run(["semgrep", write("shape-semgrep-array.json", "[]")]);
+  assert.equal(semgrepArray.code, 1, semgrepArray.out);
+  assert.match(semgrepArray.out, /semgrep report is not an object/);
+  const semgrepObject = run(["semgrep", write("shape-semgrep-object.json", "{}")]);
+  assert.equal(semgrepObject.code, 1, semgrepObject.out);
+  assert.match(semgrepObject.out, /field results is not an array/);
+  const semgrepResults = run(["semgrep", write("shape-semgrep-results.json", JSON.stringify({ results: [] }))]);
+  assert.equal(semgrepResults.code, 1, semgrepResults.out);
+  assert.match(semgrepResults.out, /field errors is not an array/);
 });
 
 test("an npm error object fails", () => {
@@ -149,6 +160,9 @@ test("a clean report passes", () => {
   const leaks = run(["gitleaks", write("clean-leaks.json", "[]"), "full-history"]);
   assert.equal(leaks.code, 0, leaks.out);
   assert.match(leaks.out, /0 new/);
+  const semgrep = run(["semgrep", write("clean-semgrep.json", JSON.stringify({ results: [], errors: [] }))]);
+  assert.equal(semgrep.code, 0, semgrep.out);
+  assert.match(semgrep.out, /0 new/);
   const bareFramework = JSON.stringify({
     version: 1,
     parameters: "",
@@ -330,6 +344,18 @@ const mutationFixtures = {
       Commit: "abcdef0123456789",
     }],
   },
+  semgrep: {
+    label: "",
+    body: {
+      results: [{
+        check_id: "javascript.lang.security.audit.detect-eval-with-expression.detect-eval-with-expression",
+        path: "website/src/example.ts",
+        start: { line: 12, col: 3 },
+        extra: { severity: "WARNING", message: canary, lines: canary },
+      }],
+      errors: [{ level: "warn", path: "api/Example.cs", message: canary }],
+    },
+  },
 };
 
 // Type-correct replacements that stay a clean report. Keyed by field path so a
@@ -375,6 +401,30 @@ const acceptedValues = {
     '[0,"StartLine"]': { number: 2 },
     '[0,"Fingerprint"]': { string: known.gitleaks[0].fingerprint },
     '[0,"Commit"]': { string: "bbbbbbb0123456789" },
+  },
+  semgrep: {
+    '["results"]': { array: [{
+      check_id: "javascript.lang.security.audit.detect-eval-with-expression.detect-eval-with-expression",
+      path: "website/src/example.ts",
+      start: { line: 12 },
+      extra: { severity: "WARNING" },
+    }] },
+    '["errors"]': { array: [] },
+    '["errors",0]': { object: { level: "warn", path: "api/Example.cs" } },
+    '["errors",0,"level"]': { string: "warn" },
+    '["errors",0,"path"]': { string: "api/Other.cs" },
+    '["results",0]': { object: {
+      check_id: "javascript.lang.security.audit.detect-eval-with-expression.detect-eval-with-expression",
+      path: "website/src/example.ts",
+      start: { line: 12 },
+      extra: { severity: "WARNING" },
+    } },
+    '["results",0,"check_id"]': { string: "javascript.lang.security.audit.prototype-pollution.prototype-pollution-loop" },
+    '["results",0,"path"]': { string: "studio/src/example.ts" },
+    '["results",0,"start"]': { object: { line: 12 } },
+    '["results",0,"start","line"]': { number: 12 },
+    '["results",0,"extra"]': { object: { severity: "WARNING" } },
+    '["results",0,"extra","severity"]': { string: "WARNING" },
   },
 };
 
@@ -664,6 +714,130 @@ test("confirm-gitleaks-line-negative", () => {
   }
 });
 
+function semgrepReport(results, errors = []) {
+  return { results, errors };
+}
+
+function semgrepResult(severity, line = 4) {
+  return {
+    check_id: "csharp.lang.security.sqli.csharp-sqli",
+    path: "api\\src\\Example.cs",
+    start: { line, col: 1 },
+    extra: { severity, message: canary, lines: canary, metavars: { $SQL: canary } },
+  };
+}
+
+test("a semgrep WARNING is reported and does not fail, and matched source is not printed", () => {
+  const file = write("semgrep-warning.json", JSON.stringify(semgrepReport([semgrepResult("WARNING")])));
+  const result = run(["semgrep", file]);
+  assert.equal(result.code, 0, result.out);
+  assert.match(result.out, /semgrep warning: csharp\.lang\.security\.sqli\.csharp-sqli api\/src\/Example\.cs:4/);
+  assert.match(result.out, /0 new/);
+  assert.equal(result.out.includes(canary), false, result.out);
+  assert.equal(result.out.includes("::error"), false, result.out);
+});
+
+test("a semgrep INFO does not fail and is not printed", () => {
+  const file = write("semgrep-info.json", JSON.stringify(semgrepReport([semgrepResult("INFO")])));
+  const result = run(["semgrep", file]);
+  assert.equal(result.code, 0, result.out);
+  assert.match(result.out, /0 new/);
+  assert.equal(result.out.includes("csharp.lang.security.sqli"), false, result.out);
+  assert.equal(result.out.includes(canary), false, result.out);
+});
+
+test("a new semgrep ERROR fails and does not print the match", () => {
+  const file = write("semgrep-error.json", JSON.stringify(semgrepReport([semgrepResult("ERROR"), semgrepResult("WARNING", 9)])));
+  const result = run(["semgrep", file]);
+  assert.equal(result.code, 1, result.out);
+  assert.match(result.out, /::error title=New finding \(semgrep\)::csharp\.lang\.security\.sqli\.csharp-sqli in api\/src\/Example\.cs:4/);
+  assert.match(result.out, /semgrep warning: csharp\.lang\.security\.sqli\.csharp-sqli api\/src\/Example\.cs:9/);
+  assert.match(result.out, /1 new/);
+  assert.equal(result.out.includes(canary), false, result.out);
+});
+
+test("a semgrep scan error fails and does not print the error body", () => {
+  const file = write("semgrep-errors.json", JSON.stringify(semgrepReport([], [{ type: "Timeout", level: "error", message: canary }])));
+  const result = run(["semgrep", file]);
+  assert.equal(result.code, 1, result.out);
+  assert.match(result.out, /field level is not a parse warning/);
+  assert.ok(result.out.includes(file), result.out);
+  assert.equal(result.out.includes(canary), false, result.out);
+});
+
+test("a semgrep parse warning prints the path and does not print the snippet", () => {
+  const file = write("semgrep-parse.json", JSON.stringify(semgrepReport([], [{ level: "warn", path: "api\\src\\Example.cs", message: canary }])));
+  const result = run(["semgrep", file]);
+  assert.equal(result.code, 0, result.out);
+  assert.match(result.out, /semgrep parse warning: api\/src\/Example\.cs/);
+  assert.equal(result.out.includes(canary), false, result.out);
+});
+
+test("known semgrep findings stay listed, and a missing one is named", () => {
+  assert.ok(known.semgrep.length > 0);
+  const results = known.semgrep.map((entry) => ({
+    check_id: entry.rule,
+    path: entry.path,
+    start: { line: entry.line },
+    extra: { severity: "WARNING", lines: canary, message: canary },
+  }));
+  const present = run(["semgrep", write("semgrep-known.json", JSON.stringify({ results, errors: [] }))]);
+  assert.equal(present.code, 0, present.out);
+  assert.match(present.out, /semgrep known warning: csharp\.lang\.security\.filesystem\.unsafe-path-combine\.unsafe-path-combine api\/src\/DigitalHub.Images\/ImageFiles\.cs:19/);
+  assert.equal(present.out.includes("no longer found"), false, present.out);
+  assert.equal(present.out.includes(canary), false, present.out);
+  const partial = run(["semgrep", write("semgrep-stale.json", JSON.stringify({ results: results.slice(1), errors: [] }))]);
+  assert.equal(partial.code, 0, partial.out);
+  assert.ok(partial.out.includes(known.semgrep[0].id), partial.out);
+  const asError = structuredClone(results[0]);
+  asError.extra.severity = "ERROR";
+  const knownError = run(["semgrep", write("semgrep-known-error.json", JSON.stringify({ results: [asError], errors: [] }))]);
+  assert.equal(knownError.code, 0, knownError.out);
+  assert.match(knownError.out, /::warning title=Known finding \(semgrep\)::/);
+  assert.equal(knownError.out.includes("::error"), false, knownError.out);
+  assert.equal(knownError.out.includes(canary), false, knownError.out);
+});
+
+test("semgrep line and severity failures name the field and do not print the match", () => {
+  const cases = [
+    ["semgrep-line-zero.json", semgrepResult("ERROR", 0), /field line is not a positive integer/],
+    ["semgrep-line-negative.json", semgrepResult("ERROR", -1), /field line is not a positive integer/],
+    ["semgrep-line-fraction.json", semgrepResult("ERROR", 1.5), /field line is not a positive integer/],
+    ["semgrep-severity-lower.json", semgrepResult("error"), /field severity is not a semgrep severity/],
+    ["semgrep-severity-warning-lower.json", semgrepResult("warning"), /field severity is not a semgrep severity/],
+    ["semgrep-severity-mixed.json", semgrepResult("Error"), /field severity is not a semgrep severity/],
+  ];
+  for (const [name, body, pattern] of cases) {
+    const file = write(name, JSON.stringify(semgrepReport([body])));
+    const result = run(["semgrep", file]);
+    assert.equal(result.code, 1, `${name}\n${result.out}`);
+    assert.match(result.out, pattern, name);
+    assert.ok(result.out.includes(file), name);
+    assert.equal(result.out.includes(canary), false, name);
+  }
+  const emptyRule = semgrepResult("ERROR");
+  emptyRule.check_id = "";
+  const emptyRuleFile = write("semgrep-empty-rule.json", JSON.stringify(semgrepReport([emptyRule])));
+  const emptyRuleResult = run(["semgrep", emptyRuleFile]);
+  assert.equal(emptyRuleResult.code, 1, emptyRuleResult.out);
+  assert.match(emptyRuleResult.out, /field check_id is missing/);
+  const emptyPath = semgrepResult("WARNING");
+  emptyPath.path = "";
+  const emptyPathFile = write("semgrep-empty-path.json", JSON.stringify(semgrepReport([emptyPath])));
+  const emptyPathResult = run(["semgrep", emptyPathFile]);
+  assert.equal(emptyPathResult.code, 1, emptyPathResult.out);
+  assert.match(emptyPathResult.out, /field path is missing/);
+});
+
+test("a duplicate semgrep key fails and names the key", () => {
+  const text = '{"results":[],"errors":[],"results":[]}';
+  const file = write("semgrep-duplicate-results.json", text);
+  const result = run(["semgrep", file]);
+  assert.equal(result.code, 1, result.out);
+  assert.match(result.out, /duplicate key results/);
+  assert.ok(result.out.includes(file), result.out);
+});
+
 function watchReads(value, specPath, reads) {
   if (value === null || typeof value !== "object") return value;
   const pathOf = (prop) => {
@@ -696,7 +870,7 @@ function fieldShape(specPath) {
 }
 
 test("every field the gate reads is listed, and every listed field is read", async () => {
-  const { validateNpm, validateDotnet, validateGitleaks, keepSerious, consumedFields: fields } = await import(pathToFileURL(gate).href);
+  const { validateNpm, validateDotnet, validateGitleaks, validateSemgrep, keepSerious, consumedFields: fields } = await import(pathToFileURL(gate).href);
   const dotnetBody = structuredClone(mutationFixtures.dotnet.body);
   // The listed transitivePackages field is the array. Its items use the same
   // package shape as topLevelPackages, which is the path the list records.
@@ -705,14 +879,18 @@ test("every field the gate reads is listed, and every listed field is read", asy
     npm: mutationFixtures.npm.body,
     dotnet: dotnetBody,
     gitleaks: mutationFixtures.gitleaks.body,
+    semgrep: mutationFixtures.semgrep.body,
   };
   for (const [tool, body] of Object.entries(fixtures)) {
     const reads = new Set();
     const proxied = watchReads(structuredClone(body), [], reads);
     // Array.isArray does not touch the proxy. The gitleaks list names that root value.
     if (fields[tool].some((spec) => spec.path.length === 0)) reads.add("[]");
-    const found = tool === "npm" ? validateNpm(proxied) : tool === "dotnet" ? validateDotnet(proxied) : validateGitleaks(proxied);
-    const kept = tool === "gitleaks" ? found : keepSerious(found);
+    const found = tool === "npm" ? validateNpm(proxied)
+      : tool === "dotnet" ? validateDotnet(proxied)
+        : tool === "semgrep" ? validateSemgrep(proxied)
+          : validateGitleaks(proxied);
+    const kept = tool === "gitleaks" || tool === "semgrep" ? found : keepSerious(found);
     assert.ok(Array.isArray(kept));
     const shapes = new Set(fields[tool].map((spec) => fieldShape(spec.path)));
     const unexpected = [...reads].filter((recorded) => !shapes.has(fieldShape(JSON.parse(recorded))));
