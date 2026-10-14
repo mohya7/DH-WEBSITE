@@ -22,7 +22,7 @@ Work in `D:\work\DigitalHub\dh-platform`, branch `rebuild/dotnet-platform`. Work
 | Unpublished references | **Phase C.** A reference to an unpublished item is never rendered as a link. The card is skipped at build |
 | Error pages | **Phase C.** The current site has no 404 or 500 pages. Build them as new pages from existing design components — header, footer, hub hero, and call to action — with no new styles. Content is edited in the Studio (`error-404` / `error-500`) |
 | Vacancy bridge to Node | **Phase D**, not this phase |
-| ForwardedHeaders:KnownProxies | **Phase D deployment.** Set this to the production IIS proxy address. If it is empty or missing, forwarded headers are not applied, so `X-Forwarded-For` is ignored and `RemoteIpAddress` stays the connection address; the contact rate limit then counts every request from that connection as one visitor. Behind a load balancer or reverse proxy the deployment MUST set `ForwardedHeaders:KnownProxies` to that proxy's address, otherwise every visitor looks like the proxy and the contact rate limit is shared by all |
+| ForwardedHeaders:KnownProxies | **Phase D deployment.** Set this to the production IIS proxy address. If it is empty or missing, forwarded headers are not applied, so `X-Forwarded-For` is ignored and `RemoteIpAddress` stays the connection address; the contact rate limit then counts every request from that connection as one visitor. Behind a load balancer or reverse proxy the deployment MUST set `ForwardedHeaders:KnownProxies` to that proxy's address, otherwise every visitor looks like the proxy and the contact rate limit is shared by all. Entries are literal IP addresses; see 9.5 for the syntax, the one-hop limit, and the other limits that use the address |
 | Website design | Untouched by this phase |
 
 ### Hosting
@@ -272,7 +272,17 @@ Stop and report before building.
 
 **9.4** Stores to `contact_requests` with status `new`. The website form is wired to it in Phase C.
 
-**9.5** The website reaches this endpoint through IIS, so the API sees the proxy's address, not the visitor's, only when `ForwardedHeaders:KnownProxies` lists that proxy. When the list is empty or missing, forwarded headers are not applied: `X-Forwarded-For` is ignored and `RemoteIpAddress` stays the connection address. When it has entries, `X-Forwarded-For` from one of those addresses is used and from any other address it is ignored. The rate limit uses the resulting address. Behind a load balancer or reverse proxy the deployment MUST set `ForwardedHeaders:KnownProxies` to that proxy's address, otherwise every visitor looks like the proxy and the contact rate limit is shared by all.
+**9.5** The website reaches this endpoint through IIS, and two addresses must be kept apart:
+
+- **The immediate connection.** Behind IIS, a load balancer, or any reverse proxy, the connection always comes from the proxy, whatever the API is configured to trust.
+- **The effective client address.** This is `RemoteIpAddress` after forwarding, and the rate limit uses it. It depends on `ForwardedHeaders:KnownProxies`:
+  - **The list has a valid proxy address:** an `X-Forwarded-For` header from that proxy is used. For example, the proxy 10.10.10.10 sending `X-Forwarded-For: 198.51.100.9` gives 198.51.100.9. From any other sender the header is ignored.
+  - **The list is empty, missing, or has no valid entry:** forwarding is off. `X-Forwarded-For` is ignored, the address stays the connection address, and every visitor looks like the proxy.
+- **Entry syntax.** Entries must be literal IP addresses, IPv4 or IPv6. Hostnames, CIDR ranges, and malformed strings are skipped silently. If no entry is valid, forwarding stays off, and the API starts without an error. After setting it, the deployment must check the effective address, for example that two visitors are counted separately.
+- **One hop only.** Only the rightmost `X-Forwarded-For` entry is used (a forward limit of one). With two proxies in a chain, the API sees the address of the second proxy, not the visitor's. If the deployment puts more than one proxy in front of the API, raise it with us before staging.
+- **Other limits on the same address.** The contact form limit (10 per hour), the sign-in limit (8 per hour per address and email), and the build-content limit (30 per hour) all use it. Without a correct proxy entry, visitors share one budget for each.
+
+Behind a load balancer or reverse proxy the deployment MUST set `ForwardedHeaders:KnownProxies` to that proxy's address, otherwise every visitor looks like the proxy and the contact rate limit is shared by all.
 
 **9.6** Every field has a length cap, including the message. Everything is stored and shown as plain text — the Studio inbox renders it escaped.
 
