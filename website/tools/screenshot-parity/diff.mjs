@@ -121,11 +121,50 @@ function fmtBox(box) {
   return `${box.x.toFixed(1)},${box.y.toFixed(1)} ${box.width.toFixed(1)}x${box.height.toFixed(1)}`;
 }
 
+/** Elements that hold a whole page or a whole region: an entry may never hide one. */
+const CONTAINER_TAGS = new Set(["html", "body", "main", "header", "footer", "nav"]);
+const CONTAINER_CLASSES = new Set(["footer"]);
+const CONTAINER_IDS = new Set(["__next"]);
+
+/**
+ * Why one register selector could hide a whole capture or region, or null when
+ * it is narrow enough. The rule: one selector (no comma list) that either has a
+ * descendant or child combinator or narrows by an attribute or a structural
+ * pseudo-class (:nth-child, :first-child, ...), and whose last compound, the
+ * element actually hidden, is not html, body, main, header, footer, nav,
+ * .footer, #__next, :root, or a bare *.
+ */
+export function wholeCaptureReason(selector) {
+  // Blank out [...] and (...) contents so their characters are not read as structure.
+  let flat = "";
+  let depth = 0;
+  for (const ch of selector.trim()) {
+    if (ch === "[" || ch === "(") { if (depth === 0) flat += ch; depth++; continue; }
+    if (ch === "]" || ch === ")") { depth--; if (depth === 0) flat += ch; continue; }
+    flat += depth > 0 ? "" : ch;
+  }
+  if (flat.includes(",")) return "it is a selector list; give each selector separately";
+  const compounds = flat.split(/\s*[>+~]\s*|\s+/).filter(Boolean);
+  const last = compounds[compounds.length - 1] ?? "";
+  const narrowed = compounds.length > 1 || /\[|:(nth-child|nth-last-child|nth-of-type|nth-last-of-type|first-child|last-child|first-of-type|last-of-type|only-child)\b/.test(flat);
+  if (!narrowed) return "it has no descendant or child part, no attribute, and no :nth-child or :first-child part";
+  const tag = /^([a-zA-Z][\w-]*|\*)/.exec(last)?.[1]?.toLowerCase();
+  if (tag && CONTAINER_TAGS.has(tag)) return `the element it hides is <${tag}>, a whole-page or whole-region container`;
+  const cls = [...last.matchAll(/\.([\w-]+)/g)].map((m) => m[1]).find((name) => CONTAINER_CLASSES.has(name));
+  if (cls) return `the element it hides is .${cls}, a whole-region container`;
+  const id = [...last.matchAll(/#([\w-]+)/g)].map((m) => m[1]).find((name) => CONTAINER_IDS.has(name));
+  if (id) return `the element it hides is #${id}, a whole-page container`;
+  if (/:root\b/.test(last)) return "the element it hides is :root, the whole page";
+  if (last === "*") return "the element it hides is *, any element";
+  return null;
+}
+
 /**
  * The screenshot register. Each entry hides one or more selectors on both
  * sides, for the page pairs, widths, and browsers it names. Everything else on
  * those pages is still compared with zero tolerance. An entry cannot accept a
- * whole capture: it must name at least one selector.
+ * whole capture: it must name at least one selector, and each selector must
+ * pass wholeCaptureReason.
  */
 export function readRegister(raw, browsers = ["chromium", "firefox", "webkit"]) {
   const parsed = JSON.parse(raw);
@@ -145,6 +184,10 @@ export function readRegister(raw, browsers = ["chromium", "firefox", "webkit"]) 
     }
     if (!Array.isArray(entry.selectors) || entry.selectors.length === 0 || !entry.selectors.every((s) => typeof s === "string" && s.trim())) {
       throw new Error(`${where} needs at least one selector. A whole capture cannot be accepted.`);
+    }
+    for (const selector of entry.selectors) {
+      const why = wholeCaptureReason(selector);
+      if (why) throw new Error(`${where}: selector ${JSON.stringify(selector)} is refused because ${why}. A whole capture or region cannot be accepted.`);
     }
     if (typeof entry.reason !== "string" || !entry.reason.trim()) throw new Error(`${where} needs a reason.`);
   }

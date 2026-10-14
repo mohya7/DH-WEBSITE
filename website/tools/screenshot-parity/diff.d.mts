@@ -11,6 +11,7 @@ export declare function comparePng(left: Buffer, right: Buffer, options?: { pixe
 export declare function sameShape(oldAspect: number, after: ImageRecord): boolean;
 export declare function imageSimilarity(a: number[] | null, b: number[] | null): number | null;
 export declare function compareImages(oldImages: ImageRecord[], newImages: ImageRecord[]): { problems: string[]; scores: ImageScore[] };
+export declare function wholeCaptureReason(selector: string): string | null;
 export declare function readRegister(raw: string, browsers?: string[]): Register;
 export declare function entriesFor(register: Register, capture: { old: string; new: string; width: number; browser: string }): RegisterEntry[];
 export declare function staleSelectors(entries: RegisterEntry[], oldHidden: Record<string, number> | undefined, newHidden: Record<string, number> | undefined): string[];

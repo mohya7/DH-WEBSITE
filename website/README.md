@@ -233,7 +233,9 @@ How a capture is judged:
 - **Settling.** Reduced motion; the page is scrolled once to the bottom and back;
   reveal targets and counters get their final state; every image is loaded and
   decoded; fonts are ready; then the page is captured until two consecutive
-  captures are identical (at most five). A page that never gives two identical
+  captures are identical (at most 8 captures per load), and the whole load is
+  repeated until two consecutive loads give the same picture (at most 4 loads,
+  the first also a warm-up). A page that never gives two identical
   captures is `unstable`, which fails.
 - **Zero tolerance.** Every changed pixel counts: pixelmatch threshold 0 with
   anti-aliased pixels included (`threshold.json`).

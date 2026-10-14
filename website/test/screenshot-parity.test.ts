@@ -4,7 +4,7 @@ import { PNG } from "pngjs";
 import { describe, expect, it } from "vitest";
 import { pairs as shared } from "../tools/page-pairs.mjs";
 import { pairs } from "../tools/screenshot-parity/pairs.mjs";
-import { absentPages, compareImages, comparePng, entriesFor, imageSimilarity, readRegister, sameShape, staleSelectors } from "../tools/screenshot-parity/diff.mjs";
+import { absentPages, compareImages, comparePng, entriesFor, imageSimilarity, readRegister, sameShape, staleSelectors, wholeCaptureReason } from "../tools/screenshot-parity/diff.mjs";
 import { browsersFromEnv, portFromEnv } from "../tools/screenshot-parity/compare.mjs";
 import { fileFor } from "../tools/screenshot-parity/server.mjs";
 import { worstImages } from "../tools/screenshot-parity/report.mjs";
@@ -79,21 +79,77 @@ describe("screenshot parity: register", () => {
   };
   const raw = (differences: unknown[]) => JSON.stringify({ differences });
 
+  // The approved entries, pinned: a changed selector or a widened pair list turns this red.
+  const approved = [
+    { id: "footer-company-column-links", pairs: 24, selectors: ["footer.footer .footer-cols > .footer-col:nth-child(2) a"] },
+    { id: "footer-main-email", pairs: 18, selectors: ["footer.footer .footer-contact a[href^=\"mailto:\"]"] },
+    { id: "footer-copyright-build-year", pairs: 24, selectors: ["footer.footer .footer-bottom > span:first-child"] },
+    { id: "article-footer-service-labels", pairs: 3, selectors: ["footer.footer .footer-cols > .footer-col:nth-child(1) a"] },
+    { id: "contact-section-email", pairs: 1, selectors: ["main a[href^=\"mailto:sales@\"]"] },
+  ];
+
   it("holds only the entries the marketing lead approved, each complete", () => {
     const { differences } = readRegister(fs.readFileSync(path.join(tool, "accepted-differences.json"), "utf8"));
-    expect(differences.map((d) => d.id)).toEqual([
-      "footer-company-column-links",
-      "footer-main-email",
-      "footer-copyright-build-year",
-      "article-footer-service-labels",
-      "contact-section-email",
-    ]);
-    for (const d of differences) {
-      expect(d.pairs.length).toBeGreaterThan(0);
-      expect(d.browsers.length).toBeGreaterThan(0);
-      expect(d.selectors.length).toBeGreaterThan(0);
+    expect(differences.map((d) => d.id)).toEqual(approved.map((a) => a.id));
+    for (const [i, d] of differences.entries()) {
+      expect(d.selectors).toEqual(approved[i].selectors);
+      expect(d.pairs).toHaveLength(approved[i].pairs);
+      expect(d.widths).toEqual([1440, 768, 390]);
+      expect(d.browsers).toEqual(["chromium", "firefox", "webkit"]);
       expect(d.reason).toMatch(/^Marketing lead decision/);
     }
+  });
+
+  it("accepts the five approved selectors", () => {
+    for (const selector of approved.flatMap((a) => a.selectors)) expect(wholeCaptureReason(selector)).toBeNull();
+    expect(() => readRegister(raw(approved.map((a) => ({ ...entry, id: a.id, selectors: a.selectors }))))).not.toThrow();
+  });
+
+  const refused = (selector: string) => () => readRegister(raw([{ ...entry, selectors: [selector] }]));
+  const bare = /no descendant or child part, no attribute, and no :nth-child or :first-child part/;
+
+  it("refuses body", () => {
+    expect(refused("body")).toThrow(/selector "body" is refused because it has no descendant or child part/);
+    expect(refused("html > body")).toThrow(/selector "html > body" is refused because the element it hides is <body>, a whole-page or whole-region container/);
+  });
+
+  it("refuses html", () => {
+    expect(refused("html")).toThrow(bare);
+    expect(refused("html:first-child")).toThrow(/the element it hides is <html>/);
+  });
+
+  it("refuses :root", () => {
+    expect(refused(":root")).toThrow(bare);
+    expect(refused("html:root[lang]")).toThrow(/the element it hides is <html>/);
+    expect(refused("[lang]:root")).toThrow(/the element it hides is :root, the whole page/);
+  });
+
+  it("refuses *", () => {
+    expect(refused("*")).toThrow(bare);
+    expect(refused("body > *")).toThrow(/the element it hides is \*, any element/);
+  });
+
+  it("refuses main", () => {
+    expect(refused("main")).toThrow(bare);
+    expect(refused("body > main")).toThrow(/the element it hides is <main>/);
+  });
+
+  it("refuses footer.footer", () => {
+    expect(refused("footer.footer")).toThrow(bare);
+    expect(refused("body > footer.footer")).toThrow(/the element it hides is <footer>/);
+    expect(refused("body .footer")).toThrow(/the element it hides is \.footer, a whole-region container/);
+  });
+
+  it("refuses a bare footer", () => {
+    expect(refused("footer")).toThrow(/selector "footer" is refused because it has no descendant or child part/);
+    expect(refused("body footer")).toThrow(/the element it hides is <footer>/);
+  });
+
+  it("refuses header, nav, #__next, and selector lists", () => {
+    expect(refused("body > header")).toThrow(/<header>/);
+    expect(refused("body nav")).toThrow(/<nav>/);
+    expect(refused("body > #__next")).toThrow(/#__next, a whole-page container/);
+    expect(refused("footer.footer a, body")).toThrow(/selector list/);
   });
 
   it("refuses an entry that would accept a whole capture, or that is incomplete", () => {
