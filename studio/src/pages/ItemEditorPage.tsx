@@ -7,6 +7,7 @@ import { FormWalker } from "../content/FormWalker";
 import { MediaPicker, type MediaChoice } from "../content/MediaPicker";
 import { inlineMarksAllowed, labelFromKey, publicPath, routeFor, type CollectionName } from "../content/model";
 import { useSchemas } from "../content/schemas";
+import { PreviewDrawer } from "../preview/PreviewDrawer";
 import { StatusChip } from "../ui/StatusChip";
 
 type SectionDraft = {
@@ -72,6 +73,7 @@ export function ItemEditorPage({ collection }: { collection: CollectionName }) {
   const [picker, setPicker] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const snapshot = useMemo(() => JSON.stringify(payloadOf()), [title, slug, metaTitle, metaDescription, shareImageId, shareAlt, canonical, noIndex, sortOrder, fields, sections]);
   const dirty = item !== null && snapshot !== saved;
@@ -276,6 +278,7 @@ export function ItemEditorPage({ collection }: { collection: CollectionName }) {
           {item?.status === "published" ? <Button onClick={() => void act(`/api/v1/${collection}/${id}/unpublish`, "Unpublished.")}>Unpublish</Button> : null}
           {item?.hasWorkingCopy ? <Button onClick={() => void act(`/api/v1/${collection}/${id}/discard`, "Draft discarded.")}>Discard draft</Button> : null}
           {collection === "vacancies" && item?.status === "published" ? <Button onClick={() => void act(`/api/v1/vacancies/${id}/end`, "Vacancy ended.")}>End</Button> : null}
+          {route.sections ? <Button onClick={() => setPreviewOpen(true)}>Preview draft</Button> : null}
           <Button onClick={() => void openRevisions()}>Revisions</Button>
           {auth.user?.role === "admin" && item?.status !== "published" ? <Button danger onClick={() => void remove()}>Delete</Button> : null}
         </Space>
@@ -411,6 +414,7 @@ export function ItemEditorPage({ collection }: { collection: CollectionName }) {
       >
         <p>This form has unsaved changes.</p>
       </Modal>
+      {route.sections ? <PreviewDrawer open={previewOpen} onClose={() => setPreviewOpen(false)} input={{ collection, slug, title, sections }} /> : null}
       <Drawer title="Revisions" open={revisionsOpen} onClose={() => { setRevisionsOpen(false); setSnapshotText(null); }}>
         <Typography.Paragraph>Restore writes a draft. It does not publish.</Typography.Paragraph>
         {snapshotText !== null ? <pre className="seo-preview mb-4 max-h-48 overflow-auto text-xs">{snapshotText}</pre> : null}

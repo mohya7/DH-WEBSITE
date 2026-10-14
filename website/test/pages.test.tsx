@@ -37,6 +37,14 @@ describe('page composition', () => {
     expect(html).toContain('<li>Design</li><li>Deliver</li>');
     expect(html).toContain('href="/careers/apply?role=engineer"');
   });
+  it('puts the hub page class on the blogs and partners body, which the design uses for spacing, chips, and the intro width', () => {
+    const site = createSite(snapshotContent());
+    for (const [path, body] of [['/blogs', 'page-hub page-blogs'], ['/partners', 'page-hub page-partners']] as const) {
+      const item = site.routes.find((route) => route.path === path)!.item;
+      const html = renderToStaticMarkup(<PageScaffold site={site} item={item} pageType="page" path={path} />);
+      expect(html).toContain(`data-body-class="${body}"`);
+    }
+  });
   it('does not collide a repeated heading with a literal numbered heading', () => {
     const headings = ['Title', 'Title', 'Title-2', 'Title'].map((text) => ({ type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text }] }));
     expect(headingAnchors({ type: 'doc', content: headings }).map((heading) => heading.id)).toEqual(['title', 'title-2', 'title-2-2', 'title-3']);
