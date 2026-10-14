@@ -22,7 +22,7 @@ Work in `D:\work\DigitalHub\dh-platform`, branch `rebuild/dotnet-platform`. Work
 | Unpublished references | **Phase C.** A reference to an unpublished item is never rendered as a link. The card is skipped at build |
 | Error pages | **Phase C.** The current site has no 404 or 500 pages. Build them as new pages from existing design components — header, footer, hub hero, and call to action — with no new styles. Content is edited in the Studio (`error-404` / `error-500`) |
 | Vacancy bridge to Node | **Phase D**, not this phase |
-| ForwardedHeaders:KnownProxies | **Phase D deployment.** Set this to the production IIS proxy address. If it is empty, `X-Forwarded-For` is ignored and the contact rate limit counts every visitor as one |
+| ForwardedHeaders:KnownProxies | **Phase D deployment.** Set this to the production IIS proxy address. If it is empty or missing, forwarded headers are not applied, so `X-Forwarded-For` is ignored and `RemoteIpAddress` stays the connection address; the contact rate limit then counts every request from that connection as one visitor. Behind a load balancer or reverse proxy the deployment MUST set `ForwardedHeaders:KnownProxies` to that proxy's address, otherwise every visitor looks like the proxy and the contact rate limit is shared by all |
 | Website design | Untouched by this phase |
 
 ### Hosting
@@ -272,7 +272,7 @@ Stop and report before building.
 
 **9.4** Stores to `contact_requests` with status `new`. The website form is wired to it in Phase C.
 
-**9.5** The website reaches this endpoint through IIS, so the API sees the proxy's address, not the visitor's. Forwarded headers trust only the known proxy: `X-Forwarded-For` from that address is used; from any other address it is ignored. The rate limit uses the resulting visitor address.
+**9.5** The website reaches this endpoint through IIS, so the API sees the proxy's address, not the visitor's, only when `ForwardedHeaders:KnownProxies` lists that proxy. When the list is empty or missing, forwarded headers are not applied: `X-Forwarded-For` is ignored and `RemoteIpAddress` stays the connection address. When it has entries, `X-Forwarded-For` from one of those addresses is used and from any other address it is ignored. The rate limit uses the resulting address. Behind a load balancer or reverse proxy the deployment MUST set `ForwardedHeaders:KnownProxies` to that proxy's address, otherwise every visitor looks like the proxy and the contact rate limit is shared by all.
 
 **9.6** Every field has a length cap, including the message. Everything is stored and shown as plain text — the Studio inbox renders it escaped.
 

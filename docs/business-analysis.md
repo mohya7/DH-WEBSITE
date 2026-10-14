@@ -630,7 +630,7 @@ What DevOps must design from this analysis.
 
 **IIS configuration:** URL Rewrite for redirects and clean URLs; Application Request Routing to the Node hiring system; custom error pages with correct status codes; security headers; TLS termination.
 
-**Configuration and secrets:** connection strings, token signing key, initial admin password, SES credentials, analytics container ID. None in the repository.
+**Configuration and secrets:** connection strings, token signing key, initial admin password, SES credentials, analytics container ID, `ForwardedHeaders:KnownProxies`. None in the repository.
 
 **Monitoring and alerts:** health endpoints; uptime on the website, Studio, and APIs; error tracking; alerts on build failure, backup failure or a backup that did not run, disk above 80%, and certificate expiry within 30 days.
 
