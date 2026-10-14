@@ -95,6 +95,14 @@
       "line": 84,
       "owner": "api (importer)",
       "reason": "False positive. Path.Combine joins the operator's source directory with the literal index.html."
+    },
+    {
+      "id": "csharp.lang.security.sqli.csharp-sqli.csharp-sqli:api/tests/DigitalHub.Api.Tests/AuditRollbackTests.cs:78",
+      "rule": "csharp.lang.security.sqli.csharp-sqli.csharp-sqli",
+      "path": "api/tests/DigitalHub.Api.Tests/AuditRollbackTests.cs",
+      "line": 78,
+      "owner": "api",
+      "reason": "False positive. Test-only helper on DigitalHubContent_Test. CommandText is a fixed CREATE or DROP TRIGGER. The interpolated name is the constant audit_fail_create_page_test, not a request value."
     }
   ]
 }

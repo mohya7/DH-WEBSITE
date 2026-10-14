@@ -742,7 +742,7 @@ test("a semgrep INFO does not fail and is not printed", () => {
   const result = run(["semgrep", file]);
   assert.equal(result.code, 0, result.out);
   assert.match(result.out, /0 new/);
-  assert.equal(result.out.includes("csharp.lang.security.sqli"), false, result.out);
+  assert.equal(result.out.includes("Example.cs"), false, result.out);
   assert.equal(result.out.includes(canary), false, result.out);
 });
 
