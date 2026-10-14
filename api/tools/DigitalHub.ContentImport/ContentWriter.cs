@@ -243,6 +243,8 @@ static partial class ContentWriter
         foreach (var item in collections.GetProperty("caseStudies").EnumerateArray())
         {
             var study = CaseFrom(item, media, sourceRoot);
+            documents.TryGetValue("cases/" + study.Slug + ".html", out var casePage);
+            study.Theme = CaseTheme(casePage);
             ApplyListedSeo(study, "cases/" + study.Slug + ".html", documents, media, warnings);
             model.Cases.Add(study);
         }
@@ -1458,7 +1460,7 @@ static partial class ContentWriter
 
     private static bool SameCase(CaseStudy left, CaseStudy right) =>
         SameRecord(left, right) && left.Summary == right.Summary && left.ImageId == right.ImageId && left.ImageAltOverride == right.ImageAltOverride
-        && left.Metric == right.Metric && left.Featured == right.Featured && left.Categories.SequenceEqual(right.Categories);
+        && left.Metric == right.Metric && left.Theme == right.Theme && left.Featured == right.Featured && left.Categories.SequenceEqual(right.Categories);
 
     private static bool SameBlog(BlogPost left, BlogPost right) =>
         SameRecord(left, right) && left.Summary == right.Summary && left.ImageId == right.ImageId && left.ImageAltOverride == right.ImageAltOverride
@@ -1702,6 +1704,17 @@ static partial class ContentWriter
         }
 
         return builder.ToString().Trim('-');
+    }
+
+    /// <summary>The old page's body class. Orange and teal are accents; every other page stays the default blue.</summary>
+    internal static string? CaseTheme(AngleSharp.Html.Dom.IHtmlDocument? document)
+    {
+        var classes = (document?.Body?.ClassName ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (classes.Contains("theme-orange"))
+            return "orange";
+        if (classes.Contains("theme-teal"))
+            return "teal";
+        return null;
     }
 
     private static string Accent(AngleSharp.Html.Dom.IHtmlDocument document)

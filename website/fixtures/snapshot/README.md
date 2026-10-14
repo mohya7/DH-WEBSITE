@@ -5,11 +5,11 @@ the script again instead.
 
 | | |
 |---|---|
-| Generated | 2026-10-12T10:07:28.746Z |
+| Generated | 2026-10-13T14:32:23.133Z |
 | Source database | `DigitalHubContent_Parity` (throwaway, rebuilt each run) |
 | Content imported from | `feature/interviewer-portal` at `eb05f0647c3458cc612f8a9ed8625fbb0ebc7752` |
-| API commit | `1406a85946f194717876e2a860c74b5e45cfff7b` |
-| content.json | 159,550 bytes |
+| API commit | `6ac6d8a73f564b84613142ee9676b43c93f186b3` |
+| content.json | 159,738 bytes |
 | media | 108 files, 3,025,560 bytes |
 
 ## Item counts

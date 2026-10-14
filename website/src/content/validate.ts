@@ -34,6 +34,7 @@ function loadValidators(): Validators {
   const ajv = new Ajv2020({ allErrors: true, strict: true });
   ajv.addKeyword("x-dh-kind");
   ajv.addKeyword("x-dh-label");
+  ajv.addKeyword("x-dh-help");
   ajv.addFormat("uuid", /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
   ajv.addSchema(readJson(path.join(packagesRoot, "sections", "defs.json")));
 

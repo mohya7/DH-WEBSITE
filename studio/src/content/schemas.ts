@@ -7,11 +7,12 @@ export type SchemaNode = {
   properties?: Record<string, SchemaNode>;
   items?: SchemaNode;
   required?: string[];
-  enum?: string[];
+  enum?: (string | null)[];
   oneOf?: SchemaNode[];
   const?: string;
   "x-dh-kind"?: string;
   "x-dh-label"?: string;
+  "x-dh-help"?: string;
 };
 
 export type SchemaCatalog = {

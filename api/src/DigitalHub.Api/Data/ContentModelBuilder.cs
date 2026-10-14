@@ -87,6 +87,14 @@ public static class ContentModelBuilder
             entity.Property(post => post.DateModified).HasColumnType("date");
         });
 
+        builder.Entity<CaseStudy>(entity =>
+        {
+            entity.Property(study => study.Theme).HasMaxLength(16);
+            entity.ToTable(table => table.HasCheckConstraint(
+                "ck_case_studies_theme",
+                "theme IS NULL OR theme IN ('orange', 'teal')"));
+        });
+
         builder.Entity<Redirect>(entity =>
         {
             entity.ToTable("redirects");

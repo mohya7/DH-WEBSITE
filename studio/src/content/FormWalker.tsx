@@ -135,6 +135,7 @@ function Field({
         {label}
         {required ? " *" : ""}
       </span>
+      {schema["x-dh-help"] ? <span className="mb-1 block text-xs" style={{ color: "var(--dh-text-muted)" }}>{schema["x-dh-help"]}</span> : null}
       <Control kind={kind} schema={schema} value={value} onChange={onChange} />
     </label>
   );
@@ -210,9 +211,9 @@ function Control({
   }
   if (schema.enum !== undefined) {
     return (
-      <select className="native-control" value={text(value)} onChange={(event) => onChange(event.target.value)}>
+      <select className="native-control" value={text(value)} onChange={(event) => onChange(event.target.value === "" ? null : event.target.value)}>
         <option value="">Choose</option>
-        {schema.enum.map((option) => (
+        {schema.enum.filter((option): option is string => typeof option === "string").map((option) => (
           <option key={option} value={option}>{option}</option>
         ))}
       </select>
@@ -237,7 +238,7 @@ function ReferenceField({
   onChange: (value: unknown) => void;
 }) {
   const current = isRecord(value) ? value : { type: schema.properties?.type?.enum?.[0] ?? "service", id: "" };
-  const options = schema.properties?.type?.enum ?? Object.keys(referenceCollections);
+  const options = (schema.properties?.type?.enum ?? Object.keys(referenceCollections)).filter((option): option is string => typeof option === "string");
   const type = text(current.type) || options[0] || "service";
   const [search, setSearch] = useState("");
   const [items, setItems] = useState<Array<{ id: string; title: string }>>([]);

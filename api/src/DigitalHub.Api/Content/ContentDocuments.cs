@@ -107,7 +107,7 @@ public static class ContentFields
         ["pages"] = [],
         ["services"] = ["summary", "icon", "visual", "featured"],
         ["partners"] = ["summary", "imageId", "imageAltOverride", "variant", "featured"],
-        ["case-studies"] = ["summary", "imageId", "imageAltOverride", "metric", "categories", "featured"],
+        ["case-studies"] = ["summary", "imageId", "imageAltOverride", "metric", "categories", "theme", "featured"],
         ["blog-posts"] = ["summary", "imageId", "imageAltOverride", "category", "categoryLabel", "readTime", "accent", "cluster", "body", "answerBlock", "faq", "datePublished", "dateModified", "featured"],
         ["vacancies"] = ["summary", "department", "location", "employmentType", "aboutRole", "keyResponsibilities", "requiredSkills", "niceToHave", "roleOffers", "interviewStages", "featured"],
         ["team-members"] = ["role", "imageId", "imageAltOverride", "email", "linkedIn", "featured"],
@@ -212,6 +212,7 @@ public static class ContentFields
                 OptionalShort(draft, errors, "imageAltOverride", 300);
                 OptionalShort(draft, errors, "metric", 200);
                 OptionalStrings(draft, errors, "categories");
+                OptionalTheme(draft, errors);
                 OptionalBool(draft, errors, "featured");
                 break;
             case "blog-posts":
@@ -288,6 +289,7 @@ public static class ContentFields
                 study.ImageAltOverride = ShortNull(fields, "imageAltOverride", study.ImageAltOverride);
                 study.Metric = Short(fields, "metric", study.Metric);
                 study.Categories = Strings(fields, "categories", study.Categories);
+                study.Theme = ThemeValue(fields, study.Theme);
                 study.Featured = Bool(fields, "featured", study.Featured);
                 break;
             case BlogPost post:
@@ -354,7 +356,7 @@ public static class ContentFields
         {
             Service service => new { service.Summary, service.Icon, service.Visual, service.Featured },
             Partner partner => new { partner.Summary, partner.ImageId, partner.ImageAltOverride, partner.Variant, partner.Featured },
-            CaseStudy study => new { study.Summary, study.ImageId, study.ImageAltOverride, study.Metric, study.Categories, study.Featured },
+            CaseStudy study => new { study.Summary, study.ImageId, study.ImageAltOverride, study.Metric, study.Categories, study.Theme, study.Featured },
             BlogPost post => new
             {
                 post.Summary,
@@ -424,6 +426,14 @@ public static class ContentFields
             Add(errors, name, "is longer than " + max + " characters.");
     }
 
+    private static void OptionalTheme(DraftDocument draft, Dictionary<string, List<string>> errors)
+    {
+        if (!draft.Fields.TryGetValue("theme", out var value) || value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+            return;
+        if (value.ValueKind != JsonValueKind.String || value.GetString() is not ("orange" or "teal"))
+            Add(errors, "theme", "Choose orange, teal, or leave it empty.");
+    }
+
     private static void OptionalBool(DraftDocument draft, Dictionary<string, List<string>> errors, string name)
     {
         if (!draft.Fields.ContainsKey(name))
@@ -487,6 +497,16 @@ public static class ContentFields
 
     private static string Short(IReadOnlyDictionary<string, JsonElement> fields, string name, string current) =>
         fields.TryGetValue(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() ?? "" : current;
+
+    private static string? ThemeValue(IReadOnlyDictionary<string, JsonElement> fields, string? current)
+    {
+        if (!fields.TryGetValue("theme", out var value))
+            return current;
+        if (value.ValueKind == JsonValueKind.Null)
+            return null;
+        var text = value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+        return text is "orange" or "teal" ? text : current;
+    }
 
     private static string? ShortNull(IReadOnlyDictionary<string, JsonElement> fields, string name, string? current)
     {
