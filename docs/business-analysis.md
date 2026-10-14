@@ -46,7 +46,7 @@ Staging carries temporary integration costs — two applications on one domain, 
 - Content Studio rebuild
 - Shared identity for all roles
 - Content migration from branch `feature/interviewer-portal`
-- The transition architecture that lets the new website coexist with the existing hiring system
+- The transition architecture that lets the new website coexist with the existing hiring system (dropped until Phase G; the website, Studio and Content API stand alone)
 
 **Defined here, built in the next stage**
 - Hiring platform rebuild: applications, pipeline, interviewer portal, booking, notifications, onboarding handoff
@@ -406,7 +406,7 @@ Unchanged in this stage. Recorded here so the hiring rebuild has the reference.
 | FR-S-17 | Edit site settings: contact details, social links, footer, default SEO, organisation details, analytics container, cookie banner text |
 | FR-S-18 | Contact enquiries inbox |
 | FR-S-19 | Publishing is blocked when required SEO fields or alt text are missing |
-| FR-S-20 | On publishing vacancies, write the vacancy file in the shape the Node hiring system reads |
+| FR-S-20 | On publishing vacancies, write the vacancy file in the shape the Node hiring system reads (dropped until Phase G; the website, Studio and Content API stand alone) |
 | FR-S-21 | Edit the content of the 404 and 500 pages |
 | FR-S-22 | Show whether published content is live or awaiting a build |
 

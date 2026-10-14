@@ -85,7 +85,8 @@ http.createServer((req, res) => {
     const settings = { ...(content.settings ?? {}) };
     const fixture = process.env.SNAPSHOT_SETTINGS_FIXTURE?.trim();
     if (fixture) {
-      if (!/^[A-Za-z0-9_-]+$/.test(fixture)) {
+      // Same rule as website/src/content/config.ts: lowercase letters, digits, and hyphens.
+      if (!/^[a-z0-9-]+$/.test(fixture)) {
         res.writeHead(400, { "Content-Type": types[".txt"] });
         return res.end("SNAPSHOT_SETTINGS_FIXTURE must be a file name");
       }
