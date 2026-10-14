@@ -522,3 +522,202 @@ test("Codex's nine advisory mutations fail and name the file", () => {
     assert.equal(result.out.includes("undefined"), false, name);
   }
 });
+
+test("confirm-npm-duplicate-vulnerabilities", () => {
+  const clean = JSON.parse(cleanNpm);
+  const highNpm = {
+    ...clean,
+    vulnerabilities: {
+      review: {
+        severity: "high",
+        via: [{ severity: "high", url: "https://github.com/advisories/GHSA-review-duplicate", title: "Review advisory" }],
+      },
+    },
+  };
+  const text = `${JSON.stringify(highNpm).slice(0, -1)},"vulnerabilities":{}}`;
+  const file = write("confirm-npm-duplicate-vulnerabilities.json", text);
+  const result = run(["npm", file, "studio"]);
+  assert.equal(result.code, 1, result.out);
+  assert.match(result.out, /duplicate key vulnerabilities/);
+  assert.ok(result.out.includes(file), result.out);
+  assert.equal(result.out.includes("GHSA-review-duplicate"), false);
+});
+
+test("confirm-nuget-duplicate-projects", () => {
+  const highDot = {
+    version: 1,
+    parameters: "",
+    sources: [],
+    projects: [{
+      path: "Review.csproj",
+      frameworks: [{
+        framework: "net10.0",
+        topLevelPackages: [{
+          id: "Review",
+          resolvedVersion: "1.0",
+          vulnerabilities: [{ severity: "High", advisoryurl: "https://github.com/advisories/GHSA-review-duplicate" }],
+        }],
+      }],
+    }],
+  };
+  const text = `${JSON.stringify(highDot).slice(0, -1)},"projects":[]}`;
+  const file = write("confirm-nuget-duplicate-projects.json", text);
+  const result = run(["dotnet", file]);
+  assert.equal(result.code, 1, result.out);
+  assert.match(result.out, /duplicate key projects/);
+  assert.ok(result.out.includes(file), result.out);
+  assert.equal(result.out.includes("GHSA-review-duplicate"), false);
+});
+
+test("a duplicate key nested inside an advisory fails and names the key", () => {
+  const clean = JSON.parse(cleanNpm);
+  const body = {
+    ...clean,
+    vulnerabilities: {
+      review: {
+        severity: "high",
+        via: [{ severity: "high", url: "https://github.com/advisories/GHSA-review-nested", title: "Review advisory" }],
+      },
+    },
+  };
+  const text = JSON.stringify(body).replace(
+    '"url":"https://github.com/advisories/GHSA-review-nested"',
+    '"severity":"low","url":"https://github.com/advisories/GHSA-review-nested"',
+  );
+  const file = write("confirm-npm-duplicate-advisory-key.json", text);
+  const result = run(["npm", file, "studio"]);
+  assert.equal(result.code, 1, result.out);
+  assert.match(result.out, /duplicate key severity/);
+  assert.ok(result.out.includes(file), result.out);
+  assert.equal(result.out.includes("GHSA-review-nested"), false);
+});
+
+test("confirm-npm-unknown-severity", () => {
+  const clean = JSON.parse(cleanNpm);
+  const urgent = {
+    ...clean,
+    vulnerabilities: {
+      review: {
+        severity: "high",
+        via: [{ severity: "urgent", url: "https://github.com/advisories/GHSA-review-urgent", title: "Review advisory" }],
+      },
+    },
+  };
+  const file = write("confirm-npm-unknown-severity.json", JSON.stringify(urgent));
+  const result = run(["npm", file, "studio"]);
+  assert.equal(result.code, 1, result.out);
+  assert.match(result.out, /field severity is not a known value/);
+  assert.ok(result.out.includes(file), result.out);
+  assert.equal(result.out.includes("GHSA-review-urgent"), false);
+  const upper = structuredClone(urgent);
+  upper.vulnerabilities.review.severity = "HIGH";
+  upper.vulnerabilities.review.via[0].severity = "high";
+  const packageFile = write("confirm-npm-severity-case.json", JSON.stringify(upper));
+  const packageResult = run(["npm", packageFile, "studio"]);
+  assert.equal(packageResult.code, 1, packageResult.out);
+  assert.match(packageResult.out, /field severity is not a known value/);
+  const advisoryUpper = structuredClone(urgent);
+  advisoryUpper.vulnerabilities.review.via[0].severity = "HIGH";
+  const advisoryFile = write("confirm-npm-advisory-severity-case.json", JSON.stringify(advisoryUpper));
+  const advisoryResult = run(["npm", advisoryFile, "studio"]);
+  assert.equal(advisoryResult.code, 1, advisoryResult.out);
+  assert.match(advisoryResult.out, /field severity is not a known value/);
+});
+
+test("confirm-gitleaks-line-negative", () => {
+  const knownLeak = known.gitleaks[0];
+  const validLeak = {
+    Fingerprint: knownLeak.fingerprint,
+    RuleID: "generic-api-key",
+    File: "example.txt",
+    StartLine: 1,
+    Commit: "abcdef0123456789",
+    Secret: canary,
+    Match: canary,
+  };
+  const cases = [
+    ["confirm-gitleaks-line-negative.json", -1],
+    ["confirm-gitleaks-line-zero.json", 0],
+    ["confirm-gitleaks-line-fraction.json", 1.5],
+  ];
+  for (const [name, line] of cases) {
+    const file = write(name, JSON.stringify([{ ...validLeak, StartLine: line }]));
+    const result = run(["gitleaks", file, "full-history"]);
+    assert.equal(result.code, 1, `${name}\n${result.out}`);
+    assert.match(result.out, /field StartLine is not a positive integer/);
+    assert.ok(result.out.includes(file), name);
+    assert.equal(result.out.includes(canary), false, name);
+    assert.equal(result.out.includes("::warning"), false, name);
+  }
+  for (const [name, body] of [
+    ["empty-fingerprint.json", { ...validLeak, Fingerprint: "" }],
+    ["empty-rule.json", { ...validLeak, RuleID: "" }],
+    ["empty-file.json", { ...validLeak, File: "" }],
+    ["empty-commit.json", { ...validLeak, Commit: "" }],
+  ]) {
+    const file = write(name, JSON.stringify([body]));
+    const result = run(["gitleaks", file, "full-history"]);
+    assert.equal(result.code, 1, `${name}\n${result.out}`);
+    assert.match(result.out, /is missing/);
+    assert.ok(result.out.includes(file), name);
+    assert.equal(result.out.includes(canary), false, name);
+  }
+});
+
+function watchReads(value, specPath, reads) {
+  if (value === null || typeof value !== "object") return value;
+  const pathOf = (prop) => {
+    const part = Array.isArray(value) && /^\d+$/.test(prop) ? Number(prop) : prop;
+    return [...specPath, part];
+  };
+  const note = (prop) => {
+    if (typeof prop !== "string" || (Array.isArray(value) && prop === "length")) return;
+    reads.add(JSON.stringify(pathOf(prop)));
+  };
+  return new Proxy(value, {
+    get(target, prop, receiver) {
+      note(prop);
+      const child = Reflect.get(target, prop, receiver);
+      return typeof prop === "string" ? watchReads(child, pathOf(prop), reads) : child;
+    },
+    has(target, prop) {
+      note(prop);
+      return Reflect.has(target, prop);
+    },
+    getOwnPropertyDescriptor(target, prop) {
+      note(prop);
+      return Reflect.getOwnPropertyDescriptor(target, prop);
+    },
+  });
+}
+
+function fieldShape(specPath) {
+  return JSON.stringify(specPath.map((part) => (typeof part === "number" ? "*" : part)));
+}
+
+test("every field the gate reads is listed, and every listed field is read", async () => {
+  const { validateNpm, validateDotnet, validateGitleaks, keepSerious, consumedFields: fields } = await import(pathToFileURL(gate).href);
+  const dotnetBody = structuredClone(mutationFixtures.dotnet.body);
+  // The listed transitivePackages field is the array. Its items use the same
+  // package shape as topLevelPackages, which is the path the list records.
+  dotnetBody.projects[0].frameworks[0].transitivePackages = [];
+  const fixtures = {
+    npm: mutationFixtures.npm.body,
+    dotnet: dotnetBody,
+    gitleaks: mutationFixtures.gitleaks.body,
+  };
+  for (const [tool, body] of Object.entries(fixtures)) {
+    const reads = new Set();
+    const proxied = watchReads(structuredClone(body), [], reads);
+    // Array.isArray does not touch the proxy. The gitleaks list names that root value.
+    if (fields[tool].some((spec) => spec.path.length === 0)) reads.add("[]");
+    const found = tool === "npm" ? validateNpm(proxied) : tool === "dotnet" ? validateDotnet(proxied) : validateGitleaks(proxied);
+    const kept = tool === "gitleaks" ? found : keepSerious(found);
+    assert.ok(Array.isArray(kept));
+    const shapes = new Set(fields[tool].map((spec) => fieldShape(spec.path)));
+    const unexpected = [...reads].filter((recorded) => !shapes.has(fieldShape(JSON.parse(recorded))));
+    assert.deepEqual(unexpected, [], `${tool} read a field that is not listed: ${unexpected.join(", ")}`);
+    const missing = fields[tool].filter((spec) => ![...reads].some((recorded) => fieldShape(JSON.parse(recorded)) === fieldShape(spec.path)));
+    assert.deepEqual(missing.map((spec) => spec.path), [], `${tool} listed a field it did not read`);
+  }
+});

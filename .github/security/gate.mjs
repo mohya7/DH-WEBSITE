@@ -9,7 +9,8 @@
 //   npm    a `via` array may contain dependency-name strings beside advisory objects
 //   NuGet  an omitted frameworks / topLevelPackages / transitivePackages /
 //          vulnerabilities array is an empty list (a clean project is `{ path }`)
-//   gitleaks  unchanged: each finding must carry the five fields below
+//   gitleaks  each finding must carry the five fields below; StartLine is a
+//             positive integer, and the other four are non-empty strings
 //
 // An empty file, a blank file, a report of the wrong shape, or an npm audit that
 // could not run fails the job. A missing file and malformed JSON still fail.
@@ -77,13 +78,129 @@ function reject(message) {
 }
 
 // A missing file throws, and malformed JSON throws. Both already fail the process.
+// JSON.parse keeps the last duplicate key, so a repeated key is rejected first.
 function read(reportFile) {
   const text = fs.readFileSync(reportFile, "utf8").replace(/^\uFEFF/, "").trim();
   if (!text) reject("the tool produced no output");
+  const duplicate = duplicateKey(text);
+  if (duplicate !== null) reject(`duplicate key ${duplicate}`);
   return JSON.parse(text);
 }
 
+// One pass over the text. Returns the first repeated object key, or null when
+// the text has none (including when it is not JSON; JSON.parse then fails).
+function duplicateKey(text) {
+  let i = 0;
+  const n = text.length;
+  function skipWs() {
+    while (i < n) {
+      const code = text.charCodeAt(i);
+      if (code !== 32 && code !== 9 && code !== 10 && code !== 13) break;
+      i += 1;
+    }
+  }
+  function skipString() {
+    i += 1;
+    while (i < n) {
+      const code = text.charCodeAt(i);
+      if (code === 34) {
+        i += 1;
+        return true;
+      }
+      i += code === 92 ? 2 : 1;
+    }
+    return false;
+  }
+  function readKey() {
+    const start = i;
+    if (!skipString()) return undefined;
+    try {
+      return JSON.parse(text.slice(start, i));
+    } catch {
+      return undefined;
+    }
+  }
+  function scanValue() {
+    skipWs();
+    if (i >= n) return false;
+    const c = text[i];
+    if (c === "{") return scanObject();
+    if (c === "[") return scanArray();
+    if (c === '"') return skipString() ? null : false;
+    if (c === "-" || (c >= "0" && c <= "9")) {
+      i += 1;
+      while (i < n && "0123456789eE+-.".includes(text[i])) i += 1;
+      return null;
+    }
+    if (text.startsWith("true", i) || text.startsWith("null", i)) {
+      i += 4;
+      return null;
+    }
+    if (text.startsWith("false", i)) {
+      i += 5;
+      return null;
+    }
+    return false;
+  }
+  function scanArray() {
+    i += 1;
+    skipWs();
+    if (text[i] === "]") {
+      i += 1;
+      return null;
+    }
+    while (i < n) {
+      const nested = scanValue();
+      if (nested !== null) return nested;
+      skipWs();
+      if (text[i] === "]") {
+        i += 1;
+        return null;
+      }
+      if (text[i] !== ",") return false;
+      i += 1;
+    }
+    return false;
+  }
+  function scanObject() {
+    i += 1;
+    skipWs();
+    if (text[i] === "}") {
+      i += 1;
+      return null;
+    }
+    const seen = new Set();
+    while (i < n) {
+      skipWs();
+      if (text[i] !== '"') return false;
+      const key = readKey();
+      if (key === undefined) return false;
+      if (seen.has(key)) return key;
+      seen.add(key);
+      skipWs();
+      if (text[i] !== ":") return false;
+      i += 1;
+      const nested = scanValue();
+      if (nested !== null) return nested;
+      skipWs();
+      if (text[i] === "}") {
+        i += 1;
+        return null;
+      }
+      if (text[i] !== ",") return false;
+      i += 1;
+    }
+    return false;
+  }
+  const found = scanValue();
+  return typeof found === "string" ? found : null;
+}
+
 const serious = (severity) => ["high", "critical"].includes(String(severity).toLowerCase());
+const npmSeverities = new Set(["info", "low", "moderate", "high", "critical"]);
+// The fixtures use both "High" and "moderate", and the level check below
+// already folds case, so Low, Moderate, High, and Critical match either way.
+const nugetSeverities = new Set(["low", "moderate", "high", "critical"]);
 const isRecord = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const nonEmpty = (value) => typeof value === "string" && value.length > 0;
 
@@ -106,7 +223,7 @@ function finish(found, knownIds, describe) {
   process.exitCode = fresh.length > 0 ? 1 : 0;
 }
 
-function keepSerious(found) {
+export function keepSerious(found) {
   const kept = [];
   for (const item of found) {
     if (!serious(item.severity)) continue;
@@ -116,7 +233,7 @@ function keepSerious(found) {
   return kept;
 }
 
-function validateNpm(audit) {
+export function validateNpm(audit) {
   if (!isRecord(audit)) reject("npm audit report has the wrong shape");
   if (Object.hasOwn(audit, "error")) reject("npm audit report field error is set");
   if (!Object.hasOwn(audit, "auditReportVersion")) reject("npm audit report field auditReportVersion is missing");
@@ -131,6 +248,7 @@ function validateNpm(audit) {
   for (const [pkg, entry] of Object.entries(audit.vulnerabilities)) {
     if (!isRecord(entry)) reject("npm audit report field vulnerability is not an object");
     if (!nonEmpty(entry.severity)) reject("npm audit report field severity is not a string");
+    if (!npmSeverities.has(entry.severity)) reject("npm audit report field severity is not a known value");
     if (!Array.isArray(entry.via)) reject("npm audit report field via is not an array");
     for (const via of entry.via) {
       // npm puts dependency names in the same array as advisory objects.
@@ -138,6 +256,7 @@ function validateNpm(audit) {
       if (!isRecord(via)) reject("npm audit report field via is not an advisory");
       if (!("severity" in via) && !("url" in via) && !("title" in via)) reject("npm audit report field via is not an advisory");
       if (!nonEmpty(via.severity)) reject("npm audit report field severity is not a string");
+      if (!npmSeverities.has(via.severity)) reject("npm audit report field severity is not a known value");
       if (!nonEmpty(via.url)) reject("npm audit report field url is not a string");
       if (typeof via.title !== "string") reject("npm audit report field title is not a string");
       const id = via.url.replace("https://github.com/advisories/", "");
@@ -147,7 +266,7 @@ function validateNpm(audit) {
   return found;
 }
 
-function validateDotnet(report) {
+export function validateDotnet(report) {
   if (!isRecord(report) || !Array.isArray(report.projects)) reject("NuGet report field projects is missing");
   const found = [];
   for (const project of report.projects) {
@@ -167,6 +286,7 @@ function validateDotnet(report) {
         for (const advisory of presentArray(pkg, "vulnerabilities", "NuGet report")) {
           if (!isRecord(advisory)) reject("NuGet report field advisory is not an object");
           if (!nonEmpty(advisory.severity)) reject("NuGet report field severity is not a string");
+          if (!nugetSeverities.has(String(advisory.severity).toLowerCase())) reject("NuGet report field severity is not a known value");
           if (!nonEmpty(advisory.advisoryurl)) reject("NuGet report field advisoryurl is not a string");
           const id = advisory.advisoryurl.replace("https://github.com/advisories/", "");
           found.push({
@@ -182,15 +302,20 @@ function validateDotnet(report) {
   return found;
 }
 
-function validateGitleaks(report) {
+export function validateGitleaks(report) {
   if (!Array.isArray(report)) reject("gitleaks report field report is not an array");
   const found = [];
   for (const finding of report) {
     if (!isRecord(finding)) reject("gitleaks report entry is not an object");
     for (const field of ["RuleID", "File", "StartLine", "Fingerprint", "Commit"]) {
       const value = finding[field];
-      const ok = field === "StartLine" ? typeof value === "number" && Number.isFinite(value) : nonEmpty(value);
-      if (!ok) reject(`gitleaks report field ${field} is missing`);
+      const positiveLine = Number.isInteger(value) && value > 0;
+      const ok = field === "StartLine" ? positiveLine : nonEmpty(value);
+      if (!ok) {
+        reject(field === "StartLine" && typeof value === "number"
+          ? "gitleaks report field StartLine is not a positive integer"
+          : `gitleaks report field ${field} is missing`);
+      }
     }
     found.push({
       id: finding.Fingerprint,
