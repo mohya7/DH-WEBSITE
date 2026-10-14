@@ -672,6 +672,13 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas, 
     public static bool InlineMarksAllowed(string collection, string sectionType, string field) =>
         !(sectionType == "hero" && field == "heading" && collection != "case-studies");
 
+    /// <summary>
+    /// The checks a save and a publish apply to one document, for a caller that
+    /// writes the rows itself: the content bundle import. The same checks, not a copy.
+    /// </summary>
+    public Task<Dictionary<string, List<string>>> CheckDocumentAsync(string collection, Guid id, DraftDocument draft, CancellationToken cancellationToken) =>
+        CheckAsync(collection, id, draft, cancellationToken);
+
     private async Task<Dictionary<string, List<string>>> CheckAsync(string collection, Guid id, DraftDocument draft, CancellationToken cancellationToken, bool requireMedia = true)
     {
         var errors = new Dictionary<string, List<string>>();
