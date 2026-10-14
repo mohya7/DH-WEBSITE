@@ -384,7 +384,7 @@ Shared by the Content API.
 |---|---|---|---|
 | Website build | Content API | Build time | Fetch published content |
 | Contact form | Content API | Runtime | Submit enquiries |
-| IIS | Website, Content API, Studio | Runtime | Serve on one domain |
+| IIS | Website, Content API, Studio | Runtime | The public website is on its own domain. The Studio and its API are on the same origin, on their own subdomain, never the website's domain. Only `/api/v1/public/*` is routed through the website's domain, for the contact form; the auth endpoints are not |
 | Studio | SES | Runtime | Password reset, once configured |
 | Website | Tag Manager and GA4 | Runtime, after consent | Analytics |
 
@@ -481,6 +481,8 @@ Shared by the Content API.
 | D — Deployment setup | IIS for the website, Studio, and Content API, including the website's public API routes and the production proxy address for the contact rate limit | The three applications run on IIS |
 | E — Parallel run | New site on staging beside the current system | Content parity sign-off; screenshot parity passed; reachability test passed |
 | F — Cutover | New website and Studio live | Rollback tested; backups scheduled and verified |
+
+The previous site is kept deployable until the new one has run without incident. Switching back is a routing change, not a rebuild.
 
 ---
 
