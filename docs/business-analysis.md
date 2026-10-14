@@ -621,7 +621,7 @@ What DevOps must design from this analysis.
 | Website | Next.js static export | IIS, static site |
 | Studio | React production build | IIS, static site |
 | Content API | .NET publish | IIS, ASP.NET Core Module |
-| Hiring system | Existing Node application | IIS, reverse proxied — transition |
+| Hiring system | Existing Node application | IIS, reverse proxied — transition (dropped until Phase G; the website, Studio and Content API stand alone) |
 
 **Website build pipeline**
 1. Triggered manually
@@ -632,7 +632,7 @@ What DevOps must design from this analysis.
 6. Validates structured data and checks every redirect lands on a live page
 7. Deploys to IIS
 
-**IIS configuration:** URL Rewrite for redirects and clean URLs; Application Request Routing to the Node hiring system; custom error pages with correct status codes; security headers; TLS termination.
+**IIS configuration:** URL Rewrite for redirects and clean URLs; Application Request Routing to the Node hiring system; custom error pages with correct status codes; security headers; TLS termination. (dropped until Phase G; the website, Studio and Content API stand alone)
 
 **Configuration and secrets:** connection strings, token signing key, initial admin password, SES credentials, analytics container ID. None in the repository.
 
