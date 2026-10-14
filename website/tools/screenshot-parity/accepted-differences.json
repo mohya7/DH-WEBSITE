@@ -1,4 +1,120 @@
 {
   "description": "Visual differences that are allowed, scoped to elements. Each entry has an id, the page pairs it covers ([{ \"old\": feature/interviewer-portal path, \"new\": built site path }]), the widths and browsers it covers, one or more selectors, and a reason. The selectors are hidden on both sides of those captures only; everything else on the page is still compared with zero tolerance. An entry whose selectors hide nothing on either side is an error, so a stale entry cannot linger. A whole capture can never be accepted. Add an entry only when a difference has been decided.",
-  "differences": []
+  "differences": [
+    {
+      "id": "footer-company-column-links",
+      "pairs": [
+        { "old": "/about-us.html", "new": "/about" },
+        { "old": "/blogs/azure-digital-egypt-2030.html", "new": "/blogs/azure-digital-egypt-2030" },
+        { "old": "/blogs/digital-employee-experience.html", "new": "/blogs/digital-employee-experience" },
+        { "old": "/blogs/enterprise-ai-production.html", "new": "/blogs/enterprise-ai-production" },
+        { "old": "/blogs/index.html", "new": "/blogs" },
+        { "old": "/careers/apply.html", "new": "/careers/apply" },
+        { "old": "/careers/index.html", "new": "/careers" },
+        { "old": "/cases/data-center-transformation.html", "new": "/cases/data-center-transformation" },
+        { "old": "/cases/index.html", "new": "/cases" },
+        { "old": "/cases/ministry-planning.html", "new": "/cases/ministry-planning" },
+        { "old": "/cases/nexthink-dex-bank.html", "new": "/cases/nexthink-dex-bank" },
+        { "old": "/get-in-touch.html", "new": "/contact" },
+        { "old": "/index.html", "new": "/" },
+        { "old": "/news/index.html", "new": "/news" },
+        { "old": "/partners/efinance.html", "new": "/partners/efinance" },
+        { "old": "/partners/huawei.html", "new": "/partners/huawei" },
+        { "old": "/partners/index.html", "new": "/partners" },
+        { "old": "/partners/microsoft.html", "new": "/partners/microsoft" },
+        { "old": "/partners/nexthink.html", "new": "/partners/nexthink" },
+        { "old": "/partners/vodafone.html", "new": "/partners/vodafone" },
+        { "old": "/services/ai-automation.html", "new": "/services/ai-automation" },
+        { "old": "/services/data-analytics.html", "new": "/services/data-analytics" },
+        { "old": "/services/enterprise-software.html", "new": "/services/enterprise-software" },
+        { "old": "/services/outsourcing.html", "new": "/services/outsourcing" }
+      ],
+      "widths": [1440, 768, 390],
+      "browsers": ["chromium", "firefox", "webkit"],
+      "selectors": ["footer.footer .footer-cols > .footer-col:nth-child(2) a"],
+      "reason": "Marketing lead decision (section register: footer-company-column-*): the Company column is About, Partners, Careers, News on every page. Only the link texts are hidden; the column, its heading, and the page height are still compared."
+    },
+    {
+      "id": "footer-main-email",
+      "pairs": [
+        { "old": "/about-us.html", "new": "/about" },
+        { "old": "/blogs/index.html", "new": "/blogs" },
+        { "old": "/cases/data-center-transformation.html", "new": "/cases/data-center-transformation" },
+        { "old": "/cases/index.html", "new": "/cases" },
+        { "old": "/cases/ministry-planning.html", "new": "/cases/ministry-planning" },
+        { "old": "/cases/nexthink-dex-bank.html", "new": "/cases/nexthink-dex-bank" },
+        { "old": "/get-in-touch.html", "new": "/contact" },
+        { "old": "/index.html", "new": "/" },
+        { "old": "/partners/efinance.html", "new": "/partners/efinance" },
+        { "old": "/partners/huawei.html", "new": "/partners/huawei" },
+        { "old": "/partners/index.html", "new": "/partners" },
+        { "old": "/partners/microsoft.html", "new": "/partners/microsoft" },
+        { "old": "/partners/nexthink.html", "new": "/partners/nexthink" },
+        { "old": "/partners/vodafone.html", "new": "/partners/vodafone" },
+        { "old": "/services/ai-automation.html", "new": "/services/ai-automation" },
+        { "old": "/services/data-analytics.html", "new": "/services/data-analytics" },
+        { "old": "/services/enterprise-software.html", "new": "/services/enterprise-software" },
+        { "old": "/services/outsourcing.html", "new": "/services/outsourcing" }
+      ],
+      "widths": [1440, 768, 390],
+      "browsers": ["chromium", "firefox", "webkit"],
+      "selectors": ["footer.footer .footer-contact a[href^=\"mailto:\"]"],
+      "reason": "Marketing lead decision (section register: footer-email-about, footer-email-group-domain): every page except careers, apply, and vacancies shows sales@digitalhub.com.eg. Only the email link in the footer is hidden."
+    },
+    {
+      "id": "footer-copyright-build-year",
+      "pairs": [
+        { "old": "/about-us.html", "new": "/about" },
+        { "old": "/blogs/azure-digital-egypt-2030.html", "new": "/blogs/azure-digital-egypt-2030" },
+        { "old": "/blogs/digital-employee-experience.html", "new": "/blogs/digital-employee-experience" },
+        { "old": "/blogs/enterprise-ai-production.html", "new": "/blogs/enterprise-ai-production" },
+        { "old": "/blogs/index.html", "new": "/blogs" },
+        { "old": "/careers/apply.html", "new": "/careers/apply" },
+        { "old": "/careers/index.html", "new": "/careers" },
+        { "old": "/cases/data-center-transformation.html", "new": "/cases/data-center-transformation" },
+        { "old": "/cases/index.html", "new": "/cases" },
+        { "old": "/cases/ministry-planning.html", "new": "/cases/ministry-planning" },
+        { "old": "/cases/nexthink-dex-bank.html", "new": "/cases/nexthink-dex-bank" },
+        { "old": "/get-in-touch.html", "new": "/contact" },
+        { "old": "/index.html", "new": "/" },
+        { "old": "/news/index.html", "new": "/news" },
+        { "old": "/partners/efinance.html", "new": "/partners/efinance" },
+        { "old": "/partners/huawei.html", "new": "/partners/huawei" },
+        { "old": "/partners/index.html", "new": "/partners" },
+        { "old": "/partners/microsoft.html", "new": "/partners/microsoft" },
+        { "old": "/partners/nexthink.html", "new": "/partners/nexthink" },
+        { "old": "/partners/vodafone.html", "new": "/partners/vodafone" },
+        { "old": "/services/ai-automation.html", "new": "/services/ai-automation" },
+        { "old": "/services/data-analytics.html", "new": "/services/data-analytics" },
+        { "old": "/services/enterprise-software.html", "new": "/services/enterprise-software" },
+        { "old": "/services/outsourcing.html", "new": "/services/outsourcing" }
+      ],
+      "widths": [1440, 768, 390],
+      "browsers": ["chromium", "firefox", "webkit"],
+      "selectors": ["footer.footer .footer-bottom > span:first-child"],
+      "reason": "Marketing lead decision (section register: copyright-build-year-*): the copyright year is the year of the build. Only the copyright line is hidden."
+    },
+    {
+      "id": "article-footer-service-labels",
+      "pairs": [
+        { "old": "/blogs/azure-digital-egypt-2030.html", "new": "/blogs/azure-digital-egypt-2030" },
+        { "old": "/blogs/digital-employee-experience.html", "new": "/blogs/digital-employee-experience" },
+        { "old": "/blogs/enterprise-ai-production.html", "new": "/blogs/enterprise-ai-production" }
+      ],
+      "widths": [1440, 768, 390],
+      "browsers": ["chromium", "firefox", "webkit"],
+      "selectors": ["footer.footer .footer-cols > .footer-col:nth-child(1) a"],
+      "reason": "Marketing lead decision (section register: article-footer-service-labels): the article footers use the shorter shared service labels. Only the four service link texts are hidden; the column and its heading are still compared."
+    },
+    {
+      "id": "contact-section-email",
+      "pairs": [
+        { "old": "/get-in-touch.html", "new": "/contact" }
+      ],
+      "widths": [1440, 768, 390],
+      "browsers": ["chromium", "firefox", "webkit"],
+      "selectors": ["main a[href^=\"mailto:sales@\"]"],
+      "reason": "Marketing lead decision (section register: contact-section-email): the contact page's contact details show sales@digitalhub.com.eg. Only that link is hidden."
+    }
+  ]
 }

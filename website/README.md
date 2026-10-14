@@ -249,7 +249,20 @@ How a capture is judged:
   pairs, widths, browsers, and one or more selectors, which are hidden on both
   sides for those captures only. Everything else on the page is still compared.
   An entry whose selectors hide nothing on either side is an error, so a stale
-  entry cannot linger. A whole capture cannot be accepted.
+  entry cannot linger. A whole capture cannot be accepted. Agents only propose
+  entries; Ali (marketing lead) approves each one before it is added. The
+  approved entries:
+  - `footer-company-column-links`: hides the footer Company column's link texts on
+    every page; the column and its heading are still compared. Approved by Ali.
+  - `footer-main-email`: hides the footer email link on every page except careers,
+    apply, and the articles. Approved by Ali.
+  - `footer-copyright-build-year`: hides the footer copyright line (the build
+    year) on every page. Approved by Ali.
+  - `article-footer-service-labels`: hides the footer Services column's link texts
+    on the three article pages; the column and its heading are still compared.
+    Approved by Ali.
+  - `contact-section-email`: hides the sales email link in the contact page's
+    contact details. Approved by Ali.
 - **Absent pages.** A pair whose built page answers 404 is `absent-accepted` when
   the section register lists its old path as `absent-page`; otherwise it is an error.
 

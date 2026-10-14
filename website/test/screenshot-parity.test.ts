@@ -79,8 +79,21 @@ describe("screenshot parity: register", () => {
   };
   const raw = (differences: unknown[]) => JSON.stringify({ differences });
 
-  it("starts empty", () => {
-    expect(readRegister(fs.readFileSync(path.join(tool, "accepted-differences.json"), "utf8")).differences).toEqual([]);
+  it("holds only the entries the marketing lead approved, each complete", () => {
+    const { differences } = readRegister(fs.readFileSync(path.join(tool, "accepted-differences.json"), "utf8"));
+    expect(differences.map((d) => d.id)).toEqual([
+      "footer-company-column-links",
+      "footer-main-email",
+      "footer-copyright-build-year",
+      "article-footer-service-labels",
+      "contact-section-email",
+    ]);
+    for (const d of differences) {
+      expect(d.pairs.length).toBeGreaterThan(0);
+      expect(d.browsers.length).toBeGreaterThan(0);
+      expect(d.selectors.length).toBeGreaterThan(0);
+      expect(d.reason).toMatch(/^Marketing lead decision/);
+    }
   });
 
   it("refuses an entry that would accept a whole capture, or that is incomplete", () => {
