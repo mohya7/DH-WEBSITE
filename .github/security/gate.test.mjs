@@ -5,7 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const gate = path.join(here, "gate.mjs");
@@ -88,10 +88,10 @@ test("a missing report fails", () => {
 test("the wrong shape fails", () => {
   const npm = run(["npm", write("shape-npm.json", "{}"), "studio"]);
   assert.equal(npm.code, 1, npm.out);
-  assert.match(npm.out, /missing the expected top-level keys/);
+  assert.match(npm.out, /field auditReportVersion is missing/);
   const nuget = run(["dotnet", write("shape-nuget.json", JSON.stringify({ version: 1, parameters: "", sources: [] }))]);
   assert.equal(nuget.code, 1, nuget.out);
-  assert.match(nuget.out, /missing projects/);
+  assert.match(nuget.out, /field projects is missing/);
   const leaks = run(["gitleaks", write("shape-leaks.json", "{}"), "full-history"]);
   assert.equal(leaks.code, 1, leaks.out);
   assert.match(leaks.out, /not an array/);
@@ -247,4 +247,278 @@ test("a gitleaks finding missing the fields the gate reads fails and does not pr
   assert.equal(result.out.includes("undefined"), false);
   assert.equal(result.out.includes(canary), false);
   assert.ok(result.out.includes(file));
+});
+
+test("an npm via array of only dependency names passes", () => {
+  const report = JSON.parse(cleanNpm);
+  report.vulnerabilities = { next: { severity: "high", via: ["next"] } };
+  const result = run(["npm", write("npm-via-strings.json", JSON.stringify(report)), "studio"]);
+  assert.equal(result.code, 0, result.out);
+  assert.match(result.out, /0 new/);
+});
+
+test("a moderate NuGet advisory passes and a High one fails", () => {
+  const body = (severity) => ({
+    version: 1,
+    parameters: "",
+    sources: [],
+    projects: [{
+      path: "Review.csproj",
+      frameworks: [{
+        framework: "net10.0",
+        topLevelPackages: [{
+          id: "Review",
+          resolvedVersion: "1.0",
+          vulnerabilities: [{ severity, advisoryurl: "https://github.com/advisories/GHSA-review-level" }],
+        }],
+      }],
+    }],
+  });
+  const moderate = run(["dotnet", write("nuget-moderate.json", JSON.stringify(body("moderate")))]);
+  assert.equal(moderate.code, 0, moderate.out);
+  const high = run(["dotnet", write("nuget-high.json", JSON.stringify(body("High")))]);
+  assert.equal(high.code, 1, high.out);
+  assert.match(high.out, /GHSA-review-level/);
+});
+
+const knownAdvisory = {
+  severity: "high",
+  url: "https://github.com/advisories/GHSA-cjq9-62q9-8jv4",
+  title: "known",
+};
+
+const mutationFixtures = {
+  npm: {
+    label: "website",
+    body: {
+      auditReportVersion: 2,
+      metadata: { vulnerabilities: { total: 1 }, dependencies: { total: 1 } },
+      vulnerabilities: { next: { severity: "high", via: ["next", knownAdvisory] } },
+    },
+  },
+  dotnet: {
+    label: "",
+    body: {
+      version: 1,
+      parameters: "",
+      sources: [],
+      projects: [{
+        path: "Review.csproj",
+        frameworks: [{
+          framework: "net10.0",
+          topLevelPackages: [{
+            id: "Review",
+            resolvedVersion: "1.0",
+            vulnerabilities: [{ severity: "moderate", advisoryurl: "https://github.com/advisories/GHSA-review-moderate" }],
+          }],
+          transitivePackages: [{
+            id: "Transitive",
+            resolvedVersion: "2.0",
+            vulnerabilities: [{ severity: "low", advisoryurl: "https://github.com/advisories/GHSA-review-low" }],
+          }],
+        }],
+      }],
+    },
+  },
+  gitleaks: {
+    label: "full-history",
+    body: [{
+      RuleID: "generic-api-key",
+      File: "example.txt",
+      StartLine: 1,
+      Fingerprint: known.gitleaks[0].fingerprint,
+      Commit: "abcdef0123456789",
+    }],
+  },
+};
+
+// Type-correct replacements that stay a clean report. Keyed by field path so a
+// field added to consumedFields without a case here fails the suite.
+const acceptedValues = {
+  npm: {
+    '["auditReportVersion"]': { number: 2 },
+    '["metadata"]': { object: { note: "ok" } },
+    '["vulnerabilities"]': { object: { lodash: { severity: "low", via: ["lodash"] } } },
+    '["vulnerabilities","next"]': { object: { severity: "low", via: ["next"] } },
+    '["vulnerabilities","next","severity"]': { string: "moderate" },
+    '["vulnerabilities","next","via"]': { array: ["next"] },
+    '["vulnerabilities","next","via",1]': { string: "next" },
+    '["vulnerabilities","next","via",1,"severity"]': { string: "moderate" },
+    '["vulnerabilities","next","via",1,"url"]': { string: knownAdvisory.url },
+    '["vulnerabilities","next","via",1,"title"]': { string: "retitled" },
+  },
+  dotnet: {
+    '["projects"]': { array: [] },
+    '["projects",0]': { object: { path: "Review.csproj" } },
+    '["projects",0,"path"]': { string: "Other.csproj" },
+    '["projects",0,"frameworks"]': { array: [] },
+    '["projects",0,"frameworks",0]': { object: { framework: "net10.0" } },
+    '["projects",0,"frameworks",0,"topLevelPackages"]': { array: [] },
+    '["projects",0,"frameworks",0,"transitivePackages"]': { array: [] },
+    '["projects",0,"frameworks",0,"topLevelPackages",0]': { object: { id: "Review", resolvedVersion: "1.0" } },
+    '["projects",0,"frameworks",0,"topLevelPackages",0,"id"]': { string: "Other" },
+    '["projects",0,"frameworks",0,"topLevelPackages",0,"resolvedVersion"]': { string: "9.9" },
+    '["projects",0,"frameworks",0,"topLevelPackages",0,"vulnerabilities"]': { array: [] },
+    '["projects",0,"frameworks",0,"topLevelPackages",0,"vulnerabilities",0]': {
+      object: { severity: "low", advisoryurl: "https://github.com/advisories/GHSA-review-low" },
+    },
+    '["projects",0,"frameworks",0,"topLevelPackages",0,"vulnerabilities",0,"severity"]': { string: "low" },
+    '["projects",0,"frameworks",0,"topLevelPackages",0,"vulnerabilities",0,"advisoryurl"]': {
+      string: "https://github.com/advisories/GHSA-review-moderate",
+    },
+  },
+  gitleaks: {
+    "": { array: mutationFixtures.gitleaks.body },
+    "[0]": { object: mutationFixtures.gitleaks.body[0] },
+    '[0,"RuleID"]': { string: "generic-api-key" },
+    '[0,"File"]': { string: "other.txt" },
+    '[0,"StartLine"]': { number: 2 },
+    '[0,"Fingerprint"]': { string: known.gitleaks[0].fingerprint },
+    '[0,"Commit"]': { string: "bbbbbbb0123456789" },
+  },
+};
+
+const wrongValues = { null: null, number: 1, string: "mutated", array: ["mutated"], object: { mutated: true } };
+const mutationKinds = ["null", "number", "string", "array", "object"];
+
+function loadConsumedFields() {
+  const loader = `import { consumedFields } from ${JSON.stringify(pathToFileURL(gate).href)}; if (!consumedFields) process.exit(1); console.log(JSON.stringify(consumedFields));`;
+  const result = spawnSync(process.execPath, ["--input-type=module", "-e", loader], { encoding: "utf8" });
+  if (result.status !== 0) return { error: result.stderr || result.stdout || "the gate did not export consumedFields" };
+  try {
+    return { fields: JSON.parse(result.stdout) };
+  } catch (error) {
+    return { error: error.message };
+  }
+}
+
+function applyMutation(root, specPath, value, remove) {
+  if (specPath.length === 0) return remove ? null : structuredClone(value);
+  const copy = structuredClone(root);
+  let cursor = copy;
+  for (let index = 0; index < specPath.length - 1; index += 1) cursor = cursor[specPath[index]];
+  const last = specPath.at(-1);
+  if (remove) {
+    if (Array.isArray(cursor)) cursor.splice(last, 1);
+    else delete cursor[last];
+  } else cursor[last] = value;
+  return copy;
+}
+
+function pathExists(root, specPath) {
+  let cursor = root;
+  for (const part of specPath) {
+    if (cursor === null || typeof cursor !== "object" || !Object.hasOwn(cursor, part)) return false;
+    cursor = cursor[part];
+  }
+  return true;
+}
+
+function sampleKey(specPath) {
+  return specPath.length === 0 ? "" : JSON.stringify(specPath);
+}
+
+const loadedFields = loadConsumedFields();
+const consumedFields = loadedFields.fields ?? {};
+const mutationCounts = {};
+
+test("the gate exports the consumed field list", () => {
+  assert.equal(loadedFields.error ?? "", "");
+  assert.ok(loadedFields.fields);
+});
+
+for (const [tool, specs] of Object.entries(consumedFields)) {
+  test(`${tool} mutations of every consumed field`, () => {
+    const fixture = mutationFixtures[tool];
+    assert.ok(fixture, `no fixture for ${tool}`);
+    const samples = acceptedValues[tool];
+    assert.ok(samples, `no mutation cases for ${tool}`);
+    const baseline = run([tool, write(`${tool}-mutation-base.json`, JSON.stringify(fixture.body)), fixture.label].filter((part, index) => index < 2 || part));
+    assert.equal(baseline.code, 0, baseline.out);
+    let count = 0;
+    for (const spec of specs) {
+      assert.ok(Array.isArray(spec.path), `${tool} ${spec.field} has no path`);
+      assert.ok(Array.isArray(spec.accepts), `${tool} ${spec.field} has no accepted types`);
+      assert.equal(typeof spec.optional, "boolean", `${tool} ${spec.field} has no optional flag`);
+      const key = sampleKey(spec.path);
+      if (!spec.absent) assert.equal(pathExists(fixture.body, spec.path), true, `${tool} ${key} is not in the fixture`);
+      const sample = samples[key];
+      if (spec.accepts.length > 0) assert.ok(sample, `no mutation case for ${tool} ${key}`);
+      for (const kind of mutationKinds) {
+        count += 1;
+        const accepted = spec.accepts.includes(kind);
+        if (accepted && (sample?.[kind] === undefined)) assert.fail(`no ${kind} mutation case for ${tool} ${key}`);
+        const value = accepted ? sample[kind] : wrongValues[kind];
+        const mutated = applyMutation(fixture.body, spec.path, value, false);
+        const file = write(`${tool}-${count}-${kind}.json`, JSON.stringify(mutated));
+        const result = run([tool, file, fixture.label].filter((part, index) => index < 2 || part));
+        if (accepted) {
+          assert.equal(result.code, 0, `${tool} ${key} ${kind}\n${result.out}`);
+        } else {
+          assert.equal(result.code, 1, `${tool} ${key} ${kind}\n${result.out}`);
+          assert.ok(result.out.includes(file), `${tool} ${key} ${kind} did not name the file\n${result.out}`);
+          assert.match(result.out, new RegExp(`\\b${spec.field}\\b`), `${tool} ${key} ${kind} did not name the field\n${result.out}`);
+        }
+      }
+      count += 1;
+      const removed = applyMutation(fixture.body, spec.path, undefined, true);
+      const removedFile = write(`${tool}-${count}-removed.json`, JSON.stringify(removed));
+      const removedResult = run([tool, removedFile, fixture.label].filter((part, index) => index < 2 || part));
+      if (spec.optional) {
+        assert.equal(removedResult.code, 0, `${tool} ${key} removed\n${removedResult.out}`);
+      } else {
+        assert.equal(removedResult.code, 1, `${tool} ${key} removed\n${removedResult.out}`);
+        assert.ok(removedResult.out.includes(removedFile), `${tool} ${key} removed did not name the file`);
+        assert.match(removedResult.out, new RegExp(`\\b${spec.field}\\b`), `${tool} ${key} removed did not name the field\n${removedResult.out}`);
+      }
+    }
+    mutationCounts[tool] = count;
+    assert.equal(count, specs.length * (mutationKinds.length + 1));
+    console.log(`${tool} mutations: ${specs.length} fields, ${count} cases`);
+  });
+}
+
+test("Codex's nine advisory mutations fail and name the file", () => {
+  const clean = JSON.parse(cleanNpm);
+  const npmEntry = (via) => ({ ...clean, vulnerabilities: { review: { severity: "high", via } } });
+  const nugetBody = (vulnerabilities) => ({
+    version: 1,
+    parameters: "",
+    sources: [],
+    projects: [{
+      path: "Review.csproj",
+      frameworks: [{ framework: "net10.0", topLevelPackages: [{ id: "Review", resolvedVersion: "1.0", vulnerabilities }] }],
+    }],
+  });
+  const knownLeak = known.gitleaks[0];
+  const validLeak = {
+    Fingerprint: knownLeak.fingerprint,
+    RuleID: "generic-api-key",
+    File: "example.txt",
+    StartLine: 1,
+    Commit: "abcdef0123456789",
+    Secret: canary,
+    Match: canary,
+  };
+  const cases = [
+    ["new-npm-via-null-item", "npm", "studio", npmEntry([null])],
+    ["new-npm-advisory-severity-object", "npm", "studio", npmEntry([{ severity: { value: "high" }, url: "https://github.com/advisories/GHSA-review-inner", title: "Review advisory" }])],
+    ["new-npm-advisory-missing-severity", "npm", "studio", npmEntry([{ url: "https://github.com/advisories/GHSA-review-inner", title: "Review advisory" }])],
+    ["new-nuget-advisory-severity-object", "dotnet", "", nugetBody([{ severity: { value: "High" }, advisoryurl: "https://github.com/advisories/GHSA-review-inner" }])],
+    ["new-nuget-advisory-missing-severity", "dotnet", "", nugetBody([{ advisoryurl: "https://github.com/advisories/GHSA-review-inner" }])],
+    ["new-nuget-transitive-null", "dotnet", "", { version: 1, parameters: "", sources: [], projects: [{ path: "Review.csproj", frameworks: [{ framework: "net10.0", transitivePackages: null }] }] }],
+    ["new-gitleaks-line-string", "gitleaks", "full-history", [{ ...validLeak, StartLine: "1" }]],
+    ["new-gitleaks-fingerprint-null", "gitleaks", "full-history", [{ ...validLeak, Fingerprint: null }]],
+    ["new-gitleaks-commit-array", "gitleaks", "full-history", [{ ...validLeak, Commit: [] }]],
+  ];
+  assert.equal(cases.length, 9);
+  for (const [name, tool, toolLabel, body] of cases) {
+    const file = write(`${name}.json`, JSON.stringify(body));
+    const result = run([tool, file, toolLabel].filter((part, index) => index < 2 || part));
+    assert.equal(result.code, 1, `${name}\n${result.out}`);
+    assert.ok(result.out.includes(file), name);
+    assert.equal(result.out.includes(canary), false, name);
+    assert.equal(result.out.includes("GHSA-review-inner"), false, name);
+    assert.equal(result.out.includes("undefined"), false, name);
+  }
 });
