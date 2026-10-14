@@ -23,6 +23,9 @@ export declare const GUARD_MAX_HEIGHT: number;
 export declare const GUARD_MAX_ELEMENT_SHARE: number;
 export declare const GUARD_MAX_ENTRY_SHARE: number;
 export declare const GUARD_MAX_MATCHES: number;
-export interface MatchedElement { tag: string; landmark: boolean; descendants: number; width: number; height: number }
-export interface Measured { page: { width: number; height: number }; matches: Record<string, MatchedElement[] | null> }
+export declare const GUARD_MAX_TOTAL_SHARE: number;
+export declare const MAX_REGISTER_ENTRIES: number;
+export declare function unionArea(boxes: { x: number; y: number; width: number; height: number }[]): number;
+export interface MatchedElement { tag: string; boxless: string | null; landmark: boolean; descendants: number; x: number; y: number; width: number; height: number }
+export interface Measured { page: { width: number; height: number }; matches: Record<string, MatchedElement[] | null>; removed: number }
 export declare function guardProblems(entries: RegisterEntry[], measured: Measured | undefined, where: string): string[];

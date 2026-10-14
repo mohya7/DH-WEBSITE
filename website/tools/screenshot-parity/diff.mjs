@@ -167,40 +167,53 @@ export function wholeCaptureReason(selector) {
 }
 
 /*
- * The runtime guard: what an entry's selectors actually match, measured in the
- * browser on both sides of every capture (measureMatches in capture.mjs). Any
- * breach makes the capture an error. The limits are constants on purpose: the
- * register file cannot change them.
+ * The runtime guard: what an entry's selectors actually hide, measured in the
+ * browser on both sides of every capture (installGuard in capture.mjs): the same
+ * nodes that are hidden, measured before hiding and again after capturing, by
+ * the extent they paint (element, descendants, and text), not only their own
+ * box. Any breach makes the capture an error. The limits are constants on
+ * purpose: the register file cannot change them.
  */
 /** An element with more descendant elements than this is a region, not a link or a text span. */
 export const GUARD_MAX_DESCENDANTS = 6;
-/** Widest box a hidden element may have, in CSS px. */
+/** Widest painted extent a hidden element may have, in CSS px. */
 export const GUARD_MAX_WIDTH = 800;
-/** Tallest box a hidden element may have, in CSS px. */
+/** Tallest painted extent a hidden element may have, in CSS px. */
 export const GUARD_MAX_HEIGHT = 120;
 /** Largest share of the full page area one hidden element may cover. */
 export const GUARD_MAX_ELEMENT_SHARE = 0.02;
 /**
  * Largest share of the full page area one entry may hide in total. Measured worst
  * approved case: footer-company-column-links, 6.98% on the old /get-in-touch.html
- * at 390 px (four links of 376x44 px on a short page).
+ * at 390 px (five links of 376x44 px on a short page).
  */
 export const GUARD_MAX_ENTRY_SHARE = 0.08;
-/** Most elements one entry may match on one page (the largest approved entry matches 4). */
+/** Most elements one entry may match on one page (the largest approved entry matches 5, on the old pages). */
 export const GUARD_MAX_MATCHES = 12;
+/**
+ * Largest share of the full page area all entries together may hide on one page
+ * load: the union of the painted extents, so overlapping entries are not counted
+ * twice. Measured worst approved case: 10.14% on the old /get-in-touch.html at
+ * 390 px (all four entries on that page together); 15% leaves headroom above it.
+ */
+export const GUARD_MAX_TOTAL_SHARE = 0.15;
+/** Most entries the register may hold (five are approved), so it cannot be padded without a visible code change. */
+export const MAX_REGISTER_ENTRIES = 10;
 
 const px = (value) => Math.round(value * 10) / 10;
 const pct = (value) => `${(value * 100).toFixed(2)}%`;
 
 /**
- * Runtime guard breaches for one side of a capture. `measured` is what
- * measureMatches returned there; `where` names the side and page. An invalid
- * selector (null) is left to staleSelectors.
+ * Runtime guard breaches for one side of a capture. `measured` is what the
+ * in-page guard returned there (hideAndMeasure or remeasure); `where` names the
+ * side and page. An invalid selector (null) is left to staleSelectors.
  */
 export function guardProblems(entries, measured, where) {
   const problems = [];
   if (!measured) return problems;
   const pageArea = Math.max(1, measured.page.width * measured.page.height);
+  if (measured.removed > 0) problems.push(`register entry guard on ${where}: ${measured.removed} hidden element(s) left the page after hiding, so the capture is not stable`);
+  const painted = [];
   for (const entry of entries) {
     let count = 0;
     let area = 0;
@@ -211,10 +224,12 @@ export function guardProblems(entries, measured, where) {
       for (const el of elements) {
         const box = el.width * el.height;
         area += box;
+        if (box > 0) painted.push(el);
         const what = `register entry ${entry.id}: "${selector}" on ${where} matches <${el.tag}> ${px(el.width)}x${px(el.height)} px`;
         const reasons = [];
         if (el.tag === "html" || el.tag === "body") reasons.push(`it is <${el.tag}>`);
         if (el.landmark) reasons.push("it is or contains a main, header, nav, or footer element");
+        if (el.boxless) reasons.push(`it has no box of its own (${el.boxless}), so its size does not bound what it hides`);
         if (el.descendants > GUARD_MAX_DESCENDANTS) reasons.push(`it has ${el.descendants} descendant elements (limit ${GUARD_MAX_DESCENDANTS})`);
         if (el.width > GUARD_MAX_WIDTH) reasons.push(`it is ${px(el.width)} px wide (limit ${GUARD_MAX_WIDTH})`);
         if (el.height > GUARD_MAX_HEIGHT) reasons.push(`it is ${px(el.height)} px tall (limit ${GUARD_MAX_HEIGHT})`);
@@ -225,7 +240,32 @@ export function guardProblems(entries, measured, where) {
     if (count > GUARD_MAX_MATCHES) problems.push(`register entry ${entry.id} on ${where} matches ${count} elements, refused by the runtime guard (limit ${GUARD_MAX_MATCHES})`);
     if (area / pageArea > GUARD_MAX_ENTRY_SHARE) problems.push(`register entry ${entry.id} on ${where} hides ${pct(area / pageArea)} of the page, refused by the runtime guard (limit ${pct(GUARD_MAX_ENTRY_SHARE)})`);
   }
+  const total = unionArea(painted) / pageArea;
+  if (total > GUARD_MAX_TOTAL_SHARE) problems.push(`register entry total on ${where}: the entries together hide ${pct(total)} of the page, refused by the runtime guard (limit ${pct(GUARD_MAX_TOTAL_SHARE)})`);
   return problems;
+}
+
+/** The area covered by a set of boxes ({ x, y, width, height }), each point counted once. */
+export function unionArea(boxes) {
+  const xs = [...new Set(boxes.flatMap((b) => [b.x, b.x + b.width]))].sort((a, b) => a - b);
+  let area = 0;
+  for (let i = 0; i + 1 < xs.length; i++) {
+    const left = xs[i];
+    const right = xs[i + 1];
+    const spans = boxes
+      .filter((b) => b.x <= left && b.x + b.width >= right)
+      .map((b) => [b.y, b.y + b.height])
+      .sort((a, b) => a[0] - b[0]);
+    let covered = 0;
+    let end = -Infinity;
+    for (const [top, bottom] of spans) {
+      if (bottom <= end) continue;
+      covered += bottom - Math.max(top, end);
+      end = bottom;
+    }
+    area += covered * (right - left);
+  }
+  return area;
 }
 
 /**
@@ -238,6 +278,7 @@ export function guardProblems(entries, measured, where) {
 export function readRegister(raw, browsers = ["chromium", "firefox", "webkit"]) {
   const parsed = JSON.parse(raw);
   if (!parsed || !Array.isArray(parsed.differences)) throw new Error("accepted-differences.json needs a differences array.");
+  if (parsed.differences.length > MAX_REGISTER_ENTRIES) throw new Error(`accepted-differences.json has ${parsed.differences.length} entries; at most ${MAX_REGISTER_ENTRIES} are allowed. Raising the limit is a code change.`);
   const ids = new Set();
   for (const entry of parsed.differences) {
     const where = `accepted-differences.json entry ${JSON.stringify(entry.id ?? "(no id)")}`;

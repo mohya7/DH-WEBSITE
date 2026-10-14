@@ -94,12 +94,11 @@ async function compareOne(page, capture, { baselinePort, candidatePort, maskSele
   const entries = entriesFor(register, capture);
   capture.register = entries.map((entry) => entry.id);
   const guardSelectors = entries.flatMap((entry) => entry.selectors);
-  const hideSelectors = [...maskSelectors, ...guardSelectors];
   const flattenImages = options.flattenImages !== false;
 
-  const before = await captureOne(page, `http://127.0.0.1:${baselinePort}${capture.old}`, { hideSelectors, guardSelectors, flattenImages });
+  const before = await captureOne(page, `http://127.0.0.1:${baselinePort}${capture.old}`, { maskSelectors, guardSelectors, flattenImages });
   if (!before.png) throw new Error(`The old page ${capture.old} answered ${before.status}.`);
-  const after = await captureOne(page, `http://127.0.0.1:${candidatePort}${capture.new}`, { hideSelectors, guardSelectors, flattenImages, paint: options.paintCandidate === true });
+  const after = await captureOne(page, `http://127.0.0.1:${candidatePort}${capture.new}`, { maskSelectors, guardSelectors, flattenImages, paint: options.paintCandidate === true });
   if (!after.png) {
     if (after.status === 404 && absent.has(capture.old)) {
       capture.status = "absent-accepted";
@@ -111,7 +110,14 @@ async function compareOne(page, capture, { baselinePort, candidatePort, maskSele
 
   capture.notes.push(...before.notes.map((note) => `old: ${note}`), ...after.notes.map((note) => `new: ${note}`));
   capture.problems.push(...staleSelectors(entries, before.hidden, after.hidden));
-  capture.problems.push(...guardProblems(entries, before.guard, `old ${capture.old}`), ...guardProblems(entries, after.guard, `new ${capture.new}`));
+  // The guard runs on what was hidden, measured before hiding and again after capturing (the same nodes).
+  const guarded = new Set([
+    ...guardProblems(entries, before.guard, `old ${capture.old}`),
+    ...guardProblems(entries, before.guardLater, `old ${capture.old}`),
+    ...guardProblems(entries, after.guard, `new ${capture.new}`),
+    ...guardProblems(entries, after.guardLater, `new ${capture.new}`),
+  ]);
+  capture.problems.push(...guarded);
   if (!before.stable) capture.problems.push(`the old page never gave two identical captures in ${before.attempts} attempts`);
   if (!after.stable) capture.problems.push(`the new page never gave two identical captures in ${after.attempts} attempts`);
 

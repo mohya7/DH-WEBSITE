@@ -60,59 +60,158 @@ export async function captureOne(page, url, options) {
   return { ...previous, stable: false, loads: MAX_LOADS, notes: [...previous.notes, `no two consecutive loads gave the same picture in ${MAX_LOADS} loads`] };
 }
 
-async function captureOnce(page, url, { hideSelectors = [], guardSelectors = [], paint = false, flattenImages = true }) {
+async function captureOnce(page, url, { maskSelectors = [], guardSelectors = [], paint = false, flattenImages = true }) {
   const response = await page.goto(url, { waitUntil: "load", timeout: 90_000 });
   const status = response ? response.status() : 0;
   if (status === 0 || status >= 400) return { status };
 
-  const info = await page.evaluate(settle, { paint, hideSelectors, flattenImages, thumb: THUMB, viewport: VIEWPORT_HEIGHT });
-  // Hiding uses visibility, which keeps every box, so the register selectors can be measured after settling.
-  info.guard = await page.evaluate(measureMatches, { selectors: guardSelectors });
+  await page.evaluate(installGuard);
+  const info = await page.evaluate(settle, { paint, maskSelectors, guardSelectors, flattenImages, thumb: THUMB, viewport: VIEWPORT_HEIGHT });
 
   let previous = null;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     const png = await page.screenshot({ fullPage: true, animations: "disabled", caret: "hide", scale: "css", timeout: 90_000, type: "png" });
-    if (previous && previous.equals(png)) return { status, png, attempts: attempt, stable: true, ...info };
+    if (previous && previous.equals(png)) return { status, png, attempts: attempt, stable: true, ...info, guardLater: await remeasure(page) };
     previous = png;
     await page.evaluate(() => new Promise((resolve) => setTimeout(() => requestAnimationFrame(() => requestAnimationFrame(resolve)), 250)));
   }
-  return { status, png: previous, attempts: MAX_ATTEMPTS, stable: false, ...info };
+  return { status, png: previous, attempts: MAX_ATTEMPTS, stable: false, ...info, guardLater: await remeasure(page) };
+}
+
+/** The hidden nodes measured again after capturing, through the stored references; no selector is re-run. */
+function remeasure(page) {
+  return page.evaluate(() => window[Symbol.for("screenshot-parity-guard")].remeasure());
 }
 
 /**
- * What each register selector matches on the page, for the runtime guard
- * (guardProblems in diff.mjs): per element its tag, whether it is or contains a
- * landmark, its descendant count and its box, plus the full page size. Runs in
- * the page, so it must stay self-contained. null marks an invalid selector.
+ * Installs the register guard in the page (runs there, so it is self-contained).
+ *
+ * The invariant: the guard measures exactly the nodes that are hidden.
+ * hideAndMeasure queries every selector ONCE, keeps the element references,
+ * measures the register ones before hiding them, then hides those same
+ * references. remeasure measures the stored references again and never re-runs
+ * a selector, so a page that changes an attribute or a style after hiding (and
+ * so stops a selector matching) cannot make hidden nodes disappear from the
+ * guard; a stored node that has left the page is counted as removed.
+ *
+ * What is measured is what hiding removes: the union of the client rects of the
+ * element, of every descendant element, and of its text (a Range over its
+ * contents), clipped to the page. An element's own box alone does not bound it:
+ * a display: contents element has no box, but its text still paints.
  */
-export function measureMatches({ selectors }) {
-  const root = document.documentElement;
-  const body = document.body;
-  const page = {
-    width: Math.max(root.scrollWidth, root.clientWidth, body ? body.scrollWidth : 0),
-    height: Math.max(root.scrollHeight, root.clientHeight, body ? body.scrollHeight : 0),
+export function installGuard() {
+  const key = Symbol.for("screenshot-parity-guard");
+  const pageSize = () => {
+    const root = document.documentElement;
+    const body = document.body;
+    return {
+      width: Math.max(root.scrollWidth, root.clientWidth, body ? body.scrollWidth : 0),
+      height: Math.max(root.scrollHeight, root.clientHeight, body ? body.scrollHeight : 0),
+    };
   };
-  const matches = {};
-  for (const selector of selectors) {
-    let elements;
+  const query = (selector) => {
     try {
-      elements = Array.from(document.querySelectorAll(selector));
+      return Array.from(document.querySelectorAll(selector));
     } catch {
-      matches[selector] = null;
-      continue;
+      return null;
     }
-    matches[selector] = elements.map((el) => {
-      const box = el.getBoundingClientRect();
-      return {
-        tag: el.tagName.toLowerCase(),
-        landmark: el.matches("main, header, nav, footer") || el.querySelector("main, header, nav, footer") !== null,
-        descendants: el.getElementsByTagName("*").length,
-        width: box.width,
-        height: box.height,
-      };
-    });
-  }
-  return { page, matches };
+  };
+  const drawn = ["IMG", "SVG", "CANVAS", "VIDEO", "IFRAME", "OBJECT", "EMBED", "PICTURE", "INPUT", "TEXTAREA", "SELECT"];
+  /* Nothing to hide: no text and no replaced or drawn content. */
+  const empty = (el) => !el.textContent.trim()
+    && !drawn.includes(el.tagName.toUpperCase())
+    && el.querySelector(drawn.join(", ").toLowerCase()) === null;
+  const measure = (el, page) => {
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    const rects = [];
+    const add = (list) => {
+      for (const r of list) {
+        if (r.width > 0 && r.height > 0) rects.push({ left: r.left + scrollX, top: r.top + scrollY, right: r.right + scrollX, bottom: r.bottom + scrollY });
+      }
+    };
+    add(el.getClientRects());
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    add(range.getClientRects());
+    const descendants = el.getElementsByTagName("*");
+    for (let index = 0; index < descendants.length && index < 500; index++) add(descendants[index].getClientRects());
+
+    let x0 = Infinity;
+    let y0 = Infinity;
+    let x1 = -Infinity;
+    let y1 = -Infinity;
+    for (const r of rects) {
+      const left = Math.max(0, r.left);
+      const top = Math.max(0, r.top);
+      const right = Math.min(page.width, r.right);
+      const bottom = Math.min(page.height, r.bottom);
+      if (right <= left || bottom <= top) continue;
+      x0 = Math.min(x0, left);
+      y0 = Math.min(y0, top);
+      x1 = Math.max(x1, right);
+      y1 = Math.max(y1, bottom);
+    }
+
+    /* A boxless element (display: contents or none), or one holding a display: contents descendant, is refused unless empty. */
+    const display = getComputedStyle(el).display;
+    let boxless = null;
+    if ((display === "contents" || display === "none") && !empty(el)) boxless = "display: " + display;
+    for (let index = 0; boxless === null && index < descendants.length && index < 500; index++) {
+      const inner = descendants[index];
+      if (getComputedStyle(inner).display === "contents" && !empty(inner)) boxless = "a display: contents descendant";
+    }
+
+    return {
+      tag: el.tagName.toLowerCase(),
+      boxless,
+      landmark: el.matches("main, header, nav, footer") || el.querySelector("main, header, nav, footer") !== null,
+      descendants: descendants.length,
+      x: x1 > x0 ? x0 : 0,
+      y: y1 > y0 ? y0 : 0,
+      width: x1 > x0 ? x1 - x0 : 0,
+      height: y1 > y0 ? y1 - y0 : 0,
+    };
+  };
+
+  let stored = [];
+  const guard = {
+    hideAndMeasure(maskSelectors, guardSelectors) {
+      const page = pageSize();
+      const found = new Map();
+      for (const selector of [...guardSelectors, ...maskSelectors]) {
+        if (!found.has(selector)) found.set(selector, query(selector));
+      }
+      const matches = {};
+      for (const selector of guardSelectors) {
+        const elements = found.get(selector);
+        matches[selector] = elements === null ? null : elements.map((el) => measure(el, page));
+      }
+      const hidden = {};
+      for (const [selector, elements] of found) {
+        hidden[selector] = elements === null ? -1 : elements.length;
+        if (elements) elements.forEach((el) => el.style.setProperty("visibility", "hidden", "important"));
+      }
+      stored = guardSelectors.map((selector) => [selector, found.get(selector)]);
+      return { hidden, guard: { page, matches, removed: 0 } };
+    },
+    remeasure() {
+      const page = pageSize();
+      const matches = {};
+      let removed = 0;
+      for (const [selector, elements] of stored) {
+        if (elements === null) {
+          matches[selector] = null;
+          continue;
+        }
+        const present = elements.filter((el) => el.isConnected);
+        removed += elements.length - present.length;
+        matches[selector] = present.map((el) => measure(el, page));
+      }
+      return { page, matches, removed };
+    },
+  };
+  Object.defineProperty(window, key, { value: guard, configurable: false, writable: false, enumerable: false });
 }
 
 export async function withBrowser(name, widths, run) {
@@ -162,7 +261,7 @@ function hideScrollbars() {
 }
 
 /* Runs in the page. Everything it needs is passed in or defined inside it. */
-async function settle({ paint, hideSelectors, flattenImages, thumb, viewport }) {
+async function settle({ paint, maskSelectors, guardSelectors, flattenImages, thumb, viewport }) {
   const frames = (n = 2) => new Promise((resolve) => {
     const step = (left) => (left <= 0 ? resolve() : requestAnimationFrame(() => step(left - 1)));
     step(n);
@@ -317,20 +416,11 @@ async function settle({ paint, hideSelectors, flattenImages, thumb, viewport }) 
     }
   }
 
-  // Hide masks and register selectors, counting what each one matched (-1: not a valid selector).
-  const hidden = {};
-  for (const selector of hideSelectors) {
-    let matched = 0;
-    try {
-      document.querySelectorAll(selector).forEach((el) => {
-        el.style.setProperty("visibility", "hidden", "important");
-        matched++;
-      });
-    } catch {
-      matched = -1;
-    }
-    hidden[selector] = matched;
-  }
+  // Hide masks and register selectors through the guard (installGuard): one query per selector, the register
+  // matches measured before hiding, then the same nodes hidden. hidden counts what each matched (-1: invalid).
+  const parityGuard = window[Symbol.for("screenshot-parity-guard")];
+  if (!parityGuard) throw new Error("The register guard is not installed in the page.");
+  const { hidden, guard } = parityGuard.hideAndMeasure(maskSelectors, guardSelectors);
   await frames(2);
 
   const thumbnail = (source) => {
@@ -415,6 +505,7 @@ async function settle({ paint, hideSelectors, flattenImages, thumb, viewport }) 
 
   return {
     hidden,
+    guard,
     notes,
     images: images.map(({ target, parts, ...rest }) => rest),
   };

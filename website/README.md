@@ -252,11 +252,17 @@ How a capture is judged:
   sides for those captures only. Everything else on the page is still compared.
   An entry whose selectors hide nothing on either side is an error, so a stale
   entry cannot linger. A whole capture cannot be accepted. A runtime guard
-  measures what each entry matches on both sides of every capture and makes the
-  capture an error if an element is `html`, `body`, a landmark or holds one, has
-  more than 6 descendant elements, is wider than 800 px, taller than 120 px, or
-  covers more than 2% of the page, or if one entry hides more than 8% of the page
-  or matches more than 12 elements (constants in `diff.mjs`). Agents only propose
+  measures exactly the nodes it hides: each selector is queried once, and those
+  same nodes are measured before hiding and again after capturing (a node that
+  leaves the page is an error). It measures what they paint (the element, its
+  descendants, and its text), not only their own box. It makes the capture an
+  error if an element is `html`, `body`, a landmark or holds one, has no box of
+  its own (`display: contents` or `none`, unless empty), has more than 6
+  descendant elements, paints wider than 800 px or taller than 120 px, or covers
+  more than 2% of the page. It is also an error if one entry hides more than 8% of
+  the page or matches more than 12 elements, or if all entries together hide more
+  than 15% of the page. The register holds at most 10 entries (constants in
+  `diff.mjs`). Agents only propose
   entries; Ali (marketing lead) approves each one before it is added. The
   approved entries:
   - `footer-company-column-links`: hides the footer Company column's link texts on
