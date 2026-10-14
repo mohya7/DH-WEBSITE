@@ -16,3 +16,13 @@ export declare function readRegister(raw: string, browsers?: string[]): Register
 export declare function entriesFor(register: Register, capture: { old: string; new: string; width: number; browser: string }): RegisterEntry[];
 export declare function staleSelectors(entries: RegisterEntry[], oldHidden: Record<string, number> | undefined, newHidden: Record<string, number> | undefined): string[];
 export declare function absentPages(sectionRegisterRaw: string): Set<string>;
+export declare const HIDEABLE_TAGS: readonly string[];
+export declare const GUARD_MAX_DESCENDANTS: number;
+export declare const GUARD_MAX_WIDTH: number;
+export declare const GUARD_MAX_HEIGHT: number;
+export declare const GUARD_MAX_ELEMENT_SHARE: number;
+export declare const GUARD_MAX_ENTRY_SHARE: number;
+export declare const GUARD_MAX_MATCHES: number;
+export interface MatchedElement { tag: string; landmark: boolean; descendants: number; width: number; height: number }
+export interface Measured { page: { width: number; height: number }; matches: Record<string, MatchedElement[] | null> }
+export declare function guardProblems(entries: RegisterEntry[], measured: Measured | undefined, where: string): string[];

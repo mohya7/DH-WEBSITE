@@ -74,7 +74,7 @@ describe("screenshot parity: register", () => {
     pairs: [{ old: "/index.html", new: "/" }],
     widths: [1440, 768, 390],
     browsers: ["chromium", "firefox"],
-    selectors: [".footer-col:nth-child(3)"],
+    selectors: ["footer.footer .footer-col:nth-child(3) a"],
     reason: "Decided.",
   };
   const raw = (differences: unknown[]) => JSON.stringify({ differences });
@@ -106,49 +106,52 @@ describe("screenshot parity: register", () => {
   });
 
   const refused = (selector: string) => () => readRegister(raw([{ ...entry, selectors: [selector] }]));
-  const bare = /no descendant or child part, no attribute, and no :nth-child or :first-child part/;
+  const container = (tag: string) => new RegExp(`the element it hides is <${tag}>, a whole-page or whole-region container`);
+  const unnamed = /the element it hides is not named; the last part must start with one of a, span, p/;
+  const noStart = /it must start with an element name, such as footer or main/;
+  const star = /it contains \*, which matches any element/;
 
   it("refuses body", () => {
-    expect(refused("body")).toThrow(/selector "body" is refused because it has no descendant or child part/);
+    expect(refused("body")).toThrow(/selector "body" is refused because the element it hides is <body>, a whole-page or whole-region container/);
     expect(refused("html > body")).toThrow(/selector "html > body" is refused because the element it hides is <body>, a whole-page or whole-region container/);
   });
 
   it("refuses html", () => {
-    expect(refused("html")).toThrow(bare);
+    expect(refused("html")).toThrow(container("html"));
     expect(refused("html:first-child")).toThrow(/the element it hides is <html>/);
   });
 
   it("refuses :root", () => {
-    expect(refused(":root")).toThrow(bare);
+    expect(refused(":root")).toThrow(noStart);
     expect(refused("html:root[lang]")).toThrow(/the element it hides is <html>/);
-    expect(refused("[lang]:root")).toThrow(/the element it hides is :root, the whole page/);
+    expect(refused("[lang]:root")).toThrow(noStart);
   });
 
   it("refuses *", () => {
-    expect(refused("*")).toThrow(bare);
-    expect(refused("body > *")).toThrow(/the element it hides is \*, any element/);
+    expect(refused("*")).toThrow(star);
+    expect(refused("body > *")).toThrow(star);
   });
 
   it("refuses main", () => {
-    expect(refused("main")).toThrow(bare);
+    expect(refused("main")).toThrow(container("main"));
     expect(refused("body > main")).toThrow(/the element it hides is <main>/);
   });
 
   it("refuses footer.footer", () => {
-    expect(refused("footer.footer")).toThrow(bare);
+    expect(refused("footer.footer")).toThrow(container("footer"));
     expect(refused("body > footer.footer")).toThrow(/the element it hides is <footer>/);
-    expect(refused("body .footer")).toThrow(/the element it hides is \.footer, a whole-region container/);
+    expect(refused("body .footer")).toThrow(unnamed);
   });
 
   it("refuses a bare footer", () => {
-    expect(refused("footer")).toThrow(/selector "footer" is refused because it has no descendant or child part/);
+    expect(refused("footer")).toThrow(/selector "footer" is refused because the element it hides is <footer>, a whole-page or whole-region container/);
     expect(refused("body footer")).toThrow(/the element it hides is <footer>/);
   });
 
   it("refuses header, nav, #__next, and selector lists", () => {
     expect(refused("body > header")).toThrow(/<header>/);
     expect(refused("body nav")).toThrow(/<nav>/);
-    expect(refused("body > #__next")).toThrow(/#__next, a whole-page container/);
+    expect(refused("body > #__next")).toThrow(unnamed);
     expect(refused("footer.footer a, body")).toThrow(/selector list/);
   });
 

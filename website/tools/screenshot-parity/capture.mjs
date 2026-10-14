@@ -60,12 +60,14 @@ export async function captureOne(page, url, options) {
   return { ...previous, stable: false, loads: MAX_LOADS, notes: [...previous.notes, `no two consecutive loads gave the same picture in ${MAX_LOADS} loads`] };
 }
 
-async function captureOnce(page, url, { hideSelectors = [], paint = false, flattenImages = true }) {
+async function captureOnce(page, url, { hideSelectors = [], guardSelectors = [], paint = false, flattenImages = true }) {
   const response = await page.goto(url, { waitUntil: "load", timeout: 90_000 });
   const status = response ? response.status() : 0;
   if (status === 0 || status >= 400) return { status };
 
   const info = await page.evaluate(settle, { paint, hideSelectors, flattenImages, thumb: THUMB, viewport: VIEWPORT_HEIGHT });
+  // Hiding uses visibility, which keeps every box, so the register selectors can be measured after settling.
+  info.guard = await page.evaluate(measureMatches, { selectors: guardSelectors });
 
   let previous = null;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -75,6 +77,42 @@ async function captureOnce(page, url, { hideSelectors = [], paint = false, flatt
     await page.evaluate(() => new Promise((resolve) => setTimeout(() => requestAnimationFrame(() => requestAnimationFrame(resolve)), 250)));
   }
   return { status, png: previous, attempts: MAX_ATTEMPTS, stable: false, ...info };
+}
+
+/**
+ * What each register selector matches on the page, for the runtime guard
+ * (guardProblems in diff.mjs): per element its tag, whether it is or contains a
+ * landmark, its descendant count and its box, plus the full page size. Runs in
+ * the page, so it must stay self-contained. null marks an invalid selector.
+ */
+export function measureMatches({ selectors }) {
+  const root = document.documentElement;
+  const body = document.body;
+  const page = {
+    width: Math.max(root.scrollWidth, root.clientWidth, body ? body.scrollWidth : 0),
+    height: Math.max(root.scrollHeight, root.clientHeight, body ? body.scrollHeight : 0),
+  };
+  const matches = {};
+  for (const selector of selectors) {
+    let elements;
+    try {
+      elements = Array.from(document.querySelectorAll(selector));
+    } catch {
+      matches[selector] = null;
+      continue;
+    }
+    matches[selector] = elements.map((el) => {
+      const box = el.getBoundingClientRect();
+      return {
+        tag: el.tagName.toLowerCase(),
+        landmark: el.matches("main, header, nav, footer") || el.querySelector("main, header, nav, footer") !== null,
+        descendants: el.getElementsByTagName("*").length,
+        width: box.width,
+        height: box.height,
+      };
+    });
+  }
+  return { page, matches };
 }
 
 export async function withBrowser(name, widths, run) {

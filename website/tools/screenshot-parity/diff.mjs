@@ -123,40 +123,109 @@ function fmtBox(box) {
 
 /** Elements that hold a whole page or a whole region: an entry may never hide one. */
 const CONTAINER_TAGS = new Set(["html", "body", "main", "header", "footer", "nav"]);
-const CONTAINER_CLASSES = new Set(["footer"]);
-const CONTAINER_IDS = new Set(["__next"]);
+/** The only elements a register selector may end on: small text and inline elements. */
+export const HIDEABLE_TAGS = Object.freeze(["a", "span", "p", "li", "small", "strong", "em", "b", "i", "time", "label", "button", "img", "svg", "h1", "h2", "h3", "h4", "h5", "h6"]);
+const STRUCTURAL = new Set(["nth-child", "nth-last-child", "nth-of-type", "nth-last-of-type"]);
 
 /**
- * Why one register selector could hide a whole capture or region, or null when
- * it is narrow enough. The rule: one selector (no comma list) that either has a
- * descendant or child combinator or narrows by an attribute or a structural
- * pseudo-class (:nth-child, :first-child, ...), and whose last compound, the
- * element actually hidden, is not html, body, main, header, footer, nav,
- * .footer, #__next, :root, or a bare *.
+ * Why one register selector is refused before any page is loaded, or null.
+ * This is the second line; the runtime guard (guardProblems) is the guarantee.
+ * The rule: no comma, no backslash (CSS escape), no * outside [...], no
+ * functional pseudo-class except :nth-child(An+B) and its relatives (no "of");
+ * the selector starts with an element name and its last compound, the element
+ * it hides, starts with one of HIDEABLE_TAGS; and it is narrowed by a
+ * combinator, an attribute, or a structural pseudo-class.
  */
 export function wholeCaptureReason(selector) {
-  // Blank out [...] and (...) contents so their characters are not read as structure.
+  if (selector.includes(",")) return "it contains a comma (a selector list); give each selector separately";
+  if (selector.includes("\\")) return "it contains a backslash (a CSS escape)";
+  // Blank out [...] contents (attribute values may hold any character).
   let flat = "";
   let depth = 0;
   for (const ch of selector.trim()) {
-    if (ch === "[" || ch === "(") { if (depth === 0) flat += ch; depth++; continue; }
-    if (ch === "]" || ch === ")") { depth--; if (depth === 0) flat += ch; continue; }
+    if (ch === "[") { if (depth === 0) flat += ch; depth++; continue; }
+    if (ch === "]") { depth--; if (depth === 0) flat += ch; continue; }
     flat += depth > 0 ? "" : ch;
   }
-  if (flat.includes(",")) return "it is a selector list; give each selector separately";
+  if (flat.includes("*")) return "it contains *, which matches any element";
+  for (const call of flat.matchAll(/:([\w-]+)\(([^)]*)\)?/g)) {
+    const name = call[1].toLowerCase();
+    if (!STRUCTURAL.has(name)) return `it contains the functional pseudo-class :${name}(), which can match any element`;
+    if (/\bof\b/i.test(call[2] ?? "")) return `it contains :${name}(... of ...), which can match any element`;
+  }
   const compounds = flat.split(/\s*[>+~]\s*|\s+/).filter(Boolean);
+  const first = compounds[0] ?? "";
   const last = compounds[compounds.length - 1] ?? "";
+  if (!/^[a-zA-Z]/.test(first)) return "it must start with an element name, such as footer or main";
+  const tag = /^([a-zA-Z][\w-]*)/.exec(last)?.[1]?.toLowerCase();
+  if (!tag) return `the element it hides is not named; the last part must start with one of ${HIDEABLE_TAGS.join(", ")}`;
+  if (CONTAINER_TAGS.has(tag)) return `the element it hides is <${tag}>, a whole-page or whole-region container`;
+  if (!HIDEABLE_TAGS.includes(tag)) return `the element it hides is <${tag}>; only ${HIDEABLE_TAGS.join(", ")} can be hidden`;
   const narrowed = compounds.length > 1 || /\[|:(nth-child|nth-last-child|nth-of-type|nth-last-of-type|first-child|last-child|first-of-type|last-of-type|only-child)\b/.test(flat);
   if (!narrowed) return "it has no descendant or child part, no attribute, and no :nth-child or :first-child part";
-  const tag = /^([a-zA-Z][\w-]*|\*)/.exec(last)?.[1]?.toLowerCase();
-  if (tag && CONTAINER_TAGS.has(tag)) return `the element it hides is <${tag}>, a whole-page or whole-region container`;
-  const cls = [...last.matchAll(/\.([\w-]+)/g)].map((m) => m[1]).find((name) => CONTAINER_CLASSES.has(name));
-  if (cls) return `the element it hides is .${cls}, a whole-region container`;
-  const id = [...last.matchAll(/#([\w-]+)/g)].map((m) => m[1]).find((name) => CONTAINER_IDS.has(name));
-  if (id) return `the element it hides is #${id}, a whole-page container`;
-  if (/:root\b/.test(last)) return "the element it hides is :root, the whole page";
-  if (last === "*") return "the element it hides is *, any element";
   return null;
+}
+
+/*
+ * The runtime guard: what an entry's selectors actually match, measured in the
+ * browser on both sides of every capture (measureMatches in capture.mjs). Any
+ * breach makes the capture an error. The limits are constants on purpose: the
+ * register file cannot change them.
+ */
+/** An element with more descendant elements than this is a region, not a link or a text span. */
+export const GUARD_MAX_DESCENDANTS = 6;
+/** Widest box a hidden element may have, in CSS px. */
+export const GUARD_MAX_WIDTH = 800;
+/** Tallest box a hidden element may have, in CSS px. */
+export const GUARD_MAX_HEIGHT = 120;
+/** Largest share of the full page area one hidden element may cover. */
+export const GUARD_MAX_ELEMENT_SHARE = 0.02;
+/**
+ * Largest share of the full page area one entry may hide in total. Measured worst
+ * approved case: footer-company-column-links, 6.98% on the old /get-in-touch.html
+ * at 390 px (four links of 376x44 px on a short page).
+ */
+export const GUARD_MAX_ENTRY_SHARE = 0.08;
+/** Most elements one entry may match on one page (the largest approved entry matches 4). */
+export const GUARD_MAX_MATCHES = 12;
+
+const px = (value) => Math.round(value * 10) / 10;
+const pct = (value) => `${(value * 100).toFixed(2)}%`;
+
+/**
+ * Runtime guard breaches for one side of a capture. `measured` is what
+ * measureMatches returned there; `where` names the side and page. An invalid
+ * selector (null) is left to staleSelectors.
+ */
+export function guardProblems(entries, measured, where) {
+  const problems = [];
+  if (!measured) return problems;
+  const pageArea = Math.max(1, measured.page.width * measured.page.height);
+  for (const entry of entries) {
+    let count = 0;
+    let area = 0;
+    for (const selector of entry.selectors) {
+      const elements = measured.matches[selector];
+      if (!elements) continue;
+      count += elements.length;
+      for (const el of elements) {
+        const box = el.width * el.height;
+        area += box;
+        const what = `register entry ${entry.id}: "${selector}" on ${where} matches <${el.tag}> ${px(el.width)}x${px(el.height)} px`;
+        const reasons = [];
+        if (el.tag === "html" || el.tag === "body") reasons.push(`it is <${el.tag}>`);
+        if (el.landmark) reasons.push("it is or contains a main, header, nav, or footer element");
+        if (el.descendants > GUARD_MAX_DESCENDANTS) reasons.push(`it has ${el.descendants} descendant elements (limit ${GUARD_MAX_DESCENDANTS})`);
+        if (el.width > GUARD_MAX_WIDTH) reasons.push(`it is ${px(el.width)} px wide (limit ${GUARD_MAX_WIDTH})`);
+        if (el.height > GUARD_MAX_HEIGHT) reasons.push(`it is ${px(el.height)} px tall (limit ${GUARD_MAX_HEIGHT})`);
+        if (box / pageArea > GUARD_MAX_ELEMENT_SHARE) reasons.push(`it covers ${pct(box / pageArea)} of the page (limit ${pct(GUARD_MAX_ELEMENT_SHARE)})`);
+        if (reasons.length > 0) problems.push(`${what}, refused by the runtime guard: ${reasons.join("; ")}`);
+      }
+    }
+    if (count > GUARD_MAX_MATCHES) problems.push(`register entry ${entry.id} on ${where} matches ${count} elements, refused by the runtime guard (limit ${GUARD_MAX_MATCHES})`);
+    if (area / pageArea > GUARD_MAX_ENTRY_SHARE) problems.push(`register entry ${entry.id} on ${where} hides ${pct(area / pageArea)} of the page, refused by the runtime guard (limit ${pct(GUARD_MAX_ENTRY_SHARE)})`);
+  }
+  return problems;
 }
 
 /**
@@ -164,7 +233,7 @@ export function wholeCaptureReason(selector) {
  * sides, for the page pairs, widths, and browsers it names. Everything else on
  * those pages is still compared with zero tolerance. An entry cannot accept a
  * whole capture: it must name at least one selector, and each selector must
- * pass wholeCaptureReason.
+ * pass wholeCaptureReason. guardProblems checks what they match at capture time.
  */
 export function readRegister(raw, browsers = ["chromium", "firefox", "webkit"]) {
   const parsed = JSON.parse(raw);

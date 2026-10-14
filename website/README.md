@@ -251,7 +251,12 @@ How a capture is judged:
   pairs, widths, browsers, and one or more selectors, which are hidden on both
   sides for those captures only. Everything else on the page is still compared.
   An entry whose selectors hide nothing on either side is an error, so a stale
-  entry cannot linger. A whole capture cannot be accepted. Agents only propose
+  entry cannot linger. A whole capture cannot be accepted. A runtime guard
+  measures what each entry matches on both sides of every capture and makes the
+  capture an error if an element is `html`, `body`, a landmark or holds one, has
+  more than 6 descendant elements, is wider than 800 px, taller than 120 px, or
+  covers more than 2% of the page, or if one entry hides more than 8% of the page
+  or matches more than 12 elements (constants in `diff.mjs`). Agents only propose
   entries; Ali (marketing lead) approves each one before it is added. The
   approved entries:
   - `footer-company-column-links`: hides the footer Company column's link texts on

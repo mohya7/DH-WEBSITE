@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { pairs } from "./pairs.mjs";
-import { absentPages, compareImages, comparePng, entriesFor, readRegister, staleSelectors } from "./diff.mjs";
+import { absentPages, compareImages, comparePng, entriesFor, guardProblems, readRegister, staleSelectors } from "./diff.mjs";
 import { startServer } from "./server.mjs";
 import { writeReport } from "./report.mjs";
 import { BROWSERS, WIDTHS, captureOne, slug, withBrowser, writeCapture } from "./capture.mjs";
@@ -93,12 +93,13 @@ export async function compareSites(options) {
 async function compareOne(page, capture, { baselinePort, candidatePort, maskSelectors, register, absent, options, threshold }) {
   const entries = entriesFor(register, capture);
   capture.register = entries.map((entry) => entry.id);
-  const hideSelectors = [...maskSelectors, ...entries.flatMap((entry) => entry.selectors)];
+  const guardSelectors = entries.flatMap((entry) => entry.selectors);
+  const hideSelectors = [...maskSelectors, ...guardSelectors];
   const flattenImages = options.flattenImages !== false;
 
-  const before = await captureOne(page, `http://127.0.0.1:${baselinePort}${capture.old}`, { hideSelectors, flattenImages });
+  const before = await captureOne(page, `http://127.0.0.1:${baselinePort}${capture.old}`, { hideSelectors, guardSelectors, flattenImages });
   if (!before.png) throw new Error(`The old page ${capture.old} answered ${before.status}.`);
-  const after = await captureOne(page, `http://127.0.0.1:${candidatePort}${capture.new}`, { hideSelectors, flattenImages, paint: options.paintCandidate === true });
+  const after = await captureOne(page, `http://127.0.0.1:${candidatePort}${capture.new}`, { hideSelectors, guardSelectors, flattenImages, paint: options.paintCandidate === true });
   if (!after.png) {
     if (after.status === 404 && absent.has(capture.old)) {
       capture.status = "absent-accepted";
@@ -110,6 +111,7 @@ async function compareOne(page, capture, { baselinePort, candidatePort, maskSele
 
   capture.notes.push(...before.notes.map((note) => `old: ${note}`), ...after.notes.map((note) => `new: ${note}`));
   capture.problems.push(...staleSelectors(entries, before.hidden, after.hidden));
+  capture.problems.push(...guardProblems(entries, before.guard, `old ${capture.old}`), ...guardProblems(entries, after.guard, `new ${capture.new}`));
   if (!before.stable) capture.problems.push(`the old page never gave two identical captures in ${before.attempts} attempts`);
   if (!after.stable) capture.problems.push(`the new page never gave two identical captures in ${after.attempts} attempts`);
 
