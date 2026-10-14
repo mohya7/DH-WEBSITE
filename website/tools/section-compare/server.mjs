@@ -5,7 +5,8 @@
  *
  * Serves three things from one origin, so one page can compare them:
  *   /           the comparison page
- *   /snapshot-settings.json  careers email from the snapshot fixture
+ *   /snapshot-settings.json  careers email from the snapshot, with
+ *                        SNAPSHOT_SETTINGS_FIXTURE laid over the settings
  *   /old/...    the source branch's working tree, untouched
  *   /oldrt/...  the same page with every script removed except site-content.js
  *               and content-runtime.js, so only the content runtime runs — not
@@ -81,7 +82,16 @@ http.createServer((req, res) => {
   }
   if (url === "/snapshot-settings.json") {
     const content = JSON.parse(fs.readFileSync(path.join(websiteRoot, "fixtures", "snapshot", "content.json"), "utf8"));
-    const settings = content.settings ?? {};
+    const settings = { ...(content.settings ?? {}) };
+    const fixture = process.env.SNAPSHOT_SETTINGS_FIXTURE?.trim();
+    if (fixture) {
+      if (!/^[A-Za-z0-9_-]+$/.test(fixture)) {
+        res.writeHead(400, { "Content-Type": types[".txt"] });
+        return res.end("SNAPSHOT_SETTINGS_FIXTURE must be a file name");
+      }
+      const overlay = JSON.parse(fs.readFileSync(path.join(websiteRoot, "fixtures", "settings", `${fixture}.json`), "utf8"));
+      Object.assign(settings, overlay);
+    }
     res.writeHead(200, { "Content-Type": types[".json"] });
     return res.end(JSON.stringify({ careersEmail: settings.careersEmail ?? null, email: settings.email ?? null }));
   }

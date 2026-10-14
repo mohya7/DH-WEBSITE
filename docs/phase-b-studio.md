@@ -113,7 +113,7 @@ Under `/api/v1/`, following the Phase A conventions.
 
 **3.4** Draft and published are separate states. **Editing a published item edits a draft copy; the live content does not change until the next publish.** Report how the draft is stored — a working copy per item, or revision rows — and why.
 
-**3.5** Vacancies are editable here like any collection. The bridge to Node is Phase D.
+**3.5** Vacancies are editable here like any collection. The bridge to Node is Phase D (dropped until Phase G; the website, Studio and Content API stand alone).
 
 **3.6** Integration tests for every endpoint: success, validation failure, 409, and each role — editor, admin, anonymous, unknown role.
 

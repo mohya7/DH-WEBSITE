@@ -313,7 +313,7 @@ The previous site is kept deployable until the new one has run without incident.
 | Asset versioning | Manual query strings, drifted | Framework content hashing | Retire |
 | Generated blog pages | Regenerated on save | Generated at build | Rebuild |
 | Contact form | Node, JSON file | Content API, SQL, Studio inbox | Rebuild |
-| Careers form | Node | Node, then .NET hiring | Keep, then rebuild |
+| Careers form | Node | Node, then .NET hiring | Keep, then rebuild (dropped until Phase G; the website, Studio and Content API stand alone) |
 | Identity | In-memory sessions, 4 roles | Shared identity, JWT, 5 roles | Rebuild |
 | Hiring, interviewers, booking, notifications | Node | Node, then .NET | Keep, then rebuild |
 | Email | SES templates, not configured | Hiring emails stay on Node; Studio password reset via SES | Partial |
@@ -354,7 +354,7 @@ The previous site is kept deployable until the new one has run without incident.
 
 ### 9.3 Job application
 
-**Current and transition:** visitor submits the careers form → Node → application and CV stored in SQL Server → HR notified.
+**Current and transition (dropped until Phase G; the website, Studio and Content API stand alone):** visitor submits the careers form → Node → application and CV stored in SQL Server → HR notified.
 
 **After the hiring rebuild:** the same flow through the .NET hiring API.
 
@@ -420,7 +420,7 @@ Unchanged in this stage. Recorded here so the hiring rebuild has the reference.
 | FR-W-04 | Structured data per page type: Organization, WebSite, BreadcrumbList, Article, Service, JobPosting, FAQPage |
 | FR-W-05 | Generate `sitemap.xml`, `robots.txt`, and `llms.txt` at build |
 | FR-W-06 | Contact form posts to the Content API with honeypot and validation |
-| FR-W-07 | Careers form posts to the Node hiring system during the transition |
+| FR-W-07 | Careers form posts to the Node hiring system during the transition (dropped until Phase G; the website, Studio and Content API stand alone). Not part of Phase C's FR-W exit |
 | FR-W-08 | Cookie consent with categories, Consent Mode v2 defaulting to denied, reopenable from the footer |
 | FR-W-09 | Analytics events for form submissions and calls to action; nothing tracked under `/book`; no personal data sent |
 | FR-W-10 | Custom 404 and 500 pages returned with the correct status codes |
@@ -475,8 +475,8 @@ Unchanged in this stage. Recorded here so the hiring rebuild has the reference.
 |---|---|---|---|
 | Website build | Content API | Build time | Fetch published content |
 | Contact form | Content API | Runtime | Submit enquiries |
-| Careers form | Node hiring API | Runtime | Submit applications — transition |
-| Studio publish | Vacancy file | On publish | Keep Node matching applications — transition |
+| Careers form | Node hiring API | Runtime | Submit applications — transition (dropped until Phase G; the website, Studio and Content API stand alone) |
+| Studio publish | Vacancy file | On publish | Keep Node matching applications — transition (dropped until Phase G; the website, Studio and Content API stand alone) |
 | IIS | Website, Content API, Studio, Node | Runtime | Routing on one domain |
 | Studio | SES | Runtime | Password reset, once configured |
 | Node | SES | Runtime | Hiring emails, once configured |
@@ -549,7 +549,7 @@ Unchanged in this stage. Recorded here so the hiring rebuild has the reference.
 | Placeholder content | Case studies and blogs imported as drafts |
 | Analytics | Tag Manager and GA4 with Consent Mode v2 |
 | Contact form | Moves to the Content API |
-| Careers form | Stays on Node until hiring moves |
+| Careers form | Stays on Node until hiring moves (dropped until Phase G; the website, Studio and Content API stand alone) |
 | Vacancies | In the content database, bridged to Node. None migrated — all were test data |
 | Hosting | IIS on Windows Server |
 
@@ -578,7 +578,7 @@ Unchanged in this stage. Recorded here so the hiring rebuild has the reference.
 | A — Foundation | Repository, Content API, schema, shared identity with five roles, migration and seed | **Done** — commit `8c2f0d0` on `rebuild/dotnet-platform` |
 | B — Studio | Every Studio requirement | All FR-S requirements accepted |
 | C — Website | Every website requirement, shared section components | All FR-W and NFR-01 to 05 met on staging |
-| D — Transition setup | This phase is dropped until Phase G; the website, Studio and Content API stand alone. Record of the future hiring phase: IIS routing, vacancy bridge, Node content editing switch-off prepared | Booking links and careers form work through the new routing |
+| D — Deployment setup | IIS routing to Node, the vacancy bridge, and the Node content editing switch-off (dropped until Phase G; the website, Studio and Content API stand alone). Record of the future hiring phase: those three transition deliverables | Booking links and careers form work through the new routing (dropped until Phase G; the website, Studio and Content API stand alone) |
 | E — Parallel run | New site on staging beside the current system | Content parity sign-off; screenshot parity passed; reachability test passed |
 | F — Cutover | New website and Studio live | Rollback tested; backups scheduled and verified |
 | G — Hiring rebuild | .NET hiring platform on the shared identity | Separate analysis |

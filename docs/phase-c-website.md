@@ -303,7 +303,7 @@ No content-date or unified-navigation difference is silently accepted.
 | Social icons/accessible labels | LinkedIn/linkedin, Facebook/facebook, Instagram/instagram, TikTok/tiktok from the old footer. |
 | Background | Old SVG wave paths, six on home/service, four on other sets, none on case pages; strokes #1A9AD6/#36B0E5/#F4970B with original opacity/width; grid/wave class names unchanged. |
 | Article pillar labels | Old `scripts/blog-pages.js` labels for DEX, enterprise software, data/cloud, AI and outsourcing. This existing article-only map is outside site-chrome logic; links still resolve stored references. |
-| Application form | Old apply markup, labels, placeholders, option labels, file-validation and response messages; API endpoint is configuration. Failure text is passed on the behavior script and used for non-JSON responses. |
+| Application form | Old apply markup, labels, placeholders, option labels, file-validation and response messages; API endpoint is configuration. Failure text is passed on the behavior script and used for non-JSON responses. (dropped until Phase G; the website, Studio and Content API stand alone) |
 
 **5.6 Page report.** Direct `main > section` selectors, in rendered order. All
 pages also render the shared header/mobile navigation and footer. This lists the
@@ -324,7 +324,7 @@ portal placeholder has no designed source page; its generated hero is listed.
 | `/blogs/digital-employee-experience` | `.blog-view-hero`, `.blog-view-body`, `.blog-view-related` | Article hero; body with TOC and FAQ; related items |
 | `/blogs/enterprise-ai-production` | `.blog-view-hero`, `.blog-view-body`, `.blog-view-related` | Article hero; body with TOC and FAQ; related items |
 | `/careers` | `.hub-hero`, `.section.careers-values.hub-section--tight`, `#opportunities`, `.hub-cta` | hub_hero, values, vacancy_list, call_to_action |
-| `/careers/apply` | `.hub-hero`, `.section.careers-detail.hub-section--tight` | hub_hero; application form |
+| `/careers/apply` | `.hub-hero`, `.section.careers-detail.hub-section--tight` | hub_hero; application form (dropped until Phase G; the website, Studio and Content API stand alone) |
 | `/cases` | `.hub-hero`, `.section.hub-section.hub-section--tight`, `.hub-cta` | hub_hero, case_cards, call_to_action |
 | `/cases/data-center-transformation` | `.section.cs-hero`, `.section`, `.section`, `.section`, `.section`, `.section` | hero, problem, rich_text, rich_text, related_items, call_to_action |
 | `/cases/ministry-planning` | `.section.cs-hero`, `.section`, `.section`, `.section`, `.section`, `.section` | hero, problem, rich_text, rich_text, related_items, call_to_action |

@@ -11,6 +11,7 @@ import { stripRuntime } from '../src/build/strip-runtime';
 import { parseRichText, headingAnchors, type RichNode } from '@digitalhub/blocks';
 import { VacancyPage } from '../src/components/VacancyPage';
 import { PageScaffold } from '../src/components/PageScaffold';
+import { headMetadata, pageHead } from '../src/seo/head';
 import { consentCopy, consentDefaults, tagManagerId } from '../src/components/Consent';
 import { count } from './blocks/harness';
 
@@ -52,6 +53,11 @@ describe('page composition', () => {
     const html = renderToStaticMarkup(<PageScaffold site={site} item={apply} pageType="page" path="/careers/apply" />);
     expect(html).toContain('How to apply');
     expect(html).toContain('Send your CV and a short note about the role you want. Our careers team reviews every application.');
+    const description = 'Apply for an open role at Digital Hub by email. Send your CV, LinkedIn profile and availability to our careers team.';
+    const meta = headMetadata(pageHead(site, apply, 'page', '/careers/apply', 'https://digitalhub.com.eg'));
+    expect(meta.description).toBe(description);
+    expect(meta.openGraph?.description).toBe(description);
+    expect(meta.twitter?.description).toBe(description);
     expect(html).toContain('Email your CV, your LinkedIn profile and your availability to');
     expect(html).toContain('Put the role you are applying for in the subject line.');
     expect(html.match(/Our careers team reviews every application\./g)).toHaveLength(1);
