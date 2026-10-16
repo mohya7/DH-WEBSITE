@@ -6,4 +6,4 @@ export declare const MAX_ATTEMPTS: number;
 export declare const MAX_LOADS: number;
 /** Installs the in-page guard under Symbol.for("screenshot-parity-guard"): hideAndMeasure(masks, selectors) and remeasure(). */
 export declare function installGuard(): void;
-export interface PageGuard { hideAndMeasure(maskSelectors: string[], guardSelectors: string[]): { hidden: Record<string, number>; guard: Measured }; remeasure(): Measured }
+export interface PageGuard { hideAndMeasure(maskSelectors: string[], guardSelectors: string[]): { hidden: Record<string, number>; guard: Measured }; remeasure(): Measured; showAll(): void; hideAll(): void; hideOnly(selectors: string[]): void }

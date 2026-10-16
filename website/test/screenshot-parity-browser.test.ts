@@ -21,10 +21,68 @@ const hasChromium = (() => {
   }
 })();
 
-const page = (body: string, script = "") =>
-  `<!doctype html><html lang="en"><head><meta charset="utf-8"><style>html,body{margin:0;width:100%;height:1000px;overflow:hidden;background:#fff;font:24px Arial}main,p{margin:0}a{display:block;position:absolute}</style></head><body>${body}${script ? `<script>${script}</script>` : ""}</body></html>`;
+const page = (body: string, script = "", css = "") =>
+  `<!doctype html><html lang="en"><head><meta charset="utf-8"><style>html,body{margin:0;width:100%;height:1000px;overflow:hidden;background:#fff;font:24px Arial}main,p{margin:0}a{display:block;position:absolute}${css}</style></head><body>${body}${script ? `<script>${script}</script>` : ""}</body></html>`;
 
-type Case = { id: string; selectors: string[][]; old: string; now: string; expected: "error" | "match"; problem?: RegExp };
+/**
+ * expected: the comparison's status. removedAtMost: for paint that cannot leave the
+ * element's box, the measured removal (new side) must stay this small.
+ */
+type Case = { id: string; selectors: string[][]; old: string; now: string; expected: "error" | "match" | "differs"; problem?: RegExp; removedAtMost?: number };
+
+/*
+ * Paint sources the geometry cannot see (round 3: Codex's false matches, and more).
+ * Old and new differ only in the colour the paint source draws (red against blue),
+ * across the page, so the only correct outcomes are: the removal is measured and
+ * refused, or (for paint that stays inside the element) a small measured removal.
+ */
+const probe = '<p data-probe style="position:absolute;left:10px;top:10px;width:100px;height:20px">x</p>';
+const painted = (id: string, css: (colour: string) => string, body = `<main>${probe}</main>`, script = "", extra: Partial<Case> = {}): Case => ({
+  id,
+  selectors: [[extra.selectors?.[0]?.[0] ?? "main p[data-probe]"]],
+  old: page(body, script, css("#d00000")),
+  now: page(body, script, css("#0000d0")),
+  expected: "error",
+  problem: /removes [\d.]+% of the page's pixels \([\d,]+ px, measured\), refused by the guard/,
+  ...extra,
+});
+const shadowHost = (mode: string, count = 1) =>
+  `(()=>{const p=document.querySelector("p[data-probe]");const root=p.attachShadow({mode:"${mode}"});` +
+  `for(let i=0;i<${count};i++){const d=document.createElement("div");d.className="s";root.append(d);}` +
+  `const st=document.createElement("style");st.textContent=".s{position:fixed;inset:0;background:"+getComputedStyle(document.documentElement).getPropertyValue("--paint")+"}";root.append(st);})()`;
+const svgBig = (colour: string) => `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1440' height='1000'%3E%3Crect width='1440' height='1000' fill='${encodeURIComponent(colour)}'/%3E%3C/svg%3E")`;
+
+const paintCases: Case[] = [
+  painted("pseudo-before", (c) => `p[data-probe]::before{content:"";position:fixed;inset:0;background:${c}}`),
+  painted("pseudo-after", (c) => `p[data-probe]::after{content:"";position:fixed;inset:0;background:${c}}`),
+  painted("box-shadow", (c) => `p[data-probe]{box-shadow:0 0 0 2000px ${c}}`),
+  painted("outline", (c) => `p[data-probe]{outline:2000px solid ${c}}`),
+  painted("shadow-open", (c) => `:root{--paint:${c}}`, `<main>${probe}</main>`, shadowHost("open")),
+  painted("shadow-closed", (c) => `:root{--paint:${c}}`, `<main>${probe}</main>`, shadowHost("closed")),
+  painted("shadow-501", (c) => `:root{--paint:${c}}`, `<main>${probe}</main>`, shadowHost("open", 501)),
+  painted("empty-contents-pseudo", (c) => `p[data-probe]::before{content:"";position:fixed;inset:0;background:${c}}`, '<main><p data-probe style="display:contents"></p></main>'),
+  painted("filter-drop-shadow", (c) => `p[data-probe]{filter:drop-shadow(0 0 0 ${c}) drop-shadow(600px 400px 0 ${c})}p[data-probe]::before{content:"";position:absolute;left:0;top:0;width:100px;height:20px;box-shadow:0 0 0 400px ${c}}`),
+  painted("mix-blend-mode", (c) => `body{background:${c}}p[data-probe]::before{content:"";position:fixed;inset:0;background:#fff;mix-blend-mode:difference}`),
+  painted("mask-image", (c) => `p[data-probe]::before{content:"";position:fixed;inset:0;background:${c};-webkit-mask-image:linear-gradient(#000,#000);mask-image:linear-gradient(#000,#000)}`),
+  painted("clip-path-overflow", (c) => `p[data-probe]{clip-path:inset(-2000px)}p[data-probe]::before{content:"";position:absolute;left:-10px;top:-10px;width:1440px;height:1000px;background:${c}}`),
+  painted("svg-overflow", (c) => `svg[data-probe] rect{fill:${c}}`, '<main><svg data-probe width="100" height="20" overflow="visible" style="position:absolute;left:10px;top:10px"><rect width="1440" height="1000"/></svg></main>', "", { selectors: [["main svg[data-probe]"]] }),
+  painted("pseudo-content-url", (c) => `p[data-probe]::before{content:${svgBig(c)};position:fixed;left:0;top:0}`),
+  painted("pseudo-background", (c) => `p[data-probe]::after{content:"";position:fixed;inset:0;background-image:linear-gradient(${c},${c})}`),
+  painted("marker", (c) => `li[data-probe]::marker{font-size:900px;color:${c}}li[data-probe]{position:absolute;left:600px;top:0;width:100px;height:20px;font-size:16px}`, '<main><ul style="margin:0;padding:0"><li data-probe>x</li></ul></main>', "", { selectors: [["main li[data-probe]"]], problem: /refused by the (runtime )?guard/ }),
+  painted("first-line", (c) => `p[data-probe]::first-line{font-size:600px;color:${c}}`, `<main>${probe}</main>`, "", { problem: /refused by the (runtime )?guard/ }),
+  painted("text-shadow", (c) => `p[data-probe]{text-shadow:0 0 0 ${c}, 0 0 400px ${c}, 0 0 0 ${c};font-size:400px;line-height:1;color:${c}}`),
+  painted("animation-grows", (c) => `@keyframes grow{from{inset:500px}to{inset:0}}p[data-probe]::before{content:"";position:fixed;inset:0;background:${c};animation:grow 0.2s forwards}`),
+  // Paint that cannot leave the element's box: a small, correctly measured removal and a match.
+  painted("backdrop-filter", (c) => `body{background:${c}}p[data-probe]{backdrop-filter:invert(1)}`, `<main>${probe}</main>`, "", { expected: "differs", problem: undefined, removedAtMost: 2_500 }),
+  painted("canvas-confined", () => "", `<main><p data-probe style="position:absolute;left:10px;top:10px;width:100px;height:20px"><canvas width="100" height="20"></canvas></p></main>`,
+    'const g=document.querySelector("canvas").getContext("2d");g.fillStyle=location.port==="4284"?"#d00000":"#0000d0";g.fillRect(0,0,100,20);', { expected: "match", problem: undefined, removedAtMost: 2_000 }),
+  painted("iframe-confined", () => "", `<main><p data-probe style="position:absolute;left:10px;top:10px;width:100px;height:20px"><iframe style="border:0;width:100px;height:20px" srcdoc="&lt;body style='margin:0;background:${"#d00000"}'&gt;"></iframe></p></main>`,
+    'if(location.port!=="4284")document.querySelector("iframe").srcdoc="<body style=\'margin:0;background:#0000d0\'>";', { expected: "match", problem: undefined, removedAtMost: 2_000 }),
+  // Unstable when shown: a canvas inside the hidden element redraws every frame. Hidden, the page is steady;
+  // shown, it never gives two identical captures, so the removal cannot be measured and the capture is refused.
+  painted("unstable-when-shown", () => "", `<main><p data-probe style="position:absolute;left:10px;top:10px;width:100px;height:20px"><canvas width="100" height="20"></canvas></p></main>`,
+    'const g=document.querySelector("canvas").getContext("2d");let n=0;setInterval(()=>{n++;g.fillStyle="rgb("+(n*37%255)+",0,0)";g.fillRect(0,0,100,20);},16);', { problem: /the page never gave two identical captures with the register shown, so the pixels it removes cannot be measured/ }),
+];
 
 const style900 = "width: 900px; height: 100px;";
 const full = "width: 1440px; height: 1000px;";
@@ -91,6 +149,7 @@ const cases: Case[] = [
     now: page('<main><a data-small style="left:10px;top:10px;width:100px;height:20px">CHANGED</a></main>'),
     expected: "match",
   },
+  ...paintCases,
 ];
 
 describe.skipIf(!hasChromium)("screenshot parity: the register guard in Chromium (local only)", () => {
@@ -132,10 +191,11 @@ describe.skipIf(!hasChromium)("screenshot parity: the register guard in Chromium
       masks: false,
       flattenImages: false,
     });
-    const result = results[0] as { status: string; problems: string[]; differentPixels: number | null };
+    const result = results[0] as { status: string; problems: string[]; differentPixels: number | null; removed?: { new: { total: { pixels: number } | null } | null } };
     expect(result.status, result.problems.join("\n")).toBe(c.expected);
     if (c.problem) expect(result.problems.join("\n")).toMatch(c.problem);
     if (c.expected === "match") expect(result.differentPixels).toBe(0);
+    if (c.removedAtMost !== undefined) expect(result.removed?.new?.total?.pixels ?? Infinity).toBeLessThanOrEqual(c.removedAtMost);
   }, 120_000);
 });
 

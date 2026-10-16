@@ -172,7 +172,8 @@ export function wholeCaptureReason(selector) {
  * nodes that are hidden, measured before hiding and again after capturing, by
  * the extent they paint (element, descendants, and text), not only their own
  * box. Any breach makes the capture an error. The limits are constants on
- * purpose: the register file cannot change them.
+ * purpose: the register file cannot change them. These geometry checks are the
+ * cheap second line; the guarantee is the measured removal (removedProblems).
  */
 /** An element with more descendant elements than this is a region, not a link or a text span. */
 export const GUARD_MAX_DESCENDANTS = 6;
@@ -243,6 +244,37 @@ export function guardProblems(entries, measured, where) {
   const total = unionArea(painted) / pageArea;
   if (total > GUARD_MAX_TOTAL_SHARE) problems.push(`register entry total on ${where}: the entries together hide ${pct(total)} of the page, refused by the runtime guard (limit ${pct(GUARD_MAX_TOTAL_SHARE)})`);
   return problems;
+}
+
+/**
+ * The guarantee: what the register removed, measured as pixels (measure.mjs). The
+ * masked capture against the same load with the register shown; per entry when
+ * needed. The geometry checks above are cheap early refusals; these decide.
+ * `removed` is undefined when no entry applies.
+ */
+export function removedProblems(entries, removed, where) {
+  if (!removed) return [];
+  if (!removed.stable) return [`register entry guard on ${where}: the page never gave two identical captures with the register shown, so the pixels it removes cannot be measured`];
+  if (removed.sizeChanged) return [`register entry guard on ${where}: hiding the register changed the size of the page`];
+  const problems = [];
+  if (removed.total.share > GUARD_MAX_TOTAL_SHARE) {
+    problems.push(`register entry total on ${where}: hiding the entries removes ${pct(removed.total.share)} of the page's pixels (${removed.total.pixels.toLocaleString("en-US")} px, measured), refused by the guard (limit ${pct(GUARD_MAX_TOTAL_SHARE)})`);
+  }
+  for (const entry of removed.entries ?? []) {
+    if (entry.share > GUARD_MAX_ENTRY_SHARE) {
+      problems.push(`register entry ${entry.id} on ${where}: hiding it removes ${pct(entry.share)} of the page's pixels (${entry.pixels.toLocaleString("en-US")} px, measured), refused by the guard (limit ${pct(GUARD_MAX_ENTRY_SHARE)})`);
+    }
+  }
+  return problems;
+}
+
+/** The measured shares, for the report's notes, so a reviewer sees them on every capture. */
+export function removedNote(removed, side) {
+  if (!removed || !removed.stable || removed.sizeChanged) return null;
+  const entries = removed.entriesMeasured
+    ? "; " + removed.entries.map((entry) => `${entry.id} ${pct(entry.share)}`).join(", ")
+    : "; each entry at most the total";
+  return `${side}: the register removes ${pct(removed.total.share)} of the page (${removed.total.pixels.toLocaleString("en-US")} px, measured)${entries}`;
 }
 
 /** The area covered by a set of boxes ({ x, y, width, height }), each point counted once. */

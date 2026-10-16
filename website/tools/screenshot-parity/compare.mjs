@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { pairs } from "./pairs.mjs";
-import { absentPages, compareImages, comparePng, entriesFor, guardProblems, readRegister, staleSelectors } from "./diff.mjs";
+import { GUARD_MAX_ENTRY_SHARE, absentPages, compareImages, comparePng, entriesFor, guardProblems, readRegister, removedNote, removedProblems, staleSelectors } from "./diff.mjs";
 import { startServer } from "./server.mjs";
 import { writeReport } from "./report.mjs";
 import { BROWSERS, WIDTHS, captureOne, slug, withBrowser, writeCapture } from "./capture.mjs";
@@ -94,11 +94,13 @@ async function compareOne(page, capture, { baselinePort, candidatePort, maskSele
   const entries = entriesFor(register, capture);
   capture.register = entries.map((entry) => entry.id);
   const guardSelectors = entries.flatMap((entry) => entry.selectors);
+  const guardEntries = entries.map((entry) => ({ id: entry.id, selectors: entry.selectors }));
   const flattenImages = options.flattenImages !== false;
+  const measure = { guardEntries, entryCap: GUARD_MAX_ENTRY_SHARE };
 
-  const before = await captureOne(page, `http://127.0.0.1:${baselinePort}${capture.old}`, { maskSelectors, guardSelectors, flattenImages });
+  const before = await captureOne(page, `http://127.0.0.1:${baselinePort}${capture.old}`, { maskSelectors, guardSelectors, flattenImages, ...measure });
   if (!before.png) throw new Error(`The old page ${capture.old} answered ${before.status}.`);
-  const after = await captureOne(page, `http://127.0.0.1:${candidatePort}${capture.new}`, { maskSelectors, guardSelectors, flattenImages, paint: options.paintCandidate === true });
+  const after = await captureOne(page, `http://127.0.0.1:${candidatePort}${capture.new}`, { maskSelectors, guardSelectors, flattenImages, paint: options.paintCandidate === true, ...measure });
   if (!after.png) {
     if (after.status === 404 && absent.has(capture.old)) {
       capture.status = "absent-accepted";
@@ -118,6 +120,10 @@ async function compareOne(page, capture, { baselinePort, candidatePort, maskSele
     ...guardProblems(entries, after.guardLater, `new ${capture.new}`),
   ]);
   capture.problems.push(...guarded);
+  // The guarantee: the pixels the register removed, measured on each side.
+  capture.removed = { old: before.removed ?? null, new: after.removed ?? null };
+  capture.problems.push(...removedProblems(entries, before.removed, `old ${capture.old}`), ...removedProblems(entries, after.removed, `new ${capture.new}`));
+  for (const note of [removedNote(before.removed, "old"), removedNote(after.removed, "new")]) if (note) capture.notes.push(note);
   if (!before.stable) capture.problems.push(`the old page never gave two identical captures in ${before.attempts} attempts`);
   if (!after.stable) capture.problems.push(`the new page never gave two identical captures in ${after.attempts} attempts`);
 

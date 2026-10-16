@@ -29,3 +29,7 @@ export declare function unionArea(boxes: { x: number; y: number; width: number; 
 export interface MatchedElement { tag: string; boxless: string | null; landmark: boolean; descendants: number; x: number; y: number; width: number; height: number }
 export interface Measured { page: { width: number; height: number }; matches: Record<string, MatchedElement[] | null>; removed: number }
 export declare function guardProblems(entries: RegisterEntry[], measured: Measured | undefined, where: string): string[];
+export interface RemovedShare { pixels: number; share: number }
+export interface Removed { stable: boolean; sizeChanged: boolean; captures: number; total: RemovedShare | null; entries: ({ id: string } & RemovedShare)[] | null; entriesMeasured: boolean }
+export declare function removedProblems(entries: RegisterEntry[], removed: Removed | undefined | null, where: string): string[];
+export declare function removedNote(removed: Removed | undefined | null, side: string): string | null;

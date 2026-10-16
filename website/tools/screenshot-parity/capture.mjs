@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { chromium, firefox, webkit } from "playwright";
+import { comparePng } from "./diff.mjs";
+import { measureRemoved } from "./measure.mjs";
 
 const engines = { chromium, firefox, webkit };
 
@@ -54,11 +56,34 @@ export async function captureOne(page, url, options) {
   for (let load = 2; load <= MAX_LOADS; load++) {
     const next = await captureOnce(page, url, options);
     if (!next.png) return next;
-    if (next.png.equals(previous.png)) return { ...next, loads: load };
+    if (next.png.equals(previous.png)) return withRemoved(page, { ...next, loads: load }, options);
     previous = next;
   }
-  return { ...previous, stable: false, loads: MAX_LOADS, notes: [...previous.notes, `no two consecutive loads gave the same picture in ${MAX_LOADS} loads`] };
+  return withRemoved(page, { ...previous, stable: false, loads: MAX_LOADS, notes: [...previous.notes, `no two consecutive loads gave the same picture in ${MAX_LOADS} loads`] }, options);
 }
+
+/** The page is still on the load that was just captured: measure there what the register removes (measure.mjs). */
+async function withRemoved(page, result, { guardEntries = [], entryCap = 0.08 }) {
+  if (guardEntries.length === 0) return result;
+  const key = "screenshot-parity-guard";
+  const selectorsOf = (ids) => guardEntries.filter((entry) => ids.includes(entry.id)).flatMap((entry) => entry.selectors);
+  result.removed = await measureRemoved({
+    entries: guardEntries,
+    maskedPng: result.png,
+    screenshot: () => page.screenshot(SCREENSHOT),
+    showAll: () => page.evaluate((name) => window[Symbol.for(name)].showAll(), key),
+    hideAll: () => page.evaluate((name) => window[Symbol.for(name)].hideAll(), key),
+    hideOnly: (ids) => page.evaluate(([name, selectors]) => window[Symbol.for(name)].hideOnly(selectors), [key, selectorsOf(ids)]),
+    wait: () => page.evaluate(() => new Promise((resolve) => setTimeout(() => requestAnimationFrame(() => requestAnimationFrame(resolve)), 250))),
+    diff: (a, b) => comparePng(a, b, { pixelmatchThreshold: 0 }),
+    maxAttempts: MAX_ATTEMPTS,
+    entryCap,
+  });
+  return result;
+}
+
+/** One full-page capture: the masked capture and the unmasked measurement use the same settings. */
+const SCREENSHOT = { fullPage: true, animations: "disabled", caret: "hide", scale: "css", timeout: 90_000, type: "png" };
 
 async function captureOnce(page, url, { maskSelectors = [], guardSelectors = [], paint = false, flattenImages = true }) {
   const response = await page.goto(url, { waitUntil: "load", timeout: 90_000 });
@@ -70,7 +95,7 @@ async function captureOnce(page, url, { maskSelectors = [], guardSelectors = [],
 
   let previous = null;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    const png = await page.screenshot({ fullPage: true, animations: "disabled", caret: "hide", scale: "css", timeout: 90_000, type: "png" });
+    const png = await page.screenshot(SCREENSHOT);
     if (previous && previous.equals(png)) return { status, png, attempts: attempt, stable: true, ...info, guardLater: await remeasure(page) };
     previous = png;
     await page.evaluate(() => new Promise((resolve) => setTimeout(() => requestAnimationFrame(() => requestAnimationFrame(resolve)), 250)));
@@ -175,6 +200,20 @@ export function installGuard() {
   };
 
   let stored = [];
+  const maskHidden = new Set();
+  const originals = new Map();
+  const hideNode = (el) => {
+    if (!originals.has(el)) originals.set(el, [el.style.getPropertyValue("visibility"), el.style.getPropertyPriority("visibility")]);
+    el.style.setProperty("visibility", "hidden", "important");
+  };
+  /* Back to what the page had; a node a mask hides stays hidden. */
+  const showNode = (el) => {
+    if (maskHidden.has(el) || !originals.has(el)) return;
+    const [value, priority] = originals.get(el);
+    if (value) el.style.setProperty("visibility", value, priority);
+    else el.style.removeProperty("visibility");
+  };
+  const registerNodes = (selectors) => stored.filter(([selector]) => !selectors || selectors.includes(selector)).flatMap(([, elements]) => elements ?? []);
   const guard = {
     hideAndMeasure(maskSelectors, guardSelectors) {
       const page = pageSize();
@@ -188,9 +227,10 @@ export function installGuard() {
         matches[selector] = elements === null ? null : elements.map((el) => measure(el, page));
       }
       const hidden = {};
+      for (const selector of maskSelectors) (found.get(selector) ?? []).forEach((el) => maskHidden.add(el));
       for (const [selector, elements] of found) {
         hidden[selector] = elements === null ? -1 : elements.length;
-        if (elements) elements.forEach((el) => el.style.setProperty("visibility", "hidden", "important"));
+        if (elements) elements.forEach(hideNode);
       }
       stored = guardSelectors.map((selector) => [selector, found.get(selector)]);
       return { hidden, guard: { page, matches, removed: 0 } };
@@ -209,6 +249,17 @@ export function installGuard() {
         matches[selector] = present.map((el) => measure(el, page));
       }
       return { page, matches, removed };
+    },
+    /* For measuring what the register removes: the same stored nodes, never a new query. */
+    showAll() {
+      registerNodes(null).forEach(showNode);
+    },
+    hideAll() {
+      registerNodes(null).forEach(hideNode);
+    },
+    hideOnly(selectors) {
+      registerNodes(null).forEach(showNode);
+      registerNodes(selectors).forEach(hideNode);
     },
   };
   Object.defineProperty(window, key, { value: guard, configurable: false, writable: false, enumerable: false });

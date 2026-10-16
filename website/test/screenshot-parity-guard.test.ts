@@ -11,11 +11,14 @@ import {
   MAX_REGISTER_ENTRIES,
   guardProblems,
   readRegister,
+  removedNote,
+  removedProblems,
   unionArea,
   wholeCaptureReason,
 } from "../tools/screenshot-parity/diff.mjs";
 import type { Measured } from "../tools/screenshot-parity/diff.mjs";
 import { installGuard } from "../tools/screenshot-parity/capture.mjs";
+import { measureRemoved } from "../tools/screenshot-parity/measure.mjs";
 import type { PageGuard } from "../tools/screenshot-parity/capture.mjs";
 
 /*
@@ -339,5 +342,78 @@ describe("screenshot parity: Codex's 52 selectors (codex-check-pr-21-fix.md)", (
     const matched = measured.matches[selector];
     const refused = matched === null || matched.length === 0 || guardProblems([entry], measured, "new /fixture").length > 0;
     expect(refused).toBe(layer !== "accepted");
+  });
+});
+
+describe("screenshot parity: the removed pixels are measured (fake screenshots, in CI)", () => {
+  // Captures are labels; the fake diff counts the pixels between two labels from a table.
+  const png = (label: string) => Buffer.from(label);
+  const fake = (options: { unmasked?: string[]; removed: Record<string, number>; area?: number }) => {
+    const shots = [...(options.unmasked ?? ["shown", "shown"])];
+    let state = "shown";
+    const calls: string[] = [];
+    return {
+      calls,
+      input: {
+        maskedPng: png("hidden"),
+        screenshot: async () => png(state === "shown" ? (shots.shift() ?? "shown") : state),
+        showAll: async () => { calls.push("showAll"); state = "shown"; },
+        hideAll: async () => { calls.push("hideAll"); state = "hidden"; },
+        hideOnly: async (ids: string[]) => { calls.push("hideOnly " + ids.join(",")); state = "only:" + ids.join(","); },
+        wait: async () => {},
+        diff: (a: Buffer, b: Buffer) => ({ differentPixels: a.equals(b) ? 0 : options.removed[a.toString()] ?? 0, sizeMismatch: b.toString() === "taller", width: 100, height: (options.area ?? 10_000) / 100 }),
+        maxAttempts: 8,
+        entryCap: GUARD_MAX_ENTRY_SHARE,
+      },
+    };
+  };
+  const entry = (id: string) => ({ id, pairs: [], widths: [], browsers: [], selectors: ["main a." + id], reason: "probe" });
+
+  it("measures the total as the pixels between the masked and the unmasked capture of the same load", async () => {
+    const f = fake({ removed: { hidden: 1_234 } });
+    const removed = await measureRemoved({ ...f.input, entries: [entry("a")] });
+    expect(removed).toMatchObject({ stable: true, sizeChanged: false, total: { pixels: 1_234, share: 0.1234 }, entriesMeasured: true });
+    expect(removed.entries).toEqual([{ id: "a", pixels: 1_234, share: 0.1234 }]);
+    expect(f.calls).toEqual(["showAll", "hideAll"]);
+  });
+
+  it("measures each entry only when several apply and the total is over the entry cap", async () => {
+    const small = fake({ removed: { hidden: 700 } });
+    const under = await measureRemoved({ ...small.input, entries: [entry("a"), entry("b")] });
+    expect(under.entriesMeasured).toBe(false);
+    expect(small.calls).toEqual(["showAll", "hideAll"]);
+
+    const large = fake({ removed: { hidden: 1_500, "only:a": 1_000, "only:b": 500 } });
+    const over = await measureRemoved({ ...large.input, entries: [entry("a"), entry("b")] });
+    expect(over.entries).toEqual([{ id: "a", pixels: 1_000, share: 0.1 }, { id: "b", pixels: 500, share: 0.05 }]);
+    expect(large.calls).toEqual(["showAll", "hideOnly a", "hideOnly b", "hideAll"]);
+  });
+
+  it("refuses to measure when the page is not stable with the register shown, and hides the register again", async () => {
+    const f = fake({ unmasked: ["one", "two", "three", "four", "five", "six", "seven", "eight"], removed: { hidden: 10 } });
+    const removed = await measureRemoved({ ...f.input, entries: [entry("a")] });
+    expect(removed.stable).toBe(false);
+    expect(f.calls.at(-1)).toBe("hideAll");
+    expect(removedProblems([entry("a")], removed, "new /x")).toEqual(["register entry guard on new /x: the page never gave two identical captures with the register shown, so the pixels it removes cannot be measured"]);
+  });
+
+  it("refuses when hiding changes the page size", async () => {
+    const f = fake({ unmasked: ["taller", "taller"], removed: {} });
+    const removed = await measureRemoved({ ...f.input, entries: [entry("a")] });
+    expect(removedProblems([entry("a")], removed, "old /x")).toEqual(["register entry guard on old /x: hiding the register changed the size of the page"]);
+  });
+
+  it("refuses a measured total over 15% and an entry over 8%, and passes the boundary", () => {
+    const base = { stable: true, sizeChanged: false, captures: 2, entriesMeasured: true };
+    expect(removedProblems([entry("a")], { ...base, total: { pixels: 1_500, share: 0.15 }, entries: [{ id: "a", pixels: 800, share: 0.08 }] }, "new /x")).toEqual([]);
+    expect(removedProblems([entry("a")], { ...base, total: { pixels: 1_501, share: 0.1501 }, entries: [{ id: "a", pixels: 801, share: 0.0801 }] }, "new /x")).toEqual([
+      "register entry total on new /x: hiding the entries removes 15.01% of the page's pixels (1,501 px, measured), refused by the guard (limit 15.00%)",
+      "register entry a on new /x: hiding it removes 8.01% of the page's pixels (801 px, measured), refused by the guard (limit 8.00%)",
+    ]);
+  });
+
+  it("reports the measured shares in the notes", () => {
+    expect(removedNote({ stable: true, sizeChanged: false, captures: 2, entriesMeasured: false, total: { pixels: 500, share: 0.05 }, entries: null }, "old"))
+      .toBe("old: the register removes 5.00% of the page (500 px, measured); each entry at most the total");
   });
 });
