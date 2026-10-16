@@ -7,9 +7,13 @@
 # .github/security/known-findings.json and reported as warnings; nothing is
 # suppressed in the tools. .github/security/gate.mjs does the comparison.
 #
-# Semgrep Community Edition 1.180.0 scans the roots in SEMGREP_ROOTS (api/,
-# website/src, website/scripts, website/behaviors, studio/src, and packages/)
-# with the public packs p/javascript, p/typescript, p/csharp, p/owasp-top-ten,
+# Semgrep Community Edition 1.180.0 scans the roots in SEMGREP_ROOTS: api
+# (including api/tests and api/tools), website/src, website/scripts,
+# website/behaviors, website/test, website/tools, website/next.config.ts,
+# website/vitest.config.ts, studio/src, studio/scripts, studio/vite, studio/test,
+# studio/e2e, studio/vite.config.ts, studio/vitest.config.ts,
+# studio/playwright.config.ts, packages, and .github/security. Packs are
+# p/javascript, p/typescript, p/csharp, p/owasp-top-ten,
 # and p/secrets. No login and no token; metrics are off. It does not catch
 # logic flaws, or bugs that only show up when a real request is made. An ERROR
 # fails unless it is listed under semgrep in known-findings.json with an owner
@@ -47,7 +51,7 @@ env:
   GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
   SEMGREP_VERSION: "1.180.0"
   # One list. The gate self-test reads this line and fails if a required root is missing.
-  SEMGREP_ROOTS: api website/src website/scripts website/behaviors studio/src packages
+  SEMGREP_ROOTS: api website/src website/scripts website/behaviors website/test website/tools website/next.config.ts website/vitest.config.ts studio/src studio/scripts studio/vite studio/test studio/e2e studio/vite.config.ts studio/vitest.config.ts studio/playwright.config.ts packages .github/security
 
 jobs:
   gate-self-test:
@@ -187,8 +191,17 @@ jobs:
       - name: Install Semgrep ${{ env.SEMGREP_VERSION }}
         run: pip install "semgrep==${SEMGREP_VERSION}"
 
-      # Scanned: the directories in SEMGREP_ROOTS. api/ includes api/tests.
+      # Scanned: every directory and config file in SEMGREP_ROOTS.
+      # api/ includes api/tests and api/tools. packages/ includes the blocks package.
       # website/behaviors is copied into the public site by website/scripts/prepare-design.ts.
+      # website/test, website/vitest.config.ts, and website/next.config.ts run in the website CI job.
+      # website/tools runs in the section-comparison job (node tools/section-compare/run.mjs).
+      # studio/scripts, studio/vite, and studio/vite.config.ts run in the Studio build.
+      # studio/test and studio/vitest.config.ts run in the Studio test job.
+      # studio/e2e and studio/playwright.config.ts run in the Studio Playwright job.
+      # .github/security is the gate this workflow runs.
+      # Not scanned: website/browser-tests and website/playwright.config.ts, because
+      # no job on this branch runs the website browser tests. website/public is build output.
       # .semgrepignore replaces Semgrep's built-in ignore, which skips directories
       # named tests and would otherwise hide api/tests.
       # Excluded, and why:
@@ -199,7 +212,6 @@ jobs:
       #     A pattern with a slash did not match Windows paths, and a trailing /**
       #     exclude makes semgrep-core fail to list targets. "generated" is the
       #     directory name excluded for schema types from npm run gen:types.
-      # studio/e2e is outside studio/src, so its pixel fixture is not scanned.
       - name: Scan
         env:
           SEMGREP_SEND_METRICS: "off"

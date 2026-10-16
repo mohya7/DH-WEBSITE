@@ -844,14 +844,49 @@ test("a malformed semgrep PartialParsing type fails", () => {
   }
 });
 
+const requiredRoots = [
+  "api",
+  "website/src",
+  "website/scripts",
+  "website/behaviors",
+  "website/test",
+  "website/tools",
+  "website/next.config.ts",
+  "website/vitest.config.ts",
+  "studio/src",
+  "studio/scripts",
+  "studio/vite",
+  "studio/test",
+  "studio/e2e",
+  "studio/vite.config.ts",
+  "studio/vitest.config.ts",
+  "studio/playwright.config.ts",
+  "packages",
+  ".github/security",
+];
+
+// Exactly one scan, one report write, and one exit-code capture. A second
+// semgrep scan that writes the same semgrep.json would replace the report
+// after the first scan, and a check of only the first invocation would miss it.
+function semgrepScanProblems(workflow) {
+  const scans = workflow.match(/\bsemgrep scan\b/g) ?? [];
+  const writes = workflow.match(/--output\s+"[^"]*semgrep\.json"/g) ?? [];
+  const codes = workflow.match(/^[ \t]*code=\$\?$/gm) ?? [];
+  const problems = [];
+  if (scans.length !== 1) problems.push(`expected exactly one semgrep scan, found ${scans.length}`);
+  if (writes.length !== 1) problems.push(`expected exactly one semgrep.json output, found ${writes.length}`);
+  if (codes.length !== 1) problems.push(`expected exactly one code=$?, found ${codes.length}`);
+  const command = workflow.slice(workflow.indexOf("semgrep scan"), workflow.indexOf("code=$?"));
+  if (!/\$SEMGREP_ROOTS\s*$/.test(command)) problems.push("the scan does not end with $SEMGREP_ROOTS");
+  return problems;
+}
+
 test("the semgrep scan roots are the required source roots", () => {
-  const requiredRoots = ["api", "website/src", "website/scripts", "website/behaviors", "studio/src", "packages"];
   const workflow = fs.readFileSync(path.join(here, "..", "workflows", "security.yml"), "utf8");
   const listed = workflow.match(/^ {2}SEMGREP_ROOTS: (.+)$/m);
   assert.ok(listed, "SEMGREP_ROOTS is missing from security.yml");
   assert.deepEqual(listed[1].split(" "), requiredRoots);
-  const command = workflow.slice(workflow.indexOf("semgrep scan"), workflow.indexOf("code=$?"));
-  assert.match(command, /\$SEMGREP_ROOTS\s*$/);
+  assert.deepEqual(semgrepScanProblems(workflow), []);
   const ignore = fs.readFileSync(path.join(here, "..", "..", ".semgrepignore"), "utf8");
   for (const root of requiredRoots) {
     assert.equal(ignore.split(/\r?\n/).some((line) => {
@@ -859,6 +894,21 @@ test("the semgrep scan roots are the required source roots", () => {
       return trimmed === root || trimmed === `${root}/`;
     }), false, `${root} is excluded by .semgrepignore`);
   }
+});
+
+test("a second semgrep scan writing the same report is rejected", () => {
+  const workflow = `${fs.readFileSync(path.join(here, "..", "workflows", "security.yml"), "utf8")}
+          semgrep scan \\
+            --metrics=off \\
+            --json \\
+            --output "$RUNNER_TEMP/semgrep.json" \\
+            website/src
+          code=$?
+`;
+  const problems = semgrepScanProblems(workflow);
+  assert.ok(problems.some((problem) => problem.includes("exactly one semgrep scan")), problems.join("\n"));
+  assert.ok(problems.some((problem) => problem.includes("exactly one semgrep.json")), problems.join("\n"));
+  assert.ok(problems.some((problem) => problem.includes("exactly one code=$?")), problems.join("\n"));
 });
 
 test("known semgrep findings stay listed, and a missing one is named", () => {
