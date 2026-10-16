@@ -1,6 +1,6 @@
 /**
- * The apply page has no form. Applications go by email until the hiring
- * application exists (Phase G). The hero lead is separate and is not repeated here.
+ * The apply page has no form. Applications are by email to the careers address.
+ * The hero lead is separate and is not repeated here.
  */
 export function HowToApply({ email }: { email: string }) {
   const address = email.trim();

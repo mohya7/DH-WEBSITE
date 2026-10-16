@@ -202,6 +202,6 @@
     "sections": ["section"],
     "kind": "apply-by-email",
     "selector": "section.section.careers-detail",
-    "reason": "Marketing lead decision: no hiring system until Phase G; applying is by email."
+    "reason": "Marketing lead decision: the apply page links to the careers email; the website has no hiring system."
   }
 ]
