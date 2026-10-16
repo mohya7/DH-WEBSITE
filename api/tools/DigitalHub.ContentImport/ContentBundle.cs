@@ -7,6 +7,7 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using DigitalHub.Api.Content;
 using DigitalHub.Api.Data;
+using DigitalHub.Images;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
@@ -26,7 +27,8 @@ namespace DigitalHub.ContentImport;
 /// (ContentStore.CheckDocumentAsync, AdminStore's settings, navigation and
 /// redirect checks, MediaLibrary's alt-text check); one failure undoes it all.
 /// Rows are matched by id, so importing the same bundle twice changes nothing.
-/// Import never deletes a row or a file.
+/// Import never deletes a row, and never a file it did not create: if it fails after
+/// writing a new media file, it removes exactly the files it wrote.
 /// </summary>
 static class ContentBundle
 {
@@ -51,6 +53,9 @@ static class ContentBundle
     };
 
     private static readonly JsonSerializerOptions Indented = new(Json) { WriteIndented = true };
+
+    /// <summary>A stored draft (revision snapshot, working copy): the API's own shape, and no member it does not know.</summary>
+    private static readonly JsonSerializerOptions StrictDraft = new(ContentJson.Options) { UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow };
 
     /// <summary>The tables in import order: media before the rows that use it, owners before their sections.</summary>
     internal static readonly ITable[] Tables =
@@ -158,7 +163,7 @@ static class ContentBundle
 
     public static async Task<ImportResult> ImportAsync(ContentDbContext db, string? mediaRoot, Stream input, ImportOptions options, CancellationToken cancellationToken)
     {
-        var read = await ReadAsync(db, input, cancellationToken);
+        var read = await ReadAsync(db, input, options.Limits, cancellationToken);
         if (read.Error is not null)
             return ImportResult.Refused(read.Error);
         var bundle = read.Bundle!;
@@ -203,6 +208,7 @@ static class ContentBundle
             await outer.CreateSavepointAsync(savepoint, cancellationToken);
 
         var committed = false;
+        var written = new List<string>();
         try
         {
             var owners = await OwnerDecisionsAsync(db, bundle, cancellationToken);
@@ -240,12 +246,18 @@ static class ContentBundle
                     : new ImportResult(true, [], plan, conflicts, true, newFiles.Count, bundle.Files.Count - newFiles.Count) { Warnings = warnings };
             }
 
+            // Files are written last, after every check, then the database is committed. Nothing can
+            // fail after the commit. Every file written here is recorded first, so a failure on a
+            // later file, or in the commit itself, removes exactly these files and nothing else.
             foreach (var name in newFiles)
             {
                 var target = Path.Combine(mediaRoot!, name);
-                var temporary = target + ".import";
+                var temporary = target + ".import-" + Guid.NewGuid().ToString("N");
+                written.Add(temporary);
                 await File.WriteAllBytesAsync(temporary, bundle.Files[name], cancellationToken);
+                written.Add(target);
                 File.Move(temporary, target);
+                written.Remove(temporary);
             }
 
             if (own is not null)
@@ -257,6 +269,7 @@ static class ContentBundle
         }
         catch (DbUpdateException exception)
         {
+            RemoveWritten(written);
             await UndoAsync(db, own, outer, savepoint, cancellationToken);
             var reason = exception.InnerException?.Message ?? exception.Message;
             var rows = exception.Entries
@@ -268,8 +281,16 @@ static class ContentBundle
                 problems.Add($"{table} {id}: the database refused the row: {reason}");
             return ImportResult.Failed(problems, plan, conflicts, options.DryRun);
         }
+        catch (Exception exception) when (!committed && exception is not OperationCanceledException)
+        {
+            var removed = RemoveWritten(written);
+            await UndoAsync(db, own, outer, savepoint, cancellationToken);
+            problems.Add($"The import stopped: {exception.Message}{(removed > 0 ? $" The {removed} media file(s) it had written were removed." : "")}");
+            return ImportResult.Failed(problems, plan, conflicts, options.DryRun);
+        }
         catch when (!committed)
         {
+            RemoveWritten(written);
             await UndoAsync(db, own, outer, savepoint, cancellationToken);
             throw;
         }
@@ -282,11 +303,45 @@ static class ContentBundle
 
     private static async Task UndoAsync(ContentDbContext db, IDbContextTransaction? own, IDbContextTransaction? outer, string savepoint, CancellationToken cancellationToken)
     {
-        if (own is not null)
-            await own.RollbackAsync(cancellationToken);
-        else
-            await outer!.RollbackToSavepointAsync(savepoint, cancellationToken);
+        try
+        {
+            if (own is not null)
+                await own.RollbackAsync(cancellationToken);
+            else
+                await outer!.RollbackToSavepointAsync(savepoint, cancellationToken);
+        }
+        catch (Exception) when (own is not null)
+        {
+            /* A failed commit has already ended the transaction; disposing it is the rollback. */
+        }
+
         db.ChangeTracker.Clear();
+    }
+
+    /// <summary>Deletes exactly the files this import wrote (never one that was there before). Returns how many.</summary>
+    private static int RemoveWritten(List<string> written)
+    {
+        var removed = 0;
+        foreach (var path in written)
+        {
+            try
+            {
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                    removed++;
+                }
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+        }
+
+        written.Clear();
+        return removed;
     }
 
     /// <summary>
@@ -375,11 +430,18 @@ static class ContentBundle
             var error = MediaLibrary.MetadataError(asset.Alt, asset.Decorative, asset.Caption);
             if (error is not null)
                 warnings.Add($"media {asset.Id} ({asset.OriginalName}): {error}");
-            foreach (var name in MediaFileNames(new JsonArray(row!.DeepClone()), out _))
+            // Safety checks, for new and existing rows alike; --force never bypasses them.
+            if (asset.ContentType != ImageFiles.StoredContentType)
+                problems.Add($"media {asset.Id}: content type {asset.ContentType} is not {ImageFiles.StoredContentType}, the only type the upload stores.");
+            var referenced = MediaFileNames(new JsonArray(row!.DeepClone()), out var badPaths);
+            foreach (var name in referenced)
             {
                 if (!files.Contains(name))
                     problems.Add($"media {asset.Id}: file {name} is not in the bundle.");
             }
+
+            foreach (var path in badPaths)
+                problems.Add($"media {asset.Id}: path {path} is not /media/ followed by a safe file name.");
         }
 
         foreach (var row in bundle.Tables["settings"])
@@ -451,7 +513,7 @@ static class ContentBundle
 
     private sealed record Bundle(string Migration, Dictionary<string, JsonArray> Tables, Dictionary<string, string> Checksums, Dictionary<string, byte[]> Files);
 
-    private static async Task<(Bundle? Bundle, string? Error)> ReadAsync(ContentDbContext db, Stream input, CancellationToken cancellationToken)
+    private static async Task<(Bundle? Bundle, string? Error)> ReadAsync(ContentDbContext db, Stream input, BundleLimits limits, CancellationToken cancellationToken)
     {
         ZipArchive zip;
         try
@@ -463,18 +525,52 @@ static class ContentBundle
             return (null, "The file is not a content bundle (not a zip).");
         }
 
-        using (zip)
+        try
         {
+            using (zip)
+                return await ReadZipAsync(db, zip, limits, cancellationToken);
+        }
+        catch (InvalidDataException exception)
+        {
+            return (null, "The bundle is damaged: " + exception.Message);
+        }
+        catch (Exception exception) when (exception is JsonException or InvalidOperationException or FormatException or OverflowException)
+        {
+            return (null, "content.json has a value of the wrong type: " + exception.Message);
+        }
+    }
+
+    private static async Task<(Bundle? Bundle, string? Error)> ReadZipAsync(ContentDbContext db, ZipArchive zip, BundleLimits limits, CancellationToken cancellationToken)
+    {
+        {
+            // Size limits first, on what each entry declares, before anything is read.
+            if (zip.Entries.Count > limits.MaxEntries)
+                return (null, $"The bundle has {zip.Entries.Count:N0} entries; at most {limits.MaxEntries:N0} are allowed.");
+            long declaredTotal = 0;
+            foreach (var entry in zip.Entries)
+            {
+                var cap = entry.FullName == ContentEntry ? limits.MaxContentBytes : limits.MaxFileBytes;
+                if (entry.Length > cap)
+                    return (null, $"{entry.FullName} declares {entry.Length:N0} bytes, over the limit of {cap:N0}.");
+                if (entry.CompressedLength > 0 && (double)entry.Length / entry.CompressedLength > limits.MaxRatio)
+                    return (null, $"{entry.FullName} expands {(double)entry.Length / entry.CompressedLength:N0} times, over the limit of {limits.MaxRatio:N0}.");
+                declaredTotal += entry.Length;
+                if (declaredTotal > limits.MaxTotalBytes)
+                    return (null, $"The bundle's entries declare more than {limits.MaxTotalBytes:N0} bytes in total.");
+            }
+
             var content = zip.GetEntry(ContentEntry);
             if (content is null)
                 return (null, "The bundle has no content.json.");
 
+            var (contentBytes, contentError) = await ReadEntryAsync(content, limits.MaxContentBytes, limits.MaxRatio, cancellationToken);
+            if (contentError is not null)
+                return (null, contentError);
+
             JsonObject root;
             try
             {
-                await using var stream = content.Open();
-                root = (await JsonNode.ParseAsync(stream, cancellationToken: cancellationToken))?.AsObject()
-                    ?? throw new JsonException("empty");
+                root = JsonNode.Parse(contentBytes)?.AsObject() ?? throw new JsonException("empty");
             }
             catch (Exception exception) when (exception is JsonException or InvalidOperationException)
             {
@@ -521,7 +617,26 @@ static class ContentBundle
                 sums[table.Name] = sum!;
             }
 
+            // Drafts kept as JSON text: the API's own shape, nothing it does not know.
+            foreach (var (tableName, column) in new[] { ("revisions", "snapshot"), ("working-copies", "document") })
+            {
+                foreach (var row in byName[tableName])
+                {
+                    var text = row![column]!.GetValue<string>();
+                    try
+                    {
+                        if (JsonSerializer.Deserialize<DraftDocument>(text, StrictDraft) is null)
+                            return (null, $"{tableName} {row["id"]}: {column}: is empty.");
+                    }
+                    catch (JsonException exception)
+                    {
+                        return (null, $"{tableName} {row["id"]}: {column}: is not a draft document ({exception.Message})");
+                    }
+                }
+            }
+
             var files = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+            long readTotal = contentBytes.Length;
             foreach (var item in fileList)
             {
                 var name = item?["name"]?.GetValue<string>();
@@ -531,12 +646,18 @@ static class ContentBundle
                 var entry = zip.GetEntry(MediaFolder + name);
                 if (entry is null)
                     return (null, $"media file {name} is listed but not in the bundle.");
-                using var buffer = new MemoryStream();
-                await using (var stream = entry.Open())
-                    await stream.CopyToAsync(buffer, cancellationToken);
-                var data = buffer.ToArray();
+                var (data, error) = await ReadEntryAsync(entry, limits.MaxFileBytes, limits.MaxRatio, cancellationToken);
+                if (error is not null)
+                    return (null, error);
+                readTotal += data.Length;
+                if (readTotal > limits.MaxTotalBytes)
+                    return (null, $"The bundle's files hold more than {limits.MaxTotalBytes:N0} bytes in total.");
                 if (Sha256(data) != sha)
                     return (null, $"media file {name}: the checksum does not match. The file is damaged or was edited.");
+                // The upload path's own rule: a stored image name, WebP bytes, not SVG, within its limits.
+                var stored = ImageFiles.StoredFileProblem(name, data);
+                if (stored is not null)
+                    return (null, $"media file {name}: {stored}.");
                 files[name] = data;
             }
 
@@ -551,32 +672,95 @@ static class ContentBundle
         }
     }
 
-    /// <summary>Every field name in the bundle's structure (not text values) that looks like a credential.</summary>
+    /// <summary>
+    /// One zip entry, read up to its cap: the bytes actually read are checked, not only what
+    /// the entry declares. Reading stops one byte past the smaller of the two.
+    /// </summary>
+    private static async Task<(byte[] Data, string? Error)> ReadEntryAsync(ZipArchiveEntry entry, long cap, double maxRatio, CancellationToken cancellationToken)
+    {
+        var limit = Math.Min(cap, entry.Length);
+        using var buffer = new MemoryStream();
+        var chunk = new byte[81920];
+        await using (var stream = entry.Open())
+        {
+            while (true)
+            {
+                var read = await stream.ReadAsync(chunk, cancellationToken);
+                if (read == 0)
+                    break;
+                buffer.Write(chunk, 0, read);
+                if (buffer.Length > limit)
+                {
+                    return buffer.Length > cap
+                        ? ([], $"{entry.FullName} holds more than the limit of {cap:N0} bytes.")
+                        : ([], $"{entry.FullName} holds more bytes than it declares ({entry.Length:N0}). The file is damaged or was edited.");
+                }
+            }
+        }
+
+        if (entry.CompressedLength > 0 && (double)buffer.Length / entry.CompressedLength > maxRatio)
+            return ([], $"{entry.FullName} expands {(double)buffer.Length / entry.CompressedLength:N0} times, over the limit of {maxRatio:N0}.");
+        return (buffer.ToArray(), null);
+    }
+
+    /// <summary>
+    /// Every field name that looks like a credential, at any depth: the bundle's own keys,
+    /// and the keys inside JSON kept as text in a column (section fields, drafts, revision
+    /// snapshots, rich text, generated sizes). Text values are not checked, so an article
+    /// may say "password". Names are compared after Unicode NFKC, case folding, and
+    /// removing "_" and "-".
+    /// </summary>
     internal static List<string> ForbiddenFieldNames(JsonNode? node)
     {
         var found = new List<string>();
-        void Walk(JsonNode? current)
+        void Walk(JsonNode? current, int depth)
         {
+            if (depth > 64)
+                return;
             switch (current)
             {
                 case JsonObject obj:
                     foreach (var (key, value) in obj)
                     {
-                        if (ForbiddenNames.Any(word => key.Replace("_", "").Contains(word, StringComparison.OrdinalIgnoreCase)))
+                        if (LooksLikeCredential(key))
                             found.Add(key);
-                        Walk(value);
+                        Walk(value, depth + 1);
                     }
 
                     break;
                 case JsonArray array:
                     foreach (var item in array)
-                        Walk(item);
+                        Walk(item, depth + 1);
+                    break;
+                case JsonValue value when value.TryGetValue<string>(out var text):
+                    var trimmed = text.AsSpan().TrimStart();
+                    if (trimmed.Length > 0 && trimmed[0] is '{' or '[')
+                    {
+                        JsonNode? inner = null;
+                        try
+                        {
+                            inner = JsonNode.Parse(text);
+                        }
+                        catch (JsonException)
+                        {
+                            /* Text that only looks like JSON. Its words are content. */
+                        }
+
+                        Walk(inner, depth + 1);
+                    }
+
                     break;
             }
         }
 
-        Walk(node);
+        Walk(node, 0);
         return found.Distinct(StringComparer.Ordinal).ToList();
+    }
+
+    internal static bool LooksLikeCredential(string key)
+    {
+        var folded = key.Normalize(NormalizationForm.FormKC).ToLowerInvariant().Replace("_", "").Replace("-", "");
+        return ForbiddenNames.Any(word => folded.Contains(word, StringComparison.Ordinal));
     }
 
     /// <summary>The files a media row points at: its path and every generated size, by file name.</summary>
@@ -589,13 +773,18 @@ static class ContentBundle
             var row = node!;
             var paths = new List<string> { row["path"]!.GetValue<string>() };
             var sizes = row["generatedSizes"]!.GetValue<string>();
-            using (var document = JsonDocument.Parse(string.IsNullOrWhiteSpace(sizes) ? "[]" : sizes))
+            try
             {
+                using var document = JsonDocument.Parse(string.IsNullOrWhiteSpace(sizes) ? "[]" : sizes);
                 foreach (var size in document.RootElement.EnumerateArray())
                 {
                     if (size.TryGetProperty("path", out var path) && path.GetString() is { } value)
                         paths.Add(value);
                 }
+            }
+            catch (Exception exception) when (exception is JsonException or InvalidOperationException)
+            {
+                badPaths.Add("(generatedSizes is not a list of sizes)");
             }
 
             foreach (var path in paths)
@@ -627,7 +816,22 @@ sealed record ExportResult(string? Error, string Migration, IReadOnlyDictionary<
     public static ExportResult Refused(string error) => new(error, "", new Dictionary<string, int>(), 0, 0);
 }
 
-sealed record ImportOptions(bool DryRun, bool Force);
+sealed record ImportOptions(bool DryRun, bool Force)
+{
+    public BundleLimits Limits { get; init; } = BundleLimits.Default;
+}
+
+/// <summary>
+/// What a bundle may hold. Each media file at most the API's own upload limit
+/// (ImagePipeline.MaxBytes); content.json at most 256 MiB (the Parity content is 0.2 MB);
+/// at most 2 GiB in total and 20,000 entries (Parity: 3 MB, 109 entries); and no entry
+/// that expands more than 100 times (WebP barely compresses; content.json about 5 times).
+/// Checked on what each entry declares and on the bytes actually read.
+/// </summary>
+sealed record BundleLimits(long MaxFileBytes, long MaxContentBytes, long MaxTotalBytes, int MaxEntries, double MaxRatio)
+{
+    public static readonly BundleLimits Default = new(ImagePipeline.MaxBytes, 256L * 1024 * 1024, 2L * 1024 * 1024 * 1024, 20_000, 100);
+}
 
 sealed record TableCount(int Created, int Updated, int Unchanged);
 
@@ -713,7 +917,7 @@ sealed class Table<T>(string name, Func<ContentDbContext, DbSet<T>> set, string[
         var expected = Columns(db).Select(column => column.Key).ToHashSet(StringComparer.Ordinal);
         foreach (var row in rows)
         {
-            if (row is not JsonObject obj || obj["id"] is null)
+            if (row is not JsonObject obj || obj["id"] is not JsonValue idValue || !idValue.TryGetValue<string>(out var idText) || !Guid.TryParse(idText, out _))
                 return $"{name}: a row is not an object with an id.";
             var keys = obj.Select(pair => pair.Key).ToHashSet(StringComparer.Ordinal);
             var unknown = keys.Except(expected).ToList();
@@ -723,6 +927,21 @@ sealed class Table<T>(string name, Func<ContentDbContext, DbSet<T>> set, string[
                 return $"{name} {obj["id"]}: the row does not match this tool's columns"
                     + (unknown.Count > 0 ? "; unknown: " + string.Join(", ", unknown) : "")
                     + (missing.Count > 0 ? "; missing: " + string.Join(", ", missing) : "") + ".";
+            }
+
+            // Every value must convert to its column's type before anything is written.
+            foreach (var (key, property) in Columns(db))
+            {
+                try
+                {
+                    var value = obj[key].Deserialize(property.PropertyType, ContentBundle.Json);
+                    if (value is null && property.PropertyType.IsValueType && Nullable.GetUnderlyingType(property.PropertyType) is null)
+                        return $"{name} {obj["id"]}: {key}: a value is required.";
+                }
+                catch (Exception exception) when (exception is JsonException or InvalidOperationException or FormatException or OverflowException or NotSupportedException)
+                {
+                    return $"{name} {obj["id"]}: {key}: the value is not a valid {Nullable.GetUnderlyingType(property.PropertyType)?.Name ?? property.PropertyType.Name}.";
+                }
             }
         }
 
