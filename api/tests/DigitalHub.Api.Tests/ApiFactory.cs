@@ -30,6 +30,9 @@ public class ApiFactory : WebApplicationFactory<Program>
        signs in from one test address. Production default 30. */
     protected virtual int LoginFailurePermitLimit => 100_000;
 
+    /* Wrong current passwords on change-password, per user. Production default 5. */
+    protected virtual int ChangePasswordFailurePermitLimit => 1000;
+
     private readonly string _connectionString = TestConnectionString();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -46,6 +49,7 @@ public class ApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Database:EnsureCreated", "false");
         builder.UseSetting("Auth:LoginPermitLimit", LoginPermitLimit.ToString());
         builder.UseSetting("Auth:LoginFailurePermitLimit", LoginFailurePermitLimit.ToString());
+        builder.UseSetting("Auth:ChangePasswordFailurePermitLimit", ChangePasswordFailurePermitLimit.ToString());
         builder.UseSetting("Build:Token", BuildTokenValue);
         builder.UseSetting("Build:PermitLimit", "1000");
         builder.ConfigureTestServices(services =>
@@ -63,10 +67,13 @@ public class ApiFactory : WebApplicationFactory<Program>
     {
         public const int Limit = 8;
         public const int FailureLimit = 30;
+        public const int ChangePasswordLimit = 5;
 
         protected override int LoginPermitLimit => Limit;
 
         protected override int LoginFailurePermitLimit => FailureLimit;
+
+        protected override int ChangePasswordFailurePermitLimit => ChangePasswordLimit;
     }
 
     /// <summary>

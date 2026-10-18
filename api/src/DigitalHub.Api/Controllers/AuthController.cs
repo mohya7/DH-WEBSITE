@@ -90,9 +90,16 @@ public sealed class AuthController(UserManager<ApplicationUser> users, TokenServ
             return ProblemResults.Create(StatusCodes.Status400BadRequest, "validation_failed", "Password must be at least 12 characters.");
         }
 
+        if (!throttle.MayChangePassword(user.Id))
+        {
+            return ProblemResults.Create(StatusCodes.Status429TooManyRequests, "rate_limited", "Too many wrong passwords. Try again later.");
+        }
+
         var changed = await users.ChangePasswordAsync(user, request.CurrentPassword, request.NewPassword);
         if (!changed.Succeeded)
         {
+            if (changed.Errors.Any(error => error.Code == nameof(IdentityErrorDescriber.PasswordMismatch)))
+                throttle.RecordWrongCurrentPassword(user.Id);
             return ProblemResults.Create(StatusCodes.Status400BadRequest, "validation_failed", "The password could not be changed.");
         }
 

@@ -20,14 +20,34 @@ public sealed class LoginThrottle : IDisposable
 {
     private readonly PartitionedRateLimiter<string> _attempts;
     private readonly PartitionedRateLimiter<string> _failures;
+    private readonly PartitionedRateLimiter<string> _passwordChecks;
 
     public LoginThrottle(IConfiguration configuration)
     {
         var window = TimeSpan.FromHours(configuration.GetValue("Auth:LoginWindowHours", 1));
         var attemptLimit = configuration.GetValue("Auth:LoginPermitLimit", 8);
         var failureLimit = configuration.GetValue("Auth:LoginFailurePermitLimit", 30);
+        var changeLimit = configuration.GetValue("Auth:ChangePasswordFailurePermitLimit", 5);
         _attempts = Fixed(attemptLimit, window);
         _failures = Fixed(failureLimit, window);
+        _passwordChecks = Fixed(changeLimit, window);
+    }
+
+    /// <summary>
+    /// False once this user has given a wrong current password to change-password
+    /// Auth:ChangePasswordFailurePermitLimit times in the window (5 per hour).
+    /// Someone holding a stolen access token cannot use change-password to guess
+    /// the current password (finding L4). A new password the rules refuse does not count.
+    /// </summary>
+    public bool MayChangePassword(string userId)
+    {
+        using var lease = _passwordChecks.AttemptAcquire(userId, 0);
+        return lease.IsAcquired;
+    }
+
+    public void RecordWrongCurrentPassword(string userId)
+    {
+        using var _ = _passwordChecks.AttemptAcquire(userId, 1);
     }
 
     /// <summary>
@@ -55,6 +75,7 @@ public sealed class LoginThrottle : IDisposable
     {
         _attempts.Dispose();
         _failures.Dispose();
+        _passwordChecks.Dispose();
     }
 
     private static PartitionedRateLimiter<string> Fixed(int limit, TimeSpan window) =>
