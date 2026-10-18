@@ -14,6 +14,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { CollectionName } from "../content/model";
 import type { PreviewData, PreviewMedia } from "./previewData";
 import { materialiseCounters } from "./counters";
+import { withWebsiteUrls } from "./previewUrls";
 
 export { materialiseCounters } from "./counters";
 
@@ -127,11 +128,12 @@ export function previewDocument(input: PreviewInput, mainHtml: string, websiteAd
     "<head>",
     '<meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
-    `<base href="${escapeAttribute(websiteAddress)}/" target="_blank">`,
+    // A target only: it sets no base URL, so base-uri 'none' allows it.
+    '<base target="_blank">',
     `<title>${escapeAttribute(input.title)}</title>`,
     ...links,
     "</head>",
-    `<body>${mainHtml}</body>`,
+    `<body>${withWebsiteUrls(mainHtml, websiteAddress)}</body>`,
     "</html>",
   ].join("\n");
 }

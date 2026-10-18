@@ -29,3 +29,35 @@ DENY UPDATE, DELETE ON dbo.audit_log TO [dh_content_app];
 - **Local catalogs that already exist** (`DigitalHubContent`,
   `DigitalHubContent_Test`, `DigitalHubContent_Studio`) need the `DENY` line run
   once with the elevated account. Until then `AuditLogPermissionTests` fails there.
+
+## Studio: headers and routing
+
+The Studio is a static build served by IIS on its own subdomain, with the API on
+the same origin (`docs/phase-b-studio.md`, Hosting). `studio/public/web.config`
+is copied into `studio/dist/` by the build and must be deployed with it. It sets,
+on every Studio response:
+
+| Header | Value |
+|---|---|
+| `Content-Security-Policy` | `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net; img-src 'self' data: blob:; connect-src 'self'; frame-src 'self'; child-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'` |
+| `X-Content-Type-Options` | `nosniff` |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` |
+| `X-Frame-Options` | `DENY` |
+| `Permissions-Policy` | `camera=(), microphone=(), geolocation=(), payment=()` |
+
+- `style-src 'unsafe-inline'` is for Ant Design, which writes its styles at run
+  time. Scripts stay `'self'` only.
+- The draft preview is a `srcdoc` iframe sandboxed without scripts. It inherits
+  this policy, so it loads only the website's stylesheets (Google Fonts, jsDelivr
+  for the Tabler icon font, and the design files on the Studio's own origin). Its
+  links point at the website because the preview writes absolute URLs, not
+  because of `<base href>`, which `base-uri 'none'` refuses.
+- Routing: client routes, including `/media` (the media library screen), load
+  `index.html`; `/api/...` and uploaded files under `/media/...` are left to the
+  API application. The rules are in a `<location inheritInChildApplications="false">`
+  so they do not reach the API.
+- Caching: `/assets/` and `/website-design/` are content-hashed and cached for a
+  year (`immutable`); `index.html` is revalidated on every load.
+- **The dev team:** if the Studio is served by something other than IIS (for
+  example CloudFront in front of S3), set the same headers and the same routing
+  there. HSTS is set where TLS ends, as for the API.
