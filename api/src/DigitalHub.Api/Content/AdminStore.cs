@@ -128,13 +128,9 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
 
     public async Task<ContentOutcome> CreateRedirectAsync(RedirectCreateRequest request, string? userId, CancellationToken cancellationToken)
     {
-        var from = NormalizePath(request.FromPath);
-        var to = NormalizePath(request.ToPath);
         var errors = new Dictionary<string, List<string>>(StringComparer.Ordinal);
-        if (from is null)
-            Add(errors, "fromPath", "From path is required and must start with /.");
-        if (to is null)
-            Add(errors, "toPath", "To path is required and must start with /.");
+        var from = RedirectPath(request.FromPath, "fromPath", "From path", errors);
+        var to = RedirectPath(request.ToPath, "toPath", "To path", errors);
         if (errors.Count > 0)
             return Validation(errors);
 
@@ -787,15 +783,22 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         return new string(chars);
     }
 
-    private static string? NormalizePath(string? path)
+    /// <summary>The trimmed path, or null with an error added when the website build could not write it into web.config.</summary>
+    private static string? RedirectPath(string? path, string field, string label, Dictionary<string, List<string>> errors)
     {
         if (string.IsNullOrWhiteSpace(path))
+        {
+            Add(errors, field, label + " is required and must start with /.");
             return null;
+        }
+
         var trimmed = path.Trim();
-        if (!trimmed.StartsWith("/", StringComparison.Ordinal))
+        if (RedirectPaths.Problem(trimmed) is string problem)
+        {
+            Add(errors, field, label + " " + problem);
             return null;
-        if (trimmed.Length > 300)
-            return null;
+        }
+
         return trimmed;
     }
 
