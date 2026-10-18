@@ -35,6 +35,13 @@ public sealed class AuthController(UserManager<ApplicationUser> users, TokenServ
         }
 
         var user = await users.FindByEmailAsync(email);
+        if (user is null)
+        {
+            // Hash the password anyway, so an unknown email costs what a wrong
+            // password costs and timing does not reveal which emails exist (L1).
+            users.PasswordHasher.VerifyHashedPassword(new ApplicationUser(), DummyHash(), request.Password ?? "");
+        }
+
         if (user is null || !await users.CheckPasswordAsync(user, request.Password))
         {
             throttle.RecordFailure(ip);
@@ -166,6 +173,12 @@ public sealed class AuthController(UserManager<ApplicationUser> users, TokenServ
         await AuditAsync(userId, "sign_out", "auth", userId, null, success: true, cancellationToken);
         return NoContent();
     }
+
+    private static string? _dummyHash;
+
+    /// <summary>A hash of a random password, made once with the configured hasher, to verify against when the email is unknown.</summary>
+    private string DummyHash() =>
+        LazyInitializer.EnsureInitialized(ref _dummyHash, () => users.PasswordHasher.HashPassword(new ApplicationUser(), Guid.NewGuid().ToString("N")));
 
     /// <summary>The typed email as the audit log keeps it: at most AuditEmailLength characters (finding M3).</summary>
     private static string ForAudit(string email) =>
