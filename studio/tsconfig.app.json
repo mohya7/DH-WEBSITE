@@ -18,8 +18,13 @@
     "noFallthroughCasesInSwitch": true,
     "composite": true,
     "paths": {
-      "@digitalhub/theme/*": ["../packages/theme/*"]
+      "@digitalhub/theme/*": ["../packages/theme/*"],
+      "@digitalhub/blocks": ["../packages/blocks/src/index.ts"],
+      "@digitalhub/blocks/*": ["../packages/blocks/src/*"],
+      "@digitalhub/website-design/*": ["../website/src/design/*"],
+      "react": ["./node_modules/@types/react"],
+      "react/*": ["./node_modules/@types/react/*"]
     }
   },
-  "include": ["src", "../packages/theme/tokens.ts"]
+  "include": ["src", "../packages/theme/tokens.ts", "../packages/blocks/src/**/*.ts", "../packages/blocks/src/**/*.tsx", "../website/src/design/sets.ts"]
 }

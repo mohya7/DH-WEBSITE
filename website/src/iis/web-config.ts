@@ -2,7 +2,8 @@
  * The IIS web.config for the static export, generated at build (Phase C, Section 8).
  *
  * It is configuration for the site IIS serves from out/. It does not proxy
- * anywhere: routing to the Content API and the Node hiring system is Phase D.
+ * anywhere. The site is fully static and needs no Node routing. Routing to the
+ * Content API is Phase D.
  *
  * Clean URLs. Pages are exported as path.html (the home page as index.html).
  * A request is rewritten to that file when the file exists, even if the same
@@ -199,6 +200,10 @@ export function renderWebConfig(redirects: readonly Redirect[], options: WebConf
     <staticContent>
       <remove fileExtension=".webp" />
       <mimeMap fileExtension=".webp" mimeType="image/webp" />
+      <remove fileExtension=".xml" />
+      <mimeMap fileExtension=".xml" mimeType="application/xml" />
+      <remove fileExtension=".txt" />
+      <mimeMap fileExtension=".txt" mimeType="text/plain; charset=utf-8" />
     </staticContent>
     <rewrite>
       <rules>

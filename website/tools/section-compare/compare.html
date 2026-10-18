@@ -82,6 +82,7 @@ const newDoc = async (url) => {
 };
 
 const register = await (await fetch('/accepted-differences.json')).json();
+const settings = await (await fetch('/snapshot-settings.json')).json();
 const same = (a, b) => sig(a).join('\n') === sig(b).join('\n');
 /** Text nodes under el whose trimmed text is exactly `old` become `now`. Returns whether any did. */
 function replaceText(el, old, now) {
@@ -167,11 +168,51 @@ function accepted(page, id, old, now, absentPage, chrome = false) {
       }
       if (changed && same(copy, now)) return rule;
     }
+    if (rule.kind === 'hidden-link-text') {
+      const links = [...copy.querySelectorAll(rule.selector)];
+      if (links.length !== rule.count) continue;
+      let changed = true;
+      for (const link of links) {
+        const title = link.closest(rule.card)?.querySelector(rule.title)?.textContent.trim();
+        const icon = link.querySelector('i');
+        if (!title || !icon || link.querySelector('span.' + rule.hiddenClass)) { changed = false; break; }
+        const span = copy.ownerDocument.createElement('span');
+        span.className = rule.hiddenClass;
+        span.textContent = rule.prefix + title;
+        icon.before(span);
+      }
+      if (changed && same(copy, now)) return rule;
+    }
     if (rule.kind === 'empty-vacancies') {
       const list = copy.querySelector('.careers-opps__list');
       const paragraph = copy.ownerDocument.createElement('p');
       paragraph.textContent = rule.message;
       list.replaceChildren(paragraph);
+      if (same(copy, now)) return rule;
+    }
+    if (rule.kind === 'apply-by-email') {
+      const form = copy.querySelector('section.careers-apply');
+      const email = String(settings.careersEmail || settings.email || '').trim();
+      if (!form || !email || (rule.selector && !copy.matches(rule.selector))) continue;
+      const doc = copy.ownerDocument;
+      const block = doc.createElement('section');
+      block.className = 'careers-apply';
+      block.id = 'apply';
+      block.setAttribute('data-reveal', '');
+      const heading = doc.createElement('h2');
+      heading.textContent = 'How to apply';
+      const first = doc.createElement('p');
+      first.textContent = 'Email your CV, your LinkedIn profile and your availability to';
+      const link = doc.createElement('a');
+      link.className = 'btn-pill';
+      link.setAttribute('href', `mailto:${email}`);
+      link.textContent = email;
+      const second = doc.createElement('p');
+      second.textContent = 'Put the role you are applying for in the subject line.';
+      block.append(heading, first, link, second);
+      form.replaceWith(block);
+      const actual = now.querySelector('a.btn-pill');
+      if (!actual || actual.getAttribute('href') !== `mailto:${email}`) continue;
       if (same(copy, now)) return rule;
     }
   }

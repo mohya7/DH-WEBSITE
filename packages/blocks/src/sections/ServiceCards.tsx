@@ -167,7 +167,7 @@ export function ServiceCards({ fields, ctx }: { fields: ServiceCardsFields; ctx:
                     <h3 className="svc-card__title">{service.title}</h3>
                     <p className="svc-card__desc">{service.fields.summary}</p>
                     <Link href={service.path} className="svc-card__link">
-                      {"Learn more "}
+                      Learn more<span className="dh-sr-only">{` about ${service.title}`}</span>
                       <i className="ti ti-arrow-right"></i>
                     </Link>
                   </div>

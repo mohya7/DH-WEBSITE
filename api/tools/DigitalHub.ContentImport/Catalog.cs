@@ -430,6 +430,18 @@ static class Catalog
             var sectionName = SectionName(image);
             AddUsage(images, path, alt, decorative, source + " / " + sectionName);
         }
+
+        var share = document.QuerySelector("meta[property='og:image']")?.GetAttribute("content");
+        if (!string.IsNullOrWhiteSpace(share))
+        {
+            if (share.StartsWith("https://digitalhub.com.eg/", StringComparison.OrdinalIgnoreCase))
+                share = share["https://digitalhub.com.eg/".Length..].TrimStart('/');
+            var sharePath = share.StartsWith("assets/", StringComparison.OrdinalIgnoreCase)
+                ? share
+                : NormalizeAsset(share, source, root);
+            if (sharePath is not null)
+                AddUsage(images, sharePath, null, false, source + " / og:image");
+        }
     }
 
     private static void CollectJsonImages(JsonElement item, string root, Dictionary<string, ImageLine> images)

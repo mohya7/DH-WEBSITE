@@ -11,7 +11,7 @@
     "prepare:content": "tsx scripts/prepare-content.ts",
     "prepare:design": "tsx scripts/prepare-design.ts",
     "dev": "npm run gen:types -- --check && npm run prepare:content && npm run prepare:design && next dev",
-    "build": "npm run gen:types -- --check && npm run prepare:content && npm run prepare:design && next build && tsx scripts/strip-runtime.ts && tsx scripts/write-web-config.ts && tsx scripts/check-output.ts",
+    "build": "npm run gen:types -- --check && npm run prepare:content && npm run prepare:design && next build && tsx scripts/strip-runtime.ts && tsx scripts/write-seo.ts && tsx scripts/write-web-config.ts && tsx scripts/check-output.ts",
     "webconfig": "tsx scripts/write-web-config.ts",
     "check:csp": "tsx scripts/check-csp.ts",
     "strip:runtime": "tsx scripts/strip-runtime.ts",

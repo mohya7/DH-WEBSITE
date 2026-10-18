@@ -119,6 +119,10 @@ public sealed class CaseStudy : ContentRecord
 
     public List<string> Categories { get; set; } = [];
 
+    /// <summary>Case-study page accent. Null is the default blue. Only orange or teal.</summary>
+    [MaxLength(16)]
+    public string? Theme { get; set; }
+
     public bool Featured { get; set; }
 
     public List<Section> Sections { get; set; } = [];

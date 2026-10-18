@@ -149,9 +149,8 @@ jobs:
       - name: Snapshot build
         env:
           CONTENT_SOURCE: snapshot
-          # Section 5.5: the careers form's endpoint is configuration, and the
-          # build refuses to run without it. The value the website README uses.
-          CAREERS_APPLICATION_ENDPOINT: /api/careers/applications
+          # Section 6: canonical URLs and the sitemap. The build refuses to run without it.
+          PUBLIC_SITE_URL: https://digitalhub.com.eg
         run: npm run build
 
       - name: Upload test report
@@ -212,7 +211,14 @@ jobs:
       - name: Typecheck
         run: npx tsc -b
 
-      - name: Build
+      - name: Unit tests
+        run: npm test
+
+      - name: Build (fails if the preview's design files differ from website/design/)
+        env:
+          # Required, with no default (Phase C, 9.2). This build is not deployed;
+          # each deployment sets its own website address.
+          VITE_PUBLIC_SITE_URL: https://website.ci.invalid
         run: npm run build
 
       - uses: actions/setup-dotnet@v4

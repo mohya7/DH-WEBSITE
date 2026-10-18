@@ -27,8 +27,9 @@
  *   - out/web.config is the file generated from this content's redirects and
  *     container id; the consent script and stylesheet are in out/behaviors/
  *     only when the site settings name a container
+ *   - out/sitemap.xml, out/robots.txt, and out/llms.txt match the content
+ *   - every page has one JSON-LD script, and it matches the structured data
  *   - Next's _not-found export is not in the output
- *   - the careers form endpoint, when present, is a same-site path
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -45,8 +46,11 @@ import { designSets, type DesignSetName, type ScriptSlot } from "../src/design/s
 import { parseRichText } from "@digitalhub/blocks/richtext/document";
 import { behaviorUrl, consentStyleUrl } from "../src/design/behaviors";
 import { tagManagerId } from "../src/content/tag-manager";
-import { careersEndpointError, careersEndpointsIn } from "../src/iis/careers-endpoint";
 import { renderWebConfig } from "../src/iis/web-config";
+import { jsonLdBodies } from "../src/seo/csp";
+import { renderLlms, renderRobots, renderSitemap } from "../src/seo/files";
+import { graphProblems, jsonLdText, structuredData } from "../src/seo/jsonld";
+import { readSiteUrl } from "../src/seo/site-url";
 
 export interface OutputReport {
   pages: { route: string; file: string; pageType: string }[];
@@ -119,16 +123,12 @@ export function checkOutput(outDir: string, manifest: Manifest, options: { desig
   for (const file of files.filter((name) => name.endsWith(".html"))) {
     if (file === "_not-found.html" || file.startsWith("_not-found/")) continue;
     if (!expected.has(file) && !errorFiles.includes(file)) problems.push(`${file} is not a route of the published content.`);
-    for (const endpoint of careersEndpointsIn(fs.readFileSync(path.join(outDir, file), "utf8"))) {
-      const error = careersEndpointError(endpoint);
-      if (error) problems.push(`${file}: ${error}`);
-    }
   }
 
   // No trace of Next's client runtime: the site ships static HTML plus the ported scripts.
   for (const file of files) {
     if (file.startsWith("_next/")) problems.push(`${file} is part of Next's client runtime and should not be in the output.`);
-    else if (file.endsWith(".txt")) problems.push(`${file} is a client-navigation payload and should not be in the output.`);
+    else if (file.endsWith(".txt") && file !== "robots.txt" && file !== "llms.txt") problems.push(`${file} is a client-navigation payload and should not be in the output.`);
     else if (file.endsWith(".html")) {
       const traces = runtimeTracesIn(fs.readFileSync(path.join(outDir, file), "utf8"));
       if (traces.length > 0) problems.push(`${file} still contains Next's client runtime: ${traces.join(", ")}.`);
@@ -304,7 +304,6 @@ export function checkDesignLoading(file: string, html: string): string[] {
   const { set, lists } = pageLoads(html);
   if (!set || !(set in designSets)) return [`${file} does not name its design set.`];
   const expected = expectedLoads(set as DesignSetName);
-  if (set === "apply") expected["body-end"] = expected["body-end"].map((src) => src === "js/careers-apply.js" ? behaviorUrl("careers") : src);
   if (/\bid="contactForm"/.test(html)) expected["body-end"].unshift(behaviorUrl("contact"));
   if (/\bid="cookieBanner"/.test(html)) expected["body-end"].unshift(behaviorUrl("consent"));
   const problems: string[] = [];
@@ -364,14 +363,11 @@ function main(): void {
   console.log(`Loading order: every page loads exactly its design set.`);
   console.log(`Design: out/design/${designHash(path.join(websiteRoot, "design"))}/ matches website/design/ byte for byte (${designFileList(path.join(websiteRoot, "design")).length} files).`);
 
-  const careersEndpoint = process.env.CAREERS_APPLICATION_ENDPOINT;
-  if (careersEndpoint !== undefined) {
-    const error = careersEndpointError(careersEndpoint);
-    if (error) report.problems.push(error);
-  }
-
   const tagManager = tagManagerId(content.settings) !== null;
   const configFile = path.join(websiteRoot, "out", "web.config");
+  const html = walk(path.join(websiteRoot, "out"))
+    .filter((file) => file.endsWith(".html"))
+    .map((file) => ({ path: path.relative(path.join(websiteRoot, "out"), file).split(path.sep).join("/"), html: fs.readFileSync(file, "utf8") }));
   const expectedConfig = renderWebConfig(content.redirects, { tagManager });
   if (!fs.existsSync(configFile)) report.problems.push("web.config is missing from the build output.");
   else if (fs.readFileSync(configFile, "utf8") !== expectedConfig) report.problems.push("out/web.config does not match the redirects and the container id in the content.");
@@ -379,6 +375,41 @@ function main(): void {
 
   report.problems.push(...checkConsentFiles(path.join(websiteRoot, "out"), tagManager));
   console.log(tagManager ? "Consent: the banner script and stylesheet are in out/behaviors/." : "Consent: no container id, so no consent file is in out/behaviors/.");
+
+  const origin = readSiteUrl();
+  const site = createSite(content);
+  const outDir = path.join(websiteRoot, "out");
+  const expectedFiles: [string, string][] = [
+    ["sitemap.xml", renderSitemap(site, origin)],
+    ["robots.txt", renderRobots(origin)],
+    ["llms.txt", renderLlms(site, origin)],
+  ];
+  for (const [name, expected] of expectedFiles) {
+    const file = path.join(outDir, name);
+    if (!fs.existsSync(file)) report.problems.push(`${name} is missing from the build output.`);
+    else if (fs.readFileSync(file, "utf8") !== expected) report.problems.push(`out/${name} does not match the published content.`);
+  }
+  const pages = new Map<string, { item: AnyContentItem | null; pageType: "home" | "page" | "service" | "partner" | "case-study" | "blog-post" | "vacancy" | "error"; path: string }>(
+    site.routes.map((route) => [htmlFileFor(route.path), { item: route.item, pageType: route.pageType, path: route.path }]),
+  );
+  pages.set("404.html", { item: site.errorPage("404"), pageType: "error", path: "/404" });
+  pages.set("500.html", { item: site.errorPage("500"), pageType: "error", path: "/500" });
+  for (const file of html) {
+    const page = pages.get(file.path);
+    if (!page) continue;
+    const bodies = jsonLdBodies(file.html);
+    if (bodies.length !== 1) report.problems.push(`${file.path} has ${bodies.length} JSON-LD scripts; expected 1.`);
+    else {
+      const expected = jsonLdText(structuredData(site, page.item, page.pageType, page.path, origin));
+      if (bodies[0] !== expected) report.problems.push(`${file.path} JSON-LD does not match the content.`);
+      try {
+        const problems = graphProblems(JSON.parse(bodies[0]));
+        if (problems.length > 0) report.problems.push(`${file.path} JSON-LD: ${problems.join("; ")}.`);
+      } catch {
+        report.problems.push(`${file.path} JSON-LD is not valid JSON.`);
+      }
+    }
+  }
 
   if (report.problems.length > 0) {
     console.error(`\nThe build output failed its checks:\n- ${report.problems.join("\n- ")}\n`);

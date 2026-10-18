@@ -87,6 +87,16 @@ public static class ContentModelBuilder
             entity.Property(post => post.DateModified).HasColumnType("date");
         });
 
+        builder.Entity<CaseStudy>(entity =>
+        {
+            entity.Property(study => study.Theme).HasMaxLength(16);
+            // Exact values only: the column collation ignores case, and = ignores trailing
+            // spaces under any collation, so both are excluded explicitly.
+            entity.ToTable(table => table.HasCheckConstraint(
+                "ck_case_studies_theme",
+                "theme IS NULL OR (theme COLLATE Latin1_General_BIN2 IN ('orange', 'teal') AND theme NOT LIKE '% ')"));
+        });
+
         builder.Entity<Redirect>(entity =>
         {
             entity.ToTable("redirects");

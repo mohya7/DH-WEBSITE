@@ -213,7 +213,7 @@ static partial class ContentWriter
         {
             var slug = Path.GetFileNameWithoutExtension(Text(item, "href"));
             var stamp = Editorial(Text(item, "updatedAt"));
-            model.Services.Add(new Service
+            var service = new Service
             {
                 Id = IdFor("service:" + slug),
                 Slug = slug,
@@ -228,14 +228,26 @@ static partial class ContentWriter
                 CreatedAt = stamp ?? default,
                 UpdatedAt = stamp ?? default,
                 Version = 1,
-            });
+            };
+            ApplyListedSeo(service, "services/" + slug + ".html", documents, media, warnings);
+            model.Services.Add(service);
             sort++;
         }
 
         foreach (var item in collections.GetProperty("partners").EnumerateArray())
-            model.Partners.Add(PartnerFrom(item, media, sourceRoot));
+        {
+            var partner = PartnerFrom(item, media, sourceRoot);
+            ApplyListedSeo(partner, "partners/" + partner.Slug + ".html", documents, media, warnings);
+            model.Partners.Add(partner);
+        }
         foreach (var item in collections.GetProperty("caseStudies").EnumerateArray())
-            model.Cases.Add(CaseFrom(item, media, sourceRoot));
+        {
+            var study = CaseFrom(item, media, sourceRoot);
+            documents.TryGetValue("cases/" + study.Slug + ".html", out var casePage);
+            study.Theme = CaseTheme(casePage);
+            ApplyListedSeo(study, "cases/" + study.Slug + ".html", documents, media, warnings);
+            model.Cases.Add(study);
+        }
         foreach (var item in collections.GetProperty("news").EnumerateArray())
             model.News.Add(NewsFrom(item, media, sourceRoot));
         foreach (var item in collections.GetProperty("team").EnumerateArray())
@@ -1279,10 +1291,18 @@ static partial class ContentWriter
 
     private static string _sourceRoot = "";
 
+    private static void ApplyListedSeo(ContentRecord record, string source, Dictionary<string, AngleSharp.Html.Dom.IHtmlDocument> documents, Dictionary<string, MediaAsset> media, List<string> warnings)
+    {
+        if (documents.TryGetValue(source, out var document))
+            ApplySeo(record, document, media, source, warnings);
+    }
+
     private static void ApplySeo(ContentRecord record, AngleSharp.Html.Dom.IHtmlDocument document, Dictionary<string, MediaAsset> media, string source, List<string> warnings)
     {
         record.MetaTitle = Cut(document.Title, 300);
         record.MetaDescription = Cut(Meta(document, "description"), 500);
+        var robots = Meta(document, "robots") ?? "";
+        record.NoIndex = robots.Contains("noindex", StringComparison.OrdinalIgnoreCase);
         var image = document.QuerySelector("meta[property='og:image']")?.GetAttribute("content");
         if (string.IsNullOrWhiteSpace(image))
             return;
@@ -1440,7 +1460,7 @@ static partial class ContentWriter
 
     private static bool SameCase(CaseStudy left, CaseStudy right) =>
         SameRecord(left, right) && left.Summary == right.Summary && left.ImageId == right.ImageId && left.ImageAltOverride == right.ImageAltOverride
-        && left.Metric == right.Metric && left.Featured == right.Featured && left.Categories.SequenceEqual(right.Categories);
+        && left.Metric == right.Metric && left.Theme == right.Theme && left.Featured == right.Featured && left.Categories.SequenceEqual(right.Categories);
 
     private static bool SameBlog(BlogPost left, BlogPost right) =>
         SameRecord(left, right) && left.Summary == right.Summary && left.ImageId == right.ImageId && left.ImageAltOverride == right.ImageAltOverride
@@ -1684,6 +1704,17 @@ static partial class ContentWriter
         }
 
         return builder.ToString().Trim('-');
+    }
+
+    /// <summary>The old page's body class. Orange and teal are accents; every other page stays the default blue.</summary>
+    internal static string? CaseTheme(AngleSharp.Html.Dom.IHtmlDocument? document)
+    {
+        var classes = (document?.Body?.ClassName ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (classes.Contains("theme-orange"))
+            return "orange";
+        if (classes.Contains("theme-teal"))
+            return "teal";
+        return null;
     }
 
     private static string Accent(AngleSharp.Html.Dom.IHtmlDocument document)

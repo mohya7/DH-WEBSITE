@@ -42,21 +42,15 @@ describe("build output checks", () => {
     expect(htmlFileFor("/services/ai")).toBe("services/ai.html");
   });
 
-  it("rejects an absolute careers endpoint and Next's _not-found export", () => {
+  it("rejects Next's _not-found export", () => {
     const problems = checkOutput(
       build({
-        "index.html": page('<form data-submit-url="https://hiring.example/api/careers/applications"></form>'),
+        "index.html": page("<h1>Home</h1>"),
         "_not-found.html": page(),
       }),
       manifest,
     ).problems.join("\n");
-    expect(problems).toMatch(/index\.html: The careers form endpoint must be a same-site path/);
     expect(problems).toMatch(/_not-found\.html is Next's not-found export/);
-  });
-
-  it("allows a same-site careers endpoint", () => {
-    const report = checkOutput(build({ "index.html": page('<form data-submit-url="/api/careers/applications"></form>') }), manifest);
-    expect(report.problems).toEqual([]);
   });
 
   it("pass a complete output", () => {

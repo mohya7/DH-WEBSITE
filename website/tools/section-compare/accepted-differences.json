@@ -142,6 +142,19 @@
     "reason": "Marketing lead decision: the copyright year is the year of the build. The news page showed 2026; this applies only in a build year other than 2026."
   },
   {
+    "id": "home-service-hidden-learn-more",
+    "pages": ["/index.html"],
+    "sections": ["services"],
+    "kind": "hidden-link-text",
+    "selector": "a.svc-card__link",
+    "card": "article.svc-card",
+    "title": ".svc-card__title",
+    "hiddenClass": "dh-sr-only",
+    "prefix": " about ",
+    "count": 4,
+    "reason": "Marketing lead decision: the four home service-card links keep the visible words Learn more and add the service title as visually hidden text, so the link text is Learn more about that service. The old links had only Learn more. Only that hidden text is accepted."
+  },
+  {
     "id": "footer-cookie-settings-link",
     "pages": [
       "/index.html", "/about-us.html", "/get-in-touch.html", "/blogs/index.html",
@@ -173,5 +186,22 @@
     "kind": "absent-in-old",
     "selector": "div#cookieBanner.cookie-banner[role=\"dialog\"][aria-labelledby=\"cookieBannerTitle\"][hidden]:not([aria-modal])",
     "reason": "Marketing lead decision (Section 7): the cookie consent banner is new; the old site had none. Accepted as an element absent in the old site, and only as the non-modal banner, hidden in the static HTML. This tool compares markup, not screenshots, so the banner's layout is checked by the browser tests at 1280, 768, 390, and 320 px."
+  },
+  {
+    "id": "apply-hero-lead",
+    "pages": ["/careers/apply.html"],
+    "sections": ["hub-hero"],
+    "kind": "section-text",
+    "selector": "p.lead",
+    "replace": [{ "old": "Submit your details below. Our careers team reviews every application.", "new": "Send your CV and a short note about the role you want. Our careers team reviews every application." }],
+    "reason": "Marketing lead decision: the apply hero asks for a CV and a short note about the role. Only this lead is replaced; the rest of the hero must match."
+  },
+  {
+    "id": "apply-by-email",
+    "pages": ["/careers/apply.html"],
+    "sections": ["section"],
+    "kind": "apply-by-email",
+    "selector": "section.section.careers-detail",
+    "reason": "Marketing lead decision: the apply page links to the careers email; the website has no hiring system."
   }
 ]

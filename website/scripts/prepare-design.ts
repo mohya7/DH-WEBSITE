@@ -8,7 +8,7 @@
 import { publishDesign } from "../src/design/folder";
 import fs from "node:fs";
 import path from "node:path";
-import { behaviorUrl, consentStyleUrl } from "../src/design/behaviors";
+import { behaviorUrl, consentStyleUrl, homeSrStyleUrl } from "../src/design/behaviors";
 import type { BuildContent } from "../src/content/build-content";
 import { tagManagerId } from "../src/content/tag-manager";
 
@@ -21,7 +21,8 @@ if (!behaviorDir.startsWith(path.resolve("public") + path.sep)) throw new Error(
 fs.rmSync(behaviorDir, { recursive: true, force: true });
 fs.mkdirSync(behaviorDir, { recursive: true });
 const publicFile = (url: string) => path.join("public", url.replace(/^\/+/, ""));
-for (const name of ["contact", "careers"] as const) fs.copyFileSync(`behaviors/${name}.js`, publicFile(behaviorUrl(name)));
+for (const name of ["contact"] as const) fs.copyFileSync(`behaviors/${name}.js`, publicFile(behaviorUrl(name)));
+fs.copyFileSync("behaviors/home-sr.css", publicFile(homeSrStyleUrl()));
 // The consent files ship only when the prepared content's site settings name a container.
 const content = JSON.parse(fs.readFileSync(path.join(".content", "content.json"), "utf8")) as BuildContent;
 if (tagManagerId(content.settings)) {

@@ -47,9 +47,9 @@ describe("media sources", () => {
   it("copy only the media published content uses, including images inside rich text", () => {
     const content = snapshotContent();
     const used = referencedMediaIds(content);
-    // The snapshot lists 63 assets, and published content now uses all of them.
-    expect(used.size).toBe(63);
-    expect(content.media.length).toBe(63);
+    // The snapshot lists 65 assets, and published content now uses all of them.
+    expect(used.size).toBe(65);
+    expect(content.media.length).toBe(65);
 
     const extra = { ...content.media[0], id: "11111111-1111-1111-1111-111111111111" };
     content.media.push(extra);

@@ -13,16 +13,15 @@ Work in `D:\work\DigitalHub\dh-platform`, branch `rebuild/dotnet-platform`. Work
 | Area | Decision |
 |---|---|
 | Studio stack | Vite + React + TypeScript, Ant Design, Tailwind, React Router, TanStack Query |
-| Studio design | Old Content Studio look and flows, approved in Section 12. Tokens live in `packages/theme` for Phase G. Website brand `#1270A0` is untouched. |
+| Studio design | Old Content Studio look and flows, approved in Section 12. Tokens live in `packages/theme`. Website brand `#1270A0` is untouched. |
 | Hosting | Studio and API on the **same origin**, on their own subdomain, never the website's domain. Vite proxy in development, IIS in production. No CORS. See Hosting below |
 | Tokens | Access token in memory only. Session restored after reload through `refresh`, echoing the `dh_csrf` cookie as the `X-CSRF-Token` header |
-| Roles in the Studio | `admin` and `editor` only. The other three roles exist but are not assignable from the Studio until hiring moves |
+| Roles in the Studio | `admin` and `editor` only |
 | Rich text | TipTap, structured JSON, allowed nodes only |
 | Preview | **Deferred to Phase C.** It renders the website's own section components, which are built there. Record this; do not build a separate preview renderer |
 | Unpublished references | **Phase C.** A reference to an unpublished item is never rendered as a link. The card is skipped at build |
 | Error pages | **Phase C.** The current site has no 404 or 500 pages. Build them as new pages from existing design components — header, footer, hub hero, and call to action — with no new styles. Content is edited in the Studio (`error-404` / `error-500`) |
-| Vacancy bridge to Node | **Phase D**, not this phase |
-| ForwardedHeaders:KnownProxies | **Phase D deployment.** Set this to the production IIS proxy address. If it is empty, `X-Forwarded-For` is ignored and the contact rate limit counts every visitor as one |
+| ForwardedHeaders:KnownProxies | **Phase D deployment.** Set this to the production IIS proxy address. If it is empty or missing, forwarded headers are not applied, so `X-Forwarded-For` is ignored and `RemoteIpAddress` stays the connection address; the contact rate limit then counts every request from that connection as one visitor. Behind a load balancer or reverse proxy the deployment MUST set `ForwardedHeaders:KnownProxies` to that proxy's address, otherwise every visitor looks like the proxy and the contact rate limit is shared by all. Entries are literal IP addresses; see 9.5 for the syntax, the one-hop limit, and the other limits that use the address |
 | Website design | Untouched by this phase |
 
 ### Hosting
@@ -50,7 +49,7 @@ Work in `D:\work\DigitalHub\dh-platform`, branch `rebuild/dotnet-platform`. Work
 
 - Every endpoint has an explicit policy. The fallback policy from Phase A stays.
 - Every write returns problem details on failure and carries the concurrency version.
-- Every write that changes content writes an **audit entry in the same transaction**. If the audit write fails, the action fails. This is deliberately stricter than the hiring notifications, which must never block an action — an audit trail with gaps is worse than a failed save.
+- Every write that changes content writes an **audit entry in the same transaction**. If the audit write fails, the action fails. An audit trail with gaps is worse than a failed save.
 - Access tokens are never written to `localStorage` or `sessionStorage`.
 - `dangerouslySetInnerHTML` appears nowhere in the Studio.
 - Schema changes are shown before they are applied, and applied with the elevated account, never by the application.
@@ -113,7 +112,7 @@ Under `/api/v1/`, following the Phase A conventions.
 
 **3.4** Draft and published are separate states. **Editing a published item edits a draft copy; the live content does not change until the next publish.** Report how the draft is stored — a working copy per item, or revision rows — and why.
 
-**3.5** Vacancies are editable here like any collection. The bridge to Node is Phase D.
+**3.5** Vacancies are editable here like any collection.
 
 **3.6** Integration tests for every endpoint: success, validation failure, 409, and each role — editor, admin, anonymous, unknown role.
 
@@ -272,7 +271,17 @@ Stop and report before building.
 
 **9.4** Stores to `contact_requests` with status `new`. The website form is wired to it in Phase C.
 
-**9.5** The website reaches this endpoint through IIS, so the API sees the proxy's address, not the visitor's. Forwarded headers trust only the known proxy: `X-Forwarded-For` from that address is used; from any other address it is ignored. The rate limit uses the resulting visitor address.
+**9.5** The website reaches this endpoint through IIS, and two addresses must be kept apart:
+
+- **The immediate connection.** Behind IIS, a load balancer, or any reverse proxy, the connection always comes from the proxy, whatever the API is configured to trust.
+- **The effective client address.** This is `RemoteIpAddress` after forwarding, and the rate limit uses it. It depends on `ForwardedHeaders:KnownProxies`:
+  - **The list has a valid proxy address:** an `X-Forwarded-For` header from that proxy is used. For example, the proxy 10.10.10.10 sending `X-Forwarded-For: 198.51.100.9` gives 198.51.100.9. `X-Forwarded-For` from a sender that is not in the complete list of valid configured proxy addresses is ignored.
+  - **The list is empty, missing, or has no valid entry:** forwarding is off. `X-Forwarded-For` is ignored, the address stays the connection address, and every visitor looks like the proxy.
+- **Entry syntax.** Entries must be literal IP addresses, IPv4 or IPv6. Hostnames, CIDR ranges, and malformed strings are skipped silently. If no entry is valid, forwarding stays off, and the API starts without an error. An IPv4 proxy entry also matches a sender that arrives as the IPv4-mapped IPv6 form of the same address, but a mapped-form entry (`::ffff:10.10.10.10`) does not match a plain IPv4 sender, so list the address in the form the connection actually uses, and always repeat the effective-address check after setup. After setting it, the deployment must check the effective address, for example that two visitors are counted separately.
+- **One hop only.** Only the rightmost `X-Forwarded-For` entry is used (a forward limit of one). With two proxies in a chain, the API sees the address of the second proxy, not the visitor's. If the deployment puts more than one proxy in front of the API, raise it with us before staging.
+- **Other limits on the same address.** The contact form limit (10 per hour), the sign-in limit (8 per hour per address and email), and the build-content limit (30 per hour) all use it. Without a correct proxy entry, the contact form limit and the build-content limit are shared by all visitors behind the unconfigured proxy; the sign-in limit is shared only per normalised email on that address (different emails keep separate budgets, as in Phase A §3.8 and §7.10).
+
+Behind a load balancer or reverse proxy the deployment MUST set `ForwardedHeaders:KnownProxies` to that proxy's address, otherwise every visitor looks like the proxy and the contact rate limit is shared by all.
 
 **9.6** Every field has a length cap, including the message. Everything is stored and shown as plain text — the Studio inbox renders it escaped.
 
@@ -530,9 +539,9 @@ Sign-in, the shell, every collection list, the item editor, section list and for
 
 The website wordmark `digital-hub-logo.png` (white mark, the file the site already uses). Sign-in and the rail. No orange square.
 
-#### 12.4 Shared package for Phase G
+#### 12.4 Shared package
 
-Tokens, CSS variables, type faces, and the logo live in `packages/theme` (`@digitalhub/theme`). Studio consumes that package. Phase G (hiring) can import the same tokens without taking Studio chrome. The website is not wired to it.
+Tokens, CSS variables, type faces, and the logo live in `packages/theme` (`@digitalhub/theme`). Studio consumes that package. The website is not wired to it.
 
 #### 12.5 Re-check
 
@@ -551,7 +560,7 @@ No Studio token, font load, or Ant theme is shared with the website. The website
 | 12.1 Written proposal: old panel look, layout, and flows | This section | Approved | Navy `#07111F` shell, 258px labelled sidebar, full-page editor. Change password from the user menu. Duplicate as a new draft only. Save is not publish. No featured flag. No whole-store import. Socials stay in site settings. |
 | 12.2 Apply across every Studio screen | Build | Pass | Sign-in, Overview, collections, editor, media, site, admin screens use the old chrome. |
 | 12.3 Real logo | Build | Pass | `packages/theme/assets/digital-hub-logo.png` on sign-in and the sidebar. |
-| 12.4 Tokens in a shared package for Phase G | Build | Pass | `@digitalhub/theme` (`packages/theme`). Website not imported. |
+| 12.4 Tokens in a shared package | Build | Pass | `@digitalhub/theme` (`packages/theme`). Website not imported. |
 | 12.5 Re-check every screen as admin and editor on `DigitalHubContent_E2e` | `studio/e2e/appearance.spec.ts` | Pass | Admin and editor walks; editor has no User Management or Audit log. |
 | 12.6 Website design untouched | Settled decisions | Stands | Studio tokens are not shared with the website. |
 

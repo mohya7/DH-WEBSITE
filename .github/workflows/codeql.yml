@@ -1,0 +1,64 @@
+# CodeQL for the website and Studio (JavaScript and TypeScript) and the Content API (C#).
+#
+# The repository is private and user-owned. GitHub code scanning, which CodeQL
+# uploads its results to, is not available for it ("Code scanning is not enabled
+# for this repository", 403), and the CodeQL licence covers private code only
+# with GitHub Code Security. So the job runs only when the repository is public,
+# or when the repository variable CODEQL_ENABLED is "true" (set it once Code
+# Security is turned on). Until then it shows as skipped, not missing.
+#
+# Build modes:
+# - csharp: manual. The same Release build the API job runs
+#   (dotnet build api/DigitalHub.slnx -c Release), so the analysis sees exactly
+#   what CI compiles. autobuild would have to guess the solution; none (buildless)
+#   is less precise for a project that builds cleanly.
+# - javascript-typescript: none. It needs no build.
+
+name: CodeQL
+
+on:
+  pull_request:
+    branches: [rebuild/dotnet-platform]
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: CodeQL (${{ matrix.language }})
+    if: github.event.repository.private == false || vars.CODEQL_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: javascript-typescript
+            build-mode: none
+          - language: csharp
+            build-mode: manual
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        if: matrix.language == 'csharp'
+        with:
+          dotnet-version: "10.0.x"
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+      - name: Build the API (Release)
+        if: matrix.language == 'csharp'
+        run: dotnet build api/DigitalHub.slnx -c Release
+
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:${{ matrix.language }}

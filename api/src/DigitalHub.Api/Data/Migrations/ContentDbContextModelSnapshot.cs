@@ -385,6 +385,11 @@ namespace DigitalHub.Api.Data.Migrations
                         .HasColumnType("nvarchar(max)")
                         .HasColumnName("summary");
 
+                    b.Property<string>("Theme")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)")
+                        .HasColumnName("theme");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(300)
@@ -412,6 +417,8 @@ namespace DigitalHub.Api.Data.Migrations
                     b.ToTable("case_studies", null, t =>
                         {
                             t.HasCheckConstraint("ck_case_studies_status", "status IN ('draft', 'published', 'ended')");
+
+                            t.HasCheckConstraint("ck_case_studies_theme", "theme IS NULL OR (theme COLLATE Latin1_General_BIN2 IN ('orange', 'teal') AND theme NOT LIKE '% ')");
                         });
                 });
 
@@ -621,7 +628,7 @@ namespace DigitalHub.Api.Data.Migrations
 
                     b.ToTable("navigation_items", null, t =>
                         {
-                            t.HasCheckConstraint("ck_navigation_items_link_shape", "(link_kind = 'group' AND target_type IS NULL AND target_id IS NULL AND url IS NULL)\nOR (link_kind = 'external' AND target_type IS NULL AND target_id IS NULL AND url IS NOT NULL AND url <> '')\nOR (link_kind = 'internal' AND target_type IS NOT NULL AND target_id IS NOT NULL AND url IS NULL)");
+                            t.HasCheckConstraint("ck_navigation_items_link_shape", "(link_kind = 'group' AND target_type IS NULL AND target_id IS NULL AND url IS NULL)\r\nOR (link_kind = 'external' AND target_type IS NULL AND target_id IS NULL AND url IS NOT NULL AND url <> '')\r\nOR (link_kind = 'internal' AND target_type IS NOT NULL AND target_id IS NOT NULL AND url IS NULL)");
                         });
                 });
 

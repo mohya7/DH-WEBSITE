@@ -61,7 +61,10 @@ export function stripRuntime(html: string): { html: string; removed: Record<stri
   const bodyClass = /\bdata-body-class="([^"]*)"/.exec(out)?.[1];
   if (bodyClass !== undefined) {
     out = out.replace(/<body(?: class="[^"]*")?>/, `<body${bodyClass ? ` class="${bodyClass}"` : ""}>`);
-    if (bodyClass) out = out.replace(/<html lang="en">/, `<html lang="en" class="nav-shown${bodyClass === "page-case" ? " subpage" : ""}">`);
+    if (bodyClass) {
+      const subpage = bodyClass.split(/\s+/).includes("page-case") ? " subpage" : "";
+      out = out.replace(/<html lang="en">/, `<html lang="en" class="nav-shown${subpage}">`);
+    }
   }
   return { html: out, removed };
 }

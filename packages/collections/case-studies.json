@@ -9,6 +9,13 @@
     "imageAltOverride": { "type": ["string", "null"], "x-dh-kind": "text", "x-dh-label": "Image alt text" },
     "metric": { "type": ["string", "null"], "x-dh-kind": "text", "x-dh-label": "Metric" },
     "categories": { "type": ["array", "null"], "items": { "type": "string", "x-dh-kind": "text" }, "x-dh-label": "Categories" },
+    "theme": {
+      "type": ["string", "null"],
+      "enum": ["orange", "teal", null],
+      "x-dh-kind": "select",
+      "x-dh-label": "Theme",
+      "x-dh-help": "Accent colour of the case-study page. Leave empty for the default blue."
+    },
     "featured": { "type": ["boolean", "null"], "x-dh-kind": "boolean", "x-dh-label": "Featured" }
   }
 }
