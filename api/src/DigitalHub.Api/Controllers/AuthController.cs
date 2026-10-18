@@ -6,23 +6,31 @@ using DigitalHub.Api.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
 
 namespace DigitalHub.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/auth")]
-public sealed class AuthController(UserManager<ApplicationUser> users, TokenService tokens, ContentDbContext db) : ControllerBase
+public sealed class AuthController(UserManager<ApplicationUser> users, TokenService tokens, ContentDbContext db, LoginThrottle throttle) : ControllerBase
 {
     [AllowAnonymous]
-    [EnableRateLimiting("login")]
+    [RejectDuplicateJsonFields]
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
     {
         var email = (request.Email ?? "").Trim();
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        // The same normalisation FindByEmailAsync applies, so case and spacing
+        // variants of one address share one budget.
+        if (!throttle.TryAttempt(ip, users.NormalizeEmail(email) ?? ""))
+        {
+            return ProblemResults.Create(StatusCodes.Status429TooManyRequests, "rate_limited", "Too many login attempts.");
+        }
+
         var user = await users.FindByEmailAsync(email);
         if (user is null || !await users.CheckPasswordAsync(user, request.Password))
         {
+            throttle.RecordFailure(ip);
             await AuditAsync(null, "sign_in_failed", "auth", null, email, success: false, cancellationToken);
             return ProblemResults.Create(StatusCodes.Status401Unauthorized, "unauthorized", "The email or password is incorrect.");
         }

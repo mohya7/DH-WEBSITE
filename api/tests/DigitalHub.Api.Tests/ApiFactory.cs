@@ -26,6 +26,10 @@ public class ApiFactory : WebApplicationFactory<Program>
        RateLimitedApiFactory puts it back so the limiter itself can be tested. */
     protected virtual int LoginPermitLimit => 1000;
 
+    /* The same for the per-address ceiling on failed sign-ins: the whole suite
+       signs in from one test address. Production default 30. */
+    protected virtual int LoginFailurePermitLimit => 100_000;
+
     private readonly string _connectionString = TestConnectionString();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -41,6 +45,7 @@ public class ApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Auth:InitialAdminPassword", AdminPassword);
         builder.UseSetting("Database:EnsureCreated", "false");
         builder.UseSetting("Auth:LoginPermitLimit", LoginPermitLimit.ToString());
+        builder.UseSetting("Auth:LoginFailurePermitLimit", LoginFailurePermitLimit.ToString());
         builder.UseSetting("Build:Token", BuildTokenValue);
         builder.UseSetting("Build:PermitLimit", "1000");
         builder.ConfigureTestServices(services =>
@@ -57,8 +62,11 @@ public class ApiFactory : WebApplicationFactory<Program>
     public sealed class RateLimited : ApiFactory
     {
         public const int Limit = 8;
+        public const int FailureLimit = 30;
 
         protected override int LoginPermitLimit => Limit;
+
+        protected override int LoginFailurePermitLimit => FailureLimit;
     }
 
     /// <summary>
