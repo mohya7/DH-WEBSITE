@@ -29,13 +29,26 @@
 //   node gate.mjs npm <npm-audit.json> <label>      High and Critical advisories (npm audit --json)
 //   node gate.mjs dotnet <dotnet-list.json>         High and Critical (dotnet list package --vulnerable --format json)
 //   node gate.mjs gitleaks <gitleaks-report.json>   every finding, by fingerprint; values are never printed
-//   node gate.mjs semgrep <semgrep.json>            ERROR fails; WARNING is printed; INFO does not fail
+//   node gate.mjs semgrep <semgrep.json>            ERROR fails; a WARNING fails when its rule is listed in
+//                                                   fail-on-rules.json; any other WARNING is printed; INFO does not fail
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const known = JSON.parse(fs.readFileSync(path.join(here, "known-findings.json"), "utf8"));
+const failOnRules = JSON.parse(fs.readFileSync(path.join(here, "fail-on-rules.json"), "utf8"));
+if (!Array.isArray(failOnRules) || failOnRules.some((id) => typeof id !== "string" || id === "")) {
+  throw new Error("fail-on-rules.json must be a list of rule ids");
+}
+
+// Semgrep labels these WARNING. They fail the gate anyway, unless the finding
+// is listed in known-findings.json exactly as an ERROR is.
+export const semgrepFailOnRules = new Set(failOnRules);
+
+export function semgrepCounted(item) {
+  return item.severity === "ERROR" || semgrepFailOnRules.has(item.rule);
+}
 
 // Fields the gate reads. gate.test.mjs mutates each of these, so a field added
 // here without a matching mutation case fails the suite. `optional` is only the
@@ -419,13 +432,13 @@ function main() {
     const knownIds = new Set(known.semgrep.map((entry) => entry.id));
     for (const parsePath of found.parseWarnings) console.log(`semgrep parse warning: ${parsePath}`);
     for (const item of found) {
-      if (item.severity === "WARNING") {
+      if (item.severity === "WARNING" && !semgrepFailOnRules.has(item.rule)) {
         const noted = knownIds.has(item.id) ? "known warning" : "warning";
         console.log(`semgrep ${noted}: ${item.rule} ${item.file}:${item.line}`);
       }
     }
-    const errors = found.filter((item) => item.severity === "ERROR");
-    finish(errors, knownIds, (item) => `${item.rule} in ${item.file}:${item.line}`, found);
+    const counted = found.filter(semgrepCounted);
+    finish(counted, knownIds, (item) => `${item.rule} in ${item.file}:${item.line}`, found);
   } else {
     console.error("usage: node gate.mjs npm|dotnet|gitleaks|semgrep <report.json> [label]");
     process.exitCode = 2;

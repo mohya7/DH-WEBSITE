@@ -6,6 +6,8 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { collectRunCommands, parseWorkflowYaml } from "./workflow-yaml.mjs";
+import { semgrepCounted, semgrepFailOnRules } from "./gate.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const gate = path.join(here, "gate.mjs");
@@ -911,15 +913,44 @@ function continuedValue(line) {
   return line.trim().replace(/ \\$/, "");
 }
 
+function runAllowListProblems(workflow) {
+  const problems = [];
+  const normalized = normalizeNewlines(workflow);
+  for (const line of normalized.split("\n")) {
+    const match = line.match(/^ +(?:- )?run: (.*)$/);
+    if (!match) continue;
+    if (!securityRunAllowList.includes(match[1])) problems.push(`run is not on the allow-list: ${match[1]}`);
+  }
+  try {
+    for (const command of collectRunCommands(parseWorkflowYaml(normalized))) {
+      if (!securityRunAllowList.includes(command)) problems.push(`run is not on the allow-list: ${command}`);
+    }
+  } catch (error) {
+    problems.push(`workflow YAML could not be parsed: ${error.message}`);
+  }
+  return problems;
+}
+
 function semgrepShapeProblems(workflow, script) {
   const problems = [];
   const normalizedWorkflow = normalizeNewlines(workflow);
   const normalizedScript = normalizeNewlines(script);
   const job = semgrepJobText(normalizedWorkflow);
-  const expectedJob = normalizeNewlines(fs.readFileSync(path.join(here, "semgrep-job.expected.yml"), "utf8"));
+  const expectedWorkflow = normalizeNewlines(fs.readFileSync(path.join(here, "security.expected.yml"), "utf8"));
+  const expectedJobText = normalizeNewlines(fs.readFileSync(path.join(here, "semgrep-job.expected.yml"), "utf8"));
   const expectedScript = normalizeNewlines(fs.readFileSync(path.join(here, "run-semgrep.expected.sh"), "utf8"));
-  if (job === "") problems.push("semgrep job is missing");
-  if (job !== expectedJob) problems.push("semgrep job is not the golden copy");
+  if (normalizedWorkflow !== expectedWorkflow) problems.push("security.yml is not the golden copy");
+  let parsedJob = null;
+  let expectedJob = null;
+  try {
+    const parsed = parseWorkflowYaml(normalizedWorkflow);
+    parsedJob = parsed && parsed.jobs ? parsed.jobs.semgrep : null;
+    expectedJob = parseWorkflowYaml(expectedJobText).semgrep;
+  } catch (error) {
+    problems.push(`workflow YAML could not be parsed: ${error.message}`);
+  }
+  if (parsedJob == null) problems.push("jobs.semgrep is missing");
+  else if (expectedJob != null && JSON.stringify(parsedJob) !== JSON.stringify(expectedJob)) problems.push("jobs.semgrep is not the golden job");
   if (normalizedScript !== expectedScript) problems.push("run-semgrep.sh is not the golden copy");
   if (normalizedWorkflow.includes("SEMGREP_ROOTS")) problems.push("SEMGREP_ROOTS is set in the workflow");
   if (/(^|\n)[ ]+if:/.test(job)) problems.push("semgrep job has an if");
@@ -939,11 +970,7 @@ function semgrepShapeProblems(workflow, script) {
     if (trimmed === "run: pip install \"semgrep==1.180.0\"") continue;
     if (/semgrep/.test(trimmed)) problems.push(`workflow has another semgrep command: ${trimmed}`);
   }
-  for (const line of normalizedWorkflow.split("\n")) {
-    const match = line.match(/^ +(?:- )?run: (.*)$/);
-    if (!match) continue;
-    if (!securityRunAllowList.includes(match[1])) problems.push(`run is not on the allow-list: ${match[1]}`);
-  }
+  problems.push(...runAllowListProblems(normalizedWorkflow));
   if ((normalizedScript.match(/semgrep scan/g) ?? []).length !== 1) problems.push("run-semgrep.sh must contain exactly one semgrep scan");
   if ((normalizedScript.match(/^\s*semgrep \\$/gm) ?? []).length !== 0) problems.push("run-semgrep.sh has a continued semgrep invocation");
   if (normalizedScript.includes("|| true")) problems.push("run-semgrep.sh contains || true");
@@ -995,13 +1022,120 @@ test("the semgrep job and scan script match their golden copies", () => {
   const script = fs.readFileSync(scriptPath, "utf8");
   assert.deepEqual(semgrepShapeProblems(workflow, script), []);
   assert.deepEqual(inlineInterpreterProblems(), []);
-  const ignore = fs.readFileSync(path.join(here, "..", "..", ".semgrepignore"), "utf8");
+  const ignore = normalizeNewlines(fs.readFileSync(path.join(here, "..", "..", ".semgrepignore"), "utf8"));
+  const expectedIgnore = normalizeNewlines(fs.readFileSync(path.join(here, "semgrepignore.expected"), "utf8"));
+  assert.equal(ignore, expectedIgnore);
   for (const root of requiredRoots) {
-    assert.equal(ignore.split(/\r?\n/).some((line) => {
+    assert.equal(ignore.split("\n").some((line) => {
       const trimmed = line.trim();
       return trimmed === root || trimmed === `${root}/`;
     }), false, `${root} is excluded by .semgrepignore`);
   }
+  for (const pattern of ["*.cs", "*.tsx", "studio/src/**"]) {
+    assert.equal(ignore.split("\n").some((line) => line.trim() === pattern), false, `${pattern} is excluded by .semgrepignore`);
+  }
+});
+
+const packRuleIds = [
+  "javascript.lang.security.detect-eval-with-expression.detect-eval-with-expression",
+  "typescript.react.security.audit.react-dangerouslysetinnerhtml.react-dangerouslysetinnerhtml",
+  "csharp.lang.security.insecure-deserialization.binary-formatter.insecure-binaryformatter-deserialization",
+  "javascript.express.security.audit.express-session-hardcoded-secret.express-session-hardcoded-secret",
+  "javascript.browser.security.open-redirect.js-open-redirect",
+];
+
+test("the five WARNING rules that fail the gate are exactly the pack ids", () => {
+  const listed = JSON.parse(fs.readFileSync(path.join(here, "fail-on-rules.json"), "utf8"));
+  assert.deepEqual(listed, packRuleIds);
+  assert.deepEqual([...semgrepFailOnRules], packRuleIds);
+});
+
+test("a listed WARNING fails, and any other WARNING is only printed", () => {
+  for (const rule of packRuleIds) {
+    const body = semgrepResult("WARNING");
+    body.check_id = rule;
+    const file = write(`fail-${rule}.json`, JSON.stringify(semgrepReport([body])));
+    const result = run(["semgrep", file]);
+    assert.equal(result.code, 1, `${rule}\n${result.out}`);
+    assert.match(result.out, /::error title=New finding \(semgrep\)::/);
+    assert.equal(result.out.includes(canary), false, rule);
+  }
+  const plain = semgrepResult("WARNING");
+  plain.check_id = "javascript.lang.security.audit.detect-child-process.detect-child-process";
+  const printed = run(["semgrep", write("plain-warning.json", JSON.stringify(semgrepReport([plain])))]);
+  assert.equal(printed.code, 0, printed.out);
+  assert.match(printed.out, /semgrep warning: javascript\.lang\.security\.audit\.detect-child-process\.detect-child-process api\/src\/Example\.cs:4/);
+  assert.equal(printed.out.includes("::error"), false, printed.out);
+});
+
+test("a listed WARNING that matches a known finding does not fail", () => {
+  const rule = packRuleIds[0];
+  const item = {
+    id: `${rule}:api/src/Example.cs:4`,
+    rule,
+    file: "api/src/Example.cs",
+    line: 4,
+    severity: "WARNING",
+  };
+  assert.equal(semgrepCounted(item), true);
+  assert.equal([item].filter((entry) => semgrepCounted(entry) && !new Set([item.id]).has(entry.id)).length, 0);
+  const other = { ...item, rule: "javascript.lang.security.audit.detect-child-process.detect-child-process", severity: "WARNING" };
+  assert.equal(semgrepCounted(other), false);
+});
+
+test("a run that is not on the allow-list is rejected", () => {
+  const block = runAllowListProblems("jobs:\n  example:\n    steps:\n      - run: echo skipped\n");
+  assert.ok(block.some((problem) => problem.includes("echo skipped")), block.join("\n"));
+  const flow = runAllowListProblems("jobs:\n  example:\n    steps:\n      - { name: Skip, run: \"echo skipped\" }\n");
+  assert.ok(flow.some((problem) => problem.includes("echo skipped")), flow.join("\n"));
+  assert.deepEqual(runAllowListProblems(fs.readFileSync(workflowPath, "utf8")), []);
+});
+
+test("hiding the semgrep job in a block scalar is rejected", () => {
+  const workflow = normalizeNewlines(fs.readFileSync(workflowPath, "utf8"));
+  const marker = "\n  semgrep:\n";
+  const start = workflow.indexOf(marker);
+  const job = workflow.slice(start + 1);
+  const hidden = `${workflow.slice(0, start + 1).replace("\nname: Security\n", "\n")}name: |2\n${job}`;
+  const problems = semgrepShapeProblems(hidden, fs.readFileSync(scriptPath, "utf8"));
+  assert.ok(problems.includes("jobs.semgrep is missing"), problems.join("\n"));
+});
+
+test("the redactor matches its golden copy and drops canary fields", () => {
+  const redactor = path.join(here, "redact-report.mjs");
+  const source = normalizeNewlines(fs.readFileSync(redactor, "utf8"));
+  const expected = normalizeNewlines(fs.readFileSync(path.join(here, "redact-report.expected.mjs"), "utf8"));
+  assert.equal(source, expected);
+  const report = {
+    results: [
+      {
+        check_id: "rule.one",
+        path: "a.js",
+        start: { line: 2 },
+        extra: { severity: "WARNING", lines: canary, metavars: { $X: canary }, message: canary },
+      },
+      {
+        check_id: "rule.two",
+        path: "b.cs",
+        start: { line: 9 },
+        extra: { severity: "ERROR", lines: canary, metavars: canary, message: canary },
+      },
+    ],
+    errors: [
+      { message: canary, type: "Timeout", extra: { lines: canary } },
+      { message: canary, path: "c.js" },
+    ],
+  };
+  const input = write("redactor-canary.json", JSON.stringify(report));
+  const output = path.join(dir, "redactor-canary-out.json");
+  const ran = spawnSync(process.execPath, [redactor, input, output], { encoding: "utf8" });
+  assert.equal(ran.status, 0, `${ran.stdout}\n${ran.stderr}`);
+  const redacted = fs.readFileSync(output, "utf8");
+  assert.equal(redacted.includes(canary), false, redacted);
+  const parsed = JSON.parse(redacted);
+  assert.deepEqual(parsed.results.map((result) => result.extra), [{ severity: "WARNING" }, { severity: "ERROR" }]);
+  assert.deepEqual(parsed.errors, [{ type: "redacted" }, { type: "redacted" }]);
+  assert.deepEqual(Object.keys(parsed.results[0]).sort(), ["check_id", "extra", "path", "start"]);
 });
 
 const shapeMutations = [

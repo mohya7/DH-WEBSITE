@@ -1,0 +1,177 @@
+# Security checks for the website, the Studio, and the Content API (the hiring
+# application is out of scope). A separate workflow, so the four CI jobs and their
+# timings are unchanged.
+#
+# Each job fails only on a NEW High or Critical finding (or any new secret).
+# Findings that already existed are listed with an owner in
+# .github/security/known-findings.json and reported as warnings; nothing is
+# suppressed in the tools. .github/security/gate.mjs does the comparison.
+#
+# Semgrep Community Edition 1.180.0 is installed in the Semgrep job and run by
+# .github/security/run-semgrep.sh. That script is the only place the roots,
+# packs, and excludes are listed. This whole workflow is pinned by
+# .github/security/security.expected.yml, and the Semgrep job's structure by
+# .github/security/semgrep-job.expected.yml. A change to this file has to
+# update those copies in the same commit. No login and no token; metrics
+# are off. It does not catch logic flaws, or bugs that only show up when a
+# real request is made. An ERROR fails unless it is listed under semgrep in
+# known-findings.json with an owner and a reason. To record one, append an
+# object whose id is rule:path:line, plus rule, path, line, owner, and reason.
+# A WARNING is printed as rule, file, and line and does not fail, except the
+# rules named in .github/security/fail-on-rules.json: those fail at any
+# severity unless that same finding is already in known-findings.json. INFO is
+# validated and not printed. A partial parse is printed as a path and does not
+# fail, and only when its type is the tagged array ["PartialParsing", locations]
+# that Semgrep 1.180 writes for the C# parser's warnings on primary constructors
+# and the top-level Program class. Timeout, out of memory, stack overflow, a
+# fatal error, a rule parse error, any other type, and a missing or malformed
+# type fail the job. The uploaded report drops matched lines and metavars,
+# which can contain a secret. .github/security/redact-report.mjs does that.
+
+name: Security
+
+on:
+  pull_request:
+  push:
+    branches: [rebuild/dotnet-platform]
+  schedule:
+    - cron: "41 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+  GITLEAKS_VERSION: "8.30.1"
+  # sha256 of gitleaks_8.30.1_linux_x64.tar.gz, from the release's checksums.txt.
+  GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+
+jobs:
+  gate-self-test:
+    name: Security gate self-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Gate self-test
+        run: node --test .github/security/gate.test.mjs
+
+  npm-audit:
+    name: npm audit (${{ matrix.app }}) — High and Critical
+    needs: gate-self-test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [website, studio]
+    defaults:
+      run:
+        working-directory: ${{ matrix.app }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # npm audit reads package-lock.json; no install is needed.
+      - name: Fail on a new High or Critical advisory
+        run: bash ../.github/security/run-npm-audit.sh ${{ matrix.app }}
+
+  dotnet-vulnerable:
+    name: NuGet vulnerable packages (api) — High and Critical
+    needs: gate-self-test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - run: dotnet restore DigitalHub.slnx
+
+      - name: Fail on a new High or Critical advisory
+        run: bash ../.github/security/run-dotnet-audit.sh
+
+  gitleaks-pr:
+    name: Secret scan (gitleaks, this pull request's commits)
+    needs: gate-self-test
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install gitleaks ${{ env.GITLEAKS_VERSION }} (checksum verified)
+        run: bash .github/security/install-gitleaks.sh
+
+      - name: Scan the commits of this pull request (values redacted)
+        run: bash .github/security/run-gitleaks.sh pr-diff "$RUNNER_TEMP/gitleaks-pr.json" "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+
+  gitleaks-history:
+    name: Secret scan (gitleaks, full history)
+    needs: gate-self-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install gitleaks ${{ env.GITLEAKS_VERSION }} (checksum verified)
+        run: bash .github/security/install-gitleaks.sh
+
+      - name: Scan every commit on every branch (values redacted)
+        run: bash .github/security/run-gitleaks.sh full-history "$RUNNER_TEMP/gitleaks-history.json" "--all"
+
+      - name: Upload the redacted report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-history-redacted
+          path: ${{ runner.temp }}/gitleaks-history.json
+          if-no-files-found: warn
+
+  semgrep:
+    name: Semgrep (ERROR fails, WARNING reported)
+    needs: gate-self-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Semgrep 1.180.0
+        run: pip install "semgrep==1.180.0"
+
+      - name: Scan
+        run: bash .github/security/run-semgrep.sh
+
+      - name: Redact matched source before upload
+        run: node .github/security/redact-report.mjs "$RUNNER_TEMP/semgrep.json" "$RUNNER_TEMP/semgrep-redacted.json"
+
+      - name: Upload the redacted report
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-redacted
+          path: ${{ runner.temp }}/semgrep-redacted.json
+          if-no-files-found: warn
