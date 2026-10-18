@@ -38,7 +38,7 @@ public static class SessionCheck
         var cancellationToken = context.HttpContext.RequestAborted;
         var user = await db.Users.AsNoTracking()
             .Where(candidate => candidate.Id == userId)
-            .Select(candidate => new { candidate.SecurityStamp, candidate.LockoutEnabled, candidate.LockoutEnd })
+            .Select(candidate => new { candidate.SecurityStamp, candidate.LockoutEnabled, candidate.LockoutEnd, candidate.MustChangePassword })
             .SingleOrDefaultAsync(cancellationToken);
 
         if (user is null
@@ -53,6 +53,12 @@ public static class SessionCheck
         var live = await db.RefreshTokens.AsNoTracking()
             .AnyAsync(token => token.FamilyId == familyId && token.UserId == userId && token.RevokedAt == null && token.ExpiresAt > now, cancellationToken);
         if (!live)
+        {
             context.Fail("The session has ended.");
+            return;
+        }
+
+        if (user.MustChangePassword)
+            context.HttpContext.Items[PasswordChangeGate.RequiredItem] = true;
     }
 }

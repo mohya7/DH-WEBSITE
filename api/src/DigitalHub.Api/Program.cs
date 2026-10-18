@@ -277,6 +277,7 @@ app.UseStaticFiles(new StaticFileOptions
 });
 
 app.UseAuthorization();
+app.UseMiddleware<PasswordChangeGate>();
 
 app.MapControllers();
 app.MapHealthChecks("/health", new HealthCheckOptions

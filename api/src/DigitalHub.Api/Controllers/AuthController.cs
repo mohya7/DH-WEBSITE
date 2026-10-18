@@ -54,6 +54,7 @@ public sealed class AuthController(UserManager<ApplicationUser> users, TokenServ
         });
     }
 
+    [AllowedBeforePasswordChange]
     [HttpPost("change-password")]
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request, CancellationToken cancellationToken)
     {
@@ -198,6 +199,7 @@ public sealed class AuthController(UserManager<ApplicationUser> users, TokenServ
         await db.SaveChangesAsync(cancellationToken);
     }
 
+    [AllowedBeforePasswordChange]
     [HttpGet("me")]
     public async Task<IActionResult> Me()
     {
