@@ -331,10 +331,11 @@ jobs:
     name: Screenshot parity (optional, label "screenshots")
     runs-on: ubuntu-latest
     needs: website
-    # Optional and manual: runs only on a pull request labelled "screenshots", and
-    # does not fail the workflow while the screenshot register waits for its
-    # first approved entries. Chromium, Firefox, and WebKit; WebKit cannot run on
-    # the Windows development machines (Application Control). See website/README.md.
+    # Optional and manual: runs only on a pull request labelled "screenshots".
+    # The comparison does not fail the workflow while the screenshot register waits
+    # for its first approved entries. The Chromium regression tests do fail the job.
+    # Chromium, Firefox, and WebKit; WebKit cannot run on the Windows development
+    # machines (Application Control). See website/README.md.
     if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'screenshots')
     steps:
       - uses: actions/checkout@v4
@@ -363,6 +364,12 @@ jobs:
         run: |
           npm ci
           npx playwright install --with-deps chromium firefox webkit
+
+      - name: Chromium regression tests
+        working-directory: website
+        run: |
+          npx vitest run test/screenshot-parity-browser.test.ts --reporter=default --reporter=json --outputFile.json="${RUNNER_TEMP}/screenshot-browser.json"
+          node --input-type=module -e "import fs from 'node:fs'; const report = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/screenshot-browser.json', 'utf8')); const rows = (report.testResults ?? []).flatMap((file) => file.assertionResults ?? []); const passed = rows.filter((row) => row.status === 'passed'); const unexpected = rows.filter((row) => row.status !== 'passed' && !String(row.title).includes('needs Playwright')); console.log('chromium regressions: passed ' + passed.length + ', other than the no-browser placeholder ' + unexpected.length); for (const row of unexpected) console.log(row.status + ' ' + row.title); if (passed.length < 23 || unexpected.length !== 0) process.exit(1);"
 
       - name: Compare screenshots
         continue-on-error: true
