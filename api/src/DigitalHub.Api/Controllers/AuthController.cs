@@ -82,6 +82,13 @@ public sealed class AuthController(UserManager<ApplicationUser> users, TokenServ
 
         user.MustChangePassword = false;
         await users.UpdateAsync(user);
+
+        // Every other session of this user ends; the one that made the change
+        // keeps its refresh token family, if its cookie came with the request.
+        Guid? keep = null;
+        if (Request.Cookies.TryGetValue(TokenService.RefreshCookieName, out var refreshToken))
+            keep = await tokens.FindActiveFamilyAsync(refreshToken, user.Id, cancellationToken);
+        await tokens.RevokeUserAsync(user.Id, keep, cancellationToken);
         await AuditAsync(user.Id, "change_password", "auth", user.Id, null, success: true, cancellationToken);
         return NoContent();
     }

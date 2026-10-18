@@ -461,6 +461,9 @@ public sealed class AdminApiTests : IClassFixture<ApiFactory>
         Assert.Equal(HttpStatusCode.OK, session.Status);
 
         var change = session.Authorized(HttpMethod.Post, "/api/v1/auth/change-password");
+        // The browser sends the refresh cookie on /api/v1/auth/*; it keeps this
+        // session alive while the user's other sessions end (finding M1).
+        change.Headers.TryAddWithoutValidation("Cookie", session.CookieHeader);
         change.Content = JsonContent.Create(new { currentPassword = "Auth-Audit-Pass1!", newPassword = "Auth-Audit-Pass2!" });
         Assert.Equal(HttpStatusCode.NoContent, (await _client.SendAsync(change)).StatusCode);
 

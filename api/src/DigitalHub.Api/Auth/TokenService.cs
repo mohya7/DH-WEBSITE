@@ -102,6 +102,32 @@ public sealed class TokenService(ContentDbContext db, IConfiguration configurati
         return true;
     }
 
+    /// <summary>The family of a live refresh token that belongs to this user, or null.</summary>
+    public async Task<Guid?> FindActiveFamilyAsync(string rawToken, string userId, CancellationToken cancellationToken)
+    {
+        var hash = Hash(rawToken);
+        var current = await db.RefreshTokens.AsNoTracking()
+            .SingleOrDefaultAsync(token => token.TokenHash == hash, cancellationToken);
+        if (current is null || current.UserId != userId || current.RevokedAt is not null || current.ExpiresAt <= DateTime.UtcNow)
+            return null;
+        return current.FamilyId;
+    }
+
+    /// <summary>
+    /// Revokes every live refresh token of the user, except the family named in
+    /// <paramref name="keepFamily"/>. Saves.
+    /// </summary>
+    public async Task RevokeUserAsync(string userId, Guid? keepFamily, CancellationToken cancellationToken)
+    {
+        var now = DateTime.UtcNow;
+        var active = await db.RefreshTokens
+            .Where(token => token.UserId == userId && token.RevokedAt == null)
+            .ToListAsync(cancellationToken);
+        foreach (var token in active.Where(token => token.FamilyId != keepFamily))
+            token.RevokedAt = now;
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
     public static string Hash(string value)
     {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));

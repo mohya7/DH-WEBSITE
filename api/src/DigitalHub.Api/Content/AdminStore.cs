@@ -339,12 +339,7 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         if (!updated.Succeeded)
             return ContentOutcome.Fail(StatusCodes.Status400BadRequest, "validation_failed", "The user could not be deactivated.");
 
-        var now = DateTime.UtcNow;
-        var tokens = await db.RefreshTokens
-            .Where(token => token.UserId == user.Id && token.RevokedAt == null)
-            .ToListAsync(cancellationToken);
-        foreach (var token in tokens)
-            token.RevokedAt = now;
+        await RevokeRefreshTokensAsync(user.Id, cancellationToken);
 
         Audit(actorId, "deactivate_user", "user", user.Id);
         await db.SaveChangesAsync(cancellationToken);
@@ -369,10 +364,23 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
 
         user.MustChangePassword = true;
         await users.UpdateAsync(user);
+        // A reset is what follows a compromise: every session of the user ends.
+        await RevokeRefreshTokensAsync(user.Id, cancellationToken);
         Audit(actorId, "reset_password", "user", user.Id);
         await db.SaveChangesAsync(cancellationToken);
         await tx.CommitAsync(cancellationToken);
         return ContentOutcome.Ok(new { id = user.Id, temporaryPassword = temporary });
+    }
+
+    /// <summary>Marks every live refresh token of the user revoked. The caller saves.</summary>
+    private async Task RevokeRefreshTokensAsync(string userId, CancellationToken cancellationToken)
+    {
+        var now = DateTime.UtcNow;
+        var tokens = await db.RefreshTokens
+            .Where(token => token.UserId == userId && token.RevokedAt == null)
+            .ToListAsync(cancellationToken);
+        foreach (var token in tokens)
+            token.RevokedAt = now;
     }
 
     public async Task<ContentOutcome> ListAuditAsync(
