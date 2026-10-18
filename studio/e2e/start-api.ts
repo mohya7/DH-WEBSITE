@@ -71,6 +71,7 @@ IF NOT EXISTS (
     JOIN sys.database_principals m ON rm.member_principal_id = m.principal_id
     WHERE r.name = N'db_datawriter' AND m.name = N'${escapeSql(env.loginName)}')
     ALTER ROLE db_datawriter ADD MEMBER [${escapeIdent(env.loginName)}];
+DENY UPDATE, DELETE ON dbo.audit_log TO [${escapeIdent(env.loginName)}];
 `);
   // Only this webServer process resets the database. Playwright workers reload
   // the config, so it must never import or execute this script.

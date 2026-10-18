@@ -110,6 +110,42 @@ public class ApiFactory : WebApplicationFactory<Program>
         return string.Concat(content.AsSpan(0, after), "_Test", content.AsSpan(after));
     }
 
+    /// <summary>
+    /// The administrator connection to DigitalHubContent_Test, for what the
+    /// application login may not do: create and drop a trigger, or remove an
+    /// audit row the test wrote (the audit log is append-only for the
+    /// application login). From ConnectionStrings:ContentAdmin
+    /// when configured (an environment variable in CI, using SQL
+    /// authentication); otherwise derived from ConnectionStrings:Content with
+    /// Windows authentication, as on the local machine.
+    /// </summary>
+    internal static string ElevatedTestConnectionString()
+    {
+        var configuration = TestConfiguration();
+        var admin = configuration.GetConnectionString("ContentAdmin");
+        if (!string.IsNullOrWhiteSpace(admin))
+            return ToTestCatalog(admin);
+
+        var content = configuration.GetConnectionString("Content");
+        if (string.IsNullOrWhiteSpace(content))
+            throw new InvalidOperationException("ConnectionStrings:Content is not configured.");
+
+        var test = ToTestCatalog(content);
+        var stripped = System.Text.RegularExpressions.Regex.Replace(
+            test,
+            ";?(User ID|UID|Password|PWD)=[^;]*",
+            "",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        stripped = stripped.Trim(';');
+        if (stripped.Contains("Integrated Security=", StringComparison.OrdinalIgnoreCase)
+            || stripped.Contains("Trusted_Connection=", StringComparison.OrdinalIgnoreCase))
+        {
+            return stripped;
+        }
+
+        return stripped + ";Integrated Security=true";
+    }
+
     private static string TestConnectionString()
     {
         var content = TestConfiguration().GetConnectionString("Content");

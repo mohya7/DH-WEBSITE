@@ -72,44 +72,10 @@ public sealed class AuditRollbackTests : IClassFixture<ApiFactory>
 
     private static async Task ExecuteElevatedAsync(string sql)
     {
-        await using var connection = new SqlConnection(ElevatedTestConnectionString());
+        await using var connection = new SqlConnection(ApiFactory.ElevatedTestConnectionString());
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
         command.CommandText = sql;
         await command.ExecuteNonQueryAsync();
-    }
-
-    /// <summary>
-    /// The administrator connection to DigitalHubContent_Test, which this test
-    /// needs to create and drop a trigger. From ConnectionStrings:ContentAdmin
-    /// when configured (an environment variable in CI, using SQL
-    /// authentication); otherwise derived from ConnectionStrings:Content with
-    /// Windows authentication, as on the local machine.
-    /// </summary>
-    private static string ElevatedTestConnectionString()
-    {
-        var configuration = ApiFactory.TestConfiguration();
-        var admin = configuration.GetConnectionString("ContentAdmin");
-        if (!string.IsNullOrWhiteSpace(admin))
-            return ApiFactory.ToTestCatalog(admin);
-
-        var content = configuration.GetConnectionString("Content");
-        if (string.IsNullOrWhiteSpace(content))
-            throw new InvalidOperationException("ConnectionStrings:Content is not configured.");
-
-        var test = ApiFactory.ToTestCatalog(content);
-        var stripped = System.Text.RegularExpressions.Regex.Replace(
-            test,
-            ";?(User ID|UID|Password|PWD)=[^;]*",
-            "",
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        stripped = stripped.Trim(';');
-        if (stripped.Contains("Integrated Security=", StringComparison.OrdinalIgnoreCase)
-            || stripped.Contains("Trusted_Connection=", StringComparison.OrdinalIgnoreCase))
-        {
-            return stripped;
-        }
-
-        return stripped + ";Integrated Security=true";
     }
 }
