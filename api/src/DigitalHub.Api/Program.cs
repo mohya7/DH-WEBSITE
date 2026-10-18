@@ -253,6 +253,7 @@ app.UseSerilogRequestLogging(options =>
     options.MessageTemplate = "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms";
 });
 app.UseMiddleware<ExceptionShieldMiddleware>();
+app.UseMiddleware<RequestBodyLimitMiddleware>();
 app.UseMiddleware<DuplicateJsonFieldGuardMiddleware>();
 app.UseAuthentication();
 app.UseRateLimiter();

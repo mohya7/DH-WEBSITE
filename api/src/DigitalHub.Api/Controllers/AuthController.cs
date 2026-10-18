@@ -13,7 +13,14 @@ namespace DigitalHub.Api.Controllers;
 [Route("api/v1/auth")]
 public sealed class AuthController(UserManager<ApplicationUser> users, TokenService tokens, ContentDbContext db, LoginThrottle throttle) : ControllerBase
 {
+    /// <summary>The largest auth request body: an email, a password or two, and JSON around them.</summary>
+    public const long AuthBodyLimit = 4 * 1024;
+
+    /// <summary>The most of a typed email kept in an audit entry; an email address is at most 254 characters.</summary>
+    public const int AuditEmailLength = 254;
+
     [AllowAnonymous]
+    [RequestBodyLimit(AuthBodyLimit)]
     [RejectDuplicateJsonFields]
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
@@ -31,20 +38,20 @@ public sealed class AuthController(UserManager<ApplicationUser> users, TokenServ
         if (user is null || !await users.CheckPasswordAsync(user, request.Password))
         {
             throttle.RecordFailure(ip);
-            await AuditAsync(null, "sign_in_failed", "auth", null, email, success: false, cancellationToken);
+            await AuditAsync(null, "sign_in_failed", "auth", null, ForAudit(email), success: false, cancellationToken);
             return ProblemResults.Create(StatusCodes.Status401Unauthorized, "unauthorized", "The email or password is incorrect.");
         }
 
         if (user.LockoutEnabled && user.LockoutEnd is not null && user.LockoutEnd > DateTimeOffset.UtcNow)
         {
-            await AuditAsync(user.Id, "sign_in_failed", "auth", user.Id, email, success: false, cancellationToken);
+            await AuditAsync(user.Id, "sign_in_failed", "auth", user.Id, ForAudit(email), success: false, cancellationToken);
             return ProblemResults.Create(StatusCodes.Status401Unauthorized, "unauthorized", "The email or password is incorrect.");
         }
 
         var roles = await users.GetRolesAsync(user);
         var session = await tokens.IssueAsync(user, roles, cancellationToken);
         AppendSessionCookies(session.RefreshToken, session.CsrfToken, session.ExpiresAt);
-        await AuditAsync(user.Id, "sign_in", "auth", user.Id, email, success: true, cancellationToken);
+        await AuditAsync(user.Id, "sign_in", "auth", user.Id, ForAudit(email), success: true, cancellationToken);
         return Ok(new
         {
             accessToken = session.AccessToken,
@@ -55,6 +62,7 @@ public sealed class AuthController(UserManager<ApplicationUser> users, TokenServ
     }
 
     [AllowedBeforePasswordChange]
+    [RequestBodyLimit(AuthBodyLimit)]
     [HttpPost("change-password")]
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request, CancellationToken cancellationToken)
     {
@@ -95,6 +103,7 @@ public sealed class AuthController(UserManager<ApplicationUser> users, TokenServ
     }
 
     [AllowAnonymous]
+    [RequestBodyLimit(AuthBodyLimit)]
     [HttpPost("refresh")]
     public async Task<IActionResult> Refresh(CancellationToken cancellationToken)
     {
@@ -130,6 +139,7 @@ public sealed class AuthController(UserManager<ApplicationUser> users, TokenServ
     }
 
     [AllowAnonymous]
+    [RequestBodyLimit(AuthBodyLimit)]
     [HttpPost("logout")]
     public async Task<IActionResult> Logout(CancellationToken cancellationToken)
     {
@@ -156,6 +166,10 @@ public sealed class AuthController(UserManager<ApplicationUser> users, TokenServ
         await AuditAsync(userId, "sign_out", "auth", userId, null, success: true, cancellationToken);
         return NoContent();
     }
+
+    /// <summary>The typed email as the audit log keeps it: at most AuditEmailLength characters (finding M3).</summary>
+    private static string ForAudit(string email) =>
+        email.Length <= AuditEmailLength ? email : email[..AuditEmailLength];
 
     private void AppendSessionCookies(string refreshToken, string csrfToken, DateTime expiresAt)
     {
@@ -229,6 +243,7 @@ public sealed class AuthController(UserManager<ApplicationUser> users, TokenServ
     {
         [System.ComponentModel.DataAnnotations.Required]
         [System.ComponentModel.DataAnnotations.EmailAddress]
+        [System.ComponentModel.DataAnnotations.MaxLength(AuditEmailLength)]
         public string Email { get; set; } = "";
 
         [System.ComponentModel.DataAnnotations.Required]
