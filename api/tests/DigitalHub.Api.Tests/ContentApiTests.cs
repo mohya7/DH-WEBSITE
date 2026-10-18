@@ -602,9 +602,9 @@ public sealed class ContentApiTests : IClassFixture<ApiFactory>
 
     private async Task<AuthSession> LoginAsync(string email, string role, string? password = null)
     {
-        if (role == "editor" && _editor is not null)
+        if (role == "editor" && _editor is not null && await _editor.IsLiveAsync(_client))
             return _editor;
-        if (role == "admin" && _admin is not null)
+        if (role == "admin" && _admin is not null && await _admin.IsLiveAsync(_client))
             return _admin;
         if (role != "admin")
             await CreateUserAsync(email, role);

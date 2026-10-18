@@ -5,6 +5,7 @@ using System.Text.Json;
 using DigitalHub.Api.Content;
 using DigitalHub.Api.Data;
 using DigitalHub.Api.Infrastructure;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -358,9 +359,18 @@ public sealed class AdminApiTests : IClassFixture<ApiFactory>
         Assert.Equal(HttpStatusCode.OK, secondSession.Status);
         Assert.Equal(HttpStatusCode.OK, (await SendAsync(secondSession, HttpMethod.Post, "/api/v1/users/" + primaryAdminId + "/deactivate")).Status);
 
+        // The deactivated admin's token is refused on its next request (finding M2),
+        // so through the API the last active admin can only be asked to deactivate
+        // themselves. The last-admin guard is still the store's to enforce.
         var last = await SendAsync(admin, HttpMethod.Post, "/api/v1/users/" + secondId + "/deactivate");
-        Assert.Equal(HttpStatusCode.BadRequest, last.Status);
-        Assert.Equal("last_admin", Code(last.Body));
+        Assert.Equal(HttpStatusCode.Unauthorized, last.Status);
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var store = scope.ServiceProvider.GetRequiredService<AdminStore>();
+            var outcome = await store.DeactivateUserAsync(secondId!, primaryAdminId, CancellationToken.None);
+            Assert.Equal(StatusCodes.Status400BadRequest, outcome.Status);
+            Assert.Equal("last_admin", outcome.Code);
+        }
 
         await EnsurePrimaryAdminActiveAsync();
     }

@@ -42,7 +42,7 @@ public sealed class AuthController(UserManager<ApplicationUser> users, TokenServ
         }
 
         var roles = await users.GetRolesAsync(user);
-        var session = await tokens.IssueAsync(user.Id, roles, cancellationToken);
+        var session = await tokens.IssueAsync(user, roles, cancellationToken);
         AppendSessionCookies(session.RefreshToken, session.CsrfToken, session.ExpiresAt);
         await AuditAsync(user.Id, "sign_in", "auth", user.Id, email, success: true, cancellationToken);
         return Ok(new
@@ -146,6 +146,9 @@ public sealed class AuthController(UserManager<ApplicationUser> users, TokenServ
             {
                 return ProblemResults.Create(StatusCodes.Status403Forbidden, "csrf_failed", "The request could not be verified.");
             }
+            // The family is now revoked, so this session's access token is refused
+            // on its next request (SessionCheck, finding L2). Other sessions of the
+            // user are untouched.
         }
 
         ClearSessionCookies();

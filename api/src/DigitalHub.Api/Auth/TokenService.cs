@@ -19,13 +19,32 @@ public sealed class TokenService(ContentDbContext db, IConfiguration configurati
 
     public int AccessTokenSeconds => configuration.GetValue("Auth:AccessTokenMinutes", 10) * 60;
 
-    public async Task<IssuedSession> IssueAsync(string userId, IEnumerable<string> roles, CancellationToken cancellationToken)
+    /// <summary>
+    /// The access-token claim that ties a token to the user's security stamp.
+    /// Identity changes the stamp when the password changes or is reset, so every
+    /// request can tell whether its token predates that (finding M2).
+    /// </summary>
+    public const string StampClaim = "sst";
+
+    /// <summary>
+    /// The access-token claim that names the token's refresh-token family, the
+    /// session it was issued for. Sign-out revokes the family, so the session's
+    /// access token stops on its next request (finding L2) while the user's other
+    /// sessions carry on.
+    /// </summary>
+    public const string SessionClaim = "sid";
+
+    /// <summary>A digest of the stamp, so the token does not carry the stamp itself.</summary>
+    public static string StampValue(string? securityStamp) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(securityStamp ?? "")))[..32];
+
+    public async Task<IssuedSession> IssueAsync(ApplicationUser user, IEnumerable<string> roles, CancellationToken cancellationToken)
     {
         var knownRoles = roles.Where(Roles.IsKnown).ToArray();
-        var (rawToken, csrf, entity) = NewToken(userId, Guid.NewGuid());
+        var (rawToken, csrf, entity) = NewToken(user.Id, Guid.NewGuid());
         db.RefreshTokens.Add(entity);
         await db.SaveChangesAsync(cancellationToken);
-        return new IssuedSession(CreateAccessToken(userId, knownRoles), rawToken, csrf, entity.ExpiresAt);
+        return new IssuedSession(CreateAccessToken(user.Id, knownRoles, user.SecurityStamp, entity.FamilyId), rawToken, csrf, entity.ExpiresAt);
     }
 
     public async Task<RefreshResult> RefreshAsync(string rawToken, string csrfToken, CancellationToken cancellationToken)
@@ -75,7 +94,7 @@ public sealed class TokenService(ContentDbContext db, IConfiguration configurati
         db.RefreshTokens.Add(next);
         await db.SaveChangesAsync(cancellationToken);
         var knownRoles = roleNames.Where(Roles.IsKnown);
-        return RefreshResult.Success(CreateAccessToken(user.Id, knownRoles), rawNext, csrf, next.ExpiresAt);
+        return RefreshResult.Success(CreateAccessToken(user.Id, knownRoles, user.SecurityStamp, current.FamilyId), rawNext, csrf, next.ExpiresAt);
     }
 
     public async Task<string?> FindUserIdAsync(string rawToken, CancellationToken cancellationToken)
@@ -175,9 +194,14 @@ public sealed class TokenService(ContentDbContext db, IConfiguration configurati
         return FixedEquals(header, cookie);
     }
 
-    private string CreateAccessToken(string userId, IEnumerable<string> roles)
+    private string CreateAccessToken(string userId, IEnumerable<string> roles, string? securityStamp, Guid familyId)
     {
-        var claims = new List<Claim> { new("sub", userId) };
+        var claims = new List<Claim>
+        {
+            new("sub", userId),
+            new(StampClaim, StampValue(securityStamp)),
+            new(SessionClaim, familyId.ToString("N")),
+        };
         foreach (var role in roles)
         {
             claims.Add(new Claim("role", role));

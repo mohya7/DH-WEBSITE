@@ -690,7 +690,7 @@ public sealed class MediaLibraryTests : IClassFixture<ApiFactory>
         try
         {
             var existing = read();
-            if (existing is not null)
+            if (existing is not null && await existing.IsLiveAsync(_client))
                 return existing;
             if (role != "admin")
                 await CreateUserAsync(email, role);

@@ -207,6 +207,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
         options.Events = new JwtBearerEvents
         {
+            OnTokenValidated = SessionCheck.ValidateAsync,
             OnChallenge = async context =>
             {
                 context.HandleResponse();
