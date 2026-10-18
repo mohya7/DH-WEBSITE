@@ -2,7 +2,8 @@
  * The IIS web.config for the static export, generated at build (Phase C, Section 8).
  *
  * It is configuration for the site IIS serves from out/. It does not proxy
- * anywhere. The site is fully static and needs no Node routing.
+ * anywhere. The site is fully static and needs no Node routing. Routing to the
+ * Content API is Phase D.
  *
  * Clean URLs. Pages are exported as path.html (the home page as index.html).
  * A request is rewritten to that file when the file exists, even if the same
