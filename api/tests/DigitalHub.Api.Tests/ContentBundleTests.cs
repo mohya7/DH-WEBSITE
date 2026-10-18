@@ -435,6 +435,155 @@ public sealed class ContentBundleTests : IClassFixture<ApiFactory>, IDisposable
     }
 
     [Fact]
+    public async Task A_credential_key_at_or_past_the_depth_limit_is_refused_with_and_without_force()
+    {
+        await InTransactionAsync(async db =>
+        {
+            await SeedAsync(db);
+            var bundle = await ExportAsync(db, _source);
+            await EmptyAsync(db);
+
+            // The object holding "password" sits at walk depth 63, 64, or 65. Depth 65 used to be
+            // skipped silently and imported into an empty catalog.
+            foreach (var (holderDepth, expected) in new[]
+            {
+                (63, "fields that look like users or credentials (password)"),
+                (64, ContentBundle.TooDeep),
+                (65, ContentBundle.TooDeep),
+            })
+            {
+                var deep = Edit(bundle, root => root["tables"]!["revisions"]![0]!["snapshot"] = SnapshotWithKeyAt(root, holderDepth));
+                foreach (var force in new[] { false, true })
+                {
+                    var refused = await ImportAsync(db, _target, deep, force: force);
+                    Assert.False(refused.Ok, $"depth {holderDepth}, force {force}");
+                    Assert.Contains(expected, Assert.Single(refused.Problems), StringComparison.Ordinal);
+                }
+            }
+
+            Assert.Equal(0, await db.Revisions.CountAsync());
+            Assert.Equal(0, await db.Pages.CountAsync());
+            Assert.Empty(Directory.GetFiles(_target));
+
+            // A normal bundle is unaffected.
+            Assert.True((await ImportAsync(db, _target, bundle)).Ok);
+        });
+    }
+
+    [Fact]
+    public async Task A_bundle_nested_ten_thousand_levels_is_one_refusal_line()
+    {
+        await InTransactionAsync(async db =>
+        {
+            await SeedAsync(db);
+            var bundle = await ExportAsync(db, _source);
+            await EmptyAsync(db);
+            var nested = new string('[', 10_000) + new string(']', 10_000);
+
+            // content.json itself, and a snapshot kept as text, each 10,000 levels deep.
+            // Stored, not compressed: brackets compress so well that the ratio limit would refuse first.
+            var deepFile = RawBundle("{\"format\":\"digitalhub-content-bundle\",\"tables\":" + nested + "}");
+            var deepText = Edit(bundle, root => root["tables"]!["revisions"]![0]!["snapshot"] = nested, level: CompressionLevel.NoCompression);
+            var deepBroken = Edit(bundle, root => root["tables"]!["revisions"]![0]!["snapshot"] = new string('[', 10_000) + "not json", level: CompressionLevel.NoCompression);
+            foreach (var deep in new[] { deepFile, deepText, deepBroken })
+            {
+                foreach (var force in new[] { false, true })
+                    Assert.Equal(ContentBundle.TooDeep, Assert.Single((await ImportAsync(db, _target, deep, force: force)).Problems));
+            }
+
+            Assert.Equal(0, await db.Pages.CountAsync());
+        });
+
+        // The command line: exit 1, the refusal, no stack trace. The bundle is refused before
+        // the server (unreachable on purpose) is contacted.
+        var settings = new Dictionary<string, string?> { ["ConnectionStrings:Content"] = "Server=127.0.0.1,1;Database=DigitalHubContent_Nowhere;User ID=bundle-test;Password=canary-not-a-secret;Connect Timeout=2;Encrypt=False" };
+        var path = Path.Combine(_target, "deep.zip");
+        File.WriteAllBytes(path, RawBundle("{\"tables\":" + new string('[', 10_000) + new string(']', 10_000) + "}"));
+        var (code, output) = await RunAsync(settings, "import", "--in", path, "--dry-run");
+        Assert.Equal(1, code);
+        Assert.Contains("Dry run: the import would be refused. Nothing was changed.", output, StringComparison.Ordinal);
+        Assert.Contains(ContentBundle.TooDeep, output, StringComparison.Ordinal);
+        Assert.DoesNotContain("   at ", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("could not be reached", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("canary", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Every_limit_in_the_credential_walk_refuses_instead_of_skipping()
+    {
+        // Node count.
+        ContentBundle.ForbiddenFieldNames(JsonNode.Parse("[1,2,3,4,5,6,7,8,9,10,11]"), out var refusal, maxNodes: 10);
+        Assert.Equal("The bundle has more than 10 JSON values; the bundle is refused.", refusal);
+
+        // Bytes of JSON kept as text, read again.
+        ContentBundle.ForbiddenFieldNames(JsonNode.Parse("""["{\"a\":1}","{\"b\":2}"]"""), out refusal, maxTextBytes: 10);
+        Assert.Equal("The bundle keeps more than 10 bytes of JSON as text; the bundle is refused.", refusal);
+
+        // Depth, in the tree and in text that is not even valid JSON.
+        // 65 arrays: the innermost is at depth 64, the limit. 66: refused.
+        ContentBundle.ForbiddenFieldNames(JsonNode.Parse(new string('[', 65) + new string(']', 65), new JsonNodeOptions(), new JsonDocumentOptions { MaxDepth = 100 }), out refusal);
+        Assert.Null(refusal);
+        ContentBundle.ForbiddenFieldNames(JsonNode.Parse(new string('[', 66) + new string(']', 66), new JsonNodeOptions(), new JsonDocumentOptions { MaxDepth = 100 }), out refusal);
+        Assert.Equal(ContentBundle.TooDeep, refusal);
+        ContentBundle.ForbiddenFieldNames(new JsonArray(new string('[', 70) + "broken"), out refusal);
+        Assert.Equal(ContentBundle.TooDeep, refusal);
+
+        // Text that only looks like JSON stays content: no refusal, no key.
+        Assert.Empty(ContentBundle.ForbiddenFieldNames(new JsonArray("[citation needed]", "{ not json"), out refusal));
+        Assert.Null(refusal);
+
+        // A duplicate key does not hide a credential key or crash the walk.
+        ContentBundle.ForbiddenFieldNames(new JsonArray("""{"a":1,"a":{"password":"x"}}"""), out refusal);
+        Assert.Equal("A document has the same field name twice; the bundle is refused.", refusal);
+        ContentBundle.ForbiddenFieldNames(JsonNode.Parse("""{"a":1,"a":2}"""), out refusal);
+        Assert.Equal("A document has the same field name twice; the bundle is refused.", refusal);
+    }
+
+    [Theory]
+    [InlineData("pаssword")] // Cyrillic а
+    [InlineData("pass​word")] // zero-width space
+    [InlineData("pass­word")] // soft hyphen
+    [InlineData("pässword")] // a with diaeresis
+    [InlineData("τοκεν")] // Greek τοκεν
+    [InlineData("ЅЕСГЕТ")] // Cyrillic capitals ЅЕСГЕТ, lowercased to ѕесгет
+    [InlineData("ｐａｓｓｗｏｒｄ")] // fullwidth
+    public void Lookalike_letters_and_invisible_characters_do_not_hide_a_credential_name(string key) =>
+        Assert.True(ContentBundle.LooksLikeCredential(key), key);
+
+    [Fact]
+    public void Ordinary_field_names_are_not_credentials()
+    {
+        foreach (var key in new[] { "heading", "lead", "cards", "outcomes", "keywords", "сards", "αlt" })
+            Assert.False(ContentBundle.LooksLikeCredential(key), key);
+    }
+
+    [Fact]
+    public async Task A_compressed_entry_that_declares_too_few_bytes_is_not_read_past_its_declared_size()
+    {
+        await InTransactionAsync(async db =>
+        {
+            // 400 MB of zeros, compressed to well under 1 MB, declaring 1,000 bytes. The declared size
+            // and the declared ratio pass, so only the read itself can stop it.
+            using var zip = new MemoryStream();
+            using (var archive = new ZipArchive(zip, ZipArchiveMode.Create, leaveOpen: true))
+            await using (var stream = archive.CreateEntry("content.json", CompressionLevel.Optimal).Open())
+            {
+                var zeros = new byte[1 << 20];
+                for (var i = 0; i < 400; i++)
+                    stream.Write(zeros);
+            }
+
+            var lying = Declare(zip.ToArray(), "content.json", 1_000);
+            using var input = new CountingStream(new MemoryStream(lying));
+            var refused = await ContentBundle.ImportAsync(db, _target, input, new ImportOptions(false, false), CancellationToken.None);
+
+            Assert.False(refused.Ok);
+            Assert.Single(refused.Problems);
+            Assert.True(input.BytesRead < lying.Length / 4, $"read {input.BytesRead:N0} of {lying.Length:N0} compressed bytes");
+            Assert.Equal(0, await db.Pages.CountAsync());
+        });
+    }
+    [Fact]
     public async Task A_draft_with_an_unknown_member_is_refused()
     {
         await InTransactionAsync(async db =>
@@ -711,6 +860,60 @@ public sealed class ContentBundleTests : IClassFixture<ApiFactory>, IDisposable
         }
 
         return output.ToArray();
+    }
+
+    /// <summary>
+    /// A revision snapshot whose first section's fields nest "x" objects until the object holding
+    /// "password" sits at the given walk depth. content.json is depth 0, the snapshot text 4,
+    /// the snapshot object 5, its sections 6, the section 7, and its fields 8.
+    /// </summary>
+    private static string SnapshotWithKeyAt(JsonObject root, int holderDepth)
+    {
+        var snapshot = JsonNode.Parse(root["tables"]!["revisions"]![0]!["snapshot"]!.GetValue<string>())!;
+        var holder = new JsonObject { ["password"] = "hunter2" };
+        JsonNode fields = holder;
+        for (var depth = holderDepth; depth > 8; depth--)
+            fields = new JsonObject { ["x"] = fields };
+        snapshot["sections"] = new JsonArray(new JsonObject { ["id"] = Guid.NewGuid().ToString(), ["type"] = "rich_text", ["sortOrder"] = 0, ["visible"] = true, ["fields"] = fields });
+        return snapshot.ToJsonString();
+    }
+
+    /// <summary>A zip holding only content.json with exactly this text.</summary>
+    private static byte[] RawBundle(string contentJson)
+    {
+        using var output = new MemoryStream();
+        using (var zip = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
+        using (var to = zip.CreateEntry("content.json", CompressionLevel.NoCompression).Open())
+            to.Write(Encoding.UTF8.GetBytes(contentJson));
+        return output.ToArray();
+    }
+
+    /// <summary>A seekable stream that counts the bytes read through it.</summary>
+    private sealed class CountingStream(Stream inner) : Stream
+    {
+        public long BytesRead { get; private set; }
+        public override bool CanRead => true;
+        public override bool CanSeek => inner.CanSeek;
+        public override bool CanWrite => false;
+        public override long Length => inner.Length;
+        public override long Position { get => inner.Position; set => inner.Position = value; }
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            var read = inner.Read(buffer, offset, count);
+            BytesRead += read;
+            return read;
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => inner.Seek(offset, origin);
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+                inner.Dispose();
+            base.Dispose(disposing);
+        }
     }
 
     /// <summary>Rewrites the uncompressed size a zip entry declares, in its local header and the central directory.</summary>

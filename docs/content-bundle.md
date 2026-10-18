@@ -152,20 +152,29 @@ Do these steps in order, on staging first, then on production.
   - a media file larger than the API's own upload limit (5 MB);
   - `content.json` larger than 256 MiB;
   - more than 2 GiB in total, or more than 20,000 files;
-  - any entry that expands more than 100 times.
+  - any entry that expands more than 100 times;
+  - JSON nested more than 64 levels deep, counting JSON that a column keeps
+    as text, more than 5,000,000 JSON values, or more than 1 GiB of JSON kept
+    as text.
 
-  Both the size an entry declares and the bytes actually read are checked.
+  Both the size an entry declares and the bytes actually read are checked. An
+  entry is never read past the size it declares. A limit always refuses the
+  whole bundle; nothing over a limit is skipped.
 - **A file the upload would refuse:** every image must be what the Studio's
   upload stores: a WebP file named by its content hash, never SVG, within the
   upload's size and pixel limits. Every media row's type is `image/webp`, and
   its path and generated sizes are `/media/<file name>` files in the bundle.
 - **Users or secrets:** any field that looks like a user or a secret (names
   containing `password`, `token`, `secret`, or `connectionstring`, ignoring
-  case, `_` and `-`). This applies at any depth, including inside JSON that a
+  case, `_`, `-`, accents, and invisible characters such as zero-width spaces;
+  Cyrillic and Greek letters that look like these Latin letters count as
+  them). This applies at any depth, including inside JSON that a
   column keeps as text (section fields, drafts, revision snapshots, rich text,
-  generated sizes). Revision snapshots and saved drafts must have the draft
+  generated sizes). A field name used twice in one object is refused too.
+  Revision snapshots and saved drafts must have the draft
   shape, with no unknown member. The word in an article's text is fine; only
-  field names are checked.
+  field names are checked. The lookalike rule covers Cyrillic and Greek only;
+  other scripts and other names (such as `apikey`) are not checked.
 - **A document the Studio would refuse:** for example a wrong theme, an invalid
   section, a slug already used by another item, or a link to a missing page.
 - **Newer edits on the target:** an item that was edited on the target after the

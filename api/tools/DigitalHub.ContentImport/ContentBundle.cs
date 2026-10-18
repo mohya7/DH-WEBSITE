@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
@@ -137,7 +138,9 @@ static class ContentBundle
         };
 
         // The export checks itself with the rule the import applies.
-        var forbidden = ForbiddenFieldNames(document);
+        var forbidden = ForbiddenFieldNames(document, out var tooLarge);
+        if (tooLarge is not null)
+            return ExportResult.Refused("The export is refused: " + tooLarge);
         if (forbidden.Count > 0)
             return ExportResult.Refused("The export would contain fields that look like credentials: " + string.Join(", ", forbidden));
 
@@ -567,17 +570,23 @@ static class ContentBundle
             if (contentError is not null)
                 return (null, contentError);
 
+            // Measured without recursion first, so a deeply nested file is one refusal, not a crash.
+            if (Nesting(contentBytes).Nesting > MaxWalkDepth)
+                return (null, TooDeep);
+
             JsonObject root;
             try
             {
-                root = JsonNode.Parse(contentBytes)?.AsObject() ?? throw new JsonException("empty");
+                root = JsonNode.Parse(contentBytes, documentOptions: ParseOptions)?.AsObject() ?? throw new JsonException("empty");
             }
             catch (Exception exception) when (exception is JsonException or InvalidOperationException)
             {
                 return (null, "content.json is not a JSON object.");
             }
 
-            var forbidden = ForbiddenFieldNames(root);
+            var forbidden = ForbiddenFieldNames(root, out var walkRefusal);
+            if (walkRefusal is not null)
+                return (null, walkRefusal);
             if (forbidden.Count > 0)
             {
                 return (null, "The bundle has fields that look like users or credentials (" + string.Join(", ", forbidden)
@@ -703,65 +712,163 @@ static class ContentBundle
         return (buffer.ToArray(), null);
     }
 
+    /// <summary>How deep the credential walk goes, counting JSON kept as text. A deeper document is refused, never skipped.</summary>
+    internal const int MaxWalkDepth = 64;
+
+    /// <summary>How many JSON values the credential walk visits. More is refused (Parity: about 30,000).</summary>
+    internal const int MaxWalkNodes = 5_000_000;
+
+    /// <summary>How many bytes of JSON kept as text the walk reads again. More is refused.</summary>
+    internal const long MaxWalkTextBytes = 1L << 30;
+
+    internal static string TooDeep => $"A document is nested more than {MaxWalkDepth} levels deep; the bundle is refused.";
+
     /// <summary>
     /// Every field name that looks like a credential, at any depth: the bundle's own keys,
     /// and the keys inside JSON kept as text in a column (section fields, drafts, revision
     /// snapshots, rich text, generated sizes). Text values are not checked, so an article
-    /// may say "password". Names are compared after Unicode NFKC, case folding, and
-    /// removing "_" and "-".
+    /// may say "password". A limit never skips: past the depth, the node count, or the text
+    /// budget, <paramref name="refusal"/> is set and the whole bundle is refused.
     /// </summary>
-    internal static List<string> ForbiddenFieldNames(JsonNode? node)
+    internal static List<string> ForbiddenFieldNames(JsonNode? node, out string? refusal, int maxNodes = MaxWalkNodes, long maxTextBytes = MaxWalkTextBytes)
     {
         var found = new List<string>();
-        void Walk(JsonNode? current, int depth)
+        var nodes = 0;
+        long textBytes = 0;
+        string? stop = null;
+
+        bool Walk(JsonNode? current, int depth)
         {
-            if (depth > 64)
-                return;
+            if (depth > MaxWalkDepth)
+            {
+                stop = TooDeep;
+                return false;
+            }
+
+            if (++nodes > maxNodes)
+            {
+                stop = $"The bundle has more than {maxNodes:N0} JSON values; the bundle is refused.";
+                return false;
+            }
+
             switch (current)
             {
                 case JsonObject obj:
-                    foreach (var (key, value) in obj)
+                    List<KeyValuePair<string, JsonNode?>> members;
+                    try
+                    {
+                        members = obj.ToList();
+                    }
+                    catch (ArgumentException)
+                    {
+                        // System.Text.Json reads a repeated name only when the object is first listed.
+                        stop = "A document has the same field name twice; the bundle is refused.";
+                        return false;
+                    }
+
+                    foreach (var (key, value) in members)
                     {
                         if (LooksLikeCredential(key))
                             found.Add(key);
-                        Walk(value, depth + 1);
+                        if (!Walk(value, depth + 1))
+                            return false;
                     }
 
-                    break;
+                    return true;
                 case JsonArray array:
                     foreach (var item in array)
-                        Walk(item, depth + 1);
-                    break;
-                case JsonValue value when value.TryGetValue<string>(out var text):
-                    var trimmed = text.AsSpan().TrimStart();
-                    if (trimmed.Length > 0 && trimmed[0] is '{' or '[')
                     {
-                        JsonNode? inner = null;
-                        try
-                        {
-                            inner = JsonNode.Parse(text);
-                        }
-                        catch (JsonException)
-                        {
-                            /* Text that only looks like JSON. Its words are content. */
-                        }
-
-                        Walk(inner, depth + 1);
+                        if (!Walk(item, depth + 1))
+                            return false;
                     }
 
-                    break;
+                    return true;
+                case JsonValue value when value.TryGetValue<string>(out var text):
+                    var trimmed = text.AsSpan().TrimStart();
+                    if (trimmed.Length == 0 || trimmed[0] is not ('{' or '['))
+                        return true; // Plain text. Its words are content.
+
+                    var utf8 = Encoding.UTF8.GetBytes(text);
+                    textBytes += utf8.Length;
+                    if (textBytes > maxTextBytes)
+                    {
+                        stop = $"The bundle keeps more than {maxTextBytes:N0} bytes of JSON as text; the bundle is refused.";
+                        return false;
+                    }
+
+                    var (nesting, valid) = Nesting(utf8);
+                    if (depth + 1 + nesting > MaxWalkDepth)
+                    {
+                        // Refused even when the text is not valid JSON: what is readable is already too deep.
+                        stop = TooDeep;
+                        return false;
+                    }
+
+                    if (!valid)
+                        return true; // Text that only looks like JSON, such as "[citation needed]". Its words are content.
+
+                    return Walk(JsonNode.Parse(utf8, documentOptions: ParseOptions), depth + 1);
+                default:
+                    return true; // A number, true, false, or null: no field names.
             }
         }
 
         Walk(node, 0);
+        refusal = stop;
         return found.Distinct(StringComparer.Ordinal).ToList();
     }
 
+    /// <summary>Within the walk's depth, so parsing never throws for depth and never recurses far.</summary>
+    internal static readonly JsonDocumentOptions ParseOptions = new() { MaxDepth = MaxWalkDepth + 1 };
+
+    /// <summary>
+    /// How deeply JSON nests, read token by token without recursion, so a document nested
+    /// 10,000 levels is measured instead of overflowing the stack. Valid is false for text
+    /// that is not JSON; the nesting is then what was read before the error.
+    /// </summary>
+    internal static (int Nesting, bool Valid) Nesting(ReadOnlySpan<byte> utf8)
+    {
+        var reader = new Utf8JsonReader(utf8, new JsonReaderOptions { MaxDepth = int.MaxValue });
+        var deepest = 0;
+        try
+        {
+            while (reader.Read())
+                deepest = Math.Max(deepest, reader.CurrentDepth);
+            return (deepest, true);
+        }
+        catch (JsonException)
+        {
+            return (Math.Max(deepest, reader.CurrentDepth), false);
+        }
+    }
+
+    /// <summary>
+    /// Compatibility decomposition (NFKD), then case folding; format characters (zero-width
+    /// spaces, soft hyphens) and combining marks dropped; Cyrillic and Greek letters that look
+    /// like the Latin letters of the four words folded to them; "_" and "-" removed. Best effort:
+    /// it only ever adds refusals.
+    /// </summary>
     internal static bool LooksLikeCredential(string key)
     {
-        var folded = key.Normalize(NormalizationForm.FormKC).ToLowerInvariant().Replace("_", "").Replace("-", "");
-        return ForbiddenNames.Any(word => folded.Contains(word, StringComparison.Ordinal));
+        var folded = new StringBuilder(key.Length);
+        foreach (var c in key.Normalize(NormalizationForm.FormKD).ToLowerInvariant())
+        {
+            var category = char.GetUnicodeCategory(c);
+            if (category is UnicodeCategory.Format or UnicodeCategory.NonSpacingMark or UnicodeCategory.EnclosingMark || c is '_' or '-')
+                continue;
+            folded.Append(Confusables.TryGetValue(c, out var latin) ? latin : c);
+        }
+
+        var text = folded.ToString();
+        return ForbiddenNames.Any(word => text.Contains(word, StringComparison.Ordinal));
     }
+
+    /// <summary>Lowercase Cyrillic and Greek letters that look like the Latin letters in password, token, secret, connectionstring.</summary>
+    private static readonly Dictionary<char, char> Confusables = new()
+    {
+        ['а'] = 'a', ['с'] = 'c', ['е'] = 'e', ['і'] = 'i', ['к'] = 'k', ['о'] = 'o', ['р'] = 'p', ['ѕ'] = 's', ['т'] = 't', ['ԁ'] = 'd', ['ԝ'] = 'w', ['г'] = 'r',
+        ['α'] = 'a', ['ε'] = 'e', ['ι'] = 'i', ['κ'] = 'k', ['ν'] = 'n', ['ο'] = 'o', ['ρ'] = 'p', ['τ'] = 't',
+    };
 
     /// <summary>The files a media row points at: its path and every generated size, by file name.</summary>
     private static List<string> MediaFileNames(JsonArray media, out List<string> badPaths)
