@@ -865,28 +865,136 @@ const requiredRoots = [
   ".github/security",
 ];
 
-// Exactly one scan, one report write, and one exit-code capture. A second
-// semgrep scan that writes the same semgrep.json would replace the report
-// after the first scan, and a check of only the first invocation would miss it.
-function semgrepScanProblems(workflow) {
-  const scans = workflow.match(/\bsemgrep scan\b/g) ?? [];
-  const writes = workflow.match(/--output\s+"[^"]*semgrep\.json"/g) ?? [];
-  const codes = workflow.match(/^[ \t]*code=\$\?$/gm) ?? [];
+const requiredPacks = ["p/javascript", "p/typescript", "p/csharp", "p/owasp-top-ten", "p/secrets"];
+
+const requiredExcludes = [
+  "node_modules",
+  "bin",
+  "obj",
+  "dist",
+  "out",
+  "website/design",
+  "website/fixtures",
+  '"*.Designer.cs"',
+  '"*ModelSnapshot.cs"',
+  "generated",
+];
+
+// One line, exactly. A new command has to be added here in the same commit.
+const securityRunAllowList = [
+  "node --test .github/security/gate.test.mjs",
+  "bash ../.github/security/run-npm-audit.sh ${{ matrix.app }}",
+  "dotnet restore DigitalHub.slnx",
+  "bash ../.github/security/run-dotnet-audit.sh",
+  "bash .github/security/install-gitleaks.sh",
+  "bash .github/security/run-gitleaks.sh pr-diff \"$RUNNER_TEMP/gitleaks-pr.json\" \"${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}\"",
+  "bash .github/security/run-gitleaks.sh full-history \"$RUNNER_TEMP/gitleaks-history.json\" \"--all\"",
+  "pip install \"semgrep==1.180.0\"",
+  "bash .github/security/run-semgrep.sh",
+  "node .github/security/redact-report.mjs \"$RUNNER_TEMP/semgrep.json\" \"$RUNNER_TEMP/semgrep-redacted.json\"",
+];
+
+function normalizeNewlines(text) {
+  return text.replace(/\r\n/g, "\n");
+}
+
+function semgrepJobText(workflow) {
+  const normalized = normalizeNewlines(workflow);
+  const marker = "\n  semgrep:\n";
+  const start = normalized.indexOf(marker);
+  if (start < 0) return "";
+  const job = normalized.slice(start + 1);
+  return job.endsWith("\n") ? job : `${job}\n`;
+}
+
+function continuedValue(line) {
+  return line.trim().replace(/ \\$/, "");
+}
+
+function semgrepShapeProblems(workflow, script) {
   const problems = [];
-  if (scans.length !== 1) problems.push(`expected exactly one semgrep scan, found ${scans.length}`);
-  if (writes.length !== 1) problems.push(`expected exactly one semgrep.json output, found ${writes.length}`);
-  if (codes.length !== 1) problems.push(`expected exactly one code=$?, found ${codes.length}`);
-  const command = workflow.slice(workflow.indexOf("semgrep scan"), workflow.indexOf("code=$?"));
-  if (!/\$SEMGREP_ROOTS\s*$/.test(command)) problems.push("the scan does not end with $SEMGREP_ROOTS");
+  const normalizedWorkflow = normalizeNewlines(workflow);
+  const normalizedScript = normalizeNewlines(script);
+  const job = semgrepJobText(normalizedWorkflow);
+  const expectedJob = normalizeNewlines(fs.readFileSync(path.join(here, "semgrep-job.expected.yml"), "utf8"));
+  const expectedScript = normalizeNewlines(fs.readFileSync(path.join(here, "run-semgrep.expected.sh"), "utf8"));
+  if (job === "") problems.push("semgrep job is missing");
+  if (job !== expectedJob) problems.push("semgrep job is not the golden copy");
+  if (normalizedScript !== expectedScript) problems.push("run-semgrep.sh is not the golden copy");
+  if (normalizedWorkflow.includes("SEMGREP_ROOTS")) problems.push("SEMGREP_ROOTS is set in the workflow");
+  if (/(^|\n)[ ]+if:/.test(job)) problems.push("semgrep job has an if");
+  if (job.includes("continue-on-error")) problems.push("semgrep job has continue-on-error");
+  if (/(^|\n)[ ]+env:/.test(job)) problems.push("semgrep job has an env block");
+  const scanCalls = normalizedWorkflow.split("\n").filter((line) => line.includes("bash .github/security/run-semgrep.sh"));
+  if (scanCalls.length !== 1) problems.push(`expected one run-semgrep.sh call, found ${scanCalls.length}`);
+  const versionPins = normalizedWorkflow.split("\n").filter((line) => line.includes("pip install \"semgrep==1.180.0\""));
+  if (versionPins.length !== 1) problems.push(`expected one Semgrep 1.180.0 pin, found ${versionPins.length}`);
+  for (const line of normalizedWorkflow.split("\n")) {
+    const trimmed = line.trim();
+    const isRun = trimmed.startsWith("run:") || trimmed.startsWith("- run:");
+    const isSemgrepCommand = trimmed.startsWith("semgrep ");
+    if (!isRun && !isSemgrepCommand) continue;
+    if (trimmed === "run: bash .github/security/run-semgrep.sh") continue;
+    if (trimmed.startsWith("run: node .github/security/redact-report.mjs ")) continue;
+    if (trimmed === "run: pip install \"semgrep==1.180.0\"") continue;
+    if (/semgrep/.test(trimmed)) problems.push(`workflow has another semgrep command: ${trimmed}`);
+  }
+  for (const line of normalizedWorkflow.split("\n")) {
+    const match = line.match(/^ +(?:- )?run: (.*)$/);
+    if (!match) continue;
+    if (!securityRunAllowList.includes(match[1])) problems.push(`run is not on the allow-list: ${match[1]}`);
+  }
+  if ((normalizedScript.match(/semgrep scan/g) ?? []).length !== 1) problems.push("run-semgrep.sh must contain exactly one semgrep scan");
+  if ((normalizedScript.match(/^\s*semgrep \\$/gm) ?? []).length !== 0) problems.push("run-semgrep.sh has a continued semgrep invocation");
+  if (normalizedScript.includes("|| true")) problems.push("run-semgrep.sh contains || true");
+  if (normalizedScript.includes("-o ") || normalizedScript.includes("\n  -o ")) problems.push("run-semgrep.sh uses -o");
+  if (normalizedScript.includes("$SEMGREP_ROOTS") || normalizedScript.includes("SEMGREP_ROOTS=")) problems.push("run-semgrep.sh reads SEMGREP_ROOTS");
+  if (!normalizedScript.includes("set +e\n") || !normalizedScript.includes("\ncode=$?\nset -e\n") || !normalizedScript.includes("if [ \"$code\" -gt 1 ]; then")) {
+    problems.push("run-semgrep.sh does not keep the set +e exit check");
+  }
+  const lines = normalizedScript.split("\n");
+  const start = lines.indexOf("semgrep scan \\");
+  const end = lines.indexOf("code=$?");
+  const scanLines = start >= 0 && end > start ? lines.slice(start, end) : [];
+  const packs = scanLines.filter((line) => line.trim().startsWith("--config ")).map((line) => continuedValue(line).slice("--config ".length));
+  const excludes = scanLines.filter((line) => line.trim().startsWith("--exclude ")).map((line) => continuedValue(line).slice("--exclude ".length));
+  const knownFlags = new Set([
+    "semgrep scan \\",
+    "--metrics=off \\",
+    "--disable-version-check \\",
+    "--quiet \\",
+    "--json \\",
+    "--output \"$RUNNER_TEMP/semgrep.json\" \\",
+  ]);
+  const roots = scanLines
+    .filter((line) => !knownFlags.has(line.trim()) && !line.trim().startsWith("--config ") && !line.trim().startsWith("--exclude "))
+    .map((line) => continuedValue(line));
+  if (JSON.stringify(packs) !== JSON.stringify(requiredPacks)) problems.push(`packs are ${packs.join(" ")}`);
+  if (JSON.stringify(excludes) !== JSON.stringify(requiredExcludes)) problems.push(`excludes are ${excludes.join(" ")}`);
+  if (JSON.stringify(roots) !== JSON.stringify(requiredRoots)) problems.push(`roots are ${roots.join(" ")}`);
   return problems;
 }
 
-test("the semgrep scan roots are the required source roots", () => {
-  const workflow = fs.readFileSync(path.join(here, "..", "workflows", "security.yml"), "utf8");
-  const listed = workflow.match(/^ {2}SEMGREP_ROOTS: (.+)$/m);
-  assert.ok(listed, "SEMGREP_ROOTS is missing from security.yml");
-  assert.deepEqual(listed[1].split(" "), requiredRoots);
-  assert.deepEqual(semgrepScanProblems(workflow), []);
+function inlineInterpreterProblems() {
+  const problems = [];
+  const directory = path.join(here, "..", "workflows");
+  for (const name of fs.readdirSync(directory)) {
+    if (!name.endsWith(".yml")) continue;
+    const text = fs.readFileSync(path.join(directory, name), "utf8");
+    if (/node\s+(?:--input-type=\S+\s+)?-e\b/.test(text) || text.includes("--input-type=module")) problems.push(`${name} has inline node`);
+    if (/python3?\s+-c\b/.test(text)) problems.push(`${name} has inline python`);
+  }
+  return problems;
+}
+
+const workflowPath = path.join(here, "..", "workflows", "security.yml");
+const scriptPath = path.join(here, "run-semgrep.sh");
+
+test("the semgrep job and scan script match their golden copies", () => {
+  const workflow = fs.readFileSync(workflowPath, "utf8");
+  const script = fs.readFileSync(scriptPath, "utf8");
+  assert.deepEqual(semgrepShapeProblems(workflow, script), []);
+  assert.deepEqual(inlineInterpreterProblems(), []);
   const ignore = fs.readFileSync(path.join(here, "..", "..", ".semgrepignore"), "utf8");
   for (const root of requiredRoots) {
     assert.equal(ignore.split(/\r?\n/).some((line) => {
@@ -896,19 +1004,164 @@ test("the semgrep scan roots are the required source roots", () => {
   }
 });
 
-test("a second semgrep scan writing the same report is rejected", () => {
-  const workflow = `${fs.readFileSync(path.join(here, "..", "workflows", "security.yml"), "utf8")}
-          semgrep scan \\
-            --metrics=off \\
-            --json \\
-            --output "$RUNNER_TEMP/semgrep.json" \\
-            website/src
-          code=$?
-`;
-  const problems = semgrepScanProblems(workflow);
-  assert.ok(problems.some((problem) => problem.includes("exactly one semgrep scan")), problems.join("\n"));
-  assert.ok(problems.some((problem) => problem.includes("exactly one semgrep.json")), problems.join("\n"));
-  assert.ok(problems.some((problem) => problem.includes("exactly one code=$?")), problems.join("\n"));
+const shapeMutations = [
+  ["second-scan-same-output", true, (files) => ({
+    ...files,
+    script: files.script.replace(
+      "node .github/security/gate.mjs semgrep \"$RUNNER_TEMP/semgrep.json\"\n",
+      "node .github/security/gate.mjs semgrep \"$RUNNER_TEMP/semgrep.json\"\nsemgrep scan --config p/javascript --quiet --json --output \"$RUNNER_TEMP/semgrep.json\" website/src\n",
+    ),
+  })],
+  ["scan-step-if-false", false, (files) => ({
+    ...files,
+    workflow: files.workflow.replace(
+      "      - name: Scan\n        run: bash .github/security/run-semgrep.sh\n",
+      "      - name: Scan\n        if: false\n        run: bash .github/security/run-semgrep.sh\n",
+    ),
+  })],
+  ["scan-step-if-event", false, (files) => ({
+    ...files,
+    workflow: files.workflow.replace(
+      "      - name: Scan\n        run: bash .github/security/run-semgrep.sh\n",
+      "      - name: Scan\n        if: github.event_name == 'push'\n        run: bash .github/security/run-semgrep.sh\n",
+    ),
+  })],
+  ["second-step-other-output", true, (files) => ({
+    ...files,
+    workflow: files.workflow.replace(
+      "        run: bash .github/security/run-semgrep.sh\n",
+      "        run: bash .github/security/run-semgrep.sh\n      - name: Scan again\n        run: semgrep scan --json --output \"$RUNNER_TEMP/other.json\" website/src\n",
+    ),
+  })],
+  ["include-filter", false, (files) => ({
+    ...files,
+    script: files.script.replace("  --exclude generated \\\n", "  --exclude generated \\\n  --include '*.cs' \\\n"),
+  })],
+  ["exclude-new-root", false, (files) => ({
+    ...files,
+    script: files.script.replace("  --exclude generated \\\n", "  --exclude generated \\\n  --exclude studio/vite \\\n"),
+  })],
+  ["exclude-all", false, (files) => ({
+    ...files,
+    script: files.script.replace("  --exclude generated \\\n", "  --exclude generated \\\n  --exclude '*' \\\n"),
+  })],
+  ["continue-on-error", false, (files) => ({
+    ...files,
+    workflow: files.workflow.replace(
+      "      - name: Scan\n        run: bash .github/security/run-semgrep.sh\n",
+      "      - name: Scan\n        continue-on-error: true\n        run: bash .github/security/run-semgrep.sh\n",
+    ),
+  })],
+  ["step-shell-redefine-roots", false, (files) => ({
+    ...files,
+    script: files.script.replace("set +e\n", "set +e\nSEMGREP_ROOTS=website/src\n").replace(
+      /  api \\\n(?:  .*\n)*?  \.github\/security\n/,
+      "  $SEMGREP_ROOTS\n",
+    ),
+  })],
+  ["step-env-override-roots", false, (files) => ({
+    ...files,
+    workflow: files.workflow.replace(
+      "      - name: Scan\n        run: bash .github/security/run-semgrep.sh\n",
+      "      - name: Scan\n        env:\n          SEMGREP_ROOTS: website/src\n        run: bash .github/security/run-semgrep.sh\n",
+    ),
+  })],
+  ["job-env-override-roots", false, (files) => ({
+    ...files,
+    workflow: files.workflow.replace(
+      "    name: Semgrep (ERROR fails, WARNING reported)\n    needs: gate-self-test\n    runs-on: ubuntu-latest\n",
+      "    name: Semgrep (ERROR fails, WARNING reported)\n    needs: gate-self-test\n    runs-on: ubuntu-latest\n    env:\n      SEMGREP_ROOTS: website/src\n",
+    ),
+  })],
+  ["root-value-comment", true, (files) => ({
+    ...files,
+    script: files.script.replace("  .github/security\n", "  .github/security # narrowed\n"),
+  })],
+  ["roots-before-other-args", true, (files) => ({
+    ...files,
+    script: files.script.replace("semgrep scan \\\n  --metrics=off \\\n", "semgrep scan \\\n  api \\\n  --metrics=off \\\n"),
+  })],
+  ["scan-or-true", true, (files) => ({
+    ...files,
+    script: files.script.replace("  .github/security\n", "  .github/security || true\n"),
+  })],
+  ["gate-or-true", false, (files) => ({
+    ...files,
+    script: files.script.replace(
+      "node .github/security/gate.mjs semgrep \"$RUNNER_TEMP/semgrep.json\"\n",
+      "node .github/security/gate.mjs semgrep \"$RUNNER_TEMP/semgrep.json\" || true\n",
+    ),
+  })],
+  ["second-scan-alternate-spelling", true, (files) => ({
+    ...files,
+    script: files.script.replace(
+      "code=$?\n",
+      "semgrep \\\n  scan --config p/javascript --quiet --json -o \"$RUNNER_TEMP/semgrep.json\" website/src\ncode=$?\n",
+    ),
+  })],
+  ["continued-second-overwrite", true, (files) => ({
+    ...files,
+    script: files.script.replace(
+      "set +e\n",
+      "set +e\nsemgrep \\\n  scan --quiet --json -o \"$RUNNER_TEMP/semgrep.json\" website/src\n",
+    ),
+  })],
+  ["after-code-second-overwrite", false, (files) => ({
+    ...files,
+    script: files.script.replace(
+      "code=$?\n",
+      "code=$?\nsemgrep \\\n  scan --config p/javascript --quiet --json -o \"$RUNNER_TEMP/semgrep.json\" website/src\n",
+    ),
+  })],
+  ["change-pack-name", null, (files) => ({
+    ...files,
+    script: files.script.replace("--config p/javascript \\\n", "--config p/javascript-typo \\\n"),
+  })],
+  ["drop-exclude", null, (files) => ({
+    ...files,
+    script: files.script.replace("  --exclude generated \\\n", ""),
+  })],
+  ["add-no-git-ignore", null, (files) => ({
+    ...files,
+    script: files.script.replace("  --quiet \\\n", "  --quiet \\\n  --no-git-ignore \\\n"),
+  })],
+  ["add-max-target-bytes", null, (files) => ({
+    ...files,
+    script: files.script.replace("  --json \\\n", "  --json \\\n  --max-target-bytes 1000 \\\n"),
+  })],
+  ["change-version-pin", null, (files) => ({
+    ...files,
+    workflow: files.workflow.replace("semgrep==1.180.0", "semgrep==1.180.1"),
+  })],
+  ["add-baseline-commit", null, (files) => ({
+    ...files,
+    script: files.script.replace("  --json \\\n", "  --json \\\n  --baseline-commit HEAD \\\n"),
+  })],
+  ["second-job-writes-report", null, (files) => ({
+    ...files,
+    workflow: files.workflow + "  semgrep-narrow:\n    name: Narrow scan\n    runs-on: ubuntu-latest\n    steps:\n      - run: semgrep scan --json --output \"$RUNNER_TEMP/semgrep.json\" website/src\n",
+  })],
+  ["gate-reads-another-report", null, (files) => ({
+    ...files,
+    script: files.script.replace(
+      "node .github/security/gate.mjs semgrep \"$RUNNER_TEMP/semgrep.json\"\n",
+      "node .github/security/gate.mjs semgrep \"$RUNNER_TEMP/other.json\"\n",
+    ),
+  })],
+];
+
+test("workflow-shape mutations are rejected", () => {
+  const workflow = normalizeNewlines(fs.readFileSync(workflowPath, "utf8"));
+  const script = normalizeNewlines(fs.readFileSync(scriptPath, "utf8"));
+  assert.equal(shapeMutations.length, 26);
+  for (const [name, previouslyCaught, apply] of shapeMutations) {
+    const mutated = apply({ workflow, script });
+    assert.notDeepEqual(mutated, { workflow, script }, `${name} did not change anything`);
+    const problems = semgrepShapeProblems(mutated.workflow, mutated.script);
+    const oldResult = previouslyCaught === null ? "new" : previouslyCaught ? "caught" : "not caught";
+    console.log(`shape ${name}: old ${oldResult}, new ${problems.length === 0 ? "not caught" : "caught"}`);
+    assert.ok(problems.length > 0, `${name} was not caught`);
+  }
 });
 
 test("known semgrep findings stay listed, and a missing one is named", () => {
