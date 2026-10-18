@@ -5,13 +5,13 @@ import { BlogArticle, displayCalendarDate } from '../src/components/BlogArticle'
 import { Header, Footer, footerEmail, copyrightYear } from '../src/components/SiteChrome';
 import { createSite } from '../src/content/site';
 import { blockContext } from '../src/content/blocks';
-import { careersEndpoint } from '../src/content/forms';
 import { prepareContent } from '../src/content/prepare';
 import { snapshotContent, tempDir } from './helpers';
 import { stripRuntime } from '../src/build/strip-runtime';
 import { parseRichText, headingAnchors, type RichNode } from '@digitalhub/blocks';
 import { VacancyPage } from '../src/components/VacancyPage';
 import { PageScaffold } from '../src/components/PageScaffold';
+import { headMetadata, pageHead } from '../src/seo/head';
 import { consentCopy, consentDefaults, tagManagerId } from '../src/components/Consent';
 import { count } from './blocks/harness';
 
@@ -32,10 +32,11 @@ describe('page composition', () => {
       expect(count(html, '.cs-section')).toBe(0);
     }
     const item = { ...site.content.pages[0], collection: 'vacancies' as const, slug: 'engineer', title: 'Engineer', sections: [], fields: { aboutRole: 'Build things.', keyResponsibilities: 'Design\nDeliver', requiredSkills: 'TypeScript', interviewStages: ['Introduction'] } };
-    const html = renderToStaticMarkup(<VacancyPage item={item} />);
+    const html = renderToStaticMarkup(<VacancyPage item={item} email="careers@digitalhub.com.eg" />);
     expect(count(html, 'h1')).toBe(1);
     expect(html).toContain('<li>Design</li><li>Deliver</li>');
-    expect(html).toContain('href="/careers/apply?role=engineer"');
+    expect(html).toContain('href="mailto:careers@digitalhub.com.eg?subject=Application%3A%20Engineer"');
+    expect(html).not.toContain('/careers/apply?role=');
   });
   it('puts the hub page class on the blogs and partners body, which the design uses for spacing, chips, and the intro width', () => {
     const site = createSite(snapshotContent());
@@ -44,6 +45,29 @@ describe('page composition', () => {
       const html = renderToStaticMarkup(<PageScaffold site={site} item={item} pageType="page" path={path} />);
       expect(html).toContain(`data-body-class="${body}"`);
     }
+  });
+  it('replaces the apply form with a mailto to the careers email', () => {
+    const content = snapshotContent();
+    const site = createSite(content);
+    const apply = site.routes.find((route) => route.path === '/careers/apply')!.item;
+    const html = renderToStaticMarkup(<PageScaffold site={site} item={apply} pageType="page" path="/careers/apply" />);
+    expect(html).toContain('How to apply');
+    expect(html).toContain('Send your CV and a short note about the role you want. Our careers team reviews every application.');
+    const description = 'Apply for an open role at Digital Hub by email. Send your CV, LinkedIn profile and availability to our careers team.';
+    const meta = headMetadata(pageHead(site, apply, 'page', '/careers/apply', 'https://digitalhub.com.eg'));
+    expect(meta.description).toBe(description);
+    expect(meta.openGraph?.description).toBe(description);
+    expect(meta.twitter?.description).toBe(description);
+    expect(html).toContain('Email your CV, your LinkedIn profile and your availability to');
+    expect(html).toContain('Put the role you are applying for in the subject line.');
+    expect(html.match(/Our careers team reviews every application\./g)).toHaveLength(1);
+    expect(html).toContain('href="mailto:careers@digitalhub.com.eg"');
+    expect(html).toContain('Apply to join Digital Hub');
+    expect(html).not.toContain('<form');
+    expect(html).not.toContain('type="file"');
+    const without = createSite({ ...content, settings: { ...content.settings, careersEmail: null } });
+    const fallback = renderToStaticMarkup(<PageScaffold site={without} item={apply} pageType="page" path="/careers/apply" />);
+    expect(fallback).toContain(`href="mailto:${content.settings.email}"`);
   });
   it('does not collide a repeated heading with a literal numbered heading', () => {
     const headings = ['Title', 'Title', 'Title-2', 'Title'].map((text) => ({ type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text }] }));
@@ -213,13 +237,6 @@ describe('build requirements', () => {
       expect(fetchImpl).toHaveBeenCalledTimes(1);
     }
   });
-  it('requires a configured careers endpoint and rejects unsafe URLs', () => {
-    expect(() => careersEndpoint({})).toThrow(/CAREERS_APPLICATION_ENDPOINT/);
-    for (const value of ['javascript:alert(1)', '//outside.invalid', '/\\outside', 'https://user:password@example.invalid']) expect(() => careersEndpoint({ CAREERS_APPLICATION_ENDPOINT: value })).toThrow();
-    expect(careersEndpoint({ CAREERS_APPLICATION_ENDPOINT: '/api/careers/applications' })).toBe('/api/careers/applications');
-    expect(careersEndpoint({ CAREERS_APPLICATION_ENDPOINT: '/careers/apply' })).toBe('/careers/apply');
-    expect(() => careersEndpoint({ CAREERS_APPLICATION_ENDPOINT: 'https://hiring.example.invalid/apply' })).toThrow(/same-site path/);
-  });
 });
 
 describe('cookie consent', () => {
@@ -277,15 +294,13 @@ describe('cookie consent', () => {
   it('pushes the gtm.js start event before it inserts Tag Manager, and events carry only a name', () => {
     const consent = readFileSync(new URL('../behaviors/consent.js', import.meta.url), 'utf8');
     const contact = readFileSync(new URL('../behaviors/contact.js', import.meta.url), 'utf8');
-    const careers = readFileSync(new URL('../behaviors/careers.js', import.meta.url), 'utf8');
     expect(consent).toContain("window.dataLayer.push({ 'gtm.start': new Date().getTime(), event: 'gtm.js' });");
     expect(consent.indexOf("event: 'gtm.js'")).toBeLessThan(consent.indexOf('googletagmanager.com/gtm.js'));
-    for (const source of [contact, careers, consent]) {
+    for (const source of [contact, consent]) {
       expect(source).not.toContain('innerHTML');
       expect(source).not.toMatch(/dataLayer\.push\(\{[^}]*name/);
     }
     expect(contact).toContain("dataLayer.push({ event: 'contact_form_submitted' })");
-    expect(careers).toContain("dataLayer.push({ event: 'application_submitted' })");
     expect(consent).toContain("dataLayer.push({ event: 'cta_clicked' })");
     for (const value of ['v=1&a=0&m=0', 'v=1&a=1&m=0', 'v=1&a=1&m=1']) expect(consent).toContain(`'${value}'`);
     expect(consent).toContain('v=1&a=0&m=1');

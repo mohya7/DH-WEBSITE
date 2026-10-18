@@ -8,7 +8,6 @@ import {
   tagManagerContentSecurityPolicy,
   tagManagerHomeContentSecurityPolicy,
 } from "../src/iis/web-config";
-import { careersEndpointError } from "../src/iis/careers-endpoint";
 import { snapshotContent } from "./helpers";
 
 const redirect = (fromPath: string, toPath: string, statusCode = 301): Redirect => ({ fromPath, toPath, statusCode });
@@ -175,30 +174,6 @@ describe("web.config", () => {
     expect(outcome(xml, site, "")).toEqual({ kind: "file", url: "index.html" });
     expect(rule(xml, "Clean URLs")).not.toContain("IsDirectory");
     expect(rule(xml, "Clean URLs")).not.toContain("Redirect");
-  });
-
-  it("rejects an absolute careers endpoint and accepts a same-site path", () => {
-    expect(careersEndpointError("https://hiring.example/api/careers/applications")).toMatch(/absolute URL/);
-    expect(careersEndpointError("//hiring.example/api")).toMatch(/absolute URL/);
-    expect(careersEndpointError("/api/careers/applications")).toBeNull();
-    expect(careersEndpointError("")).toBeNull();
-  });
-
-  it("rejects a careers endpoint that resolves to another origin, or hides a backslash", () => {
-    for (const endpoint of [
-      "/\\hiring.example/x",
-      "/\\\\hiring.example/x",
-      "/%5Chiring.example/x",
-      "//hiring.example/x",
-      "https://hiring.example/x",
-      "/x\ny",
-    ]) {
-      expect(careersEndpointError(endpoint), endpoint).not.toBeNull();
-    }
-    expect(careersEndpointError("https://hiring.example/x")).toMatch(/absolute URL/);
-    expect(careersEndpointError("//hiring.example/x")).toMatch(/absolute URL/);
-    expect(careersEndpointError("/\\hiring.example/x")).toMatch(/absolute URL/);
-    expect(careersEndpointError("/api/careers/applications")).toBeNull();
   });
 
   it("builds a config with no redirect rules when the table is empty, as in the snapshot", () => {

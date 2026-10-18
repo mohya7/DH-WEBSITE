@@ -14,8 +14,6 @@
 import { DesignHeadItems } from "./DesignHeadItems";
 import { designUrl } from "./folder";
 import { designSets, type DesignSetName, type ScriptSlot } from "./sets";
-import { behaviorUrl } from "./behaviors";
-import { getSite } from "../content/site";
 
 export function DesignHead({ set }: { set: DesignSetName }) {
   // URLs are resolved here, on the server, where the design folder's hash is known.
@@ -28,9 +26,7 @@ export function DesignScripts({ set, slot }: { set: DesignSetName; slot: ScriptS
   return (
     <>
       {scripts.map((script) => (
-        script.src === "js/careers-apply.js"
-          ? <script key={script.src} src={behaviorUrl("careers")} data-failure-message="Submission failed. Please try again." data-vacancies={JSON.stringify(getSite().content.collections.vacancies.map((vacancy) => ({ slug: vacancy.slug, title: vacancy.title })))} />
-          : <script key={script.src} src={designUrl(script.src)} type={script.module ? "module" : undefined} />
+        <script key={script.src} src={designUrl(script.src)} type={script.module ? "module" : undefined} />
       ))}
     </>
   );
@@ -39,8 +35,6 @@ export function DesignScripts({ set, slot }: { set: DesignSetName; slot: ScriptS
 /**
  * Head items and the scripts outside the page content. Header places after-nav
  * immediately after </nav>; the hero component places its own module script.
- * The careers behaviour replaces the old handler at its original position;
- * the byte-identical archived design script remains available for comparison.
  */
 export function DesignFrame({ set, children }: { set: DesignSetName; children: React.ReactNode }) {
   return (
