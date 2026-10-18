@@ -23,8 +23,10 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Host.UseSerilog((context, _, configuration) => configuration
+builder.Host.UseSerilog((context, services, configuration) => configuration
     .ReadFrom.Configuration(context.Configuration)
+    // Sinks registered as services too; the tests use one to read the log.
+    .ReadFrom.Services(services)
     .Enrich.FromLogContext()
     .Destructure.With<SensitiveDestructuringPolicy>()
     .WriteTo.Console(outputTemplate: "[{Timestamp:O} {Level:u3}] {CorrelationId} {Message:lj}{NewLine}{Exception}"));
@@ -109,6 +111,7 @@ builder.Services.AddRateLimiter(options =>
     options.OnRejected = (context, token) =>
     {
         var policy = context.HttpContext.GetEndpoint()?.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName;
+        RateLimitLog.Refused(context.HttpContext, policy ?? "unknown");
         var title = policy switch
         {
             "media-upload" => "Too many uploads.",

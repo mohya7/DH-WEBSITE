@@ -31,6 +31,7 @@ public sealed class AuthController(UserManager<ApplicationUser> users, TokenServ
         // variants of one address share one budget.
         if (!throttle.TryAttempt(ip, users.NormalizeEmail(email) ?? ""))
         {
+            RateLimitLog.Refused(HttpContext, "login");
             return ProblemResults.Create(StatusCodes.Status429TooManyRequests, "rate_limited", "Too many login attempts.");
         }
 
@@ -92,6 +93,7 @@ public sealed class AuthController(UserManager<ApplicationUser> users, TokenServ
 
         if (!throttle.MayChangePassword(user.Id))
         {
+            RateLimitLog.Refused(HttpContext, "change-password");
             return ProblemResults.Create(StatusCodes.Status429TooManyRequests, "rate_limited", "Too many wrong passwords. Try again later.");
         }
 
