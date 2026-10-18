@@ -132,6 +132,7 @@ public static class ContentModelBuilder
         {
             entity.ToTable("site_settings");
             entity.HasKey(settings => settings.Id);
+            entity.Property(settings => settings.Version).IsConcurrencyToken();
             entity.HasOne(settings => settings.DefaultShareImage)
                 .WithMany()
                 .HasForeignKey(settings => settings.DefaultShareImageId)

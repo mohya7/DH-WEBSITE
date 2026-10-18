@@ -1404,6 +1404,11 @@ namespace DigitalHub.Api.Data.Migrations
                         .HasColumnType("nvarchar(300)")
                         .HasColumnName("tik_tok");
 
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int")
+                        .HasColumnName("version");
+
                     b.Property<string>("WhatsApp")
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)")

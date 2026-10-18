@@ -197,6 +197,7 @@ public sealed class AdminApiTests : IClassFixture<ApiFactory>
 
         var created = await SendAsync(admin, HttpMethod.Put, "/api/v1/settings", new
         {
+            version = 0,
             email = "first@digitalhub.test",
             organizationName = "Digital Hub",
         });
@@ -210,6 +211,7 @@ public sealed class AdminApiTests : IClassFixture<ApiFactory>
         // A second save updates that row rather than adding another.
         var updated = await SendAsync(admin, HttpMethod.Put, "/api/v1/settings", new
         {
+            version = JsonDocument.Parse(created.Body).RootElement.GetProperty("version").GetInt32(),
             email = "second@digitalhub.test",
             organizationName = "Digital Hub",
         });
@@ -689,6 +691,7 @@ public sealed class AdminApiTests : IClassFixture<ApiFactory>
             : null;
         return new Dictionary<string, object?>
         {
+            ["version"] = settings.GetProperty("version").GetInt32(),
             ["phone"] = Text("phone"),
             ["whatsApp"] = Text("whatsApp"),
             ["email"] = Text("email"),

@@ -53,6 +53,7 @@ public sealed class CookieSettingsTests : IClassFixture<ApiFactory>
 
         foreach (var (name, _) in Fields)
             payload[name] = name == "cookieBannerTitle" ? "   " : null;
+        payload["version"] = JsonDocument.Parse(saved.Body).RootElement.GetProperty("version").GetInt32();
         var cleared = await SendAsync(admin, HttpMethod.Put, "/api/v1/settings", payload);
         Assert.Equal(HttpStatusCode.OK, cleared.Status);
         reread = JsonDocument.Parse((await SendAsync(admin, HttpMethod.Get, "/api/v1/settings")).Body).RootElement;
@@ -76,6 +77,7 @@ public sealed class CookieSettingsTests : IClassFixture<ApiFactory>
             Assert.Equal(HttpStatusCode.OK, atLimit.Status);
             Assert.Equal(limit, JsonDocument.Parse(atLimit.Body).RootElement.GetProperty(name).GetString()!.Length);
 
+            payload["version"] = JsonDocument.Parse(atLimit.Body).RootElement.GetProperty("version").GetInt32();
             payload[name] = new string('y', limit + 1);
             var over = await SendAsync(admin, HttpMethod.Put, "/api/v1/settings", payload);
             Assert.Equal(HttpStatusCode.BadRequest, over.Status);
@@ -100,6 +102,7 @@ public sealed class CookieSettingsTests : IClassFixture<ApiFactory>
             .Where(property => property.Value.ValueKind is JsonValueKind.String or JsonValueKind.Null)
             .ToDictionary(property => property.Name, property => property.Value.ValueKind == JsonValueKind.Null ? null : (object?)property.Value.GetString());
         payload.Remove("defaultShareImageId");
+        payload["version"] = current.GetProperty("version").GetInt32();
         return payload;
     }
 

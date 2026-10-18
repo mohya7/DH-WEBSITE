@@ -198,8 +198,14 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         var settings = await db.SiteSettings.FirstOrDefaultAsync(cancellationToken);
 
         var errors = ValidateSettings(request);
+        if (request.Version is null or < 0)
+            Add(errors, "version", "Version is required.");
         if (errors.Count > 0)
             return Validation(errors);
+
+        // The save names the version it read: 0 when there was no row yet.
+        if ((settings?.Version ?? 0) != request.Version)
+            return SettingsConflict();
 
         // The first save is what creates the row.
         if (settings is null)
@@ -207,6 +213,8 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
             settings = new SiteSettings { Id = Guid.NewGuid() };
             db.SiteSettings.Add(settings);
         }
+
+        settings.Version += 1;
 
         settings.Phone = TrimOrNull(request.Phone);
         settings.WhatsApp = TrimOrNull(request.WhatsApp);
@@ -237,9 +245,21 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         settings.CookieSettingsLabel = TrimOrNull(request.CookieSettingsLabel);
 
         Audit(userId, "update_settings", "settings", settings.Id.ToString());
-        await db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Another save changed the row between this read and this write.
+            return SettingsConflict();
+        }
+
         return ContentOutcome.Ok(PresentSettings(settings));
     }
+
+    private static ContentOutcome SettingsConflict() =>
+        ContentOutcome.Fail(StatusCodes.Status409Conflict, "concurrency_conflict", "Someone else changed the settings. Reload them and save again.");
 
     public async Task<ContentOutcome> ListUsersAsync(CancellationToken cancellationToken)
     {
@@ -819,6 +839,7 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
     private static object PresentSettings(SiteSettings settings) => new
     {
         settings.Id,
+        settings.Version,
         settings.Phone,
         settings.WhatsApp,
         settings.Email,
@@ -990,6 +1011,9 @@ public sealed class RedirectCreateRequest
 
 public sealed class SiteSettingsUpdate
 {
+    /// <summary>The version the client read: 0 before the first save. Required.</summary>
+    public int? Version { get; set; }
+
     public string? Phone { get; set; }
     public string? WhatsApp { get; set; }
     public string? Email { get; set; }
