@@ -40,6 +40,61 @@ public sealed class AbortedRequestTests
         Assert.Contains(factory.Sink.All(), line => line.Contains($"\"{path}\" responded 499", StringComparison.Ordinal));
     }
 
+    [Theory]
+    [InlineData("/api/v1/auth/login")]
+    [InlineData("/api/v1/public/contact")]
+    public async Task A_chunked_body_that_ends_early_is_a_400_not_a_server_error(string path)
+    {
+        // What Kestrel raises when a chunked body stops before its last chunk (seen on
+        // raw TCP; the test server cannot produce it, so the body raises it).
+        using var factory = new LoggingFactory();
+        var context = await factory.Server.SendAsync(ctx =>
+        {
+            ctx.Request.Method = HttpMethods.Post;
+            ctx.Request.Path = path;
+            ctx.Request.ContentType = "application/json";
+            ctx.Request.Body = new EndsEarlyBody(Encoding.UTF8.GetBytes("{\"email\":\"x@example.test\",\"password\":\"" + new string('y', 500)));
+        });
+
+        Assert.Equal(StatusCodes.Status400BadRequest, context.Response.StatusCode);
+        Assert.Empty(factory.Sink.AtLeast(LogEventLevel.Warning));
+        Assert.Contains(factory.Sink.All(), line => line.Contains($"\"{path}\" responded 400", StringComparison.Ordinal));
+    }
+
+    /// <summary>Hands out the first bytes, then fails as Kestrel does for a chunked body cut short.</summary>
+    private sealed class EndsEarlyBody(byte[] start) : Stream
+    {
+        private int _position;
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => _position; set => throw new NotSupportedException(); }
+
+        public override int Read(byte[] buffer, int offset, int count) => ReadAsync(buffer.AsMemory(offset, count)).AsTask().GetAwaiter().GetResult();
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) => ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (_position < start.Length)
+            {
+                var count = Math.Min(buffer.Length, start.Length - _position);
+                start.AsMemory(_position, count).CopyTo(buffer);
+                _position += count;
+                return ValueTask.FromResult(count);
+            }
+
+            throw new BadHttpRequestException("Unexpected end of request content.", StatusCodes.Status400BadRequest);
+        }
+
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
     /// <summary>Hands out the first bytes, then behaves as a connection the client closed.</summary>
     private sealed class DisconnectingBody(HttpContext context, byte[] start) : Stream
     {
