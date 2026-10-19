@@ -102,7 +102,11 @@ public sealed class AuthController(UserManager<ApplicationUser> users, TokenServ
         {
             if (changed.Errors.Any(error => error.Code == nameof(IdentityErrorDescriber.PasswordMismatch)))
                 throttle.RecordWrongCurrentPassword(user.Id);
-            return ProblemResults.Create(StatusCodes.Status400BadRequest, "validation_failed", "The password could not be changed.");
+            // The Studio shows the title: a common password says why, every other failure stays as it was.
+            var title = changed.Errors.Any(error => error.Code == CommonPasswordValidator.ErrorCode)
+                ? CommonPasswordValidator.Message
+                : "The password could not be changed.";
+            return ProblemResults.Create(StatusCodes.Status400BadRequest, "validation_failed", title);
         }
 
         user.MustChangePassword = false;
