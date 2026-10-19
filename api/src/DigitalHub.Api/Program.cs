@@ -62,6 +62,7 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
 })
 .AddRoles<IdentityRole>()
 .AddEntityFrameworkStores<ContentDbContext>();
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddSingleton<SectionSchemaSet>();
 builder.Services.AddSingleton<CollectionSchemaSet>();
