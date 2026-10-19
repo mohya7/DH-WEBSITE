@@ -12,7 +12,16 @@
 # packs, and excludes are listed. This whole workflow is pinned by
 # .github/security/security.expected.yml, and the Semgrep job's structure by
 # .github/security/semgrep-job.expected.yml. A change to this file has to
-# update those copies in the same commit. No login and no token; metrics
+# update those copies in the same commit. run-npm-audit.sh,
+# run-dotnet-audit.sh, run-gitleaks.sh, and install-gitleaks.sh are pinned
+# the same way, each against its .expected.sh copy, and .gitattributes is
+# pinned against .github/security/gitattributes.expected. Dependabot's
+# github-actions updates bump an actions tag here and leave the golden copies
+# behind, so that pull request stays red until the same tag is copied into
+# .github/security/security.expected.yml, and into
+# .github/security/semgrep-job.expected.yml when the tag sits in the semgrep
+# job. Then run: node --test .github/security/gate.test.mjs
+# No login and no token; metrics
 # are off. It does not catch logic flaws, or bugs that only show up when a
 # real request is made. An ERROR fails unless it is listed under semgrep in
 # known-findings.json with an owner and a reason. To record one, append an

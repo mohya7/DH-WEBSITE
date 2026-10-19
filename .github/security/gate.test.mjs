@@ -900,6 +900,80 @@ function normalizeNewlines(text) {
   return text.replace(/\r\n/g, "\n");
 }
 
+function goldenDifference(label, goldenPath, actual, expected) {
+  const left = normalizeNewlines(actual);
+  const right = normalizeNewlines(expected);
+  if (left === right) return null;
+  const actualLines = left.split("\n");
+  const expectedLines = right.split("\n");
+  const count = Math.max(actualLines.length, expectedLines.length);
+  let line = count;
+  for (let index = 0; index < count; index += 1) {
+    if (actualLines[index] !== expectedLines[index]) {
+      line = index + 1;
+      break;
+    }
+  }
+  return `${label} is not the golden copy: differs from ${goldenPath} at line ${line}; update both files in the same commit`;
+}
+
+// One line per script the npm, NuGet, and gitleaks jobs run. A new *.sh under
+// .github/security is added here, or named in scriptExemptions. run-semgrep.sh
+// stays exempt because semgrepShapeProblems already pins it.
+const pinnedScripts = [
+  ["run-npm-audit.sh", "run-npm-audit.expected.sh"],
+  ["run-dotnet-audit.sh", "run-dotnet-audit.expected.sh"],
+  ["run-gitleaks.sh", "run-gitleaks.expected.sh"],
+  ["install-gitleaks.sh", "install-gitleaks.expected.sh"],
+];
+const scriptExemptions = ["run-semgrep.sh", "run-semgrep.expected.sh"];
+
+function shellPinProblems(directory, extraNames = [], overlays = {}) {
+  const problems = [];
+  const names = [...fs.readdirSync(directory).filter((name) => name.endsWith(".sh")), ...extraNames];
+  const pinned = new Set(pinnedScripts.map(([script]) => script));
+  const exempt = new Set([...scriptExemptions, ...pinnedScripts.map(([, golden]) => golden)]);
+  for (const name of names) {
+    if (!pinned.has(name) && !exempt.has(name)) problems.push(`${name} is neither pinned nor exempt`);
+  }
+  for (const [script, golden] of pinnedScripts) {
+    const raw = Object.hasOwn(overlays, script)
+      ? overlays[script](fs.readFileSync(path.join(directory, script), "utf8"))
+      : fs.readFileSync(path.join(directory, script), "utf8");
+    const expected = fs.readFileSync(path.join(here, golden), "utf8");
+    const problem = goldenDifference(script, `.github/security/${golden}`, raw, expected);
+    if (problem) problems.push(problem);
+  }
+  return problems;
+}
+
+function attributesPinProblems(overlay = (text) => text) {
+  const actual = overlay(fs.readFileSync(path.join(here, "..", "..", ".gitattributes"), "utf8"));
+  const expected = fs.readFileSync(path.join(here, "gitattributes.expected"), "utf8");
+  const problem = goldenDifference(".gitattributes", ".github/security/gitattributes.expected", actual, expected);
+  return problem ? [problem] : [];
+}
+
+function knownFindingEntries(value, trail = "") {
+  if (Array.isArray(value)) return value.flatMap((item, index) => knownFindingEntries(item, `${trail}[${index}]`));
+  if (value && typeof value === "object") {
+    if (Object.hasOwn(value, "id") || Object.hasOwn(value, "fingerprint")) return [[trail, value]];
+    return Object.entries(value).flatMap(([key, child]) => (
+      key === "description" ? [] : knownFindingEntries(child, trail ? `${trail}.${key}` : key)
+    ));
+  }
+  return [];
+}
+
+function knownFindingProblems(document) {
+  const problems = [];
+  for (const [trail, entry] of knownFindingEntries(document)) {
+    if (typeof entry.owner !== "string" || entry.owner.trim() === "") problems.push(`${trail} has no owner`);
+    if (typeof entry.reason !== "string" || entry.reason.trim() === "") problems.push(`${trail} has no reason`);
+  }
+  return problems;
+}
+
 function semgrepJobText(workflow) {
   const normalized = normalizeNewlines(workflow);
   const marker = "\n  semgrep:\n";
@@ -939,7 +1013,8 @@ function semgrepShapeProblems(workflow, script) {
   const expectedWorkflow = normalizeNewlines(fs.readFileSync(path.join(here, "security.expected.yml"), "utf8"));
   const expectedJobText = normalizeNewlines(fs.readFileSync(path.join(here, "semgrep-job.expected.yml"), "utf8"));
   const expectedScript = normalizeNewlines(fs.readFileSync(path.join(here, "run-semgrep.expected.sh"), "utf8"));
-  if (normalizedWorkflow !== expectedWorkflow) problems.push("security.yml is not the golden copy");
+  const workflowProblem = goldenDifference("security.yml", ".github/security/security.expected.yml", normalizedWorkflow, expectedWorkflow);
+  if (workflowProblem) problems.push(workflowProblem);
   let parsedJob = null;
   let expectedJob = null;
   try {
@@ -951,7 +1026,8 @@ function semgrepShapeProblems(workflow, script) {
   }
   if (parsedJob == null) problems.push("jobs.semgrep is missing");
   else if (expectedJob != null && JSON.stringify(parsedJob) !== JSON.stringify(expectedJob)) problems.push("jobs.semgrep is not the golden job");
-  if (normalizedScript !== expectedScript) problems.push("run-semgrep.sh is not the golden copy");
+  const scriptProblem = goldenDifference("run-semgrep.sh", ".github/security/run-semgrep.expected.sh", normalizedScript, expectedScript);
+  if (scriptProblem) problems.push(scriptProblem);
   if (normalizedWorkflow.includes("SEMGREP_ROOTS")) problems.push("SEMGREP_ROOTS is set in the workflow");
   if (/(^|\n)[ ]+if:/.test(job)) problems.push("semgrep job has an if");
   if (job.includes("continue-on-error")) problems.push("semgrep job has continue-on-error");
@@ -1022,17 +1098,18 @@ test("the semgrep job and scan script match their golden copies", () => {
   const script = fs.readFileSync(scriptPath, "utf8");
   assert.deepEqual(semgrepShapeProblems(workflow, script), []);
   assert.deepEqual(inlineInterpreterProblems(), []);
-  const ignore = normalizeNewlines(fs.readFileSync(path.join(here, "..", "..", ".semgrepignore"), "utf8"));
-  const expectedIgnore = normalizeNewlines(fs.readFileSync(path.join(here, "semgrepignore.expected"), "utf8"));
-  assert.equal(ignore, expectedIgnore);
+  const ignore = fs.readFileSync(path.join(here, "..", "..", ".semgrepignore"), "utf8");
+  const expectedIgnore = fs.readFileSync(path.join(here, "semgrepignore.expected"), "utf8");
+  assert.equal(goldenDifference(".semgrepignore", ".github/security/semgrepignore.expected", ignore, expectedIgnore), null);
+  const ignoreText = normalizeNewlines(ignore);
   for (const root of requiredRoots) {
-    assert.equal(ignore.split("\n").some((line) => {
+    assert.equal(ignoreText.split("\n").some((line) => {
       const trimmed = line.trim();
       return trimmed === root || trimmed === `${root}/`;
     }), false, `${root} is excluded by .semgrepignore`);
   }
   for (const pattern of ["*.cs", "*.tsx", "studio/src/**"]) {
-    assert.equal(ignore.split("\n").some((line) => line.trim() === pattern), false, `${pattern} is excluded by .semgrepignore`);
+    assert.equal(ignoreText.split("\n").some((line) => line.trim() === pattern), false, `${pattern} is excluded by .semgrepignore`);
   }
 });
 
@@ -1101,11 +1178,67 @@ test("hiding the semgrep job in a block scalar is rejected", () => {
   assert.ok(problems.includes("jobs.semgrep is missing"), problems.join("\n"));
 });
 
-test("the redactor matches its golden copy and drops canary fields", () => {
+test("a security.yml that differs by one character is not the golden copy", () => {
+  const workflow = normalizeNewlines(fs.readFileSync(workflowPath, "utf8"));
+  const script = normalizeNewlines(fs.readFileSync(scriptPath, "utf8"));
+  const marker = "name: Security";
+  const index = workflow.indexOf(marker);
+  assert.ok(index >= 0);
+  const changed = `${workflow.slice(0, index)}name: SecuritY${workflow.slice(index + marker.length)}`;
+  const problems = semgrepShapeProblems(changed, script);
+  assert.ok(problems.some((problem) => /^security\.yml is not the golden copy: differs from \.github\/security\/security\.expected\.yml at line \d+; update both files in the same commit$/.test(problem)), problems.join("\n"));
+});
+
+test("every shell script under .github/security is pinned", () => {
+  assert.deepEqual(shellPinProblems(here), []);
+  const extra = shellPinProblems(here, ["unpinned-proof.sh"]);
+  assert.ok(extra.some((problem) => problem === "unpinned-proof.sh is neither pinned nor exempt"), extra.join("\n"));
+});
+
+test("exit 0 after the shebang is not a pinned script", () => {
+  for (const [script] of pinnedScripts) {
+    const problems = shellPinProblems(here, [], {
+      [script]: (text) => text.replace(/^(#!\/bin\/sh\r?\n)/, "$1exit 0\n"),
+    });
+    assert.ok(problems.some((problem) => problem.startsWith(`${script} is not the golden copy: differs from .github/security/${script.replace(/\.sh$/, ".expected.sh")} at line `) && problem.endsWith("; update both files in the same commit")), `${script}\n${problems.join("\n")}`);
+  }
+});
+
+test("a skipped gitleaks checksum is not the golden script", () => {
+  const problems = shellPinProblems(here, [], {
+    "install-gitleaks.sh": (text) => text.replace(
+      "echo \"${GITLEAKS_SHA256}  $RUNNER_TEMP/$file\" | sha256sum --check --strict",
+      "true || sha256sum --check --strict",
+    ),
+  });
+  assert.ok(problems.some((problem) => problem.startsWith("install-gitleaks.sh is not the golden copy: differs from .github/security/install-gitleaks.expected.sh at line ") && problem.endsWith("; update both files in the same commit")), problems.join("\n"));
+});
+
+test("the line-ending attributes match their golden copy", () => {
+  assert.deepEqual(attributesPinProblems(), []);
+  const problems = attributesPinProblems((text) => text.replace("*.sh text eol=lf", "*.sh text eol=crlf"));
+  assert.ok(problems.some((problem) => problem.startsWith(".gitattributes is not the golden copy: differs from .github/security/gitattributes.expected at line ") && problem.endsWith("; update both files in the same commit")), problems.join("\n"));
+});
+
+test("every known finding has an owner and a reason", () => {
+  assert.ok(knownFindingEntries(known).length > 0);
+  assert.deepEqual(knownFindingProblems(known), []);
+  const stripped = structuredClone(known);
+  delete stripped.semgrep[0].owner;
+  stripped.semgrep[0].reason = "  ";
+  const problems = knownFindingProblems(stripped);
+  assert.ok(problems.some((problem) => problem.includes("has no owner")), problems.join("\n"));
+  assert.ok(problems.some((problem) => problem.includes("has no reason")), problems.join("\n"));
+});
+
+test("the redactor matches its golden copy", () => {
+  const source = fs.readFileSync(path.join(here, "redact-report.mjs"), "utf8");
+  const expected = fs.readFileSync(path.join(here, "redact-report.expected.mjs"), "utf8");
+  assert.equal(goldenDifference("redact-report.mjs", ".github/security/redact-report.expected.mjs", source, expected), null);
+});
+
+test("the redactor drops canary fields", () => {
   const redactor = path.join(here, "redact-report.mjs");
-  const source = normalizeNewlines(fs.readFileSync(redactor, "utf8"));
-  const expected = normalizeNewlines(fs.readFileSync(path.join(here, "redact-report.expected.mjs"), "utf8"));
-  assert.equal(source, expected);
   const report = {
     results: [
       {
@@ -1308,7 +1441,8 @@ test("known semgrep findings stay listed, and a missing one is named", () => {
   }));
   const present = run(["semgrep", write("semgrep-known.json", JSON.stringify({ results, errors: [] }))]);
   assert.equal(present.code, 0, present.out);
-  assert.match(present.out, /semgrep known warning: csharp\.lang\.security\.filesystem\.unsafe-path-combine\.unsafe-path-combine api\/src\/DigitalHub.Images\/ImageFiles\.cs:19/);
+  const image = known.semgrep.find((entry) => entry.path === "api/src/DigitalHub.Images/ImageFiles.cs");
+  assert.ok(present.out.includes(`semgrep known warning: ${image.rule} ${image.path}:${image.line}`), present.out);
   assert.equal(present.out.includes("no longer found"), false, present.out);
   assert.equal(present.out.includes(canary), false, present.out);
   const partial = run(["semgrep", write("semgrep-stale.json", JSON.stringify({ results: results.slice(1), errors: [] }))]);
