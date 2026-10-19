@@ -41,6 +41,10 @@ appsettings.*.json
 api/src/DigitalHub.Api/media/*
 !api/src/DigitalHub.Api/media/.gitkeep
 
+# Local review processes started by scripts/run-local.ps1. Logs can contain
+# request paths. They never belong in git.
+.run-local/
+
 # OS
 .DS_Store
 Thumbs.db
