@@ -1,0 +1,6 @@
+*.sh text eol=lf
+.github/security/*.expected.sh text eol=lf
+.github/security/*.expected.yml text eol=lf
+.github/security/*.expected.mjs text eol=lf
+.github/security/semgrepignore.expected text eol=lf
+.github/security/gitattributes.expected text eol=lf

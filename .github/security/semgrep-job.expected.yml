@@ -1,0 +1,30 @@
+  semgrep:
+    name: Semgrep (ERROR fails, WARNING reported)
+    needs: gate-self-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Semgrep 1.180.0
+        run: pip install "semgrep==1.180.0"
+
+      - name: Scan
+        run: bash .github/security/run-semgrep.sh
+
+      - name: Redact matched source before upload
+        run: node .github/security/redact-report.mjs "$RUNNER_TEMP/semgrep.json" "$RUNNER_TEMP/semgrep-redacted.json"
+
+      - name: Upload the redacted report
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-redacted
+          path: ${{ runner.temp }}/semgrep-redacted.json
+          if-no-files-found: warn

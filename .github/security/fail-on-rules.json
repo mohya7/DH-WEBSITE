@@ -1,0 +1,7 @@
+[
+  "javascript.lang.security.detect-eval-with-expression.detect-eval-with-expression",
+  "typescript.react.security.audit.react-dangerouslysetinnerhtml.react-dangerouslysetinnerhtml",
+  "csharp.lang.security.insecure-deserialization.binary-formatter.insecure-binaryformatter-deserialization",
+  "javascript.express.security.audit.express-session-hardcoded-secret.express-session-hardcoded-secret",
+  "javascript.browser.security.open-redirect.js-open-redirect"
+]

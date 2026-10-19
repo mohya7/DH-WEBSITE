@@ -1,0 +1,34 @@
+# Replaces Semgrep 1.180's built-in ignore. That file skips any directory named
+# test, tests, or testsuite, which would hide api/tests. Those tests are
+# application code and are scanned. The patterns below are the same exclusions
+# as the semgrep job in .github/workflows/security.yml.
+
+.git
+.svn
+.hg
+_darcs
+CVS
+
+build/
+vendor/
+dist/
+out/
+bin/
+obj/
+*.min.js
+.env/
+.tox/
+
+node_modules/
+.npm/
+.yarn/
+.venv/
+_opam/
+_build/
+_cargo/
+
+website/design/
+website/fixtures/
+*.Designer.cs
+*ModelSnapshot.cs
+generated/
