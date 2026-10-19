@@ -71,17 +71,30 @@ builder.Services.AddScoped<BuildContentStore>();
 builder.Services.AddSingleton<BuildToken>();
 builder.Services.AddHostedService<IdentitySeeder>();
 
-builder.Services.Configure<ForwardedHeadersOptions>(options =>
+var knownProxies = new List<IPAddress>();
+foreach (var value in builder.Configuration.GetSection("ForwardedHeaders:KnownProxies").GetChildren())
 {
-    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor;
-    options.KnownIPNetworks.Clear();
-    options.KnownProxies.Clear();
-    foreach (var value in builder.Configuration.GetSection("ForwardedHeaders:KnownProxies").GetChildren())
+    if (IPAddress.TryParse(value.Value, out var address))
+        knownProxies.Add(address);
+}
+
+// An empty or missing KnownProxies list must not trust X-Forwarded-For.
+// ASP.NET Core treats an empty KnownProxies list as every sender, so a forged
+// header would dodge the contact rate limit. With no proxy configured, the
+// middleware is not applied and RemoteIpAddress stays the connection address.
+// With entries, only those proxies are trusted.
+var trustForwardedHeaders = knownProxies.Count > 0;
+if (trustForwardedHeaders)
+{
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
     {
-        if (IPAddress.TryParse(value.Value, out var address))
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor;
+        options.KnownIPNetworks.Clear();
+        options.KnownProxies.Clear();
+        foreach (var address in knownProxies)
             options.KnownProxies.Add(address);
-    }
-});
+    });
+}
 
 var loginPermitLimit = builder.Configuration.GetValue("Auth:LoginPermitLimit", 8);
 var loginWindowHours = builder.Configuration.GetValue("Auth:LoginWindowHours", 1);
@@ -238,7 +251,8 @@ builder.Services.AddHealthChecks()
 
 var app = builder.Build();
 
-app.UseForwardedHeaders();
+if (trustForwardedHeaders)
+    app.UseForwardedHeaders();
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseExceptionHandler();

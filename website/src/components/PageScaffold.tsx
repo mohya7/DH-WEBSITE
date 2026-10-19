@@ -3,12 +3,11 @@ import { blockContext } from "@/content/blocks";
 import type { AnyContentItem, Site } from "@/content/site";
 import { getSite } from "@/content/site";
 import type { PageType } from "@/content/routes";
-import { careersEndpoint } from "@/content/forms";
 import { DesignFrame, DesignScripts } from "@/design/Design";
 import { designSetFor } from "@/design/sets";
 import { Header, Footer, SiteBackground } from "./SiteChrome";
 import { BlogArticle } from "./BlogArticle";
-import { ApplicationForm } from "./ApplicationForm";
+import { HowToApply } from "./HowToApply";
 import { VacancyPage } from "./VacancyPage";
 import { behaviorUrl, homeSrStyleUrl } from "@/design/behaviors";
 import { jsonLdText, structuredData } from "@/seo/jsonld";
@@ -35,7 +34,7 @@ export function PageScaffold({ item, pageType, site = getSite(), path = item?.pa
     {set === "home" ? <link rel="stylesheet" href={homeSrStyleUrl()} /> : null}
     <SiteBackground set={set} /><Header site={site} set={set} currentPath={item.path ?? ""} />
     <main data-page-type={pageType} data-collection={item.collection} data-slug={item.slug} data-design-set={set} data-body-class={bodyClass}>
-      {item.collection === "blog-posts" ? <BlogArticle item={item} ctx={ctx} /> : item.collection === "vacancies" ? <VacancyPage item={item} /> : <>
+      {item.collection === "blog-posts" ? <BlogArticle item={item} ctx={ctx} /> : item.collection === "vacancies" ? <VacancyPage item={item} email={site.content.settings.careersEmail || site.content.settings.email || ""} /> : <>
         {hasHeading ? null : <Section section={{ type: "hub_hero", fields: { heading: item.title } }} ctx={ctx} />}
         {item.sections.map((section, index) => {
           if (pageType === "error" && section.type === "rich_text") return <section className="hub-cta" key={index}><div className="section-inner"><div className="hub-cta__card" data-reveal=""><div><RichText doc={parseRichText(section.fields.body)} ctx={ctx} /></div></div></div></section>;
@@ -50,7 +49,7 @@ export function PageScaffold({ item, pageType, site = getSite(), path = item?.pa
           }
           return <Section key={index} section={section} ctx={ctx} />;
         })}
-        {set === "apply" ? <ApplicationForm endpoint={careersEndpoint()} /> : null}
+        {set === "apply" ? <HowToApply email={site.content.settings.careersEmail || site.content.settings.email || ""} /> : null}
       </>}
     </main>
     <Footer site={site} set={set} currentPath={item.path ?? ""} />

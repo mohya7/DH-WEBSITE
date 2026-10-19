@@ -235,7 +235,15 @@ ALTER ROLE db_datawriter ADD MEMBER [${appLogin.replace(/]/g, "]]")}];
   fs.rmSync(snapshotRoot, { recursive: true, force: true });
   fs.mkdirSync(path.join(snapshotRoot, "media"), { recursive: true });
   const contentPath = path.join(snapshotRoot, "content.json");
-  fs.writeFileSync(contentPath, content.text);
+  const snapshot = JSON.parse(content.text);
+  // The marketing lead approved this apply-page copy. The importer still brings
+  // the old form text; this override is what keeps the approved copy on the next run.
+  const applyPage = snapshot.pages.find((item) => item.slug === "apply");
+  const applyHero = applyPage?.sections?.find((section) => section.type === "hub_hero");
+  if (!applyPage || !applyHero?.fields) throw new Error("The snapshot apply page has no hub hero to update.");
+  applyPage.metaDescription = "Apply for an open role at Digital Hub by email. Send your CV, LinkedIn profile and availability to our careers team.";
+  applyHero.fields.lead = "Send your CV and a short note about the role you want. Our careers team reviews every application.";
+  fs.writeFileSync(contentPath, JSON.stringify(snapshot));
 
   let mediaCount = 0;
   let mediaBytes = 0;
@@ -249,7 +257,6 @@ ALTER ROLE db_datawriter ADD MEMBER [${appLogin.replace(/]/g, "]]")}];
     }
   }
 
-  const snapshot = JSON.parse(content.text);
   const apiCommit = run("git", ["rev-parse", "HEAD"], { cwd: repoRoot }).trim();
   const sourceCommit = run("git", ["rev-parse", "HEAD"], { cwd: sourceRoot }).trim();
   const contentBytes = fs.statSync(contentPath).size;
@@ -424,9 +431,13 @@ Unresolved references: ${snapshot.unresolvedReferences.length}.
 
 ## What this contains
 
-Published content only, as the build content endpoint returned it, byte for byte.
+Published content only, as the build content endpoint returned it.
 No drafts, contact requests, users, audit entries, tokens, or anything from
 user-secrets.
+
+The apply page's meta description and hub-hero lead are then replaced with the
+copy the marketing lead approved. The script does that on every run, so those
+two fields survive regeneration. The old form text stays in the source site.
 
 ## What changes when the snapshot is regenerated
 

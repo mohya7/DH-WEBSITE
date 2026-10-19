@@ -223,3 +223,69 @@ public sealed class PublicContactFactory : ApiFactory
         builder.UseSetting("Contact:WindowHours", "1");
     }
 }
+
+/// <summary>
+/// The production default: <c>ForwardedHeaders:KnownProxies</c> is empty, so a
+/// forged <c>X-Forwarded-For</c> must not change the address the rate limiter uses.
+/// </summary>
+[Collection("SqlServer")]
+public sealed class PublicContactEmptyProxyTests : IClassFixture<PublicContactNoProxyFactory>
+{
+    private readonly PublicContactNoProxyFactory _factory;
+
+    public PublicContactEmptyProxyTests(PublicContactNoProxyFactory factory) => _factory = factory;
+
+    [Fact]
+    public async Task Empty_proxy_list_still_rate_limits_one_sender_when_the_forged_address_changes()
+    {
+        var sender = IPAddress.Parse("203.0.113.9");
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            var forged = IPAddress.Parse("198.51.100." + (attempt + 1));
+            var allowed = await SendFromAsync(sender, forged, ValidBody("empty-" + attempt + "-" + Guid.NewGuid().ToString("N")[..6]));
+            Assert.Equal(HttpStatusCode.Created, allowed.StatusCode);
+        }
+
+        var blocked = await SendFromAsync(sender, IPAddress.Parse("198.51.100.200"), ValidBody("empty-block-" + Guid.NewGuid().ToString("N")[..6]));
+        Assert.Equal(HttpStatusCode.TooManyRequests, blocked.StatusCode);
+        Assert.Equal("rate_limited", JsonDocument.Parse(await blocked.Content.ReadAsStringAsync()).RootElement.GetProperty("code").GetString());
+    }
+
+    private async Task<HttpResponseMessage> SendFromAsync(IPAddress remote, IPAddress forwardedFor, Dictionary<string, object?> body)
+    {
+        var json = JsonSerializer.Serialize(body);
+        var context = await _factory.Server.SendAsync(ctx =>
+        {
+            ctx.Connection.RemoteIpAddress = remote;
+            ctx.Request.Method = HttpMethods.Post;
+            ctx.Request.Path = "/api/v1/public/contact";
+            ctx.Request.ContentType = "application/json";
+            ctx.Request.Headers["X-Forwarded-For"] = forwardedFor.ToString();
+            ctx.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(json));
+        });
+        return new HttpResponseMessage((HttpStatusCode)context.Response.StatusCode)
+        {
+            Content = new StringContent(await new StreamReader(context.Response.Body).ReadToEndAsync(), Encoding.UTF8, "application/json"),
+        };
+    }
+
+    private static Dictionary<string, object?> ValidBody(string token) => new()
+    {
+        ["situation"] = "gov",
+        ["name"] = token,
+        ["organization"] = "Digital Hub",
+        ["role"] = "Buyer",
+        ["email"] = token + "@example.com",
+        ["message"] = "We would like to talk about a digital transformation programme.",
+    };
+}
+
+public sealed class PublicContactNoProxyFactory : ApiFactory
+{
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+        builder.UseSetting("Contact:PermitLimit", "10");
+        builder.UseSetting("Contact:WindowHours", "1");
+    }
+}

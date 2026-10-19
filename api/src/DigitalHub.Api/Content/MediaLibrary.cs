@@ -173,6 +173,10 @@ public sealed class MediaLibrary(ContentDbContext db, IConfiguration configurati
         _ => MediaOutcome.Fail(StatusCodes.Status400BadRequest, "undecodable", "That file could not be read as an image."),
     };
 
+    /// <summary>The alt-text and caption checks an upload and an edit apply, for the content bundle import.</summary>
+    public static string? MetadataError(string? alt, bool decorative, string? caption) =>
+        AltError(alt, decorative) ?? CaptionError(caption);
+
     private static string? AltError(string? alt, bool decorative)
     {
         if (!decorative && string.IsNullOrWhiteSpace(alt))

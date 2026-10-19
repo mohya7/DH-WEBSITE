@@ -30,7 +30,6 @@
  *   - out/sitemap.xml, out/robots.txt, and out/llms.txt match the content
  *   - every page has one JSON-LD script, and it matches the structured data
  *   - Next's _not-found export is not in the output
- *   - the careers form endpoint, when present, is a same-site path
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -47,7 +46,6 @@ import { designSets, type DesignSetName, type ScriptSlot } from "../src/design/s
 import { parseRichText } from "@digitalhub/blocks/richtext/document";
 import { behaviorUrl, consentStyleUrl } from "../src/design/behaviors";
 import { tagManagerId } from "../src/content/tag-manager";
-import { careersEndpointError, careersEndpointsIn } from "../src/iis/careers-endpoint";
 import { renderWebConfig } from "../src/iis/web-config";
 import { jsonLdBodies } from "../src/seo/csp";
 import { renderLlms, renderRobots, renderSitemap } from "../src/seo/files";
@@ -125,10 +123,6 @@ export function checkOutput(outDir: string, manifest: Manifest, options: { desig
   for (const file of files.filter((name) => name.endsWith(".html"))) {
     if (file === "_not-found.html" || file.startsWith("_not-found/")) continue;
     if (!expected.has(file) && !errorFiles.includes(file)) problems.push(`${file} is not a route of the published content.`);
-    for (const endpoint of careersEndpointsIn(fs.readFileSync(path.join(outDir, file), "utf8"))) {
-      const error = careersEndpointError(endpoint);
-      if (error) problems.push(`${file}: ${error}`);
-    }
   }
 
   // No trace of Next's client runtime: the site ships static HTML plus the ported scripts.
@@ -310,7 +304,6 @@ export function checkDesignLoading(file: string, html: string): string[] {
   const { set, lists } = pageLoads(html);
   if (!set || !(set in designSets)) return [`${file} does not name its design set.`];
   const expected = expectedLoads(set as DesignSetName);
-  if (set === "apply") expected["body-end"] = expected["body-end"].map((src) => src === "js/careers-apply.js" ? behaviorUrl("careers") : src);
   if (/\bid="contactForm"/.test(html)) expected["body-end"].unshift(behaviorUrl("contact"));
   if (/\bid="cookieBanner"/.test(html)) expected["body-end"].unshift(behaviorUrl("consent"));
   const problems: string[] = [];
@@ -369,12 +362,6 @@ function main(): void {
   console.log(`Static HTML: no page contains Next's client runtime; every page's head tags and content are in its HTML.`);
   console.log(`Loading order: every page loads exactly its design set.`);
   console.log(`Design: out/design/${designHash(path.join(websiteRoot, "design"))}/ matches website/design/ byte for byte (${designFileList(path.join(websiteRoot, "design")).length} files).`);
-
-  const careersEndpoint = process.env.CAREERS_APPLICATION_ENDPOINT;
-  if (careersEndpoint !== undefined) {
-    const error = careersEndpointError(careersEndpoint);
-    if (error) report.problems.push(error);
-  }
 
   const tagManager = tagManagerId(content.settings) !== null;
   const configFile = path.join(websiteRoot, "out", "web.config");

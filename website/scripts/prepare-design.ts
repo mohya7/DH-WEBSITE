@@ -21,7 +21,7 @@ if (!behaviorDir.startsWith(path.resolve("public") + path.sep)) throw new Error(
 fs.rmSync(behaviorDir, { recursive: true, force: true });
 fs.mkdirSync(behaviorDir, { recursive: true });
 const publicFile = (url: string) => path.join("public", url.replace(/^\/+/, ""));
-for (const name of ["contact", "careers"] as const) fs.copyFileSync(`behaviors/${name}.js`, publicFile(behaviorUrl(name)));
+for (const name of ["contact"] as const) fs.copyFileSync(`behaviors/${name}.js`, publicFile(behaviorUrl(name)));
 fs.copyFileSync("behaviors/home-sr.css", publicFile(homeSrStyleUrl()));
 // The consent files ship only when the prepared content's site settings name a container.
 const content = JSON.parse(fs.readFileSync(path.join(".content", "content.json"), "utf8")) as BuildContent;

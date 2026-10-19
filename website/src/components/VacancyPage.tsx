@@ -1,6 +1,6 @@
 import type { ContentItem } from "@/content/build-content";
 
-export function VacancyPage({ item }: { item: ContentItem<"vacancies"> }) {
+export function VacancyPage({ item, email }: { item: ContentItem<"vacancies">; email: string }) {
   const f = item.fields;
   const lists = [["Responsibilities", f.keyResponsibilities], ["Requirements", f.requiredSkills], ["Nice to have", f.niceToHave], ["What the role offers", f.roleOffers]];
   return <>
@@ -11,7 +11,7 @@ export function VacancyPage({ item }: { item: ContentItem<"vacancies"> }) {
       {f.aboutRole || f.summary ? <section className="careers-detail__block" data-reveal=""><h2>Job Description</h2>{(f.aboutRole || f.summary)!.split(/\n\s*\n/).map((paragraph, index) => <p key={index}>{paragraph}</p>)}</section> : null}
       {lists.map(([heading, value]) => value ? <section className="careers-detail__block" data-reveal="" key={heading}><h2>{heading}</h2><ul>{value.split(/\r?\n/).filter((line) => line.trim()).map((line, index) => <li key={index}>{line}</li>)}</ul></section> : null)}
       {f.interviewStages?.length ? <section className="careers-detail__block" data-reveal=""><h2>Interview stages</h2><ol>{f.interviewStages.map((stage, index) => <li key={index}>{stage}</li>)}</ol></section> : null}
-      <section className="careers-apply" id="apply" data-reveal=""><a className="btn-pill" href={`/careers/apply?role=${encodeURIComponent(item.slug)}`}>Apply Now <i className="ti ti-arrow-right" aria-hidden="true" /></a></section>
+      <section className="careers-apply" id="apply" data-reveal="">{email.trim() ? <a className="btn-pill" href={`mailto:${email.trim()}?subject=${encodeURIComponent(`Application: ${item.title}`)}`}>Apply Now <i className="ti ti-arrow-right" aria-hidden="true" /></a> : null}</section>
     </div></section>
   </>;
 }
