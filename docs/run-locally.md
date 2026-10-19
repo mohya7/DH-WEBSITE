@@ -142,6 +142,8 @@ You should see `Successfully saved Build:Token to the secret store.` You should 
 
 Two ways. Use the snapshot for a first look. It does not need the API.
 
+If you will not use the default ports, set the three variables in section 6 before this command. The build writes the website address into the pages.
+
 ```powershell
 .\scripts\run-local.ps1 rebuild-site
 ```
@@ -218,7 +220,7 @@ $env:DH_LOCAL_WEBSITE_PORT = '4377'
 .\scripts\run-local.ps1 status
 ```
 
-`status` prints those addresses. `start` and `rebuild-site` use the same three.
+`status` prints those addresses. `start` and `rebuild-site` use the same three. Set them before `rebuild-site` as well as before `start`, because the build stores that website address in the pages.
 
 ## 7. Reset
 
