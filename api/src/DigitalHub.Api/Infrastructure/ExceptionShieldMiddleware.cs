@@ -6,6 +6,9 @@ namespace DigitalHub.Api.Infrastructure;
 /// </summary>
 public sealed class ExceptionShieldMiddleware
 {
+    /// <summary>The status nginx and others use for a request the client abandoned.</summary>
+    public const int ClientClosedRequest = 499;
+
     private readonly RequestDelegate _next;
     private readonly ILogger<ExceptionShieldMiddleware> _logger;
 
@@ -23,7 +26,12 @@ public sealed class ExceptionShieldMiddleware
         }
         catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
         {
-            throw;
+            // The client went away, mid-body or before the answer: not a server
+            // error. There is no one to answer; record 499 (client closed request)
+            // instead of letting the request log a 500 (P3 b).
+            _logger.LogInformation("Client closed the request before it finished");
+            if (!context.Response.HasStarted)
+                context.Response.StatusCode = ClientClosedRequest;
         }
         catch (Exception exception)
         {

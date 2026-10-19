@@ -1,0 +1,104 @@
+using System.Collections.Concurrent;
+using System.Text;
+using DigitalHub.Api.Infrastructure;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Serilog.Core;
+using Serilog.Events;
+
+namespace DigitalHub.Api.Tests;
+
+/// <summary>
+/// P3 b from the PR #31 check: a client that disconnects in the middle of its
+/// body made the duplicate-field reader throw OperationCanceledException, logged
+/// as a 500. It is the client's doing: the request is recorded as 499 and no
+/// error is logged. Oversize bodies keep their 413 (RequestBodyLimitTests).
+/// </summary>
+[Collection("SqlServer")]
+public sealed class AbortedRequestTests
+{
+    [Theory]
+    [InlineData("/api/v1/auth/login")]
+    [InlineData("/api/v1/public/contact")]
+    public async Task A_client_that_disconnects_mid_body_is_not_a_server_error(string path)
+    {
+        using var factory = new LoggingFactory();
+        // The client side of an aborted request sees the abort, as a real client does.
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => factory.Server.SendAsync(ctx =>
+        {
+            ctx.Request.Method = HttpMethods.Post;
+            ctx.Request.Path = path;
+            ctx.Request.ContentType = "application/json";
+            ctx.Request.Body = new DisconnectingBody(ctx, Encoding.UTF8.GetBytes("{\"email\":\"x@example.test\",\"password\":\"" + new string('y', 500)));
+        }));
+
+        // The server records it as the client's doing, not as an error.
+        Assert.Empty(factory.Sink.AtLeast(LogEventLevel.Warning));
+        Assert.Contains(factory.Sink.All(), line => line.Contains("Client closed the request", StringComparison.Ordinal));
+        Assert.Contains(factory.Sink.All(), line => line.Contains($"\"{path}\" responded 499", StringComparison.Ordinal));
+    }
+
+    /// <summary>Hands out the first bytes, then behaves as a connection the client closed.</summary>
+    private sealed class DisconnectingBody(HttpContext context, byte[] start) : Stream
+    {
+        private int _position;
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => _position; set => throw new NotSupportedException(); }
+
+        public override int Read(byte[] buffer, int offset, int count) => ReadAsync(buffer.AsMemory(offset, count)).AsTask().GetAwaiter().GetResult();
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) => ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (_position < start.Length)
+            {
+                var count = Math.Min(buffer.Length, start.Length - _position);
+                start.AsMemory(_position, count).CopyTo(buffer);
+                _position += count;
+                return ValueTask.FromResult(count);
+            }
+
+            context.Abort();
+            throw new OperationCanceledException(context.RequestAborted);
+        }
+
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    private sealed class LoggingFactory : ApiFactory
+    {
+        public CollectingSink Sink { get; } = new();
+
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            base.ConfigureWebHost(builder);
+            builder.ConfigureTestServices(services => services.AddSingleton<ILogEventSink>(Sink));
+        }
+    }
+
+    private sealed class CollectingSink : ILogEventSink
+    {
+        private readonly ConcurrentQueue<(LogEventLevel Level, string Text)> _events = new();
+
+        public void Emit(LogEvent logEvent)
+        {
+            using var writer = new StringWriter();
+            logEvent.RenderMessage(writer);
+            _events.Enqueue((logEvent.Level, writer.ToString()));
+        }
+
+        public List<string> AtLeast(LogEventLevel level) => _events.Where(item => item.Level >= level).Select(item => $"{item.Level}: {item.Text}").ToList();
+
+        public List<string> All() => _events.Select(item => item.Text).ToList();
+    }
+}
