@@ -3,9 +3,11 @@
  * page on feature/interviewer-portal, after only that page's content runtime has
  * run.
  *
- * Serves six things from one origin, so one page can compare them:
+ * Serves seven things from one origin, so one page can compare them:
  *   /           the comparison page
  *   /page-pairs.mjs  the shared page pairs (website/tools/page-pairs.mjs)
+ *   /accepted-differences.json  the accepted differences
+ *                        (website/tools/section-compare/accepted-differences.json)
  *   /snapshot-settings.json  careers email from the snapshot, with
  *                        SNAPSHOT_SETTINGS_FIXTURE laid over the settings
  *   /old/...    the source branch's working tree, untouched
