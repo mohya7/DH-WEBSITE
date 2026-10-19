@@ -51,7 +51,7 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
 
         foreach (var row in flat.Where(item => item.LinkKind == "internal"))
         {
-            if (!await TargetExistsAsync(row.TargetType!, row.TargetId!.Value, cancellationToken))
+            if (!await TargetExistsAsync(db, row.TargetType!, row.TargetId!.Value, cancellationToken))
                 return Validation("items", "An internal link points at a missing " + row.TargetType + ".");
         }
 
@@ -140,10 +140,10 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         if (await db.Redirects.AsNoTracking().AnyAsync(redirect => redirect.FromPath == from, cancellationToken))
             return ContentOutcome.Fail(StatusCodes.Status409Conflict, "redirect_exists", "A redirect from that path already exists.");
 
-        if (await OccupiesLivePathAsync(from!, cancellationToken))
+        if (await OccupiesLivePathAsync(db, from!, cancellationToken))
             return ContentOutcome.Fail(StatusCodes.Status400BadRequest, "redirect_live_path", "A redirect source cannot equal the path of a live page.");
 
-        var resolved = await ResolveDestinationAsync(to!, from!, cancellationToken);
+        var resolved = await ResolveDestinationAsync(db, to!, from!, cancellationToken);
         if (resolved.Loop)
             return ContentOutcome.Fail(StatusCodes.Status400BadRequest, "redirect_loop", "That redirect would create a loop.");
 
@@ -572,7 +572,7 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         return ContentOutcome.Ok(PresentErrorPage(type, page, section));
     }
 
-    private async Task<bool> OccupiesLivePathAsync(string fromPath, CancellationToken cancellationToken)
+    private static async Task<bool> OccupiesLivePathAsync(ContentDbContext db, string fromPath, CancellationToken cancellationToken)
     {
         var published = ContentStatus.Published;
         var pagePaths = await db.Pages.AsNoTracking()
@@ -617,7 +617,7 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         return vacancyPaths.Any(slug => ContentPaths.PublicPath("vacancies", slug) == fromPath);
     }
 
-    private async Task<(string Path, bool Loop)> ResolveDestinationAsync(string to, string from, CancellationToken cancellationToken)
+    private static async Task<(string Path, bool Loop)> ResolveDestinationAsync(ContentDbContext db, string to, string from, CancellationToken cancellationToken)
     {
         var visited = new HashSet<string>(StringComparer.Ordinal) { from };
         var current = to;
@@ -695,7 +695,7 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
             ValidateNavItem(children[index], path + ".children[" + index + "]", hasParent: true, errors, flat, id, index);
     }
 
-    private async Task<bool> TargetExistsAsync(string type, Guid id, CancellationToken cancellationToken) => type switch
+    private static async Task<bool> TargetExistsAsync(ContentDbContext db, string type, Guid id, CancellationToken cancellationToken) => type switch
     {
         "page" => await db.Pages.AsNoTracking().AnyAsync(item => item.Id == id, cancellationToken),
         "service" => await db.Services.AsNoTracking().AnyAsync(item => item.Id == id, cancellationToken),
@@ -801,6 +801,59 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         }
 
         return new string(chars);
+    }
+
+    /*
+     * The checks the Studio's own writes apply, for a caller that writes the rows
+     * itself: the content bundle import (tools/DigitalHub.ContentImport). The same
+     * rules, not a second copy.
+     */
+
+    /// <summary>The checks UpdateSettingsAsync applies.</summary>
+    public static Dictionary<string, List<string>> CheckSettings(SiteSettingsUpdate request) => ValidateSettings(request);
+
+    /// <summary>The checks ReplaceNavigationAsync applies to one menu, including that internal targets exist.</summary>
+    public static async Task<Dictionary<string, List<string>>> CheckNavigationAsync(ContentDbContext db, string menu, IReadOnlyList<NavigationNode> items, CancellationToken cancellationToken)
+    {
+        var errors = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        if (menu is not ("header" or "footer"))
+        {
+            Add(errors, "menu", "Menu must be header or footer.");
+            return errors;
+        }
+
+        var flat = new List<NavFlat>();
+        for (var index = 0; index < items.Count; index++)
+            ValidateNavItem(items[index], $"items[{index}]", hasParent: false, errors, flat, parentId: null, sort: index);
+        foreach (var row in flat.Where(item => item.LinkKind == "internal" && item.TargetType is not null && item.TargetId is not null))
+        {
+            if (!await TargetExistsAsync(db, row.TargetType!, row.TargetId!.Value, cancellationToken))
+                Add(errors, "items", "An internal link points at a missing " + row.TargetType + ".");
+        }
+
+        return errors;
+    }
+
+    /// <summary>The checks CreateRedirectAsync applies to a stored redirect, other than that it already exists.</summary>
+    public static async Task<Dictionary<string, List<string>>> CheckRedirectAsync(ContentDbContext db, Redirect redirect, CancellationToken cancellationToken)
+    {
+        var errors = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        var from = RedirectPath(redirect.FromPath, "fromPath", "From path", errors);
+        var to = RedirectPath(redirect.ToPath, "toPath", "To path", errors);
+        if (from is not null && from != redirect.FromPath)
+            Add(errors, "fromPath", "From path is required and must start with /.");
+        if (to is not null && to != redirect.ToPath)
+            Add(errors, "toPath", "To path is required and must start with /.");
+        if (errors.Count > 0)
+            return errors;
+
+        if (from == to)
+            Add(errors, "toPath", "A redirect cannot point at itself.");
+        else if (await OccupiesLivePathAsync(db, from!, cancellationToken))
+            Add(errors, "fromPath", "A redirect source cannot equal the path of a live page.");
+        else if ((await ResolveDestinationAsync(db, to!, from!, cancellationToken)).Loop)
+            Add(errors, "toPath", "That redirect would create a loop.");
+        return errors;
     }
 
     /// <summary>The trimmed path, or null with an error added when the website build could not write it into web.config.</summary>
