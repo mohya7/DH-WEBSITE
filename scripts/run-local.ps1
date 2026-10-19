@@ -231,8 +231,8 @@ switch ($Command) {
         if ($existing) {
             throw 'This script already has something running. Run .\scripts\run-local.ps1 status, or stop first.'
         }
-        $home = Join-Path $Root 'website\out\index.html'
-        if (-not (Test-Path $home)) {
+        $indexPage = Join-Path $Root 'website\out\index.html'
+        if (-not (Test-Path $indexPage)) {
             throw 'The website has not been built. Run .\scripts\run-local.ps1 rebuild-site first.'
         }
         $connection = Get-ReviewConnection
