@@ -5,6 +5,9 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using DigitalHub.Api.Auth;
+using DigitalHub.Api.Data;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 
 namespace DigitalHub.Api.Tests;
@@ -18,9 +21,14 @@ namespace DigitalHub.Api.Tests;
 public sealed class SessionCheckTests : IClassFixture<ApiFactory>
 {
     private const string Password = "Session-Check-Pass-1!";
+    private readonly ApiFactory _factory;
     private readonly HttpClient _client;
 
-    public SessionCheckTests(ApiFactory factory) => _client = factory.CreateClient();
+    public SessionCheckTests(ApiFactory factory)
+    {
+        _factory = factory;
+        _client = factory.CreateClient();
+    }
 
     [Fact]
     public async Task A_deactivated_users_access_token_is_refused_on_the_next_request_and_cannot_write()
@@ -37,6 +45,29 @@ public sealed class SessionCheckTests : IClassFixture<ApiFactory>
         var write = user.Authorized(HttpMethod.Post, "/api/v1/redirects");
         write.Content = JsonContent.Create(new { fromPath = "/after-deactivation-" + Guid.NewGuid().ToString("N")[..6], toPath = "/" });
         Assert.Equal(HttpStatusCode.Unauthorized, (await _client.SendAsync(write)).StatusCode);
+    }
+
+    [Fact]
+    public async Task A_locked_out_users_access_token_is_refused_even_while_the_session_is_live()
+    {
+        // Deactivation also revokes the refresh tokens, so the test above passes on
+        // the session check alone. Here the lockout is set on its own, the session
+        // stays live and the stamp is unchanged: only the lockout check refuses.
+        var email = await CreateEditorAsync("lockout");
+        var user = await AuthSession.LoginAsync(_client, email, Password);
+        Assert.Equal(HttpStatusCode.OK, (await _client.SendAsync(user.Authorized(HttpMethod.Get, "/api/v1/pages"))).StatusCode);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var account = (await users.FindByEmailAsync(email))!;
+            var stamp = account.SecurityStamp;
+            Assert.True((await users.SetLockoutEnabledAsync(account, true)).Succeeded);
+            Assert.True((await users.SetLockoutEndDateAsync(account, DateTimeOffset.MaxValue)).Succeeded);
+            Assert.Equal(stamp, (await users.FindByEmailAsync(email))!.SecurityStamp);
+        }
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await _client.SendAsync(user.Authorized(HttpMethod.Get, "/api/v1/pages"))).StatusCode);
     }
 
     [Fact]
