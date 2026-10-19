@@ -109,6 +109,20 @@ describe("content against the schemas", () => {
     }
   });
 
+  it("stops the build when a team member's linkedIn is javascript:, and allows an empty one", () => {
+    const bad = snapshotContent();
+    const member = bad.collections["team-members"][0];
+    expect(member, "the snapshot has a team member").toBeDefined();
+    (member.fields as { linkedIn: string | null }).linkedIn = "javascript:alert(document.domain)";
+    expect(validateContent(bad).join("\n")).toMatch(/team-members\/.*\/linkedIn is not an allowed link/);
+
+    for (const value of ["", "   ", null, "https://www.linkedin.com/in/someone"]) {
+      const ok = snapshotContent();
+      (ok.collections["team-members"][0].fields as { linkedIn: string | null }).linkedIn = value;
+      expect(validateContent(ok), JSON.stringify(value)).toEqual([]);
+    }
+  });
+
   it("reports a field the schema does not define", () => {
     const content = snapshotContent();
     (content.pages[0].sections[0].fields as Record<string, unknown>).subtitle = "extra";

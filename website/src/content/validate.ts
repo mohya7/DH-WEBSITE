@@ -52,18 +52,20 @@ export function isAllowedSectionHref(href: string): boolean {
   return false;
 }
 
-function newAjv(checkLinks: boolean): Ajv2020 {
+/**
+ * An ajv whose x-dh-kind "url" fields must hold an allowed link. A section link
+ * is required, so an empty one is refused; a collection link (team-members
+ * linkedIn) is optional, and empty means no link, as in the API.
+ */
+function newAjv(emptyLinkAllowed: boolean): Ajv2020 {
   const ajv = new Ajv2020({ allErrors: true, strict: true });
-  if (checkLinks) {
-    ajv.addKeyword({
-      keyword: "x-dh-kind",
-      schemaType: "string",
-      validate: (kind: string, data: unknown) => kind !== "url" || typeof data !== "string" || isAllowedSectionHref(data),
-      errors: false,
-    });
-  } else {
-    ajv.addKeyword("x-dh-kind");
-  }
+  ajv.addKeyword({
+    keyword: "x-dh-kind",
+    schemaType: "string",
+    validate: (kind: string, data: unknown) =>
+      kind !== "url" || typeof data !== "string" || (emptyLinkAllowed && data.trim() === "") || isAllowedSectionHref(data),
+    errors: false,
+  });
   ajv.addKeyword("x-dh-label");
   ajv.addKeyword("x-dh-help");
   ajv.addFormat("uuid", /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
@@ -73,9 +75,8 @@ function newAjv(checkLinks: boolean): Ajv2020 {
 function loadValidators(): Validators {
   if (validators) return validators;
 
-  // Section links are checked here, as in the API. Collection fields are not
-  // checked for links in the API yet, so collections compile without it.
-  const ajv = newAjv(true);
+  // Section and collection links are checked here, as in the API (finding O1).
+  const ajv = newAjv(false);
   ajv.addSchema(readJson(path.join(packagesRoot, "sections", "defs.json")));
 
   const sections = new Map<string, ValidateFunction>();
@@ -90,7 +91,7 @@ function loadValidators(): Validators {
         .map(([name]) => name),
     );
   }
-  const collectionAjv = newAjv(false);
+  const collectionAjv = newAjv(true);
   const collections = new Map<string, ValidateFunction>();
   for (const name of collectionNames) {
     collections.set(name, collectionAjv.compile(readJson(path.join(packagesRoot, "collections", `${name}.json`))));
