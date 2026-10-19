@@ -71,6 +71,7 @@ public sealed class AuthController(UserManager<ApplicationUser> users, TokenServ
 
     [AllowedBeforePasswordChange]
     [RequestBodyLimit(AuthBodyLimit)]
+    [RejectDuplicateJsonFields]
     [HttpPost("change-password")]
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request, CancellationToken cancellationToken)
     {
