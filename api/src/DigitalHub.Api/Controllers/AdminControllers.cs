@@ -79,6 +79,10 @@ public sealed class UsersController(AdminStore store) : ControllerBase
     public async Task<IActionResult> List(CancellationToken cancellationToken) =>
         Respond(await store.ListUsersAsync(cancellationToken));
 
+    // Two "email" keys would otherwise create the user under the last one; the
+    // guard reads the body before authentication, so the body is capped too.
+    [RequestBodyLimit(AuthController.AuthBodyLimit)]
+    [RejectDuplicateJsonFields]
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] UserCreateRequest request, CancellationToken cancellationToken) =>
         Respond(await store.CreateUserAsync(request, UserId(), cancellationToken));
