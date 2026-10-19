@@ -2,6 +2,7 @@ import { Navigate, createBrowserRouter } from "react-router-dom";
 import { RequireAuth } from "./auth/RequireAuth";
 import { SignInPage } from "./auth/SignInPage";
 import { collectionRoutes } from "./content/model";
+import { ApplicationsPage } from "./pages/ApplicationsPage";
 import { AuditPage } from "./pages/AuditPage";
 import { CollectionListPage } from "./pages/CollectionListPage";
 import { ContactInboxPage } from "./pages/ContactInboxPage";
@@ -34,6 +35,7 @@ export const router = createBrowserRouter([
           { path: "contact", element: <ContactInboxPage /> },
           { path: "settings", element: <SettingsPage /> },
           { path: "error-pages", element: <ErrorPagesPage /> },
+          { path: "applications", element: <ApplicationsPage /> },
           { path: "users", element: <UsersPage /> },
           { path: "audit", element: <AuditPage /> },
         ],

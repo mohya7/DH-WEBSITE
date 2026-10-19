@@ -49,7 +49,8 @@ export function ItemEditorPage({ collection }: { collection: CollectionName }) {
   const route = routeFor(collection);
   const navigate = useNavigate();
   const auth = useAuth();
-  const schemas = useSchemas();
+  const hr = auth.user?.role === "hr";
+  const schemas = useSchemas(!hr);
   const [item, setItem] = useState<ItemBody | null>(null);
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
@@ -273,21 +274,21 @@ export function ItemEditorPage({ collection }: { collection: CollectionName }) {
           {item?.endedAt !== null && item?.endedAt !== undefined ? <Typography.Paragraph>Ended {item.endedAt}. Publish brings this vacancy back and clears the end date.</Typography.Paragraph> : null}
         </div>
         <Space wrap>
-          <Button type="primary" onClick={() => void save()} disabled={!dirty}>Save content</Button>
-          <Button onClick={() => void publish()} disabled={dirty || item === null}>Publish</Button>
-          {item?.status === "published" ? <Button onClick={() => void act(`/api/v1/${collection}/${id}/unpublish`, "Unpublished.")}>Unpublish</Button> : null}
-          {item?.hasWorkingCopy ? <Button onClick={() => void act(`/api/v1/${collection}/${id}/discard`, "Draft discarded.")}>Discard draft</Button> : null}
+          {hr ? null : <Button type="primary" onClick={() => void save()} disabled={!dirty}>Save content</Button>}
+          {hr ? null : <Button onClick={() => void publish()} disabled={dirty || item === null}>Publish</Button>}
+          {!hr && item?.status === "published" ? <Button onClick={() => void act(`/api/v1/${collection}/${id}/unpublish`, "Unpublished.")}>Unpublish</Button> : null}
+          {!hr && item?.hasWorkingCopy ? <Button onClick={() => void act(`/api/v1/${collection}/${id}/discard`, "Draft discarded.")}>Discard draft</Button> : null}
           {collection === "vacancies" && item?.status === "published" ? <Button onClick={() => void act(`/api/v1/vacancies/${id}/end`, "Vacancy ended.")}>End</Button> : null}
-          {route.sections ? <Button onClick={() => setPreviewOpen(true)}>Preview draft</Button> : null}
-          <Button onClick={() => void openRevisions()}>Revisions</Button>
-          {auth.user?.role === "admin" && item?.status !== "published" ? <Button danger onClick={() => void remove()}>Delete</Button> : null}
+          {!hr && route.sections ? <Button onClick={() => setPreviewOpen(true)}>Preview draft</Button> : null}
+          {hr ? null : <Button onClick={() => void openRevisions()}>Revisions</Button>}
+          {!hr && auth.user?.role === "admin" && item?.status !== "published" ? <Button danger onClick={() => void remove()}>Delete</Button> : null}
         </Space>
       </div>
       {dirty ? <Typography.Paragraph>Save before publishing, so the check runs on what is on screen.</Typography.Paragraph> : null}
       {redirect !== null ? <Typography.Paragraph>{redirect}</Typography.Paragraph> : null}
       {message !== null ? <Typography.Paragraph>{message}</Typography.Paragraph> : null}
       <Findings problem={problem} onJump={focusField} />
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+      {hr ? null : <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex flex-col gap-4">
           <label data-field="title">Title<Input value={title} onChange={(event) => setTitle(event.target.value)} /></label>
           <label data-field="slug">
@@ -391,7 +392,7 @@ export function ItemEditorPage({ collection }: { collection: CollectionName }) {
           </label>
           <Checkbox checked={noIndex} onChange={(event) => setNoIndex(event.target.checked)}>Hide from search</Checkbox>
         </aside>
-      </div>
+      </div>}
       <MediaPicker open={picker} onClose={() => setPicker(false)} onSelect={(choice: MediaChoice) => { setShareImageId(choice.id); if (shareAlt.length === 0) setShareAlt(choice.alt); setPicker(false); }} />
       <Modal
         title="Someone else changed this item."

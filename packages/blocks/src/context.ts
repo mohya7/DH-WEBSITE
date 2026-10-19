@@ -46,6 +46,8 @@ export interface BlockItem<C extends keyof CollectionFieldsByName = keyof Collec
   title: string;
   sortOrder: number;
   fields: CollectionFieldsByName[C];
+  /** Ended vacancies are omitted from the careers list. */
+  status?: "published" | "ended";
 }
 
 export interface BlockCollections {

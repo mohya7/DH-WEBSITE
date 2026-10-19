@@ -127,6 +127,7 @@ public sealed class BuildContentStore(ContentDbContext db)
         shareImageAltOverride = item.Document.ShareImageAltOverride,
         publishedAt = item.PublishedAt,
         updatedAt = item.UpdatedAt,
+        status = item.Status,
         fields = item.Document.Fields,
         sections = item.Document.Sections
             .Where(section => section.Visible)
@@ -171,7 +172,9 @@ public sealed class BuildContentStore(ContentDbContext db)
         async Task AddAsync<T>(IQueryable<T> query, Func<T, IEnumerable<Section>> sections) where T : ContentRecord
         {
             // Status on the record itself: a working copy is a draft and is not read here.
-            var rows = await query.Where(item => item.Status == ContentStatus.Published).ToListAsync(cancellationToken);
+            var rows = collection == "vacancies"
+                ? await query.Where(item => item.Status == ContentStatus.Published || item.Status == ContentStatus.Ended).ToListAsync(cancellationToken)
+                : await query.Where(item => item.Status == ContentStatus.Published).ToListAsync(cancellationToken);
             foreach (var row in rows)
             {
                 items.Add(new Item(
@@ -182,6 +185,7 @@ public sealed class BuildContentStore(ContentDbContext db)
                     row.SortOrder,
                     row.PublishedAt,
                     row.UpdatedAt,
+                    row.Status == ContentStatus.Ended ? "ended" : "published",
                     ContentFields.FromRecord(collection, row, sections(row))));
             }
         }
@@ -381,5 +385,6 @@ public sealed class BuildContentStore(ContentDbContext db)
         int SortOrder,
         DateTime? PublishedAt,
         DateTime UpdatedAt,
+        string Status,
         DraftDocument Document);
 }

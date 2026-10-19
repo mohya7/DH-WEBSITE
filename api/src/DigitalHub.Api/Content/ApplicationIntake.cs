@@ -1,0 +1,228 @@
+using System.Net.Mail;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.RegularExpressions;
+using DigitalHub.Api.Data;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
+
+namespace DigitalHub.Api.Content;
+
+public sealed class ApplicationIntake(ContentDbContext db, IEmailSender email, ApplyThrottle throttle)
+{
+    public const string Accepted = "accepted";
+    public const string Rejected = "The form could not be accepted.";
+    public const string CvRejected = "The CV could not be accepted. Send a PDF or Word document up to 5 MB.";
+
+    private static readonly Regex EmailPattern = new(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private static readonly TimeSpan DedupeFor = TimeSpan.FromMinutes(2);
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, long> Seen = new();
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, SemaphoreSlim> Gates = new();
+
+    public async Task<IResult> SubmitAsync(HttpRequest request, string remoteIp, CancellationToken cancellationToken)
+    {
+        if (!request.HasFormContentType)
+            return Problem(StatusCodes.Status400BadRequest, "invalid_form", Rejected);
+
+        var form = await request.ReadFormAsync(cancellationToken);
+        if (Duplicate(form))
+            return Problem(StatusCodes.Status400BadRequest, "invalid_form", Rejected);
+
+        if (!string.IsNullOrWhiteSpace(form["website"]))
+            return Page(StatusCodes.Status201Created, "accepted", "Your application has been sent.");
+
+        var name = form["name"].ToString().Trim();
+        var emailAddress = form["email"].ToString().Trim();
+        var phone = form["phone"].ToString().Trim();
+        var message = form["message"].ToString().Trim();
+        var consent = form["consent"].ToString().Trim();
+        var vacancyText = form["vacancyId"].ToString().Trim();
+        var file = form.Files.GetFile("cv");
+
+        if (!ValidText(name, 200) || !ValidEmail(emailAddress) || !ValidPhone(phone) || message.Length > 1000
+            || consent is not ("yes" or "true" or "on") || file is null)
+            return Problem(StatusCodes.Status400BadRequest, "invalid_form", Rejected);
+
+        Guid? vacancyId = null;
+        string vacancyTitle = "General application";
+        if (vacancyText.Length > 0)
+        {
+            if (!Guid.TryParse(vacancyText, out var parsed))
+                return Problem(StatusCodes.Status400BadRequest, "closed", "This position is no longer open.");
+            var vacancy = await db.Vacancies.AsNoTracking().FirstOrDefaultAsync(item => item.Id == parsed, cancellationToken);
+            if (vacancy is null || vacancy.Status != ContentStatus.Published)
+                return Problem(StatusCodes.Status400BadRequest, "closed", "This position is no longer open.");
+            vacancyId = vacancy.Id;
+            vacancyTitle = vacancy.Title.Replace("\r", " ").Replace("\n", " ");
+        }
+
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (extension is not (".pdf" or ".doc" or ".docx"))
+            return Problem(StatusCodes.Status400BadRequest, "invalid_cv", CvRejected);
+
+        byte[] bytes;
+        await using (var source = file.OpenReadStream())
+        {
+            using var buffer = new MemoryStream();
+            var rented = System.Buffers.ArrayPool<byte>.Shared.Rent(81920);
+            try
+            {
+                int read;
+                while ((read = await source.ReadAsync(rented, cancellationToken)) > 0)
+                {
+                    if (buffer.Length + read > CvFile.MaxBytes)
+                        return Problem(StatusCodes.Status413PayloadTooLarge, "too_large", CvRejected);
+                    buffer.Write(rented, 0, read);
+                }
+            }
+            finally
+            {
+                System.Buffers.ArrayPool<byte>.Shared.Return(rented);
+            }
+
+            bytes = buffer.ToArray();
+        }
+
+        if (bytes.Length == 0 || !CvFile.Matches(extension, bytes))
+            return Problem(StatusCodes.Status400BadRequest, "invalid_cv", CvRejected);
+
+        var emailKey = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(emailAddress.ToLowerInvariant())));
+        if (!throttle.Allow(remoteIp, emailKey))
+            return Problem(StatusCodes.Status429TooManyRequests, "rate_limited", "Too many applications from this address. Try again later.");
+
+        var careers = await CareersAddressAsync(cancellationToken);
+        if (careers is null)
+            return Problem(StatusCodes.Status503ServiceUnavailable, "not_accepting", "Applications are not being accepted just now.");
+
+        var dedupe = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\n', emailKey, vacancyId?.ToString("D") ?? "", name, phone, message, Convert.ToHexString(SHA256.HashData(bytes))))));
+        var gate = Gates.GetOrAdd(dedupe, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(cancellationToken);
+        try
+        {
+            if (RecentlySeen(dedupe))
+                return Page(StatusCodes.Status201Created, "accepted", "Your application has been sent.");
+
+            var attachmentName = CvFile.SafeFileName(file.FileName, extension);
+            var body = new StringBuilder()
+                .Append("Name: ").Append(name).Append('\n')
+                .Append("Email: ").Append(emailAddress).Append('\n')
+                .Append("Phone: ").Append(phone).Append('\n')
+                .Append("Position: ").Append(vacancyTitle).Append('\n')
+                .Append('\n')
+                .Append(message)
+                .ToString();
+
+            try
+            {
+                await email.SendAsync(
+                    new EmailMessage(careers, "Application: " + vacancyTitle, body, emailAddress, new EmailAttachment(attachmentName, CvFile.ContentType(extension), bytes)),
+                    cancellationToken);
+            }
+            catch (EmailDeliveryException)
+            {
+                return Problem(StatusCodes.Status503ServiceUnavailable, "email_failed", "We could not send your application. Please email us directly at " + careers + ".");
+            }
+
+            await IncrementAsync(vacancyId, DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
+            Seen[dedupe] = Environment.TickCount64;
+            return Page(StatusCodes.Status201Created, "accepted", "Your application has been sent.");
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private static bool Duplicate(IFormCollection form)
+    {
+        foreach (var key in new[] { "name", "email", "phone", "message", "consent", "website", "vacancyId" })
+        {
+            if (form[key].Count > 1)
+                return true;
+        }
+
+        return form.Files.Count(file => file.Name == "cv") > 1;
+    }
+
+    private static bool ValidText(string value, int max) =>
+        value.Length is > 0 and var length && length <= max && value.IndexOfAny(['\r', '\n']) < 0;
+
+    private static bool ValidEmail(string value)
+    {
+        if (value.Length is 0 or > 200 || value.IndexOfAny(['\r', '\n']) >= 0 || !EmailPattern.IsMatch(value))
+            return false;
+        try
+        {
+            return new MailAddress(value).Address == value;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+    }
+
+    private static bool ValidPhone(string value) =>
+        value.Length <= 40 && value.IndexOfAny(['\r', '\n']) < 0 && value.All(character => char.IsDigit(character) || character is ' ' or '+' or '-' or '(' or ')');
+
+    private async Task<string?> CareersAddressAsync(CancellationToken cancellationToken)
+    {
+        var settings = await db.SiteSettings.AsNoTracking().OrderBy(item => item.Id).FirstOrDefaultAsync(cancellationToken);
+        var address = settings?.CareersEmail?.Trim();
+        if (string.IsNullOrEmpty(address))
+            address = settings?.Email?.Trim();
+        return string.IsNullOrEmpty(address) ? null : address;
+    }
+
+    private static bool RecentlySeen(string key)
+    {
+        if (!Seen.TryGetValue(key, out var at))
+            return false;
+        if (Environment.TickCount64 - at < DedupeFor.TotalMilliseconds)
+            return true;
+        Seen.TryRemove(key, out _);
+        return false;
+    }
+
+    private async Task IncrementAsync(Guid? vacancyId, DateOnly day, CancellationToken cancellationToken)
+    {
+        var vacancy = new SqlParameter("@vacancy", (object?)vacancyId ?? DBNull.Value) { SqlDbType = System.Data.SqlDbType.UniqueIdentifier };
+        var applied = new SqlParameter("@day", day.ToDateTime(TimeOnly.MinValue)) { SqlDbType = System.Data.SqlDbType.Date };
+        var id = new SqlParameter("@id", Guid.NewGuid());
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            try
+            {
+                await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, cancellationToken);
+                await db.Database.ExecuteSqlRawAsync(
+                    """
+                    MERGE application_counts WITH (HOLDLOCK) AS target
+                    USING (SELECT @vacancy AS vacancy_id, @day AS applied_on) AS source
+                    ON target.applied_on = source.applied_on
+                     AND ((target.vacancy_id = source.vacancy_id) OR (target.vacancy_id IS NULL AND source.vacancy_id IS NULL))
+                    WHEN MATCHED THEN UPDATE SET [count] = target.[count] + 1
+                    WHEN NOT MATCHED THEN INSERT (id, vacancy_id, applied_on, [count]) VALUES (@id, source.vacancy_id, source.applied_on, 1);
+                    """,
+                    [vacancy, applied, id],
+                    cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                return;
+            }
+            catch (DbUpdateException) when (attempt == 0)
+            {
+                id.Value = Guid.NewGuid();
+            }
+        }
+    }
+
+    private static IResult Problem(int status, string code, string title) => Page(status, code, title);
+
+    private static IResult Page(int status, string code, string message)
+    {
+        var html = "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Application</title></head><body data-code=\""
+            + code + "\"><p>"
+            + System.Net.WebUtility.HtmlEncode(message)
+            + "</p><p><a href=\"/careers\">Back to careers</a></p></body></html>";
+        return Results.Content(html, "text/html; charset=utf-8", statusCode: status);
+    }
+}

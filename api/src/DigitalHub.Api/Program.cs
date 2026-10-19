@@ -69,6 +69,9 @@ builder.Services.AddScoped<ContentStore>();
 builder.Services.AddScoped<MediaLibrary>();
 builder.Services.AddScoped<AdminStore>();
 builder.Services.AddScoped<PublicContactStore>();
+builder.Services.AddScoped<ApplicationIntake>();
+builder.Services.AddSingleton<ApplyThrottle>();
+builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
 builder.Services.AddScoped<BuildContentStore>();
 builder.Services.AddSingleton<BuildToken>();
 builder.Services.AddHostedService<IdentitySeeder>();
@@ -232,7 +235,7 @@ builder.Services.AddAuthorization(options =>
         .RequireRole(Roles.All)
         .Build();
 
-    foreach (var role in new[] { "admin", "editor", "hr", "marketing", "interviewer" })
+    foreach (var role in new[] { Roles.Admin, Roles.Editor, Roles.Hr })
     {
         options.AddPolicy(role, policy => policy.RequireRole(role));
     }

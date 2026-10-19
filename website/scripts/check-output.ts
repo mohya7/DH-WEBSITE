@@ -72,6 +72,7 @@ export function htmlFileFor(route: string): string {
 }
 
 const errorFiles = ["404.html", "500.html"];
+const staticFiles = ["privacy-careers.html"];
 
 /** A URL served by this site: no scheme and not protocol-relative. */
 function isOwnUrl(url: string): boolean {
@@ -122,7 +123,7 @@ export function checkOutput(outDir: string, manifest: Manifest, options: { desig
   }
   for (const file of files.filter((name) => name.endsWith(".html"))) {
     if (file === "_not-found.html" || file.startsWith("_not-found/")) continue;
-    if (!expected.has(file) && !errorFiles.includes(file)) problems.push(`${file} is not a route of the published content.`);
+    if (!expected.has(file) && !errorFiles.includes(file) && !staticFiles.includes(file)) problems.push(`${file} is not a route of the published content.`);
   }
 
   // No trace of Next's client runtime: the site ships static HTML plus the ported scripts.

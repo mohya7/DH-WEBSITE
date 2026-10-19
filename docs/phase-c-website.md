@@ -565,3 +565,12 @@ API instance it starts, so the real one is not needed to refresh the snapshot.
 
 When no token is configured the endpoint refuses every caller, so it cannot be
 left open by leaving the setting out.
+
+## Careers intake
+
+A vacancy page and `/careers/apply` post a CV to `POST /api/v1/public/apply`.
+The API emails it to the careers address in site settings and stores only a
+count. Ended vacancies stay at their URL with a closed notice and no form, drop
+out of the careers list, and drop their `JobPosting` block. The sitemap still
+lists the URL. SMTP settings, the production migration, and the removed
+`marketing` and `interviewer` roles are in `docs/security-deployment.md`.

@@ -189,6 +189,24 @@ public static class ContentModelBuilder
                 .OnDelete(DeleteBehavior.NoAction);
             Snake(entity);
         });
+
+        builder.Entity<ApplicationCount>(entity =>
+        {
+            entity.ToTable("application_counts");
+            entity.HasKey(row => row.Id);
+            entity.Property(row => row.AppliedOn).HasColumnType("date");
+            entity.HasOne(row => row.Vacancy)
+                .WithMany()
+                .HasForeignKey(row => row.VacancyId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(row => new { row.VacancyId, row.AppliedOn })
+                .IsUnique()
+                .HasFilter("[vacancy_id] IS NOT NULL");
+            entity.HasIndex(row => row.AppliedOn)
+                .IsUnique()
+                .HasFilter("[vacancy_id] IS NULL");
+            Snake(entity);
+        });
     }
 
     private static void ConfigureRecord<T>(ModelBuilder builder, string table)

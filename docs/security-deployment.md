@@ -61,3 +61,31 @@ on every Studio response:
 - **The dev team:** if the Studio is served by something other than IIS (for
   example CloudFront in front of S3), set the same headers and the same routing
   there. HSTS is set where TLS ends, as for the API.
+
+## Careers applications
+
+An application is an email to the careers mailbox. The database keeps a count
+(`application_counts`: vacancy, UTC date, count) and nothing about the person
+or the CV. Deleting a vacancy removes its counts. Ending one does not. There is no candidate table.
+
+Production SMTP is required or the form tells the person to email the careers
+address directly and does not count the attempt. Set these outside the repo
+(environment or user-secrets), never in a committed file:
+
+- `Email__Host`, `Email__Port` (587), `Email__From`, `Email__User`, `Email__Password`
+- An empty host is a local run. The API logs `email not sent (local)` and does
+  not log the message.
+
+The migration `20261019104256_AddApplicationCounts` creates that table and deletes the unused
+`marketing` and `interviewer` roles, including any user assignments to them.
+Those users are left with no role and cannot sign in to the Studio until an
+admin assigns `admin`, `editor`, or `hr`. The application does not migrate at
+startup. On the production catalog the elevated account applies this migration
+before the new API starts. Do not run it against a catalog from a test.
+
+The audit-log DENY above still applies. Applications do not write an audit row,
+because an audit row would have to name the person.
+
+`hr` can sign in, change their own password, read application counts, and end a
+published vacancy. `admin` creates HR users the same way as any other user.
+Counts are not visible to `admin` or `editor`.

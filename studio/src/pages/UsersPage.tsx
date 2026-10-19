@@ -20,7 +20,7 @@ export function UsersPage() {
   const [tempPassword, setTempPassword] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"admin" | "editor">("editor");
+  const [role, setRole] = useState<"admin" | "editor" | "hr">("editor");
   const [password, setPassword] = useState("");
 
   useEffect(() => {
@@ -109,7 +109,7 @@ export function UsersPage() {
         <Form layout="vertical">
           <Form.Item label="Email" required><Input value={email} onChange={(event) => setEmail(event.target.value)} /></Form.Item>
           <Form.Item label="Role" required>
-            <Select value={role} onChange={setRole} options={[{ value: "editor" }, { value: "admin" }]} />
+            <Select value={role} onChange={setRole} options={[{ value: "editor" }, { value: "admin" }, { value: "hr", label: "HR" }]} />
           </Form.Item>
           <Form.Item label="Password (min 12)" required>
             <Input.Password value={password} onChange={(event) => setPassword(event.target.value)} />

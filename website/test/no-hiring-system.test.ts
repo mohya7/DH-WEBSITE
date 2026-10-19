@@ -1,14 +1,23 @@
+/**
+ * The website, Studio, and Content API launch with no hiring system.
+ * An application is an email plus a count. These strings are a candidate
+ * store, a CV store, a pipeline, or the old careers API. The apply endpoint,
+ * the application_counts table, and the hr role are allowed and are not needles.
+ */
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-/**
- * The website, Studio, and Content API launch with no connection to the old
- * hiring system. These three strings are that connection. The allow-list is
- * the one-off importer and the tools that read the old site for comparison.
- */
-const needles = ['CAREERS_APPLICATION_ENDPOINT', '/api/careers', '/api/booking'];
+const needles = [
+  'CAREERS_APPLICATION_ENDPOINT',
+  '/api/careers',
+  '/api/booking',
+  'class Candidate',
+  'DbSet<Candidate',
+  'cv_blob',
+  'InterviewPipeline',
+];
 
 /** Paths relative to the repo root. A prefix match keeps the whole tree. */
 const allow = [
@@ -28,7 +37,7 @@ function trackedFiles(): string[] {
 }
 
 describe('no hiring system', () => {
-  it('keeps the careers endpoint, /api/careers, and /api/booking out of the product and CI', () => {
+  it('keeps a candidate store, CV storage, and the old careers API out of the product', () => {
     const hits: string[] = [];
     for (const rel of trackedFiles()) {
       const normalized = rel.replaceAll('\\', '/');
@@ -41,5 +50,16 @@ describe('no hiring system', () => {
       }
     }
     expect(hits).toEqual([]);
+  });
+
+  it('still has the apply endpoint, the counter table, and the hr role', () => {
+    const apply = readFileSync(path.join(repo, 'api/src/DigitalHub.Api/Controllers/PublicApplyController.cs'), 'utf8');
+    const counts = readFileSync(path.join(repo, 'api/src/DigitalHub.Api/Data/ContentModelBuilder.cs'), 'utf8');
+    const roles = readFileSync(path.join(repo, 'api/src/DigitalHub.Api/Identity/Roles.cs'), 'utf8');
+    expect(apply).toContain('api/v1/public/apply');
+    expect(counts).toContain('application_counts');
+    expect(roles).toContain('hr');
+    expect(roles).not.toContain('marketing');
+    expect(roles).not.toContain('interviewer');
   });
 });

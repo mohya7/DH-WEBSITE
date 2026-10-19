@@ -1,6 +1,7 @@
 import { Button, Input, Segmented, Typography } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useAuth } from "../auth/AuthProvider";
 import { jsonInit, request } from "../api/http";
 import { publicPath, routeFor, websiteOrigin, type CollectionName } from "../content/model";
 import { PageHeader } from "../ui/PageHeader";
@@ -47,6 +48,8 @@ type ItemBody = {
 export function CollectionListPage({ collection }: { collection: CollectionName }) {
   const route = routeFor(collection);
   const navigate = useNavigate();
+  const auth = useAuth();
+  const hr = auth.user?.role === "hr";
   const [params] = useSearchParams();
   const [search, setSearch] = useState(params.get("q") ?? "");
   /* null means "show every status"; undefined means "caller did not pass one".
@@ -57,7 +60,7 @@ export function CollectionListPage({ collection }: { collection: CollectionName 
   const [layout, setLayout] = useState<"grid" | "list">("grid");
   const [page, setPage] = useState<ListPage>({ items: [], total: 0 });
   const [message, setMessage] = useState<string | null>(null);
-  const canReorder = route.ordered && search.trim().length === 0 && status === null && page.total === page.items.length;
+  const canReorder = !hr && route.ordered && search.trim().length === 0 && status === null && page.total === page.items.length;
 
   const counts = useMemo(() => ({
     all: page.total,
@@ -163,7 +166,7 @@ export function CollectionListPage({ collection }: { collection: CollectionName 
       <PageHeader
         title={route.label}
         subtitle={route.description}
-        extra={<Button type="primary" onClick={() => void createItem()}>Add {route.singular}</Button>}
+        extra={hr ? null : <Button type="primary" onClick={() => void createItem()}>Add {route.singular}</Button>}
       />
       <div className="content-toolbar">
         <Segmented
@@ -238,10 +241,10 @@ export function CollectionListPage({ collection }: { collection: CollectionName 
                 ) : null}
               </div>
               <footer className="content-card__foot">
-                <button type="button" className="edit-btn" onClick={() => navigate(`/${route.path}/${item.id}`)}>Edit</button>
-                <button type="button" className="card-action is-labelled" title="Duplicate as a new draft" onClick={() => void duplicateItem(item)}>
+                <button type="button" className="edit-btn" onClick={() => navigate(`/${route.path}/${item.id}`)}>{hr ? "Open" : "Edit"}</button>
+                {hr ? null : <button type="button" className="card-action is-labelled" title="Duplicate as a new draft" onClick={() => void duplicateItem(item)}>
                   Duplicate
-                </button>
+                </button>}
                 {preview !== null ? (
                   <a className="card-action is-labelled" href={`${websiteOrigin}${preview}`} target="_blank" rel="noopener" title="Open the live page">
                     Preview

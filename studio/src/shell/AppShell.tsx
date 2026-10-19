@@ -30,6 +30,14 @@ export function AppShell() {
     let cancelled = false;
     async function loadCounts() {
       const next: Record<string, number> = {};
+      if (user !== null && user.role === "hr") {
+        const vacancies = await request("/api/v1/vacancies?pageSize=1");
+        if (!cancelled && vacancies.ok && vacancies.body !== null) {
+          next["/vacancies"] = (vacancies.body as { total: number }).total;
+        }
+        if (!cancelled) setCounts(next);
+        return;
+      }
       const contact = await request("/api/v1/contact-requests/new-count");
       if (!cancelled && contact.ok && contact.body !== null) {
         next["/contact"] = (contact.body as { count: number }).count;
@@ -110,7 +118,8 @@ export function AppShell() {
   async function runGlobalSearch() {
     const query = search.trim();
     if (query.length === 0) return;
-    for (const route of collectionRoutes) {
+    const routes = user !== null && user.role === "hr" ? collectionRoutes.filter((route) => route.collection === "vacancies") : collectionRoutes;
+    for (const route of routes) {
       const result = await request(`/api/v1/${route.collection}?pageSize=1&search=${encodeURIComponent(query)}`);
       if (result.ok && result.body !== null && (result.body as { total: number }).total > 0) {
         navigate(`/${route.path}?q=${encodeURIComponent(query)}`);
@@ -187,7 +196,7 @@ export function AppShell() {
                 <span className="studio-user-avatar">{initials}</span>
                 <span>
                   <strong>{user.email}</strong>
-                  <small>{user.role === "admin" ? "Administrator" : "Editor"}</small>
+                  <small>{user.role === "admin" ? "Administrator" : user.role === "hr" ? "HR" : "Editor"}</small>
                 </span>
               </button>
               {menuOpen ? (

@@ -52,6 +52,8 @@ public class ApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Auth:ChangePasswordFailurePermitLimit", ChangePasswordFailurePermitLimit.ToString());
         builder.UseSetting("Build:Token", BuildTokenValue);
         builder.UseSetting("Build:PermitLimit", "1000");
+        builder.UseSetting("Apply:IpPermitLimit", "1000");
+        builder.UseSetting("Apply:EmailPermitLimit", "1000");
         builder.ConfigureTestServices(services =>
         {
             services.AddSingleton<NoteStore>();
