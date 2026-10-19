@@ -7,6 +7,7 @@ public sealed class CollectionSchemaSet
 {
     private readonly Dictionary<string, JsonSchema> _byCollection;
     private readonly Dictionary<string, JsonElement> _documents;
+    private readonly Dictionary<string, List<string[]>> _urlPathsByCollection = new(StringComparer.Ordinal);
     private readonly EvaluationOptions _options;
 
     public CollectionSchemaSet()
@@ -26,6 +27,10 @@ public sealed class CollectionSchemaSet
             _byCollection[name] = JsonSchema.FromFile(file, build);
             using var document = JsonDocument.Parse(File.ReadAllText(file));
             _documents[name] = document.RootElement.Clone();
+            var urlPaths = new List<string[]>();
+            SchemaLinks.FindUrls(document.RootElement, [], new Dictionary<string, JsonElement>(StringComparer.Ordinal), urlPaths, depth: 0);
+            if (urlPaths.Count > 0)
+                _urlPathsByCollection[name] = urlPaths;
         }
 
         _options = new EvaluationOptions { OutputFormat = OutputFormat.List };
@@ -44,6 +49,31 @@ public sealed class CollectionSchemaSet
         }, ContentJson.Options);
     }
 
+    /// <summary>
+    /// Where a collection's fields hold a link address (x-dh-kind "url"), read
+    /// from its schema, so a new link field is checked by being declared one.
+    /// </summary>
+    public IReadOnlyList<string[]> UrlPaths(string collection) =>
+        _urlPathsByCollection.TryGetValue(collection, out var paths) ? paths : [];
+
+    /// <summary>
+    /// Link values SectionLinks refuses (finding O1). An empty value is no link,
+    /// which these optional fields allow; a section's link, which is required,
+    /// is checked by SectionSchemaSet instead.
+    /// </summary>
+    private IEnumerable<string> LinkProblems(string collection, JsonElement fields)
+    {
+        foreach (var path in UrlPaths(collection))
+        {
+            foreach (var (location, value) in SchemaLinks.Values(fields, path, 0, ""))
+            {
+                if (value.ValueKind == JsonValueKind.String && value.GetString() is { } href
+                    && !string.IsNullOrWhiteSpace(href) && !SectionLinks.IsAllowed(href))
+                    yield return location + ": " + SectionLinks.Message;
+            }
+        }
+    }
+
     public IReadOnlyList<string> Validate(string collection, string fieldsJson)
     {
         if (!_byCollection.TryGetValue(collection, out var schema))
@@ -52,7 +82,7 @@ public sealed class CollectionSchemaSet
         using var document = JsonDocument.Parse(fieldsJson);
         var result = schema.Evaluate(document.RootElement, _options);
         if (result.IsValid)
-            return [];
+            return [.. LinkProblems(collection, document.RootElement)];
 
         var errors = new List<string>();
         Collect(result, errors);
