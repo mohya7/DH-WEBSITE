@@ -60,6 +60,37 @@ public sealed class SettingsVersionTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task A_save_at_the_maximum_version_is_refused_and_does_not_wrap()
+    {
+        // P3 c: the check saw version Int32.MaxValue save and wrap to -2147483648.
+        var admin = await AdminAsync();
+        await SaveAsync(admin, (await ReadAsync(admin)).Version, "at-max@digitalhub.test");
+        await SetVersionAsync(int.MaxValue);
+
+        var save = await PutAsync(admin, new { version = int.MaxValue, email = "past-max@digitalhub.test" });
+        Assert.Equal(HttpStatusCode.Conflict, save.Status);
+        var problem = JsonDocument.Parse(save.Body).RootElement;
+        Assert.Equal("version_exhausted", problem.GetProperty("code").GetString());
+        Assert.Contains("maximum", problem.GetProperty("title").GetString(), StringComparison.Ordinal);
+
+        var after = await ReadAsync(admin);
+        Assert.Equal(int.MaxValue, after.Version);
+        Assert.Equal("at-max@digitalhub.test", after.Email);
+
+        // One below the maximum still saves, to exactly the maximum.
+        await SetVersionAsync(int.MaxValue - 1);
+        Assert.Equal(int.MaxValue, (await SaveAsync(admin, int.MaxValue - 1, "last@digitalhub.test")).Version);
+        await SetVersionAsync(1);
+    }
+
+    private async Task SetVersionAsync(int version)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ContentDbContext>();
+        await db.SiteSettings.ExecuteUpdateAsync(setters => setters.SetProperty(settings => settings.Version, version));
+    }
+
+    [Fact]
     public async Task The_first_save_names_version_0_and_anything_else_conflicts()
     {
         var admin = await AdminAsync();
