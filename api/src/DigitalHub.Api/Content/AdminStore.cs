@@ -207,6 +207,13 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         if ((settings?.Version ?? 0) != request.Version)
             return SettingsConflict();
 
+        // The version cannot go past Int32.MaxValue. Wrapping to a negative number,
+        // or staying at the maximum, would stop the check above from seeing a stale
+        // save, so the save is refused instead (P3 c).
+        if (settings is not null && settings.Version == int.MaxValue)
+            return ContentOutcome.Fail(StatusCodes.Status409Conflict, "version_exhausted",
+                "The settings cannot be saved again: their version is at its maximum. A developer must reset it.");
+
         // The first save is what creates the row.
         if (settings is null)
         {
