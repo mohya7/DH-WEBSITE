@@ -369,7 +369,7 @@ jobs:
         working-directory: website
         run: |
           npx vitest run test/screenshot-parity-browser.test.ts --reporter=default --reporter=json --outputFile.json="${RUNNER_TEMP}/screenshot-browser.json"
-          node --input-type=module -e "import fs from 'node:fs'; const report = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/screenshot-browser.json', 'utf8')); const rows = (report.testResults ?? []).flatMap((file) => file.assertionResults ?? []); const passed = rows.filter((row) => row.status === 'passed'); const unexpected = rows.filter((row) => row.status !== 'passed' && !String(row.title).includes('needs Playwright')); console.log('chromium regressions: passed ' + passed.length + ', other than the no-browser placeholder ' + unexpected.length); for (const row of unexpected) console.log(row.status + ' ' + row.title); if (passed.length < 23 || unexpected.length !== 0) process.exit(1);"
+          node tools/check-browser-test-report.mjs "${RUNNER_TEMP}/screenshot-browser.json" 30
 
       - name: Compare screenshots
         continue-on-error: true
