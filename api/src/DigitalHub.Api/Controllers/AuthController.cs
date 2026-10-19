@@ -40,7 +40,7 @@ public sealed class AuthController(UserManager<ApplicationUser> users, TokenServ
         {
             // Hash the password anyway, so an unknown email costs what a wrong
             // password costs and timing does not reveal which emails exist (L1).
-            users.PasswordHasher.VerifyHashedPassword(new ApplicationUser(), DummyHash(), request.Password ?? "");
+            users.PasswordHasher.VerifyHashedPassword(new ApplicationUser(), DummyHash(), request.Password);
         }
 
         if (user is null || !await users.CheckPasswordAsync(user, request.Password))
