@@ -142,6 +142,25 @@ public sealed class CommonPasswordTests : IClassFixture<ApiFactory>
         }
     }
 
+    [Fact]
+    public void The_initial_admin_is_not_created_with_a_common_password()
+    {
+        using var factory = new CommonAdminFactory();
+        var failure = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
+        Assert.Contains(CommonPasswordValidator.ErrorCode, failure.ToString(), StringComparison.Ordinal);
+    }
+
+    /// <summary>A host whose first admin, not yet in the database, has a common password.</summary>
+    private sealed class CommonAdminFactory : ApiFactory
+    {
+        protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
+        {
+            base.ConfigureWebHost(builder);
+            builder.UseSetting("Auth:InitialAdminEmail", $"seed-{Guid.NewGuid():N}"[..20] + "@example.test");
+            builder.UseSetting("Auth:InitialAdminPassword", "Password123!");
+        }
+    }
+
     private async Task<IdentityResult> ValidateAsync(string password, string email)
     {
         await using var scope = _factory.Services.CreateAsyncScope();
