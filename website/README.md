@@ -212,3 +212,89 @@ separately. Absent draft pages have no chrome. `npm run compare:sections` writes
 `artifacts/section-comparison.json` and exits nonzero for an unregistered
 difference or a changed denominator. Part B's publication-date issue remains a
 failure until the content-model change is approved; it is not an accepted difference.
+
+The page pairs live in `tools/page-pairs.mjs`, the one list both comparisons use.
+The section comparison loads it from its server at `/page-pairs.mjs`.
+
+## Screenshot comparison — `tools/screenshot-parity`
+
+Photographs every page pair, full page, at 1440, 768, and 390 px, in each chosen
+browser, and compares the pixels of the old page and the built page.
+
+```powershell
+$env:SCREENSHOT_BROWSERS = 'chromium,firefox'   # default: chromium,firefox,webkit
+$env:SCREENSHOT_PORT = '4298'                   # the old site; default 4390
+$env:SCREENSHOT_CANDIDATE_PORT = '4299'         # the built site; default 4391
+npm run compare:screenshots
+```
+
+| Variable | Meaning |
+|---|---|
+| `SCREENSHOT_BROWSERS` | Comma list of `chromium`, `firefox`, `webkit`. A browser that is asked for and cannot launch stops the run before any page is served; one that is not asked for is never launched. WebKit cannot run on the Windows development machines (Application Control). |
+| `SCREENSHOT_PORT`, `SCREENSHOT_CANDIDATE_PORT` | Any two different ports from 1024 to 65535. Use your own range (Codex 41xx, Claude Code 42xx, Cursor 43xx). |
+| `SCREENSHOT_OLD_ROOT`, `SCREENSHOT_NEW_ROOT` | The old site (default the local `DH-WEBSITE-main` checkout, only read) and the build (default `out/`). |
+| `SCREENSHOT_OUT` | Where `report.html`, `results.json`, and the failing captures go (default `tools/screenshot-parity/output/`). |
+
+How a capture is judged:
+
+- **Settling.** Reduced motion; the page is scrolled once to the bottom and back;
+  reveal targets and counters get their final state; every image is loaded and
+  decoded; fonts are ready; then the page is captured until two consecutive
+  captures are identical (at most 8 captures per load), and the whole load is
+  repeated until two consecutive loads give the same picture (at most 4 loads,
+  the first also a warm-up). A page that never gives two identical
+  captures is `unstable`, which fails.
+- **Zero tolerance.** Every changed pixel counts: pixelmatch threshold 0 with
+  anti-aliased pixels included (`threshold.json`).
+- **Images.** The media pipeline re-encodes images as WebP, so image pixels are
+  replaced by one flat colour on both sides before the diff (marketing lead
+  decision). Each `img` and `url()` background is compared by its box (position
+  and size, within 0.5 px) and its intrinsic aspect ratio (within 1%): a moved,
+  resized, reshaped, or missing image fails. Each image is also scaled to 32×32 on
+  both sides and scored (1 is identical); the ten least similar are listed in the
+  report without failing, so a wrong picture still gets seen.
+- **Masks.** `masks.json` hides the two home hero canvases, which redraw every frame.
+- **Register.** `accepted-differences.json` entries are scoped: each names the page
+  pairs, widths, browsers, and one or more selectors, which are hidden on both
+  sides for those captures only. Everything else on the page is still compared.
+  An entry whose selectors hide nothing on either side is an error, so a stale
+  entry cannot linger. A whole capture cannot be accepted.
+
+  **The guarantee is measured, not predicted.** On the load that was captured, the
+  register's nodes (the same ones, never a new query) are shown again and the
+  page is captured until two captures agree. The pixels that differ from the
+  masked capture are exactly what the register removed on that side, whatever
+  painted them. Each entry is measured on its own when several apply and the
+  total is over 8%. The capture is an error if:
+  - the register removes more than 15% of the page's pixels on either side;
+  - one entry removes more than 8%;
+  - the page never settles with the register shown;
+  - hiding changes the page size.
+
+  The measured shares are in each capture's notes.
+
+  Cheap geometry checks run first, as a second line: an element that is `html`,
+  `body`, a landmark or holds one; one with no box of its own
+  (`display: contents` or `none`, unless empty); more than 6 descendant
+  elements; painting wider than 800 px or taller than 120 px, or over 2% of the
+  page; more than 12 matches. The register holds at most 10 entries (constants in
+  `diff.mjs`). Agents only propose
+  entries; Ali (marketing lead) approves each one before it is added. The
+  approved entries:
+  - `footer-company-column-links`: hides the footer Company column's link texts on
+    every page; the column and its heading are still compared. Approved by Ali.
+  - `footer-main-email`: hides the footer email link on every page except careers,
+    apply, and the articles. Approved by Ali.
+  - `footer-copyright-build-year`: hides the footer copyright line (the build
+    year) on every page. Approved by Ali.
+  - `article-footer-service-labels`: hides the footer Services column's link texts
+    on the three article pages; the column and its heading are still compared.
+    Approved by Ali.
+  - `contact-section-email`: hides the sales email link in the contact page's
+    contact details. Approved by Ali.
+- **Absent pages.** A pair whose built page answers 404 is `absent-accepted` when
+  the section register lists its old path as `absent-page`; otherwise it is an error.
+
+`node tools/screenshot-parity/proof.mjs` proves the comparison on the old site
+alone: old against old, one colour changed in a copy of a stylesheet, and a
+masked canvas painted on one side.

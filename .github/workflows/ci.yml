@@ -12,6 +12,8 @@ name: CI
 
 on:
   pull_request:
+    # labeled: adding the "screenshots" label runs the optional screenshot job (and, with it, the rest of CI).
+    types: [opened, synchronize, reopened, labeled]
   push:
     branches: [rebuild/dotnet-platform]
 
@@ -133,15 +135,6 @@ jobs:
           cache-dependency-path: website/package-lock.json
 
       - run: npm ci
-
-      - name: Install Playwright's WebKit
-        # Screenshot parity is not a job on this branch. When
-        # phase-c/screenshot-parity merges, add the job described at the bottom
-        # of this file. It installs Chromium, Firefox, and WebKit, then runs
-        # `npm run compare:screenshots`. WebKit is installed here so GitHub's
-        # runner is known to be able to install it. The local machine cannot
-        # launch Playwright.exe (Windows Application Control, exit 0xC0E90002).
-        run: npx playwright install --with-deps webkit
 
       - name: Typecheck
         run: npm run typecheck
@@ -336,14 +329,66 @@ jobs:
           path: reports/section-compare
           if-no-files-found: warn
 
-  # Screenshot parity — add this job when phase-c/screenshot-parity merges.
-  # It needs the website job, downloads website-out, and checks out
-  # feature/interviewer-portal read-only, the same way the section comparison
-  # does. In website/ it runs:
-  #   npx playwright install --with-deps chromium firefox webkit
-  #   npm run compare:screenshots
-  # with SCREENSHOT_PORT and SCREENSHOT_CANDIDATE_PORT in 4300–4399.
-  # The job blocks. A pixel that is not listed in
-  # website/tools/screenshot-parity/accepted-differences.json fails it.
-  # WebKit is already installed in the website job above, because the local
-  # machine cannot launch it.
+  screenshot-parity:
+    name: Screenshot parity (optional, label "screenshots")
+    runs-on: ubuntu-latest
+    needs: website
+    # Optional and manual: runs only on a pull request labelled "screenshots".
+    # The comparison does not fail the workflow while the screenshot register waits
+    # for its first approved entries. The Chromium regression tests do fail the job.
+    # Chromium, Firefox, and WebKit; WebKit cannot run on the Windows development
+    # machines (Application Control). See website/README.md.
+    if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'screenshots')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out feature/interviewer-portal (read-only)
+        uses: actions/checkout@v4
+        with:
+          ref: feature/interviewer-portal
+          path: old-site
+          persist-credentials: false
+
+      - name: Download the built site
+        uses: actions/download-artifact@v4
+        with:
+          name: website-out
+          path: website/out
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install the website tool and the three browsers
+        working-directory: website
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium firefox webkit
+
+      - name: Chromium regression tests
+        working-directory: website
+        run: |
+          npx vitest run test/screenshot-parity-browser.test.ts --reporter=default --reporter=json --outputFile.json="${RUNNER_TEMP}/screenshot-browser.json"
+          node tools/check-browser-test-report.mjs "${RUNNER_TEMP}/screenshot-browser.json" 30
+
+      - name: Compare screenshots
+        continue-on-error: true
+        working-directory: website
+        env:
+          SCREENSHOT_OLD_ROOT: ${{ github.workspace }}/old-site
+          SCREENSHOT_NEW_ROOT: ${{ github.workspace }}/website/out
+          SCREENSHOT_BROWSERS: chromium,firefox,webkit
+          SCREENSHOT_PORT: "4392"
+          SCREENSHOT_CANDIDATE_PORT: "4393"
+          SCREENSHOT_OUT: ${{ github.workspace }}/reports/screenshot-parity
+        run: npm run compare:screenshots
+
+      - name: Upload the screenshot report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshot-parity
+          path: reports/screenshot-parity
+          if-no-files-found: warn
