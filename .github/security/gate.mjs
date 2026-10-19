@@ -11,6 +11,17 @@
 //          vulnerabilities array is an empty list (a clean project is `{ path }`)
 //   gitleaks  each finding must carry the five fields below; StartLine is a
 //             positive integer, and the other four are non-empty strings
+//   semgrep   results and errors must be arrays. Each result needs check_id,
+//             path, start.line (a positive integer), and extra.severity
+//             (INFO, WARNING, or ERROR, case-sensitive). extra.lines,
+//             extra.message, and extra.metavars are not read: they can contain
+//             matched source or a secret. An error is a partial parse only when
+//             level is "warn" and type is the tagged array Semgrep 1.180 writes:
+//             ["PartialParsing", locations]. The path is printed and the job
+//             does not fail. Any other type, including Timeout, out of memory,
+//             stack overflow, a fatal error, and a rule parse error, fails.
+//             A missing or malformed type fails. The error message and spans
+//             are not read.
 //
 // An empty file, a blank file, a report of the wrong shape, or an npm audit that
 // could not run fails the job. A missing file and malformed JSON still fail.
@@ -18,12 +29,26 @@
 //   node gate.mjs npm <npm-audit.json> <label>      High and Critical advisories (npm audit --json)
 //   node gate.mjs dotnet <dotnet-list.json>         High and Critical (dotnet list package --vulnerable --format json)
 //   node gate.mjs gitleaks <gitleaks-report.json>   every finding, by fingerprint; values are never printed
+//   node gate.mjs semgrep <semgrep.json>            ERROR fails; a WARNING fails when its rule is listed in
+//                                                   fail-on-rules.json; any other WARNING is printed; INFO does not fail
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const known = JSON.parse(fs.readFileSync(path.join(here, "known-findings.json"), "utf8"));
+const failOnRules = JSON.parse(fs.readFileSync(path.join(here, "fail-on-rules.json"), "utf8"));
+if (!Array.isArray(failOnRules) || failOnRules.some((id) => typeof id !== "string" || id === "")) {
+  throw new Error("fail-on-rules.json must be a list of rule ids");
+}
+
+// Semgrep labels these WARNING. They fail the gate anyway, unless the finding
+// is listed in known-findings.json exactly as an ERROR is.
+export const semgrepFailOnRules = new Set(failOnRules);
+
+export function semgrepCounted(item) {
+  return item.severity === "ERROR" || semgrepFailOnRules.has(item.rule);
+}
 
 // Fields the gate reads. gate.test.mjs mutates each of these, so a field added
 // here without a matching mutation case fails the suite. `optional` is only the
@@ -67,6 +92,23 @@ export const consumedFields = {
     { field: "StartLine", path: [0, "StartLine"], accepts: ["number"], optional: false },
     { field: "Fingerprint", path: [0, "Fingerprint"], accepts: ["string"], optional: false },
     { field: "Commit", path: [0, "Commit"], accepts: ["string"], optional: false },
+  ],
+  semgrep: [
+    { field: "results", path: ["results"], accepts: ["array"], optional: false },
+    { field: "errors", path: ["errors"], accepts: ["array"], optional: false },
+    { field: "error", path: ["errors", 0], accepts: ["object"], optional: true },
+    { field: "level", path: ["errors", 0, "level"], accepts: ["string"], optional: false },
+    { field: "path", path: ["errors", 0, "path"], accepts: ["string"], optional: false },
+    { field: "type", path: ["errors", 0, "type"], accepts: ["array"], optional: false },
+    { field: "type", path: ["errors", 0, "type", 0], accepts: ["string"], optional: false },
+    { field: "type", path: ["errors", 0, "type", 1], accepts: ["array"], optional: false },
+    { field: "result", path: ["results", 0], accepts: ["object"], optional: true },
+    { field: "check_id", path: ["results", 0, "check_id"], accepts: ["string"], optional: false },
+    { field: "path", path: ["results", 0, "path"], accepts: ["string"], optional: false },
+    { field: "start", path: ["results", 0, "start"], accepts: ["object"], optional: false },
+    { field: "line", path: ["results", 0, "start", "line"], accepts: ["number"], optional: false },
+    { field: "extra", path: ["results", 0, "extra"], accepts: ["object"], optional: false },
+    { field: "severity", path: ["results", 0, "extra", "severity"], accepts: ["string"], optional: false },
   ],
 };
 
@@ -198,6 +240,9 @@ function duplicateKey(text) {
 
 const serious = (severity) => ["high", "critical"].includes(String(severity).toLowerCase());
 const npmSeverities = new Set(["info", "low", "moderate", "high", "critical"]);
+// Semgrep JSON uses uppercase INFO, WARNING, and ERROR. Lowercase is a
+// different tool's scale and is rejected.
+const semgrepSeverities = new Set(["INFO", "WARNING", "ERROR"]);
 // The fixtures use both "High" and "moderate", and the level check below
 // already folds case, so Low, Moderate, High, and Critical match either way.
 const nugetSeverities = new Set(["low", "moderate", "high", "critical"]);
@@ -211,14 +256,14 @@ function presentArray(owner, field, labelText) {
   return owner[field];
 }
 
-function finish(found, knownIds, describe) {
+function finish(found, knownIds, describe, staleFrom = found) {
   const fresh = found.filter((item) => !knownIds.has(item.id));
   const old = found.filter((item) => knownIds.has(item.id));
   for (const item of old) console.log(`::warning title=Known finding (${label || kind})::${describe(item)} — see .github/security/known-findings.json`);
   for (const item of fresh) console.log(`::error title=New finding (${label || kind})::${describe(item)}`);
   // A pull request's diff scan never contains the old commits, so known secrets are only "stale" on the full history.
   const checksStale = !(kind === "gitleaks" && label !== "full-history");
-  const stale = checksStale ? [...knownIds].filter((id) => !found.some((item) => item.id === id)) : [];
+  const stale = checksStale ? [...knownIds].filter((id) => !staleFrom.some((item) => item.id === id)) : [];
   console.log(`${label || kind}: ${found.length} finding(s) at the gate's level; ${old.length} known, ${fresh.length} new.${stale.length ? ` Known but no longer found (remove from known-findings.json): ${stale.join(", ")}` : ""}`);
   process.exitCode = fresh.length > 0 ? 1 : 0;
 }
@@ -328,6 +373,49 @@ export function validateGitleaks(report) {
   return found;
 }
 
+function isPartialParse(type) {
+  return Array.isArray(type)
+    && type.length === 2
+    && type[0] === "PartialParsing"
+    && Array.isArray(type[1]);
+}
+
+export function validateSemgrep(report) {
+  if (!isRecord(report)) reject("semgrep report is not an object");
+  if (!Array.isArray(report.results)) reject("semgrep report field results is not an array");
+  if (!Array.isArray(report.errors)) reject("semgrep report field errors is not an array");
+  const found = [];
+  const parseWarnings = [];
+  for (const error of report.errors) {
+    if (!isRecord(error)) reject("semgrep report field error is not an object");
+    if (error.level !== "warn") reject("semgrep report field level is not a parse warning");
+    if (!nonEmpty(error.path)) reject("semgrep report field path is missing");
+    if (!isPartialParse(error.type)) reject("semgrep report field type is not a partial parse");
+    parseWarnings.push(error.path.replaceAll("\\", "/"));
+  }
+  found.parseWarnings = parseWarnings;
+  for (const result of report.results) {
+    if (!isRecord(result)) reject("semgrep report field result is not an object");
+    if (!nonEmpty(result.check_id)) reject("semgrep report field check_id is missing");
+    if (!nonEmpty(result.path)) reject("semgrep report field path is missing");
+    if (!isRecord(result.start)) reject("semgrep report field start is not an object");
+    if (!Number.isInteger(result.start.line) || result.start.line < 1) {
+      reject("semgrep report field line is not a positive integer");
+    }
+    if (!isRecord(result.extra)) reject("semgrep report field extra is not an object");
+    if (!semgrepSeverities.has(result.extra.severity)) reject("semgrep report field severity is not a semgrep severity");
+    const filePath = result.path.replaceAll("\\", "/");
+    found.push({
+      id: `${result.check_id}:${filePath}:${result.start.line}`,
+      rule: result.check_id,
+      file: filePath,
+      line: result.start.line,
+      severity: result.extra.severity,
+    });
+  }
+  return found;
+}
+
 function main() {
   if (kind === "npm") {
     const found = keepSerious(validateNpm(read(file)));
@@ -338,8 +426,21 @@ function main() {
   } else if (kind === "gitleaks") {
     const found = validateGitleaks(read(file));
     finish(found, new Set((known.gitleaks ?? []).map((entry) => entry.fingerprint)), (item) => `${item.rule} in ${item.file}:${item.line} (commit ${item.commit})`);
+  } else if (kind === "semgrep") {
+    const found = validateSemgrep(read(file));
+    if (!Array.isArray(known.semgrep)) reject("known findings field semgrep is missing");
+    const knownIds = new Set(known.semgrep.map((entry) => entry.id));
+    for (const parsePath of found.parseWarnings) console.log(`semgrep parse warning: ${parsePath}`);
+    for (const item of found) {
+      if (item.severity === "WARNING" && !semgrepFailOnRules.has(item.rule)) {
+        const noted = knownIds.has(item.id) ? "known warning" : "warning";
+        console.log(`semgrep ${noted}: ${item.rule} ${item.file}:${item.line}`);
+      }
+    }
+    const counted = found.filter(semgrepCounted);
+    finish(counted, knownIds, (item) => `${item.rule} in ${item.file}:${item.line}`, found);
   } else {
-    console.error("usage: node gate.mjs npm|dotnet|gitleaks <report.json> [label]");
+    console.error("usage: node gate.mjs npm|dotnet|gitleaks|semgrep <report.json> [label]");
     process.exitCode = 2;
   }
 }
