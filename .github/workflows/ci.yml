@@ -88,12 +88,14 @@ jobs:
           --connection "Server=localhost,1433;Database=DigitalHubContent_Test;User ID=sa;Password=$SA_PASSWORD;Encrypt=True;TrustServerCertificate=True"
 
       - name: Grant the restricted login read and write, and nothing else
+        # The audit log is append-only for the application login (finding L6).
         run: |
           docker exec ${{ job.services.mssql.id }} /opt/mssql-tools18/bin/sqlcmd \
             -S localhost -U sa -P "$SA_PASSWORD" -C -b -d DigitalHubContent_Test -Q "
               CREATE USER [$APP_LOGIN] FOR LOGIN [$APP_LOGIN];
               ALTER ROLE db_datareader ADD MEMBER [$APP_LOGIN];
-              ALTER ROLE db_datawriter ADD MEMBER [$APP_LOGIN];"
+              ALTER ROLE db_datawriter ADD MEMBER [$APP_LOGIN];
+              DENY UPDATE, DELETE ON dbo.audit_log TO [$APP_LOGIN];"
 
       - name: Integration tests (Release)
         run: >-

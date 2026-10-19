@@ -166,6 +166,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = N'${appLogin.r
     CREATE USER [${appLogin.replace(/]/g, "]]")}] FOR LOGIN [${appLogin.replace(/]/g, "]]")}];
 ALTER ROLE db_datareader ADD MEMBER [${appLogin.replace(/]/g, "]]")}];
 ALTER ROLE db_datawriter ADD MEMBER [${appLogin.replace(/]/g, "]]")}];
+DENY UPDATE, DELETE ON dbo.audit_log TO [${appLogin.replace(/]/g, "]]")}];
 `);
 
   step("Import content from feature/interviewer-portal");

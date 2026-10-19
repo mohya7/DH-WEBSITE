@@ -23,8 +23,10 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Host.UseSerilog((context, _, configuration) => configuration
+builder.Host.UseSerilog((context, services, configuration) => configuration
     .ReadFrom.Configuration(context.Configuration)
+    // Sinks registered as services too; the tests use one to read the log.
+    .ReadFrom.Services(services)
     .Enrich.FromLogContext()
     .Destructure.With<SensitiveDestructuringPolicy>()
     .WriteTo.Console(outputTemplate: "[{Timestamp:O} {Level:u3}] {CorrelationId} {Message:lj}{NewLine}{Exception}"));
@@ -96,8 +98,8 @@ if (trustForwardedHeaders)
     });
 }
 
-var loginPermitLimit = builder.Configuration.GetValue("Auth:LoginPermitLimit", 8);
-var loginWindowHours = builder.Configuration.GetValue("Auth:LoginWindowHours", 1);
+builder.Services.AddSingleton<LoginThrottle>();
+
 var uploadPermitLimit = builder.Configuration.GetValue("Media:UploadPermitLimit", 20);
 var contactPermitLimit = builder.Configuration.GetValue("Contact:PermitLimit", 10);
 var contactWindowHours = builder.Configuration.GetValue("Contact:WindowHours", 1);
@@ -109,11 +111,12 @@ builder.Services.AddRateLimiter(options =>
     options.OnRejected = (context, token) =>
     {
         var policy = context.HttpContext.GetEndpoint()?.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName;
+        RateLimitLog.Refused(context.HttpContext, policy ?? "unknown");
         var title = policy switch
         {
             "media-upload" => "Too many uploads.",
             "public-contact" => "Too many contact submissions.",
-            _ => "Too many login attempts.",
+            _ => "Too many requests.",
         };
         context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
         return new ValueTask(ProblemResults.WriteAsync(
@@ -123,17 +126,8 @@ builder.Services.AddRateLimiter(options =>
             title,
             token));
     };
-    options.AddPolicy("login", httpContext =>
-    {
-        var ip = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-        var email = httpContext.Items[LoginRateLimitKeyMiddleware.EmailItem] as string ?? "";
-        return RateLimitPartition.GetFixedWindowLimiter($"{ip}\n{email}", _ => new FixedWindowRateLimiterOptions
-        {
-            PermitLimit = loginPermitLimit,
-            Window = TimeSpan.FromHours(loginWindowHours),
-            QueueLimit = 0,
-        });
-    });
+    // Sign-in is limited inside the login action by LoginThrottle, on the email
+    // the action checks, not here (finding H1).
     options.AddPolicy("media-upload", httpContext =>
     {
         var userId = httpContext.User.FindFirst("sub")?.Value ?? "anonymous";
@@ -216,6 +210,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
         options.Events = new JwtBearerEvents
         {
+            OnTokenValidated = SessionCheck.ValidateAsync,
             OnChallenge = async context =>
             {
                 context.HandleResponse();
@@ -261,7 +256,8 @@ app.UseSerilogRequestLogging(options =>
     options.MessageTemplate = "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms";
 });
 app.UseMiddleware<ExceptionShieldMiddleware>();
-app.UseMiddleware<LoginRateLimitKeyMiddleware>();
+app.UseMiddleware<RequestBodyLimitMiddleware>();
+app.UseMiddleware<DuplicateJsonFieldGuardMiddleware>();
 app.UseAuthentication();
 app.UseRateLimiter();
 
@@ -285,6 +281,7 @@ app.UseStaticFiles(new StaticFileOptions
 });
 
 app.UseAuthorization();
+app.UseMiddleware<PasswordChangeGate>();
 
 app.MapControllers();
 app.MapHealthChecks("/health", new HealthCheckOptions

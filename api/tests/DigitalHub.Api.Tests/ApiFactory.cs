@@ -26,6 +26,13 @@ public class ApiFactory : WebApplicationFactory<Program>
        RateLimitedApiFactory puts it back so the limiter itself can be tested. */
     protected virtual int LoginPermitLimit => 1000;
 
+    /* The same for the per-address ceiling on failed sign-ins: the whole suite
+       signs in from one test address. Production default 30. */
+    protected virtual int LoginFailurePermitLimit => 100_000;
+
+    /* Wrong current passwords on change-password, per user. Production default 5. */
+    protected virtual int ChangePasswordFailurePermitLimit => 1000;
+
     private readonly string _connectionString = TestConnectionString();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -41,6 +48,8 @@ public class ApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Auth:InitialAdminPassword", AdminPassword);
         builder.UseSetting("Database:EnsureCreated", "false");
         builder.UseSetting("Auth:LoginPermitLimit", LoginPermitLimit.ToString());
+        builder.UseSetting("Auth:LoginFailurePermitLimit", LoginFailurePermitLimit.ToString());
+        builder.UseSetting("Auth:ChangePasswordFailurePermitLimit", ChangePasswordFailurePermitLimit.ToString());
         builder.UseSetting("Build:Token", BuildTokenValue);
         builder.UseSetting("Build:PermitLimit", "1000");
         builder.ConfigureTestServices(services =>
@@ -57,8 +66,14 @@ public class ApiFactory : WebApplicationFactory<Program>
     public sealed class RateLimited : ApiFactory
     {
         public const int Limit = 8;
+        public const int FailureLimit = 30;
+        public const int ChangePasswordLimit = 5;
 
         protected override int LoginPermitLimit => Limit;
+
+        protected override int LoginFailurePermitLimit => FailureLimit;
+
+        protected override int ChangePasswordFailurePermitLimit => ChangePasswordLimit;
     }
 
     /// <summary>
@@ -93,6 +108,42 @@ public class ApiFactory : WebApplicationFactory<Program>
         }
 
         return string.Concat(content.AsSpan(0, after), "_Test", content.AsSpan(after));
+    }
+
+    /// <summary>
+    /// The administrator connection to DigitalHubContent_Test, for what the
+    /// application login may not do: create and drop a trigger, or remove an
+    /// audit row the test wrote (the audit log is append-only for the
+    /// application login). From ConnectionStrings:ContentAdmin
+    /// when configured (an environment variable in CI, using SQL
+    /// authentication); otherwise derived from ConnectionStrings:Content with
+    /// Windows authentication, as on the local machine.
+    /// </summary>
+    internal static string ElevatedTestConnectionString()
+    {
+        var configuration = TestConfiguration();
+        var admin = configuration.GetConnectionString("ContentAdmin");
+        if (!string.IsNullOrWhiteSpace(admin))
+            return ToTestCatalog(admin);
+
+        var content = configuration.GetConnectionString("Content");
+        if (string.IsNullOrWhiteSpace(content))
+            throw new InvalidOperationException("ConnectionStrings:Content is not configured.");
+
+        var test = ToTestCatalog(content);
+        var stripped = System.Text.RegularExpressions.Regex.Replace(
+            test,
+            ";?(User ID|UID|Password|PWD)=[^;]*",
+            "",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        stripped = stripped.Trim(';');
+        if (stripped.Contains("Integrated Security=", StringComparison.OrdinalIgnoreCase)
+            || stripped.Contains("Trusted_Connection=", StringComparison.OrdinalIgnoreCase))
+        {
+            return stripped;
+        }
+
+        return stripped + ";Integrated Security=true";
     }
 
     private static string TestConnectionString()

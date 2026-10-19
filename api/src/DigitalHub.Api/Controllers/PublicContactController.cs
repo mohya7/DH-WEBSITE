@@ -11,8 +11,15 @@ namespace DigitalHub.Api.Controllers;
 [Route("api/v1/public/contact")]
 public sealed class PublicContactController(PublicContactStore store) : ControllerBase
 {
+    /// <summary>
+    /// The form's fields together are under 5,000 characters; 16 KB leaves room
+    /// for JSON and non-Latin text and refuses anything far larger (finding L7).
+    /// </summary>
+    public const long BodyLimit = 16 * 1024;
+
     [HttpPost]
     [EnableRateLimiting("public-contact")]
+    [RequestBodyLimit(BodyLimit)]
     public async Task<IActionResult> Post([FromBody] PublicContactRequest request, CancellationToken cancellationToken)
     {
         var outcome = await store.SubmitAsync(request, cancellationToken);

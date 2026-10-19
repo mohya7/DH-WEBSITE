@@ -128,13 +128,9 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
 
     public async Task<ContentOutcome> CreateRedirectAsync(RedirectCreateRequest request, string? userId, CancellationToken cancellationToken)
     {
-        var from = NormalizePath(request.FromPath);
-        var to = NormalizePath(request.ToPath);
         var errors = new Dictionary<string, List<string>>(StringComparer.Ordinal);
-        if (from is null)
-            Add(errors, "fromPath", "From path is required and must start with /.");
-        if (to is null)
-            Add(errors, "toPath", "To path is required and must start with /.");
+        var from = RedirectPath(request.FromPath, "fromPath", "From path", errors);
+        var to = RedirectPath(request.ToPath, "toPath", "To path", errors);
         if (errors.Count > 0)
             return Validation(errors);
 
@@ -202,8 +198,14 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         var settings = await db.SiteSettings.FirstOrDefaultAsync(cancellationToken);
 
         var errors = ValidateSettings(request);
+        if (request.Version is null or < 0)
+            Add(errors, "version", "Version is required.");
         if (errors.Count > 0)
             return Validation(errors);
+
+        // The save names the version it read: 0 when there was no row yet.
+        if ((settings?.Version ?? 0) != request.Version)
+            return SettingsConflict();
 
         // The first save is what creates the row.
         if (settings is null)
@@ -211,6 +213,8 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
             settings = new SiteSettings { Id = Guid.NewGuid() };
             db.SiteSettings.Add(settings);
         }
+
+        settings.Version += 1;
 
         settings.Phone = TrimOrNull(request.Phone);
         settings.WhatsApp = TrimOrNull(request.WhatsApp);
@@ -241,9 +245,21 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         settings.CookieSettingsLabel = TrimOrNull(request.CookieSettingsLabel);
 
         Audit(userId, "update_settings", "settings", settings.Id.ToString());
-        await db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Another save changed the row between this read and this write.
+            return SettingsConflict();
+        }
+
         return ContentOutcome.Ok(PresentSettings(settings));
     }
+
+    private static ContentOutcome SettingsConflict() =>
+        ContentOutcome.Fail(StatusCodes.Status409Conflict, "concurrency_conflict", "Someone else changed the settings. Reload them and save again.");
 
     public async Task<ContentOutcome> ListUsersAsync(CancellationToken cancellationToken)
     {
@@ -339,12 +355,7 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         if (!updated.Succeeded)
             return ContentOutcome.Fail(StatusCodes.Status400BadRequest, "validation_failed", "The user could not be deactivated.");
 
-        var now = DateTime.UtcNow;
-        var tokens = await db.RefreshTokens
-            .Where(token => token.UserId == user.Id && token.RevokedAt == null)
-            .ToListAsync(cancellationToken);
-        foreach (var token in tokens)
-            token.RevokedAt = now;
+        await RevokeRefreshTokensAsync(user.Id, cancellationToken);
 
         Audit(actorId, "deactivate_user", "user", user.Id);
         await db.SaveChangesAsync(cancellationToken);
@@ -369,10 +380,23 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
 
         user.MustChangePassword = true;
         await users.UpdateAsync(user);
+        // A reset is what follows a compromise: every session of the user ends.
+        await RevokeRefreshTokensAsync(user.Id, cancellationToken);
         Audit(actorId, "reset_password", "user", user.Id);
         await db.SaveChangesAsync(cancellationToken);
         await tx.CommitAsync(cancellationToken);
         return ContentOutcome.Ok(new { id = user.Id, temporaryPassword = temporary });
+    }
+
+    /// <summary>Marks every live refresh token of the user revoked. The caller saves.</summary>
+    private async Task RevokeRefreshTokensAsync(string userId, CancellationToken cancellationToken)
+    {
+        var now = DateTime.UtcNow;
+        var tokens = await db.RefreshTokens
+            .Where(token => token.UserId == userId && token.RevokedAt == null)
+            .ToListAsync(cancellationToken);
+        foreach (var token in tokens)
+            token.RevokedAt = now;
     }
 
     public async Task<ContentOutcome> ListAuditAsync(
@@ -814,11 +838,11 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
     public static async Task<Dictionary<string, List<string>>> CheckRedirectAsync(ContentDbContext db, Redirect redirect, CancellationToken cancellationToken)
     {
         var errors = new Dictionary<string, List<string>>(StringComparer.Ordinal);
-        var from = NormalizePath(redirect.FromPath);
-        var to = NormalizePath(redirect.ToPath);
-        if (from is null || from != redirect.FromPath)
+        var from = RedirectPath(redirect.FromPath, "fromPath", "From path", errors);
+        var to = RedirectPath(redirect.ToPath, "toPath", "To path", errors);
+        if (from is not null && from != redirect.FromPath)
             Add(errors, "fromPath", "From path is required and must start with /.");
-        if (to is null || to != redirect.ToPath)
+        if (to is not null && to != redirect.ToPath)
             Add(errors, "toPath", "To path is required and must start with /.");
         if (errors.Count > 0)
             return errors;
@@ -832,15 +856,22 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         return errors;
     }
 
-    private static string? NormalizePath(string? path)
+    /// <summary>The trimmed path, or null with an error added when the website build could not write it into web.config.</summary>
+    private static string? RedirectPath(string? path, string field, string label, Dictionary<string, List<string>> errors)
     {
         if (string.IsNullOrWhiteSpace(path))
+        {
+            Add(errors, field, label + " is required and must start with /.");
             return null;
+        }
+
         var trimmed = path.Trim();
-        if (!trimmed.StartsWith("/", StringComparison.Ordinal))
+        if (RedirectPaths.Problem(trimmed) is string problem)
+        {
+            Add(errors, field, label + " " + problem);
             return null;
-        if (trimmed.Length > 300)
-            return null;
+        }
+
         return trimmed;
     }
 
@@ -861,6 +892,7 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
     private static object PresentSettings(SiteSettings settings) => new
     {
         settings.Id,
+        settings.Version,
         settings.Phone,
         settings.WhatsApp,
         settings.Email,
@@ -1032,6 +1064,9 @@ public sealed class RedirectCreateRequest
 
 public sealed class SiteSettingsUpdate
 {
+    /// <summary>The version the client read: 0 before the first save. Required.</summary>
+    public int? Version { get; set; }
+
     public string? Phone { get; set; }
     public string? WhatsApp { get; set; }
     public string? Email { get; set; }

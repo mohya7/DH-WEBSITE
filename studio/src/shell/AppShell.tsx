@@ -204,7 +204,10 @@ export function AppShell() {
           </div>
         </header>
         <main className="studio-main">
-          <Outlet />
+          {/* The API refuses everything but me and change-password until the
+              temporary password is changed (403 password_change_required), so
+              the screen behind the dialog is not loaded until then. */}
+          {forcePassword ? null : <Outlet />}
         </main>
       </div>
       <Modal

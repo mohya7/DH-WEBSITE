@@ -226,6 +226,7 @@ public sealed class Section5Tests : IClassFixture<ApiFactory>
             .Where(property => property.Value.ValueKind is JsonValueKind.String or JsonValueKind.Null)
             .ToDictionary(property => property.Name, property => property.Value.ValueKind == JsonValueKind.Null ? null : (object?)property.Value.GetString());
         payload.Remove("defaultShareImageId");
+        payload["version"] = current.GetProperty("version").GetInt32();
 
         payload["careersEmail"] = "not-an-email";
         var invalid = await SendAsync(admin, HttpMethod.Put, "/api/v1/settings", payload);
@@ -250,6 +251,7 @@ public sealed class Section5Tests : IClassFixture<ApiFactory>
         Assert.Equal("main@digitalhub.test", settings.GetProperty("email").GetString());
 
         payload["careersEmail"] = null;
+        payload["version"] = JsonDocument.Parse(saved.Body).RootElement.GetProperty("version").GetInt32();
         var cleared = await SendAsync(admin, HttpMethod.Put, "/api/v1/settings", payload);
         Assert.Equal(HttpStatusCode.OK, cleared.Status);
         Assert.Equal(JsonValueKind.Null, JsonDocument.Parse(cleared.Body).RootElement.GetProperty("careersEmail").ValueKind);

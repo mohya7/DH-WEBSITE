@@ -4,6 +4,7 @@ using System.Text.Json;
 using DigitalHub.Api.Content;
 using DigitalHub.Api.Data;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -594,17 +595,21 @@ public sealed class ContentApiTests : IClassFixture<ApiFactory>
         }
         finally
         {
-            var entry = await database.AuditLog.SingleAsync(item => item.Id == id);
-            database.AuditLog.Remove(entry);
-            await database.SaveChangesAsync();
+            // The application login cannot delete audit rows; the elevated account can.
+            await using var connection = new SqlConnection(ApiFactory.ElevatedTestConnectionString());
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = "DELETE FROM dbo.audit_log WHERE id = @id";
+            command.Parameters.AddWithValue("@id", id);
+            Assert.Equal(1, await command.ExecuteNonQueryAsync());
         }
     }
 
     private async Task<AuthSession> LoginAsync(string email, string role, string? password = null)
     {
-        if (role == "editor" && _editor is not null)
+        if (role == "editor" && _editor is not null && await _editor.IsLiveAsync(_client))
             return _editor;
-        if (role == "admin" && _admin is not null)
+        if (role == "admin" && _admin is not null && await _admin.IsLiveAsync(_client))
             return _admin;
         if (role != "admin")
             await CreateUserAsync(email, role);

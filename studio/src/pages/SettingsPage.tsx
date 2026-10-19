@@ -37,6 +37,9 @@ export function SettingsPage() {
   const canEdit = auth.user?.role === "admin";
   const [form] = Form.useForm<Settings>();
   const [error, setError] = useState<string | null>(null);
+  // The version the settings were read at; a save sends it back and gets 409
+  // when someone else saved in between.
+  const [version, setVersion] = useState<number | null>(null);
 
   useEffect(() => {
     void load();
@@ -49,16 +52,18 @@ export function SettingsPage() {
       return;
     }
     form.setFieldsValue(result.body as Settings);
+    setVersion((result.body as { version: number }).version);
   }
 
   async function save(values: Settings) {
-    const result = await request("/api/v1/settings", jsonInit("PUT", values));
+    const result = await request("/api/v1/settings", jsonInit("PUT", { ...values, version }));
     if (!result.ok) {
       setError(result.problem?.title ?? "Settings were not saved.");
       return;
     }
     setError(null);
     form.setFieldsValue(result.body as Settings);
+    setVersion((result.body as { version: number }).version);
     message.success("Settings saved.");
   }
 

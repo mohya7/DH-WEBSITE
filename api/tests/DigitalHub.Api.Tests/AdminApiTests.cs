@@ -5,6 +5,7 @@ using System.Text.Json;
 using DigitalHub.Api.Content;
 using DigitalHub.Api.Data;
 using DigitalHub.Api.Infrastructure;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -196,6 +197,7 @@ public sealed class AdminApiTests : IClassFixture<ApiFactory>
 
         var created = await SendAsync(admin, HttpMethod.Put, "/api/v1/settings", new
         {
+            version = 0,
             email = "first@digitalhub.test",
             organizationName = "Digital Hub",
         });
@@ -209,6 +211,7 @@ public sealed class AdminApiTests : IClassFixture<ApiFactory>
         // A second save updates that row rather than adding another.
         var updated = await SendAsync(admin, HttpMethod.Put, "/api/v1/settings", new
         {
+            version = JsonDocument.Parse(created.Body).RootElement.GetProperty("version").GetInt32(),
             email = "second@digitalhub.test",
             organizationName = "Digital Hub",
         });
@@ -358,9 +361,18 @@ public sealed class AdminApiTests : IClassFixture<ApiFactory>
         Assert.Equal(HttpStatusCode.OK, secondSession.Status);
         Assert.Equal(HttpStatusCode.OK, (await SendAsync(secondSession, HttpMethod.Post, "/api/v1/users/" + primaryAdminId + "/deactivate")).Status);
 
+        // The deactivated admin's token is refused on its next request (finding M2),
+        // so through the API the last active admin can only be asked to deactivate
+        // themselves. The last-admin guard is still the store's to enforce.
         var last = await SendAsync(admin, HttpMethod.Post, "/api/v1/users/" + secondId + "/deactivate");
-        Assert.Equal(HttpStatusCode.BadRequest, last.Status);
-        Assert.Equal("last_admin", Code(last.Body));
+        Assert.Equal(HttpStatusCode.Unauthorized, last.Status);
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var store = scope.ServiceProvider.GetRequiredService<AdminStore>();
+            var outcome = await store.DeactivateUserAsync(secondId!, primaryAdminId, CancellationToken.None);
+            Assert.Equal(StatusCodes.Status400BadRequest, outcome.Status);
+            Assert.Equal("last_admin", outcome.Code);
+        }
 
         await EnsurePrimaryAdminActiveAsync();
     }
@@ -461,6 +473,9 @@ public sealed class AdminApiTests : IClassFixture<ApiFactory>
         Assert.Equal(HttpStatusCode.OK, session.Status);
 
         var change = session.Authorized(HttpMethod.Post, "/api/v1/auth/change-password");
+        // The browser sends the refresh cookie on /api/v1/auth/*; it keeps this
+        // session alive while the user's other sessions end (finding M1).
+        change.Headers.TryAddWithoutValidation("Cookie", session.CookieHeader);
         change.Content = JsonContent.Create(new { currentPassword = "Auth-Audit-Pass1!", newPassword = "Auth-Audit-Pass2!" });
         Assert.Equal(HttpStatusCode.NoContent, (await _client.SendAsync(change)).StatusCode);
 
@@ -676,6 +691,7 @@ public sealed class AdminApiTests : IClassFixture<ApiFactory>
             : null;
         return new Dictionary<string, object?>
         {
+            ["version"] = settings.GetProperty("version").GetInt32(),
             ["phone"] = Text("phone"),
             ["whatsApp"] = Text("whatsApp"),
             ["email"] = Text("email"),

@@ -47,6 +47,19 @@ public sealed record AuthSession(
         return new AuthSession(response.StatusCode, body, access, csrf, pair, setCookie, csrfPair, csrfSetCookie);
     }
 
+    /// <summary>
+    /// False once the server has ended this session. Every request checks the
+    /// session (SessionCheck), so a test that deactivates or resets a user ends
+    /// the sessions other tests cached for that user.
+    /// </summary>
+    public async Task<bool> IsLiveAsync(HttpClient client)
+    {
+        if (AccessToken is null)
+            return false;
+        using var response = await client.SendAsync(Authorized(HttpMethod.Get, "/api/v1/auth/me"));
+        return response.StatusCode != HttpStatusCode.Unauthorized;
+    }
+
     public HttpRequestMessage Authorized(HttpMethod method, string url)
     {
         var request = new HttpRequestMessage(method, url);

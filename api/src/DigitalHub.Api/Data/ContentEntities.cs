@@ -344,6 +344,12 @@ public sealed class SiteSettings
 {
     public Guid Id { get; set; }
 
+    /// <summary>
+    /// Concurrency version, as content items have: a save names the version it
+    /// read and gets 409 when it is stale (finding L8). 0 means "no row yet".
+    /// </summary>
+    public int Version { get; set; }
+
     [MaxLength(40)]
     public string? Phone { get; set; }
 

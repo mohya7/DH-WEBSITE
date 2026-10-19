@@ -198,7 +198,7 @@ After my confirmation:
 
 **5.1** Create `DigitalHubContent` on the local instance, and `DigitalHubContent_Test` for integration tests.
 
-**5.2** Create a dedicated login for the API with read and write on `DigitalHubContent` only. The same read and write grants exist on `DigitalHubContent_Test`, because the API under test uses this login. Not sysadmin. Not `db_owner`. No DDL. Password in user-secrets; never printed. The API connection string uses this login, not Windows authentication.
+**5.2** Create a dedicated login for the API with read and write on `DigitalHubContent` only. The same read and write grants exist on `DigitalHubContent_Test`, because the API under test uses this login. Not sysadmin. Not `db_owner`. No DDL. Password in user-secrets; never printed. The API connection string uses this login, not Windows authentication. The audit log is append-only for this login: `DENY UPDATE, DELETE ON dbo.audit_log` in every catalog it uses (see `docs/security-deployment.md`).
 
 **5.3** Apply the migration with an elevated account, not the API login. Migrations are a deployment step. The application does not run them at startup.
 
