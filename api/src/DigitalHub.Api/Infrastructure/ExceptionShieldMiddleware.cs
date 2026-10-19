@@ -33,6 +33,23 @@ public sealed class ExceptionShieldMiddleware
             if (!context.Response.HasStarted)
                 context.Response.StatusCode = ClientClosedRequest;
         }
+        catch (BadHttpRequestException bad) when (!context.Response.HasStarted)
+        {
+            // Kestrel's own verdict on a malformed request, such as a chunked body
+            // that ends before its last chunk because the client went away: the
+            // client's error, with Kestrel's status (400, 413...), not a 500.
+            _logger.LogInformation("Bad request from the client: {StatusCode}", bad.StatusCode);
+            context.Response.Clear();
+            context.Response.StatusCode = bad.StatusCode;
+            try
+            {
+                await ProblemResults.WriteAsync(context.Response, bad.StatusCode, "bad_request", "The request could not be read.", context.RequestAborted);
+            }
+            catch (Exception) when (context.RequestAborted.IsCancellationRequested)
+            {
+                // The client is already gone.
+            }
+        }
         catch (Exception exception)
         {
             if (context.Response.HasStarted)
