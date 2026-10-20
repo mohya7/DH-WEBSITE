@@ -151,6 +151,59 @@ public sealed class CareersTests : IClassFixture<ApiFactory>, IClassFixture<Reco
     }
 
     [Fact]
+    public async Task Unreadable_requests_get_the_html_page()
+    {
+        await EnsureCareersAddressAsync();
+        var before = await CountAsync(null);
+        var sent = _recording.Sender.Sent.Count;
+
+        var chunkedBody = new byte[CvFile.BodyLimit + 1024];
+        Encoding.ASCII.GetBytes("------dh\r\nContent-Disposition: form-data; name=\"cv\"; filename=\"cv.pdf\"\r\n\r\n%PDF-").CopyTo(chunkedBody, 0);
+        var chunkedContent = new OpenEndedContent(chunkedBody);
+        chunkedContent.Headers.ContentType = MediaTypeHeaderValue.Parse("multipart/form-data; boundary=----dh");
+        var chunked = await _client.SendAsync(new HttpRequestMessage(HttpMethod.Post, "/api/v1/public/apply") { Content = chunkedContent });
+        var chunkedText = await chunked.Content.ReadAsStringAsync();
+        Assert.Equal((HttpStatusCode)413, chunked.StatusCode);
+        Assert.Contains("data-code=\"too_large\"", chunkedText, StringComparison.Ordinal);
+        Assert.DoesNotContain("validation_failed", chunkedText, StringComparison.Ordinal);
+
+        var shortBody = Encoding.ASCII.GetBytes("------dh\r\nContent-Disposition: form-data; name=\"name\"\r\n\r\nAda\r\n------dh--\r\n");
+        var shortRequest = new HttpRequestMessage(HttpMethod.Post, "/api/v1/public/apply") { Content = new ShortLengthContent(shortBody, 12) };
+        shortRequest.Content.Headers.ContentType = MediaTypeHeaderValue.Parse("multipart/form-data; boundary=----dh");
+        var shortened = await _client.SendAsync(shortRequest);
+        var shortenedBody = await shortened.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.BadRequest, shortened.StatusCode);
+        Assert.Contains("data-code=\"invalid_form\"", shortenedBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("validation_failed", shortenedBody, StringComparison.Ordinal);
+
+        var brokenName = Encoding.ASCII.GetBytes("------dh\r\nContent-Disposition: form-data; name=\"cv\"; filename=\"cv.pdf\r\nBcc: x@y.test\"\r\nContent-Type: application/pdf\r\n\r\n%PDF-1.4\n------dh--\r\n");
+        var named = new HttpRequestMessage(HttpMethod.Post, "/api/v1/public/apply")
+        {
+            Content = new ByteArrayContent(brokenName),
+        };
+        named.Content.Headers.ContentType = MediaTypeHeaderValue.Parse("multipart/form-data; boundary=----dh");
+        var namedResponse = await _client.SendAsync(named);
+        var namedBody = await namedResponse.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.BadRequest, namedResponse.StatusCode);
+        Assert.Contains("data-code=\"invalid_form\"", namedBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("validation_failed", namedBody, StringComparison.Ordinal);
+
+        var garbage = new HttpRequestMessage(HttpMethod.Post, "/api/v1/public/apply")
+        {
+            Content = new StringContent("this is not a form"),
+        };
+        garbage.Content.Headers.ContentType = MediaTypeHeaderValue.Parse("multipart/form-data; boundary=----dh");
+        var parsed = await _client.SendAsync(garbage);
+        var parsedBody = await parsed.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.BadRequest, parsed.StatusCode);
+        Assert.Contains("<!DOCTYPE html>", parsedBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("validation_failed", parsedBody, StringComparison.Ordinal);
+
+        Assert.Equal(before, await CountAsync(null));
+        Assert.Equal(sent, _recording.Sender.Sent.Count);
+    }
+
+    [Fact]
     public async Task Consent_and_closed_vacancies_are_refused()
     {
         await EnsureCareersAddressAsync();
@@ -695,6 +748,25 @@ public sealed class ApplyDedupeTests
         Assert.False(dedupe.RecentlySeen("key-0"));
         Assert.True(dedupe.RecentlySeen("key-" + (ApplyDedupe.MaxEntries + 24)));
     }
+}
+
+sealed class ShortLengthContent : HttpContent
+{
+    private readonly byte[] _bytes;
+    private readonly long _declared;
+    public ShortLengthContent(byte[] bytes, long declared)
+    {
+        _bytes = bytes;
+        _declared = declared;
+    }
+
+    protected override bool TryComputeLength(out long length)
+    {
+        length = _declared;
+        return true;
+    }
+
+    protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) => stream.WriteAsync(_bytes).AsTask();
 }
 
 sealed class OpenEndedContent : HttpContent

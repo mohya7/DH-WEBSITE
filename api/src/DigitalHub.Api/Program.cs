@@ -181,9 +181,19 @@ builder.Services.AddControllers(options =>
 })
 .ConfigureApiBehaviorOptions(options =>
 {
-    options.InvalidModelStateResponseFactory = context =>
-    {
-        var problem = new ValidationProblemDetails(context.ModelState)
+        options.InvalidModelStateResponseFactory = context =>
+        {
+            if (ApplyPage.IsApply(context.HttpContext.Request))
+            {
+                return new ContentResult
+                {
+                    StatusCode = StatusCodes.Status400BadRequest,
+                    ContentType = "text/html; charset=utf-8",
+                    Content = ApplyPage.Html("invalid_form", ApplicationIntake.Rejected),
+                };
+            }
+
+            var problem = new ValidationProblemDetails(context.ModelState)
         {
             Status = StatusCodes.Status400BadRequest,
             Title = "One or more fields are invalid.",

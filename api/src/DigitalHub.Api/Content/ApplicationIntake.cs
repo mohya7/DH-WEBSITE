@@ -23,7 +23,18 @@ public sealed class ApplicationIntake(ContentDbContext db, IEmailSender email, A
         if (!request.HasFormContentType)
             return Problem(StatusCodes.Status400BadRequest, "invalid_form", Rejected);
 
-        var form = await request.ReadFormAsync(cancellationToken);
+        IFormCollection form;
+        try
+        {
+            form = await request.ReadFormAsync(cancellationToken);
+        }
+        catch (Exception exception) when (exception is BadHttpRequestException or InvalidDataException or IOException)
+        {
+            var status = exception is BadHttpRequestException bad ? bad.StatusCode : StatusCodes.Status400BadRequest;
+            return status == StatusCodes.Status413PayloadTooLarge
+                ? Problem(status, "too_large", CvRejected)
+                : Problem(StatusCodes.Status400BadRequest, "invalid_form", Rejected);
+        }
         if (Duplicate(form))
             return Problem(StatusCodes.Status400BadRequest, "invalid_form", Rejected);
 
@@ -218,12 +229,5 @@ public sealed class ApplicationIntake(ContentDbContext db, IEmailSender email, A
 
     private static IResult Problem(int status, string code, string title) => Page(status, code, title);
 
-    private static IResult Page(int status, string code, string message)
-    {
-        var html = "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Application</title></head><body data-code=\""
-            + code + "\"><p>"
-            + System.Net.WebUtility.HtmlEncode(message)
-            + "</p><p><a href=\"/careers\">Back to careers</a></p></body></html>";
-        return Results.Content(html, "text/html; charset=utf-8", statusCode: status);
-    }
+    private static IResult Page(int status, string code, string message) => ApplyPage.Result(status, code, message);
 }
