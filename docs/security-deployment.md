@@ -124,3 +124,20 @@ because an audit row would have to name the person.
 `hr` can sign in, change their own password, read application counts, and end a
 published vacancy. `admin` creates HR users the same way as any other user.
 Counts are not visible to `admin` or `editor`.
+
+The public form posts to `/api/v1/public/apply` on the website's origin. Phase D
+must route `/api/v1/public/*` to this API the same way the Studio routes
+`/api/...`. The proxy in front of the API must allow a request body of 5 MB plus
+64 KB; a smaller limit refuses a valid CV before the API reads it.
+
+`ForwardedHeaders:KnownProxies` must list the proxy that terminates the
+connection. If it is empty, every candidate behind IIS is seen as one address
+and they share a single IP bucket of 10 applications an hour.
+
+`Email:TimeoutSeconds` defaults to 15 and is clamped between 1 and 120. A mail
+server that accepts the connection and never answers returns the friendly page
+within that time instead of holding the request.
+
+A CV is checked for a PDF or Word signature and a size limit only. Macro-enabled
+Word files and nested archives are accepted by design. HR's mail scanner must
+treat the attachment as untrusted.
