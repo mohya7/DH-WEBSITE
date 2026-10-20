@@ -10,6 +10,7 @@ import { snapshotContent, tempDir } from './helpers';
 import { stripRuntime } from '../src/build/strip-runtime';
 import { parseRichText, headingAnchors, type RichNode } from '@digitalhub/blocks';
 import { VacancyPage } from '../src/components/VacancyPage';
+import { PrivacyCareersPage } from '../src/app/privacy-careers/page';
 import { PageScaffold } from '../src/components/PageScaffold';
 import { headMetadata, pageHead } from '../src/seo/head';
 import { consentCopy, consentDefaults, tagManagerId } from '../src/components/Consent';
@@ -139,6 +140,18 @@ describe('page composition', () => {
       expect(footer).not.toContain('jobs@example.invalid');
     }
     expect(footerEmail({ ...content.settings, careersEmail: null }, 'careers')).toBe('main@example.invalid');
+  });
+  it('shows the mailbox the API sends to, the careers address or the main email when that is empty', () => {
+    const content = snapshotContent();
+    content.settings.email = 'sales@example.invalid';
+    content.settings.careersEmail = 'jobs@example.invalid';
+    const careers = renderToStaticMarkup(<PrivacyCareersPage site={createSite(content)} />);
+    expect(careers).toContain('our careers mailbox (jobs@example.invalid)');
+    expect(careers).toContain('write to jobs@example.invalid');
+    expect(careers).not.toContain('careers@digitalhub.com.eg');
+    const fallback = renderToStaticMarkup(<PrivacyCareersPage site={createSite({ ...content, settings: { ...content.settings, careersEmail: null } })} />);
+    expect(fallback).toContain('our careers mailbox (sales@example.invalid)');
+    expect(fallback).toContain('write to sales@example.invalid');
   });
   it('keeps the old Nexthink footer tagline on that page only', () => {
     const site = createSite(snapshotContent());

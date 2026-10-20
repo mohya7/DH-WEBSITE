@@ -64,6 +64,23 @@ public sealed class CareersTests : IClassFixture<ApiFactory>, IClassFixture<Reco
     }
 
     [Fact]
+    public async Task The_recipient_is_the_careers_address_or_the_main_email()
+    {
+        await SetMailboxAsync("jobs@example.test", "sales@example.test");
+        var address = UniqueEmail("mailbox");
+        var sent = await PostApplyAsync(_mail, "Mailbox", address, "hello", Pdf("box"), null);
+        Assert.Equal(HttpStatusCode.Created, sent.Status);
+        Assert.Equal("jobs@example.test", _recording.Sender.Sent.Single(message => message.ReplyTo == address).To);
+
+        await SetMailboxAsync(null, "sales@example.test");
+        var fallback = UniqueEmail("fallback");
+        var second = await PostApplyAsync(_mail, "Fallback", fallback, "hello", Pdf("fall"), null);
+        Assert.Equal(HttpStatusCode.Created, second.Status);
+        Assert.Equal("sales@example.test", _recording.Sender.Sent.Single(message => message.ReplyTo == fallback).To);
+        await SetMailboxAsync("careers@digitalhub.test", null);
+    }
+
+    [Fact]
     public async Task A_failed_send_is_not_counted()
     {
         await EnsureCareersAddressAsync();
@@ -344,7 +361,9 @@ public sealed class CareersTests : IClassFixture<ApiFactory>, IClassFixture<Reco
         Assert.True((await users.UpdateAsync(user)).Succeeded);
     }
 
-    private async Task EnsureCareersAddressAsync()
+    private async Task EnsureCareersAddressAsync() => await SetMailboxAsync("careers@digitalhub.test", null);
+
+    private async Task SetMailboxAsync(string? careers, string? email)
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ContentDbContext>();
@@ -355,7 +374,9 @@ public sealed class CareersTests : IClassFixture<ApiFactory>, IClassFixture<Reco
             db.SiteSettings.Add(settings);
         }
 
-        settings.CareersEmail = "careers@digitalhub.test";
+        settings.CareersEmail = careers;
+        if (email is not null)
+            settings.Email = email;
         await db.SaveChangesAsync();
     }
 
