@@ -63,6 +63,9 @@ website, is next.
 ## Settled design
 - The website design is locked: port existing stylesheets unchanged; verify by
   screenshot parity against feature/interviewer-portal.
+- That lock is lifted only for a design session Ali directs in this worktree.
+  The agent does not change the design on its own. The steps are in
+  docs/design-change-protocol.md.
 - The Studio follows the old admin panel's look and flows (navy), with the new
   publishing, media, and roles underneath.
 - Save is not publish. References are { type, id }. No whole-store import. No
