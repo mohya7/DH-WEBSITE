@@ -10,16 +10,13 @@ using Microsoft.Extensions.Logging;
 
 namespace DigitalHub.Api.Content;
 
-public sealed class ApplicationIntake(ContentDbContext db, IEmailSender email, ApplyThrottle throttle, ILogger<ApplicationIntake> logger)
+public sealed class ApplicationIntake(ContentDbContext db, IEmailSender email, ApplyThrottle throttle, ApplyDedupe dedupe, ILogger<ApplicationIntake> logger)
 {
     public const string Accepted = "accepted";
     public const string Rejected = "The form could not be accepted.";
     public const string CvRejected = "The CV could not be accepted. Send a PDF or Word document up to 5 MB.";
 
     private static readonly Regex EmailPattern = new(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.CultureInvariant | RegexOptions.Compiled);
-    private static readonly TimeSpan DedupeFor = TimeSpan.FromMinutes(2);
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, long> Seen = new();
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, SemaphoreSlim> Gates = new();
 
     public async Task<IResult> SubmitAsync(HttpRequest request, string remoteIp, CancellationToken cancellationToken)
     {
@@ -96,12 +93,12 @@ public sealed class ApplicationIntake(ContentDbContext db, IEmailSender email, A
         if (careers is null)
             return Problem(StatusCodes.Status503ServiceUnavailable, "not_accepting", "Applications are not being accepted just now.");
 
-        var dedupe = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\n', emailKey, vacancyId?.ToString("D") ?? "", name, phone, message, Convert.ToHexString(SHA256.HashData(bytes))))));
-        var gate = Gates.GetOrAdd(dedupe, _ => new SemaphoreSlim(1, 1));
+        var dedupeKey = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\n', emailKey, vacancyId?.ToString("D") ?? "", name, phone, message, Convert.ToHexString(SHA256.HashData(bytes))))));
+        var gate = dedupe.Gate(dedupeKey);
         await gate.WaitAsync(cancellationToken);
         try
         {
-            if (RecentlySeen(dedupe))
+            if (dedupe.RecentlySeen(dedupeKey))
                 return Page(StatusCodes.Status201Created, "accepted", "Your application has been sent.");
 
             var attachmentName = CvFile.SafeFileName(file.FileName, extension);
@@ -126,7 +123,7 @@ public sealed class ApplicationIntake(ContentDbContext db, IEmailSender email, A
             }
 
             // Recorded before the count, so a retry does not send again when the count fails.
-            Seen[dedupe] = Environment.TickCount64;
+            dedupe.Remember(dedupeKey);
             try
             {
                 await IncrementAsync(vacancyId, DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
@@ -183,16 +180,6 @@ public sealed class ApplicationIntake(ContentDbContext db, IEmailSender email, A
         if (string.IsNullOrEmpty(address))
             address = settings?.Email?.Trim();
         return string.IsNullOrEmpty(address) ? null : address;
-    }
-
-    private static bool RecentlySeen(string key)
-    {
-        if (!Seen.TryGetValue(key, out var at))
-            return false;
-        if (Environment.TickCount64 - at < DedupeFor.TotalMilliseconds)
-            return true;
-        Seen.TryRemove(key, out _);
-        return false;
     }
 
     private async Task IncrementAsync(Guid? vacancyId, DateOnly day, CancellationToken cancellationToken)

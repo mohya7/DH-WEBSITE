@@ -73,6 +73,7 @@ builder.Services.AddScoped<AdminStore>();
 builder.Services.AddScoped<PublicContactStore>();
 builder.Services.AddScoped<ApplicationIntake>();
 builder.Services.AddSingleton<ApplyThrottle>();
+builder.Services.AddSingleton<ApplyDedupe>();
 builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
 builder.Services.AddScoped<BuildContentStore>();
 builder.Services.AddSingleton<BuildToken>();

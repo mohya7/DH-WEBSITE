@@ -257,6 +257,22 @@ public sealed class CareersTests : IClassFixture<ApiFactory>, IClassFixture<Reco
     }
 
     [Fact]
+    public async Task The_same_application_can_be_sent_again_after_two_minutes()
+    {
+        await EnsureCareersAddressAsync();
+        await using var factory = new ClockedApplyFactory();
+        var client = factory.CreateClient();
+        var address = UniqueEmail("again");
+        var pdf = Pdf("again");
+        Assert.Equal(HttpStatusCode.Created, (await PostApplyAsync(client, "Again", address, "hello", pdf, null)).Status);
+        Assert.Equal(HttpStatusCode.Created, (await PostApplyAsync(client, "Again", address, "hello", pdf, null)).Status);
+        Assert.Equal(1, factory.Sender.Sent.Count(message => message.ReplyTo == address));
+        factory.Clock.Advance(ApplyDedupe.Window);
+        Assert.Equal(HttpStatusCode.Created, (await PostApplyAsync(client, "Again", address, "hello", pdf, null)).Status);
+        Assert.Equal(2, factory.Sender.Sent.Count(message => message.ReplyTo == address));
+    }
+
+    [Fact]
     public async Task The_rate_limit_answers_429()
     {
         await using var factory = new ApplyLimitedFactory();
@@ -609,7 +625,7 @@ public sealed class RecordingEmailSender : IEmailSender
     }
 }
 
-public sealed class RecordingApplyFactory : ApiFactory
+public class RecordingApplyFactory : ApiFactory
 {
     public RecordingEmailSender Sender { get; } = new();
 
@@ -643,6 +659,41 @@ public sealed class SilentSmtpFactory : ApiFactory
         builder.UseSetting("Email:Port", "4318");
         builder.UseSetting("Email:TimeoutSeconds", "2");
         builder.UseSetting("Email:From", "careers@digitalhub.test");
+    }
+}
+
+public sealed class ClockedApplyFactory : RecordingApplyFactory
+{
+    public FakeClock Clock { get; } = new();
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+        builder.ConfigureTestServices(services => services.AddSingleton<TimeProvider>(Clock));
+    }
+}
+
+public sealed class ApplyDedupeTests
+{
+    [Fact]
+    public void Old_entries_and_the_overflow_are_dropped()
+    {
+        var clock = new FakeClock();
+        var dedupe = new ApplyDedupe(clock);
+        dedupe.Remember("old");
+        clock.Advance(ApplyDedupe.Window);
+        Assert.False(dedupe.RecentlySeen("old"));
+        Assert.Equal(0, dedupe.Count);
+
+        for (var index = 0; index < ApplyDedupe.MaxEntries + 25; index++)
+        {
+            clock.Advance(TimeSpan.FromTicks(1));
+            dedupe.Remember("key-" + index);
+        }
+
+        Assert.Equal(ApplyDedupe.MaxEntries, dedupe.Count);
+        Assert.False(dedupe.RecentlySeen("key-0"));
+        Assert.True(dedupe.RecentlySeen("key-" + (ApplyDedupe.MaxEntries + 24)));
     }
 }
 
