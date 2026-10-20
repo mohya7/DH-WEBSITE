@@ -9,7 +9,7 @@ import type { VacancyListFields } from "../generated/schema-types";
 
 export function VacancyList({ fields, ctx }: { fields: VacancyListFields; ctx: BlockContext }) {
   const { Link } = ctx;
-  const vacancies = ctx.collections.vacancies.filter((item) => item.path);
+  const vacancies = ctx.collections.vacancies.filter((item) => item.path && item.status !== "ended");
   return (
     <section className="section careers-opps" id="opportunities">
       <div className="section-inner">

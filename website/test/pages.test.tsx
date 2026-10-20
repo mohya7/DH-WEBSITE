@@ -10,6 +10,7 @@ import { snapshotContent, tempDir } from './helpers';
 import { stripRuntime } from '../src/build/strip-runtime';
 import { parseRichText, headingAnchors, type RichNode } from '@digitalhub/blocks';
 import { VacancyPage } from '../src/components/VacancyPage';
+import { PrivacyCareersPage } from '../src/app/privacy-careers/page';
 import { PageScaffold } from '../src/components/PageScaffold';
 import { headMetadata, pageHead } from '../src/seo/head';
 import { consentCopy, consentDefaults, tagManagerId } from '../src/components/Consent';
@@ -35,7 +36,8 @@ describe('page composition', () => {
     const html = renderToStaticMarkup(<VacancyPage item={item} email="careers@digitalhub.com.eg" />);
     expect(count(html, 'h1')).toBe(1);
     expect(html).toContain('<li>Design</li><li>Deliver</li>');
-    expect(html).toContain('href="mailto:careers@digitalhub.com.eg?subject=Application%3A%20Engineer"');
+    expect(html).toContain('action="/api/v1/public/apply"');
+    expect(html).toContain('href="/privacy-careers"');
     expect(html).not.toContain('/careers/apply?role=');
   });
   it('puts the hub page class on the blogs and partners body, which the design uses for spacing, chips, and the intro width', () => {
@@ -46,25 +48,22 @@ describe('page composition', () => {
       expect(html).toContain(`data-body-class="${body}"`);
     }
   });
-  it('replaces the apply form with a mailto to the careers email', () => {
+  it('posts the apply page to the careers form', () => {
     const content = snapshotContent();
     const site = createSite(content);
     const apply = site.routes.find((route) => route.path === '/careers/apply')!.item;
     const html = renderToStaticMarkup(<PageScaffold site={site} item={apply} pageType="page" path="/careers/apply" />);
-    expect(html).toContain('How to apply');
+    expect(html).toContain('action="/api/v1/public/apply"');
     expect(html).toContain('Send your CV and a short note about the role you want. Our careers team reviews every application.');
     const description = 'Apply for an open role at Digital Hub by email. Send your CV, LinkedIn profile and availability to our careers team.';
     const meta = headMetadata(pageHead(site, apply, 'page', '/careers/apply', 'https://digitalhub.com.eg'));
     expect(meta.description).toBe(description);
     expect(meta.openGraph?.description).toBe(description);
     expect(meta.twitter?.description).toBe(description);
-    expect(html).toContain('Email your CV, your LinkedIn profile and your availability to');
-    expect(html).toContain('Put the role you are applying for in the subject line.');
     expect(html.match(/Our careers team reviews every application\./g)).toHaveLength(1);
     expect(html).toContain('href="mailto:careers@digitalhub.com.eg"');
     expect(html).toContain('Apply to join Digital Hub');
-    expect(html).not.toContain('<form');
-    expect(html).not.toContain('type="file"');
+    expect(html).toContain('type="file"');
     const without = createSite({ ...content, settings: { ...content.settings, careersEmail: null } });
     const fallback = renderToStaticMarkup(<PageScaffold site={without} item={apply} pageType="page" path="/careers/apply" />);
     expect(fallback).toContain(`href="mailto:${content.settings.email}"`);
@@ -141,6 +140,18 @@ describe('page composition', () => {
       expect(footer).not.toContain('jobs@example.invalid');
     }
     expect(footerEmail({ ...content.settings, careersEmail: null }, 'careers')).toBe('main@example.invalid');
+  });
+  it('shows the mailbox the API sends to, the careers address or the main email when that is empty', () => {
+    const content = snapshotContent();
+    content.settings.email = 'sales@example.invalid';
+    content.settings.careersEmail = 'jobs@example.invalid';
+    const careers = renderToStaticMarkup(<PrivacyCareersPage site={createSite(content)} />);
+    expect(careers).toContain('our careers mailbox (jobs@example.invalid)');
+    expect(careers).toContain('write to jobs@example.invalid');
+    expect(careers).not.toContain('careers@digitalhub.com.eg');
+    const fallback = renderToStaticMarkup(<PrivacyCareersPage site={createSite({ ...content, settings: { ...content.settings, careersEmail: null } })} />);
+    expect(fallback).toContain('our careers mailbox (sales@example.invalid)');
+    expect(fallback).toContain('write to sales@example.invalid');
   });
   it('keeps the old Nexthink footer tagline on that page only', () => {
     const site = createSite(snapshotContent());

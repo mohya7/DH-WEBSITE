@@ -30,6 +30,8 @@ export interface ContentItem<C extends CollectionName = CollectionName> {
   /** ISO time. Null would mean the item was never published: such an item is never rendered. */
   publishedAt: string | null;
   updatedAt: string;
+  /** Ended vacancies stay reachable and are left out of the careers list. */
+  status?: "published" | "ended";
   fields: CollectionFieldsByName[C];
   /** Visible sections only, in order. Empty for collections without sections. */
   sections: Section[];

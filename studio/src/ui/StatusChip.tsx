@@ -9,7 +9,11 @@ const labels: Record<string, string> = {
   editor: "draft",
 };
 
+const display: Record<string, string> = {
+  ended: "Ended · انتهت",
+};
+
 export function StatusChip({ state }: { state: string }) {
   const tone = labels[state] ?? "draft";
-  return <span className={`status-chip status-chip--${tone}`}>{state}</span>;
+  return <span className={`status-chip status-chip--${tone}`}>{display[state] ?? state}</span>;
 }

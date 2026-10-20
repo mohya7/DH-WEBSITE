@@ -22,6 +22,38 @@ namespace DigitalHub.Api.Data.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("DigitalHub.Api.Data.ApplicationCount", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("id");
+
+                    b.Property<DateOnly>("AppliedOn")
+                        .HasColumnType("date")
+                        .HasColumnName("applied_on");
+
+                    b.Property<int>("Count")
+                        .HasColumnType("int")
+                        .HasColumnName("count");
+
+                    b.Property<Guid?>("VacancyId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("vacancy_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppliedOn")
+                        .IsUnique()
+                        .HasFilter("[vacancy_id] IS NULL");
+
+                    b.HasIndex("VacancyId", "AppliedOn")
+                        .IsUnique()
+                        .HasFilter("[vacancy_id] IS NOT NULL");
+
+                    b.ToTable("application_counts", (string)null);
+                });
+
             modelBuilder.Entity("DigitalHub.Api.Data.ApplicationUser", b =>
                 {
                     b.Property<string>("Id")
@@ -1909,6 +1941,16 @@ namespace DigitalHub.Api.Data.Migrations
                     b.HasKey("UserId", "LoginProvider", "Name");
 
                     b.ToTable("AspNetUserTokens", (string)null);
+                });
+
+            modelBuilder.Entity("DigitalHub.Api.Data.ApplicationCount", b =>
+                {
+                    b.HasOne("DigitalHub.Api.Data.Vacancy", "Vacancy")
+                        .WithMany()
+                        .HasForeignKey("VacancyId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("Vacancy");
                 });
 
             modelBuilder.Entity("DigitalHub.Api.Data.BlogPost", b =>

@@ -96,3 +96,48 @@ on every Studio response:
 - **The dev team:** if the Studio is served by something other than IIS (for
   example CloudFront in front of S3), set the same headers and the same routing
   there. HSTS is set where TLS ends, as for the API.
+
+## Careers applications
+
+An application is an email to the careers mailbox. The database keeps a count
+(`application_counts`: vacancy, UTC date, count) and nothing about the person
+or the CV. Deleting a vacancy removes its counts. Ending one does not. There is no candidate table.
+
+Production SMTP is required or the form tells the person to email the careers
+address directly and does not count the attempt. Set these outside the repo
+(environment or user-secrets), never in a committed file:
+
+- `Email__Host`, `Email__Port` (587), `Email__From`, `Email__User`, `Email__Password`
+- An empty host is a local run. The API logs `email not sent (local)` and does
+  not log the message.
+
+The migration `20261020113912_AddApplicationCounts` creates that table and deletes the unused
+`marketing` and `interviewer` roles, including any user assignments to them.
+Those users are left with no role and cannot sign in to the Studio until an
+admin assigns `admin`, `editor`, or `hr`. The application does not migrate at
+startup. On the production catalog the elevated account applies this migration
+before the new API starts. Do not run it against a catalog from a test.
+
+The audit-log DENY above still applies. Applications do not write an audit row,
+because an audit row would have to name the person.
+
+`hr` can sign in, change their own password, read application counts, and end a
+published vacancy. `admin` creates HR users the same way as any other user.
+Counts are not visible to `admin` or `editor`.
+
+The public form posts to `/api/v1/public/apply` on the website's origin. Phase D
+must route `/api/v1/public/*` to this API the same way the Studio routes
+`/api/...`. The proxy in front of the API must allow a request body of 5 MB plus
+64 KB; a smaller limit refuses a valid CV before the API reads it.
+
+`ForwardedHeaders:KnownProxies` must list the proxy that terminates the
+connection. If it is empty, every candidate behind IIS is seen as one address
+and they share a single IP bucket of 10 applications an hour.
+
+`Email:TimeoutSeconds` defaults to 15 and is clamped between 1 and 120. A mail
+server that accepts the connection and never answers returns the friendly page
+within that time instead of holding the request.
+
+A CV is checked for a PDF or Word signature and a size limit only. Macro-enabled
+Word files and nested archives are accepted by design. HR's mail scanner must
+treat the attachment as untrusted.

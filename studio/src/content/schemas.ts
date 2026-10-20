@@ -21,9 +21,10 @@ export type SchemaCatalog = {
   collections: Record<string, SchemaNode>;
 };
 
-export function useSchemas() {
+export function useSchemas(enabled = true) {
   return useQuery({
     queryKey: ["schemas"],
+    enabled,
     queryFn: async () => {
       const result = await request("/api/v1/schemas");
       if (!result.ok || result.body === null) {

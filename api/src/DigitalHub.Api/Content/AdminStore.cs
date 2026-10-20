@@ -14,7 +14,7 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
 {
     private static readonly Regex GtmId = new(@"^GTM-[A-Z0-9]{7,}$", RegexOptions.CultureInvariant | RegexOptions.Compiled);
     private static readonly Regex Phone = new(@"^\+?[0-9][0-9\s\-().]{5,38}$", RegexOptions.CultureInvariant | RegexOptions.Compiled);
-    private static readonly HashSet<string> StudioRoles = new(StringComparer.Ordinal) { Roles.Admin, Roles.Editor };
+    private static readonly HashSet<string> StudioRoles = new(StringComparer.Ordinal) { Roles.Admin, Roles.Editor, Roles.Hr };
     private static readonly string[] ErrorTypes = ["404", "500"];
 
     public async Task<ContentOutcome> GetNavigationAsync(string? menu, CancellationToken cancellationToken)
@@ -296,8 +296,8 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         var errors = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         if (string.IsNullOrWhiteSpace(request.Email) || !IsEmail(request.Email))
             Add(errors, "email", "Enter a valid email address.");
-        if (request.Role is not (Roles.Admin or Roles.Editor))
-            Add(errors, "role", "Role must be admin or editor.");
+        if (request.Role is not (Roles.Admin or Roles.Editor or Roles.Hr))
+            Add(errors, "role", "Role must be admin, editor, or hr.");
         if (string.IsNullOrEmpty(request.Password) || request.Password.Length < 12)
             Add(errors, "password", "Password must be at least 12 characters.");
         if (errors.Count > 0)

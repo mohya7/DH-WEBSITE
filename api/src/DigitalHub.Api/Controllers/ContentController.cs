@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
+using DigitalHub.Api.Auth;
 using DigitalHub.Api.Content;
 using DigitalHub.Api.Conventions;
 using DigitalHub.Api.Infrastructure;
@@ -9,7 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace DigitalHub.Api.Controllers;
 
 [ApiController]
-[Authorize(Policy = "studio")]
+[StudioAccess]
 [Route("api/v1/{collection}")]
 public sealed class ContentController(ContentStore store) : ControllerBase
 {

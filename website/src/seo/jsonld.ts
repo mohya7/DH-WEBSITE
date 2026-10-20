@@ -182,6 +182,7 @@ function pageEntity(site: Site, item: AnyContentItem, pageType: PageType | "erro
     });
   }
   if (pageType === "vacancy" && item.collection === "vacancies") {
+    if (item.status === "ended") return undefined;
     const description = item.fields.summary?.trim() || item.fields.aboutRole?.trim();
     const address = postalAddress(site.content.settings);
     const place = item.fields.location?.trim() || address

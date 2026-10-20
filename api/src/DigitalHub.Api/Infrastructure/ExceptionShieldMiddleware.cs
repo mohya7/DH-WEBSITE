@@ -1,3 +1,5 @@
+using DigitalHub.Api.Content;
+
 namespace DigitalHub.Api.Infrastructure;
 
 /// <summary>
@@ -40,6 +42,23 @@ public sealed class ExceptionShieldMiddleware
             // client's error, with Kestrel's status (400, 413...), not a 500.
             _logger.LogInformation("Bad request from the client: {StatusCode}", bad.StatusCode);
             context.Response.Clear();
+            if (ApplyPage.IsApply(context.Request))
+            {
+                var code = bad.StatusCode == StatusCodes.Status413PayloadTooLarge ? "too_large" : "invalid_form";
+                var message = bad.StatusCode == StatusCodes.Status413PayloadTooLarge
+                    ? ApplicationIntake.CvRejected
+                    : ApplicationIntake.Rejected;
+                try
+                {
+                    await ApplyPage.WriteAsync(context.Response, bad.StatusCode, code, message, context.RequestAborted);
+                }
+                catch (Exception) when (context.RequestAborted.IsCancellationRequested)
+                {
+                }
+
+                return;
+            }
+
             context.Response.StatusCode = bad.StatusCode;
             try
             {

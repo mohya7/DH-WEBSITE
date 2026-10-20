@@ -16,6 +16,7 @@ export const areas: StudioArea[] = [
   { path: "/team", label: "Leadership Team", group: "Website content" },
   { path: "/pages", label: "Pages", group: "Website content" },
   { path: "/vacancies", label: "Vacancies", group: "Website content" },
+  { path: "/applications", label: "Applications", group: "Website content" },
   { path: "/settings", label: "Site settings", group: "Website & system" },
   { path: "/media", label: "Media library", group: "Website & system" },
   { path: "/navigation", label: "Navigation", group: "Website & system" },
@@ -25,16 +26,20 @@ export const areas: StudioArea[] = [
   { path: "/audit", label: "Audit log", group: "Website & system", adminOnly: true },
 ];
 
-const studioRoles = new Set(["admin", "editor"]);
+const studioRoles = new Set(["admin", "editor", "hr"]);
 
 export function isStudioRole(role: string): boolean {
   return studioRoles.has(role);
 }
 
 export function areasForRole(role: string): StudioArea[] {
+  if (role === "hr") {
+    return areas.filter((area) => area.path === "/applications" || area.path === "/vacancies");
+  }
+
   if (!isStudioRole(role)) {
     return [];
   }
 
-  return areas.filter((area) => role === "admin" || !area.adminOnly);
+  return areas.filter((area) => area.path !== "/applications" && (role === "admin" || !area.adminOnly));
 }

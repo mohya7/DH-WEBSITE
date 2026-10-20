@@ -34,7 +34,7 @@ function publishedContent(content: BuildContent): BuildContent {
       partners: published(collections.partners),
       "case-studies": published(collections["case-studies"]),
       "blog-posts": published(collections["blog-posts"]),
-      vacancies: published(collections.vacancies),
+      vacancies: collections.vacancies.filter((item) => item.publishedAt !== null && item.status !== "ended"),
       "team-members": published(collections["team-members"]),
       "news-items": published(collections["news-items"]),
     },

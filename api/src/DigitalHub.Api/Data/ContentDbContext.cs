@@ -46,6 +46,8 @@ public sealed class ContentDbContext : IdentityDbContext<ApplicationUser>
 
     public DbSet<ContactRequest> ContactRequests => Set<ContactRequest>();
 
+    public DbSet<ApplicationCount> ApplicationCounts => Set<ApplicationCount>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);

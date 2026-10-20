@@ -244,9 +244,9 @@ The website uses ordinary full-page links, never Next's client-side navigation, 
 
 **5.4** Contact form posts to the relative path `/api/v1/public/contact`: the honeypot field, client-side validation for convenience, and the labels, placeholders, button texts, success, and error messages from the section's fields.
 
-**5.5** Applying is by email. `/careers/apply` keeps its address, hero, title, SEO, and noindex. The page shows a short "How to apply" block and a `mailto:` to `careersEmail`, or the main email when `careersEmail` is empty. There is no form and no CV upload.
+**5.5** Applying is a form. `/careers/apply` and each open vacancy keep their address, hero, title, SEO, and noindex. The page shows an "Apply" form that posts to `/api/v1/public/apply` (name, email, optional phone, optional message, a PDF or Word CV up to 5 MB, and a consent checkbox). The fallback line is a `mailto:` to `careersEmail`, or the main email when `careersEmail` is empty. The API emails that application to the same address and stores only a count.
 
-*Decided at Section 3 — 5.4:* the contact form's behaviour — validation, submission, and messages — is a plain script in the ported style, not a React client component: the website ships no client runtime. React renders the form's markup at build. The same rules apply: no `innerHTML` with content, and no personal data sent to analytics. The careers page does not use that pattern: applying is the email block in 5.5.
+*Decided at Section 3 — 5.4:* the contact form's behaviour — validation, submission, and messages — is a plain script in the ported style, not a React client component: the website ships no client runtime. React renders the form's markup at build. The same rules apply: no `innerHTML` with content, and no personal data sent to analytics. The apply form is the same kind of markup: the browser posts it, and there is no client script.
 
 *Recorded at Section 3 — header and logo:*
 
@@ -565,3 +565,12 @@ API instance it starts, so the real one is not needed to refresh the snapshot.
 
 When no token is configured the endpoint refuses every caller, so it cannot be
 left open by leaving the setting out.
+
+## Careers intake
+
+A vacancy page and `/careers/apply` post a CV to `POST /api/v1/public/apply`.
+The API emails it to the careers address in site settings and stores only a
+count. Ended vacancies stay at their URL with a closed notice and no form, drop
+out of the careers list, and drop their `JobPosting` block. The sitemap still
+lists the URL. SMTP settings, the production migration, and the removed
+`marketing` and `interviewer` roles are in `docs/security-deployment.md`.

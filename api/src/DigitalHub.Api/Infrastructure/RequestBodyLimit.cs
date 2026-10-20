@@ -1,3 +1,4 @@
+using DigitalHub.Api.Content;
 using Microsoft.AspNetCore.Http.Features;
 
 namespace DigitalHub.Api.Infrastructure;
@@ -57,6 +58,9 @@ public sealed class RequestBodyLimitMiddleware(RequestDelegate next)
     private static Task RefuseAsync(HttpContext context, long max)
     {
         context.Response.Clear();
+        if (ApplyPage.IsApply(context.Request))
+            return ApplyPage.WriteAsync(context.Response, StatusCodes.Status413PayloadTooLarge, "too_large", ApplicationIntake.CvRejected, context.RequestAborted);
+
         context.Response.StatusCode = StatusCodes.Status413PayloadTooLarge;
         return ProblemResults.WriteAsync(
             context.Response,
