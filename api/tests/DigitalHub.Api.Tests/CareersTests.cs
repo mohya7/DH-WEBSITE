@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -181,6 +182,45 @@ public sealed class CareersTests : IClassFixture<ApiFactory>, IClassFixture<Reco
         Assert.Equal(before, await CountAsync(open));
         Assert.Equal(general, await CountAsync(null));
         Assert.Equal(sent, _recording.Sender.Sent.Count);
+    }
+
+    [Fact]
+    public async Task A_failed_count_still_answers_with_the_page_and_does_not_resend()
+    {
+        await EnsureCareersAddressAsync();
+        var before = await CountAsync(null);
+        await using var connection = new SqlConnection(ApiFactory.ElevatedTestConnectionString());
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            CREATE OR ALTER TRIGGER application_counts_fail_for_test ON application_counts
+            AFTER INSERT, UPDATE AS
+            BEGIN
+                THROW 50001, 'count blocked', 1;
+            END
+            """;
+        await command.ExecuteNonQueryAsync();
+        try
+        {
+            var address = UniqueEmail("countfail");
+            var pdf = Pdf("countfail");
+            var first = await PostApplyAsync(_mail, "Count Fail", address, "hello", pdf, null);
+            Assert.Equal(HttpStatusCode.Created, first.Status);
+            Assert.StartsWith("<!DOCTYPE html>", first.Body, StringComparison.Ordinal);
+            Assert.Contains("data-code=\"accepted\"", first.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("problem+json", first.Body, StringComparison.Ordinal);
+            Assert.Equal(1, _recording.Sender.Sent.Count(message => message.ReplyTo == address));
+
+            var second = await PostApplyAsync(_mail, "Count Fail", address, "hello", pdf, null);
+            Assert.Equal(HttpStatusCode.Created, second.Status);
+            Assert.Equal(1, _recording.Sender.Sent.Count(message => message.ReplyTo == address));
+            Assert.Equal(before, await CountAsync(null));
+        }
+        finally
+        {
+            command.CommandText = "DROP TRIGGER IF EXISTS application_counts_fail_for_test";
+            await command.ExecuteNonQueryAsync();
+        }
     }
 
     [Fact]

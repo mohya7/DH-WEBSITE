@@ -6,10 +6,11 @@ using DigitalHub.Api.Data;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace DigitalHub.Api.Content;
 
-public sealed class ApplicationIntake(ContentDbContext db, IEmailSender email, ApplyThrottle throttle)
+public sealed class ApplicationIntake(ContentDbContext db, IEmailSender email, ApplyThrottle throttle, ILogger<ApplicationIntake> logger)
 {
     public const string Accepted = "accepted";
     public const string Rejected = "The form could not be accepted.";
@@ -124,8 +125,18 @@ public sealed class ApplicationIntake(ContentDbContext db, IEmailSender email, A
                 return Problem(StatusCodes.Status503ServiceUnavailable, "email_failed", "We could not send your application. Please email us directly at " + careers + ".");
             }
 
-            await IncrementAsync(vacancyId, DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
+            // Recorded before the count, so a retry does not send again when the count fails.
             Seen[dedupe] = Environment.TickCount64;
+            try
+            {
+                await IncrementAsync(vacancyId, DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
+            }
+            catch (Exception exception) when (CountFailed(exception))
+            {
+                logger.LogWarning("application count was not recorded");
+                return Page(StatusCodes.Status201Created, "accepted", "Your application has been sent.");
+            }
+
             return Page(StatusCodes.Status201Created, "accepted", "Your application has been sent.");
         }
         finally
@@ -208,12 +219,15 @@ public sealed class ApplicationIntake(ContentDbContext db, IEmailSender email, A
                 await transaction.CommitAsync(cancellationToken);
                 return;
             }
-            catch (DbUpdateException) when (attempt == 0)
+            catch (Exception exception) when (attempt == 0 && CountFailed(exception))
             {
                 id.Value = Guid.NewGuid();
             }
         }
     }
+
+    private static bool CountFailed(Exception exception) =>
+        exception is SqlException or DbUpdateException || exception.InnerException is SqlException or DbUpdateException;
 
     private static IResult Problem(int status, string code, string title) => Page(status, code, title);
 
