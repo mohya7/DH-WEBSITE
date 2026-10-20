@@ -361,6 +361,29 @@ public sealed class CareersTests : IClassFixture<ApiFactory>, IClassFixture<Reco
     }
 
     [Fact]
+    public async Task A_malformed_mailbox_is_refused_without_a_send()
+    {
+        var before = await CountAsync(null);
+        var sent = _recording.Sender.Sent.Count;
+        await SetMailboxAsync("not-an-address", null);
+        try
+        {
+            var response = await PostApplyAsync(_mail, "Bad Box", UniqueEmail("badbox"), "hello", Pdf("badbox"), null);
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, response.Status);
+            Assert.Contains("data-code=\"not_accepting\"", response.Body, StringComparison.Ordinal);
+            Assert.Contains("Applications are not being accepted just now.", response.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("not-an-address", response.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("email_failed", response.Body, StringComparison.Ordinal);
+            Assert.Equal(sent, _recording.Sender.Sent.Count);
+            Assert.Equal(before, await CountAsync(null));
+        }
+        finally
+        {
+            await SetMailboxAsync("careers@digitalhub.test", null);
+        }
+    }
+
+    [Fact]
     public async Task Concurrent_applications_each_count()
     {
         await EnsureCareersAddressAsync();

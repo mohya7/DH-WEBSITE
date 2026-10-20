@@ -102,8 +102,12 @@ public sealed class ApplicationIntake(ContentDbContext db, IEmailSender email, A
             return Problem(StatusCodes.Status429TooManyRequests, "rate_limited", "Too many applications from this address. Try again later.");
 
         var careers = await CareersAddressAsync(cancellationToken);
-        if (careers is null)
+        if (careers is null || !Mailbox(careers))
+        {
+            if (careers is not null)
+                logger.LogWarning("careers mailbox is not a valid address");
             return Problem(StatusCodes.Status503ServiceUnavailable, "not_accepting", "Applications are not being accepted just now.");
+        }
 
         var dedupeKey = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\n', emailKey, vacancyId?.ToString("D") ?? "", name, phone, message, Convert.ToHexString(SHA256.HashData(bytes))))));
         var gate = dedupe.Gate(dedupeKey);
@@ -167,6 +171,18 @@ public sealed class ApplicationIntake(ContentDbContext db, IEmailSender email, A
 
     private static bool ValidText(string value, int max) =>
         value.Length is > 0 and var length && length <= max && value.IndexOfAny(['\r', '\n']) < 0;
+
+    private static bool Mailbox(string value)
+    {
+        try
+        {
+            return new MailAddress(value).Address == value;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+    }
 
     /// <summary>The throttle bucket only. Lower case, and the +tag in the local part is ignored. Reply-To stays the address as typed.</summary>
     private static string ThrottleEmail(string email)

@@ -25,13 +25,21 @@ public sealed class SmtpEmailSender(IConfiguration configuration, ILogger<SmtpEm
         }
 
         using var mail = new System.Net.Mail.MailMessage();
-        mail.From = new System.Net.Mail.MailAddress(configuration["Email:From"] ?? "careers@digitalhub.com.eg");
-        mail.To.Add(new System.Net.Mail.MailAddress(message.To));
+        try
+        {
+            mail.From = new System.Net.Mail.MailAddress(configuration["Email:From"] ?? "careers@digitalhub.com.eg");
+            mail.To.Add(new System.Net.Mail.MailAddress(message.To));
+            if (message.ReplyTo is not null)
+                mail.ReplyToList.Add(new System.Net.Mail.MailAddress(message.ReplyTo));
+        }
+        catch (FormatException)
+        {
+            logger.LogWarning("careers mailbox is not a valid address");
+            throw new EmailDeliveryException();
+        }
         mail.Subject = message.Subject;
         mail.Body = message.Body;
         mail.IsBodyHtml = false;
-        if (message.ReplyTo is not null)
-            mail.ReplyToList.Add(new System.Net.Mail.MailAddress(message.ReplyTo));
         if (message.Attachment is not null)
         {
             var stream = new MemoryStream(message.Attachment.Content, writable: false);
