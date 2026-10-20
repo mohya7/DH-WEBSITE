@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace DigitalHub.Api.Data.Migrations
 {
     [DbContext(typeof(ContentDbContext))]
-    [Migration("20261019104256_AddApplicationCounts")]
+    [Migration("20261020113912_AddApplicationCounts")]
     partial class AddApplicationCounts
     {
         /// <inheritdoc />
@@ -1074,6 +1074,9 @@ namespace DigitalHub.Api.Data.Migrations
                         .HasColumnType("nvarchar(64)");
 
                     b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("SessionStartedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("TokenHash")

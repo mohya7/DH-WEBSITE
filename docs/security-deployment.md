@@ -111,7 +111,7 @@ address directly and does not count the attempt. Set these outside the repo
 - An empty host is a local run. The API logs `email not sent (local)` and does
   not log the message.
 
-The migration `20261019104256_AddApplicationCounts` creates that table and deletes the unused
+The migration `20261020113912_AddApplicationCounts` creates that table and deletes the unused
 `marketing` and `interviewer` roles, including any user assignments to them.
 Those users are left with no role and cannot sign in to the Studio until an
 admin assigns `admin`, `editor`, or `hr`. The application does not migrate at
