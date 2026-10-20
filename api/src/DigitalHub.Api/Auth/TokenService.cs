@@ -9,7 +9,7 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace DigitalHub.Api.Auth;
 
-public sealed class TokenService(ContentDbContext db, IConfiguration configuration)
+public sealed class TokenService(ContentDbContext db, IConfiguration configuration, TimeProvider clock)
 {
     public const string RefreshCookieName = "dh_refresh";
     public const string CsrfCookieName = "dh_csrf";
@@ -18,6 +18,19 @@ public sealed class TokenService(ContentDbContext db, IConfiguration configurati
     public const string CsrfHeaderName = "X-CSRF-Token";
 
     public int AccessTokenSeconds => configuration.GetValue("Auth:AccessTokenMinutes", 10) * 60;
+
+    /// <summary>A refresh token unused for this many days expires; each refresh starts it again.</summary>
+    public int RefreshTokenDays => configuration.GetValue("Auth:RefreshTokenDays", 14);
+
+    /// <summary>
+    /// The absolute session limit: a refresh-token family stops refreshing this many
+    /// days after its first sign-in, however often it was refreshed, and the user
+    /// signs in again (item 13).
+    /// </summary>
+    public int SessionMaxDays => configuration.GetValue("Auth:SessionMaxDays", 30);
+
+    /// <summary>The time the session clock reads now. Access tokens keep the real clock, which JwtBearer validates against.</summary>
+    private DateTime Now => clock.GetUtcNow().UtcDateTime;
 
     /// <summary>
     /// The access-token claim that ties a token to the user's security stamp.
@@ -41,7 +54,7 @@ public sealed class TokenService(ContentDbContext db, IConfiguration configurati
     public async Task<IssuedSession> IssueAsync(ApplicationUser user, IEnumerable<string> roles, CancellationToken cancellationToken)
     {
         var knownRoles = roles.Where(Roles.IsKnown).ToArray();
-        var (rawToken, csrf, entity) = NewToken(user.Id, Guid.NewGuid());
+        var (rawToken, csrf, entity) = NewToken(user.Id, Guid.NewGuid(), Now);
         db.RefreshTokens.Add(entity);
         await db.SaveChangesAsync(cancellationToken);
         return new IssuedSession(CreateAccessToken(user.Id, knownRoles, user.SecurityStamp, entity.FamilyId), rawToken, csrf, entity.ExpiresAt);
@@ -62,8 +75,15 @@ public sealed class TokenService(ContentDbContext db, IConfiguration configurati
             return RefreshResult.Unauthorized();
         }
 
-        if (current.ExpiresAt <= DateTime.UtcNow)
+        if (current.ExpiresAt <= Now)
         {
+            return RefreshResult.Unauthorized();
+        }
+
+        if (Now >= current.SessionStartedAt.AddDays(SessionMaxDays))
+        {
+            // Past the absolute limit: the whole family ends and the user signs in again.
+            await RevokeFamilyAsync(current.FamilyId, cancellationToken);
             return RefreshResult.Unauthorized();
         }
 
@@ -88,8 +108,8 @@ public sealed class TokenService(ContentDbContext db, IConfiguration configurati
             .Join(db.Roles, link => link.RoleId, role => role.Id, (_, role) => role.Name!)
             .ToListAsync(cancellationToken);
 
-        var (rawNext, csrf, next) = NewToken(user.Id, current.FamilyId);
-        current.RevokedAt = DateTime.UtcNow;
+        var (rawNext, csrf, next) = NewToken(user.Id, current.FamilyId, current.SessionStartedAt);
+        current.RevokedAt = Now;
         current.ReplacedByHash = next.TokenHash;
         db.RefreshTokens.Add(next);
         await db.SaveChangesAsync(cancellationToken);
@@ -127,7 +147,7 @@ public sealed class TokenService(ContentDbContext db, IConfiguration configurati
         var hash = Hash(rawToken);
         var current = await db.RefreshTokens.AsNoTracking()
             .SingleOrDefaultAsync(token => token.TokenHash == hash, cancellationToken);
-        if (current is null || current.UserId != userId || current.RevokedAt is not null || current.ExpiresAt <= DateTime.UtcNow)
+        if (current is null || current.UserId != userId || current.RevokedAt is not null || current.ExpiresAt <= Now)
             return null;
         return current.FamilyId;
     }
@@ -138,7 +158,7 @@ public sealed class TokenService(ContentDbContext db, IConfiguration configurati
     /// </summary>
     public async Task RevokeUserAsync(string userId, Guid? keepFamily, CancellationToken cancellationToken)
     {
-        var now = DateTime.UtcNow;
+        var now = Now;
         var active = await db.RefreshTokens
             .Where(token => token.UserId == userId && token.RevokedAt == null)
             .ToListAsync(cancellationToken);
@@ -218,11 +238,17 @@ public sealed class TokenService(ContentDbContext db, IConfiguration configurati
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    private (string Raw, string Csrf, RefreshToken Entity) NewToken(string userId, Guid familyId)
+    private (string Raw, string Csrf, RefreshToken Entity) NewToken(string userId, Guid familyId, DateTime sessionStartedAt)
     {
         var raw = NewSecret();
         var csrf = NewSecret();
-        var days = configuration.GetValue("Auth:RefreshTokenDays", 14);
+        var now = Now;
+        // The sliding idle window, but never past the family's absolute limit.
+        var idle = now.AddDays(RefreshTokenDays);
+        // Stored dates come back from SQL Server without a kind; they are UTC. The
+        // cookie's expiry would otherwise be read as local time.
+        sessionStartedAt = DateTime.SpecifyKind(sessionStartedAt, DateTimeKind.Utc);
+        var ceiling = sessionStartedAt.AddDays(SessionMaxDays);
         var entity = new RefreshToken
         {
             Id = Guid.NewGuid(),
@@ -230,15 +256,16 @@ public sealed class TokenService(ContentDbContext db, IConfiguration configurati
             TokenHash = Hash(raw),
             CsrfTokenHash = Hash(csrf),
             FamilyId = familyId,
-            CreatedAt = DateTime.UtcNow,
-            ExpiresAt = DateTime.UtcNow.AddDays(days),
+            CreatedAt = now,
+            SessionStartedAt = sessionStartedAt,
+            ExpiresAt = idle < ceiling ? idle : ceiling,
         };
         return (raw, csrf, entity);
     }
 
     private async Task RevokeFamilyAsync(Guid familyId, CancellationToken cancellationToken)
     {
-        var now = DateTime.UtcNow;
+        var now = Now;
         var active = await db.RefreshTokens
             .Where(token => token.FamilyId == familyId && token.RevokedAt == null)
             .ToListAsync(cancellationToken);

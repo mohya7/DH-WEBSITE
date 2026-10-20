@@ -14,3 +14,6 @@
 # agent rules are the AGENTS.md and CLAUDE.md at the repository root.
 /AGENTS.md
 /CLAUDE.md
+
+# Screenshot comparison writes its report and captures here.
+/tools/screenshot-parity/output/

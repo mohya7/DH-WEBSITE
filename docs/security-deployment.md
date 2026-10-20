@@ -30,6 +30,41 @@ DENY UPDATE, DELETE ON dbo.audit_log TO [dh_content_app];
   `DigitalHubContent_Test`, `DigitalHubContent_Studio`) need the `DENY` line run
   once with the elevated account. Until then `AuditLogPermissionTests` fails there.
 
+## Sessions and passwords
+
+Configuration (`appsettings.json`, override per environment):
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `Auth:AccessTokenMinutes` | 10 | Lifetime of an access token. |
+| `Auth:RefreshTokenDays` | 14 | A session unused this long ends. Each refresh starts it again (the sliding idle window). |
+| `Auth:SessionMaxDays` | 30 | A session ends this many days after its sign-in, however often it was refreshed. The user signs in again. |
+| `Auth:ChangePasswordFailurePermitLimit` | 5 | Wrong current passwords per user per hour on change-password. |
+
+- A password is refused if it is common: on the list in
+  `api/src/DigitalHub.Api/Identity/common-passwords.txt` (10,001 entries, embedded
+  in the API; source and licence in `common-passwords.LICENSE.txt`), a variant of
+  one (case, trailing digits and symbols, leetspeak), or if it contains the
+  user's email name or "digitalhub". This also applies to
+  `Auth:InitialAdminPassword`: the API will not create the first admin with a
+  common password. The length and character rules are unchanged.
+
+Two behaviours are known and kept as they are:
+
+- **A removed role keeps working for up to 10 minutes.** There is no endpoint
+  that changes a user's role; if someone removes a role in the database, the
+  user's current access token still carries it until it expires
+  (`Auth:AccessTokenMinutes`). The next refresh reads the roles again and the
+  new token no longer has it. Every request already checks that the user is
+  active, the security stamp and the session (`SessionCheck`); to cut a user
+  off at once, deactivate them or reset their password, which both end every
+  session.
+- **The change-password limit is per user, not per address.** After five wrong
+  current passwords in an hour, change-password answers 429 for that user for
+  the rest of the hour. Someone who already holds the user's access token can
+  use that to stop the real user changing their password for up to an hour.
+  An admin reset still works, and it ends that stolen session.
+
 ## Studio: headers and routing
 
 The Studio is a static build served by IIS on its own subdomain, with the API on
