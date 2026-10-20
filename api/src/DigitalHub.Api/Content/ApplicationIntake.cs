@@ -97,7 +97,8 @@ public sealed class ApplicationIntake(ContentDbContext db, IEmailSender email, A
             return Problem(StatusCodes.Status400BadRequest, "invalid_cv", CvRejected);
 
         var emailKey = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(emailAddress.ToLowerInvariant())));
-        if (!throttle.Allow(remoteIp, emailKey))
+        var throttleKey = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(ThrottleEmail(emailAddress))));
+        if (!throttle.Allow(remoteIp, throttleKey))
             return Problem(StatusCodes.Status429TooManyRequests, "rate_limited", "Too many applications from this address. Try again later.");
 
         var careers = await CareersAddressAsync(cancellationToken);
@@ -166,6 +167,17 @@ public sealed class ApplicationIntake(ContentDbContext db, IEmailSender email, A
 
     private static bool ValidText(string value, int max) =>
         value.Length is > 0 and var length && length <= max && value.IndexOfAny(['\r', '\n']) < 0;
+
+    /// <summary>The throttle bucket only. Lower case, and the +tag in the local part is ignored. Reply-To stays the address as typed.</summary>
+    private static string ThrottleEmail(string email)
+    {
+        var lower = email.ToLowerInvariant();
+        var at = lower.IndexOf('@');
+        if (at <= 0)
+            return lower;
+        var plus = lower.IndexOf('+', 0, at);
+        return plus < 0 ? lower : string.Concat(lower.AsSpan(0, plus), lower.AsSpan(at));
+    }
 
     private static bool ValidEmail(string value)
     {

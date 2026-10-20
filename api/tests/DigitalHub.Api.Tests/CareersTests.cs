@@ -341,6 +341,26 @@ public sealed class CareersTests : IClassFixture<ApiFactory>, IClassFixture<Reco
     }
 
     [Fact]
+    public async Task Plus_tags_share_one_email_bucket_and_the_reply_address_is_unchanged()
+    {
+        await EnsureCareersAddressAsync();
+        await using var factory = new RecordingLimitedFactory();
+        var client = factory.CreateClient();
+        var local = "plus-" + Guid.NewGuid().ToString("N")[..8];
+        var plain = local + "@digitalhub.test";
+        var tagged = local + "+Team@digitalhub.test";
+        var other = local + "+other@digitalhub.test";
+        Assert.Equal(HttpStatusCode.Created, (await PostApplyAsync(client, "Plus", plain, "one", Pdf("plus-a"), null)).Status);
+        Assert.Equal(HttpStatusCode.Created, (await PostApplyAsync(client, "Plus", tagged, "two", Pdf("plus-b"), null)).Status);
+        var third = await PostApplyAsync(client, "Plus", other, "three", Pdf("plus-c"), null);
+        Assert.Equal(HttpStatusCode.TooManyRequests, third.Status);
+        Assert.Contains("data-code=\"rate_limited\"", third.Body, StringComparison.Ordinal);
+        Assert.Equal(2, factory.Sender.Sent.Count);
+        Assert.Contains(factory.Sender.Sent, message => message.ReplyTo == tagged);
+        Assert.Contains(factory.Sender.Sent, message => message.ReplyTo == plain);
+    }
+
+    [Fact]
     public async Task Concurrent_applications_each_count()
     {
         await EnsureCareersAddressAsync();
@@ -690,6 +710,15 @@ public class RecordingApplyFactory : ApiFactory
             services.RemoveAll<IEmailSender>();
             services.AddSingleton<IEmailSender>(Sender);
         });
+    }
+}
+
+public sealed class RecordingLimitedFactory : RecordingApplyFactory
+{
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+        builder.UseSetting("Apply:EmailPermitLimit", "2");
     }
 }
 
