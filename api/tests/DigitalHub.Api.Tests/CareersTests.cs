@@ -148,6 +148,42 @@ public sealed class CareersTests : IClassFixture<ApiFactory>, IClassFixture<Reco
     }
 
     [Fact]
+    public async Task Consent_and_closed_vacancies_are_refused()
+    {
+        await EnsureCareersAddressAsync();
+        var open = await PublishedVacancyAsync();
+        var before = await CountAsync(open);
+        var general = await CountAsync(null);
+        var sent = _recording.Sender.Sent.Count;
+
+        foreach (var consent in new string?[] { null, "false", "no" })
+        {
+            var refused = await PostFieldsAsync(_mail, "Consent", UniqueEmail("consent"), "hello", Pdf("consent"), open, consent: consent);
+            Assert.Equal(HttpStatusCode.BadRequest, refused.Status);
+            Assert.Contains("data-code=\"invalid_form\"", refused.Body, StringComparison.Ordinal);
+        }
+
+        var unknown = await PostFieldsAsync(_mail, "Unknown", UniqueEmail("unknown"), "hello", Pdf("unknown"), null, vacancyText: Guid.NewGuid().ToString("D"));
+        var draft = await DraftVacancyAsync();
+        var ended = await EndedVacancyAsync();
+        var cases = new[]
+        {
+            unknown,
+            await PostFieldsAsync(_mail, "Draft", UniqueEmail("draft"), "hello", Pdf("draft"), null, vacancyText: draft.ToString("D")),
+            await PostFieldsAsync(_mail, "Ended", UniqueEmail("ended"), "hello", Pdf("ended"), null, vacancyText: ended.ToString("D")),
+            await PostFieldsAsync(_mail, "Text", UniqueEmail("text"), "hello", Pdf("text"), null, vacancyText: "not-a-guid"),
+        };
+        Assert.All(cases, refused =>
+        {
+            Assert.Equal(HttpStatusCode.BadRequest, refused.Status);
+            Assert.Contains("data-code=\"closed\"", refused.Body, StringComparison.Ordinal);
+        });
+        Assert.Equal(before, await CountAsync(open));
+        Assert.Equal(general, await CountAsync(null));
+        Assert.Equal(sent, _recording.Sender.Sent.Count);
+    }
+
+    [Fact]
     public async Task The_rate_limit_answers_429()
     {
         await using var factory = new ApplyLimitedFactory();
@@ -385,7 +421,9 @@ public sealed class CareersTests : IClassFixture<ApiFactory>, IClassFixture<Reco
         var admin = await AuthSession.LoginAsync(_client, ApiFactory.AdminEmail, ApiFactory.AdminPassword);
         var suffix = Guid.NewGuid().ToString("N")[..8];
         var created = await _client.SendAsync(Json(admin, HttpMethod.Post, "/api/v1/vacancies", new { slug = "apply-" + suffix, title = "Apply " + suffix, fields = new { summary = "A role." } }));
-        var json = JsonDocument.Parse(await created.Content.ReadAsStringAsync()).RootElement;
+        var createdBody = await created.Content.ReadAsStringAsync();
+        Assert.True(created.StatusCode == HttpStatusCode.Created, createdBody);
+        var json = JsonDocument.Parse(createdBody).RootElement;
         var id = json.GetProperty("id").GetGuid();
         var published = await _client.SendAsync(Json(admin, HttpMethod.Post, "/api/v1/vacancies/" + id + "/publish", new { version = json.GetProperty("version").GetInt32() }));
         Assert.Equal(HttpStatusCode.OK, published.StatusCode);
@@ -406,16 +444,40 @@ public sealed class CareersTests : IClassFixture<ApiFactory>, IClassFixture<Reco
         return await db.ApplicationCounts.Where(row => row.VacancyId == vacancyId && row.AppliedOn == today).SumAsync(row => (int?)row.Count) ?? 0;
     }
 
-    private static async Task<(HttpStatusCode Status, string Body)> PostApplyAsync(HttpClient client, string name, string email, string message, byte[] file, Guid? vacancy, string fileName = "cv.pdf", string? website = null)
+    private async Task<Guid> DraftVacancyAsync()
+    {
+        var admin = await AuthSession.LoginAsync(_client, ApiFactory.AdminEmail, ApiFactory.AdminPassword);
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var created = await _client.SendAsync(Json(admin, HttpMethod.Post, "/api/v1/vacancies", new { slug = "draft-" + suffix, title = "Draft " + suffix, fields = new { summary = "A role." } }));
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        return JsonDocument.Parse(await created.Content.ReadAsStringAsync()).RootElement.GetProperty("id").GetGuid();
+    }
+
+    private async Task<Guid> EndedVacancyAsync()
+    {
+        var id = await PublishedVacancyAsync();
+        var admin = await AuthSession.LoginAsync(_client, ApiFactory.AdminEmail, ApiFactory.AdminPassword);
+        var version = await VacancyVersionAsync(admin, id);
+        var ended = await _client.SendAsync(Json(admin, HttpMethod.Post, "/api/v1/vacancies/" + id + "/end", new { version }));
+        Assert.Equal(HttpStatusCode.OK, ended.StatusCode);
+        return id;
+    }
+
+    private static async Task<(HttpStatusCode Status, string Body)> PostFieldsAsync(
+        HttpClient client, string name, string email, string message, byte[] file, Guid? vacancy,
+        string fileName = "cv.pdf", string? website = null, string? consent = "yes", string? vacancyText = null)
     {
         var form = new MultipartFormDataContent
         {
             { new StringContent(name), "name" },
             { new StringContent(email), "email" },
             { new StringContent(message), "message" },
-            { new StringContent("yes"), "consent" },
         };
-        if (vacancy is Guid id)
+        if (consent is not null)
+            form.Add(new StringContent(consent), "consent");
+        if (vacancyText is not null)
+            form.Add(new StringContent(vacancyText), "vacancyId");
+        else if (vacancy is Guid id)
             form.Add(new StringContent(id.ToString("D")), "vacancyId");
         if (website is not null)
             form.Add(new StringContent(website), "website");
@@ -423,6 +485,9 @@ public sealed class CareersTests : IClassFixture<ApiFactory>, IClassFixture<Reco
         var response = await client.SendAsync(new HttpRequestMessage(HttpMethod.Post, "/api/v1/public/apply") { Content = form });
         return (response.StatusCode, await response.Content.ReadAsStringAsync());
     }
+
+    private static Task<(HttpStatusCode Status, string Body)> PostApplyAsync(HttpClient client, string name, string email, string message, byte[] file, Guid? vacancy, string fileName = "cv.pdf", string? website = null) =>
+        PostFieldsAsync(client, name, email, message, file, vacancy, fileName, website);
 
     private static HttpRequestMessage Json(AuthSession session, HttpMethod method, string url, object body)
     {
