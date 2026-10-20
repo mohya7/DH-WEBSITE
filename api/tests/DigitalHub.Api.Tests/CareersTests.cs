@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using DigitalHub.Api.Content;
@@ -221,6 +223,37 @@ public sealed class CareersTests : IClassFixture<ApiFactory>, IClassFixture<Reco
             command.CommandText = "DROP TRIGGER IF EXISTS application_counts_fail_for_test";
             await command.ExecuteNonQueryAsync();
         }
+    }
+
+    [Fact]
+    public async Task A_silent_mail_server_is_refused_within_the_timeout()
+    {
+        await EnsureCareersAddressAsync();
+        var before = await CountAsync(null);
+        using var listener = new TcpListener(IPAddress.Loopback, 4318);
+        listener.Start();
+        using var accept = new CancellationTokenSource();
+        var held = Task.Run(async () =>
+        {
+            while (!accept.IsCancellationRequested)
+            {
+                var incoming = await listener.AcceptTcpClientAsync(accept.Token);
+                _ = incoming;
+            }
+        }, accept.Token);
+        await using var factory = new SilentSmtpFactory();
+        var client = factory.CreateClient();
+        var watch = Stopwatch.StartNew();
+        var response = await PostApplyAsync(client, "Silent", UniqueEmail("silent"), "hello", Pdf("silent"), null);
+        watch.Stop();
+        accept.Cancel();
+        listener.Stop();
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.Status);
+        Assert.Contains("data-code=\"email_failed\"", response.Body, StringComparison.Ordinal);
+        Assert.StartsWith("<!DOCTYPE html>", response.Body, StringComparison.Ordinal);
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(8), watch.Elapsed.ToString());
+        Assert.Equal(before, await CountAsync(null));
+        try { await held; } catch (OperationCanceledException) { }
     }
 
     [Fact]
@@ -598,6 +631,18 @@ public sealed class ApplyLimitedFactory : ApiFactory
         base.ConfigureWebHost(builder);
         builder.UseSetting("Apply:IpPermitLimit", "2");
         builder.UseSetting("Apply:EmailPermitLimit", "2");
+    }
+}
+
+public sealed class SilentSmtpFactory : ApiFactory
+{
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+        builder.UseSetting("Email:Host", "127.0.0.1");
+        builder.UseSetting("Email:Port", "4318");
+        builder.UseSetting("Email:TimeoutSeconds", "2");
+        builder.UseSetting("Email:From", "careers@digitalhub.test");
     }
 }
 

@@ -48,11 +48,17 @@ public sealed class SmtpEmailSender(IConfiguration configuration, ILogger<SmtpEm
         if (!string.IsNullOrEmpty(user))
             client.Credentials = new System.Net.NetworkCredential(user, configuration["Email:Password"]);
 
+        var timeoutSeconds = Math.Clamp(configuration.GetValue("Email:TimeoutSeconds", 15), 1, 120);
+        client.Timeout = timeoutSeconds * 1000;
+
         try
         {
-            await client.SendMailAsync(mail, cancellationToken);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
+            await client.SendMailAsync(mail, timeout.Token);
         }
-        catch (Exception exception) when (exception is System.Net.Mail.SmtpException or InvalidOperationException or IOException)
+        catch (Exception exception) when (exception is System.Net.Mail.SmtpException or InvalidOperationException or IOException
+            || (exception is OperationCanceledException && !cancellationToken.IsCancellationRequested))
         {
             logger.LogWarning("application email failed");
             throw new EmailDeliveryException();
