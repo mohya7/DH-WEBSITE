@@ -207,6 +207,13 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         if ((settings?.Version ?? 0) != request.Version)
             return SettingsConflict();
 
+        // The version cannot go past Int32.MaxValue. Wrapping to a negative number,
+        // or staying at the maximum, would stop the check above from seeing a stale
+        // save, so the save is refused instead (P3 c).
+        if (settings is not null && settings.Version == int.MaxValue)
+            return ContentOutcome.Fail(StatusCodes.Status409Conflict, "version_exhausted",
+                "The settings cannot be saved again: their version is at its maximum. A developer must reset it.");
+
         // The first save is what creates the row.
         if (settings is null)
         {
@@ -310,7 +317,8 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         };
         var created = await users.CreateAsync(user, request.Password);
         if (!created.Succeeded)
-            return ContentOutcome.Fail(StatusCodes.Status400BadRequest, "validation_failed", "The user could not be created.",
+            return ContentOutcome.Fail(StatusCodes.Status400BadRequest, "validation_failed",
+                created.Errors.Any(error => error.Code == CommonPasswordValidator.ErrorCode) ? CommonPasswordValidator.Message : "The user could not be created.",
                 created.Errors.GroupBy(error => error.Code).ToDictionary(group => group.Key, group => group.Select(error => error.Description).ToArray()));
 
         var role = await users.AddToRoleAsync(user, request.Role);
@@ -369,7 +377,7 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         if (user is null || IsDeactivated(user))
             return Missing("That user does not exist.");
 
-        var temporary = NewTemporaryPassword();
+        var temporary = await NewAcceptedTemporaryPasswordAsync(user);
         await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
         var removed = await users.RemovePasswordAsync(user);
         if (!removed.Succeeded)
@@ -386,6 +394,24 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         await db.SaveChangesAsync(cancellationToken);
         await tx.CommitAsync(cancellationToken);
         return ContentOutcome.Ok(new { id = user.Id, temporaryPassword = temporary });
+    }
+
+    /// <summary>
+    /// A temporary password every password validator accepts. A random one is
+    /// refused only by chance (it contains the user's email name, say); then
+    /// another is drawn.
+    /// </summary>
+    private async Task<string> NewAcceptedTemporaryPasswordAsync(ApplicationUser user)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            var candidate = NewTemporaryPassword();
+            var accepted = true;
+            foreach (var validator in users.PasswordValidators)
+                accepted &= (await validator.ValidateAsync(users, user, candidate)).Succeeded;
+            if (accepted || attempt == 9)
+                return candidate;
+        }
     }
 
     /// <summary>Marks every live refresh token of the user revoked. The caller saves.</summary>

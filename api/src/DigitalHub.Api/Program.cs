@@ -61,7 +61,9 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
     options.Password.RequiredLength = 12;
 })
 .AddRoles<IdentityRole>()
+.AddPasswordValidator<CommonPasswordValidator>()
 .AddEntityFrameworkStores<ContentDbContext>();
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddSingleton<SectionSchemaSet>();
 builder.Services.AddSingleton<CollectionSchemaSet>();

@@ -12,7 +12,8 @@ namespace DigitalHub.Api.Auth;
 ///   password change or reset changes it);
 /// - the session the token was issued for (its refresh-token family) still has a
 ///   live refresh token (sign-out, reuse detection, a reset or a deactivation
-///   revokes it).
+///   revokes it), and its first sign-in was less than Auth:SessionMaxDays ago
+///   (the absolute session limit, item 13).
 ///
 /// Before this, that state was checked at sign-in and refresh only, so a
 /// deactivated user, a signed-out session, or a session from before a password
@@ -49,9 +50,12 @@ public static class SessionCheck
             return;
         }
 
-        var now = DateTime.UtcNow;
+        var now = context.HttpContext.RequestServices.GetRequiredService<TimeProvider>().GetUtcNow().UtcDateTime;
+        var maxDays = context.HttpContext.RequestServices.GetRequiredService<IConfiguration>().GetValue("Auth:SessionMaxDays", 30);
+        var sessionStartedAfter = now.AddDays(-maxDays);
         var live = await db.RefreshTokens.AsNoTracking()
-            .AnyAsync(token => token.FamilyId == familyId && token.UserId == userId && token.RevokedAt == null && token.ExpiresAt > now, cancellationToken);
+            .AnyAsync(token => token.FamilyId == familyId && token.UserId == userId && token.RevokedAt == null && token.ExpiresAt > now
+                && token.SessionStartedAt > sessionStartedAfter, cancellationToken);
         if (!live)
         {
             context.Fail("The session has ended.");

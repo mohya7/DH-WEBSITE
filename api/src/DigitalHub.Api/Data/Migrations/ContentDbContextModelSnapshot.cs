@@ -1041,6 +1041,9 @@ namespace DigitalHub.Api.Data.Migrations
                     b.Property<DateTime?>("RevokedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime>("SessionStartedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("TokenHash")
                         .IsRequired()
                         .HasMaxLength(64)

@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { generate } from "../scripts/generate-schema-types";
 import type { HeroFields, Section, ServicesFields } from "../src/content/generated/schema-types";
 import { sectionTypes } from "../src/content/generated/schema-types";
-import { validateContent } from "../src/content/validate";
+import { isAllowedSectionHref, validateContent } from "../src/content/validate";
 import { snapshotContent, tempDir } from "./helpers";
 
 const packagesRoot = path.resolve(process.cwd(), "..", "packages");
@@ -74,6 +74,53 @@ describe("content against the schemas", () => {
     const hero = content.pages[0].sections[0];
     (hero.fields as Record<string, unknown>).heading = 42;
     expect(validateContent(content).join("\n")).toMatch(/pages\/home: section 1 \(hero\) does not match sections\/hero\.json: \/heading must be string/);
+  });
+
+  it("refuses a section link the API would refuse (finding O1), and keeps ordinary ones", () => {
+    const refused = [
+      "javascript:alert(document.domain)",
+      "data:text/html,<script>alert(1)</script>",
+      "vbscript:msgbox(1)",
+      "JaVaScRiPt:alert(1)",
+      "java\tscript:alert(1)",
+      " javascript:alert(1)",
+      "java\nscript:alert(1)",
+      "\u0001javascript:alert(1)",
+      "&#106;avascript:alert(1)",
+      "//evil.example/",
+      "/\\evil.example",
+      "file:///etc/passwd",
+      "contact",
+      "",
+    ];
+    const accepted = ["https://www.digitalhubgroup.com/", "http://example.com/page", "mailto:sales@digitalhubgroup.com", "tel:+201555553064", "/contact", "/", "#cookie-settings"];
+    for (const href of refused) expect(isAllowedSectionHref(href), JSON.stringify(href)).toBe(false);
+    for (const href of accepted) expect(isAllowedSectionHref(href), href).toBe(true);
+  });
+
+  it("stops the build when a published section link is javascript: or data:", () => {
+    for (const href of ["javascript:alert(document.domain)", "data:text/html,<script>alert(1)</script>"]) {
+      const content = snapshotContent();
+      const page = content.pages.find((item) => item.sections.some((section) => typeof (section.fields as { action?: { href?: unknown } }).action?.href === "string"));
+      expect(page, "the snapshot has a section with an action link").toBeDefined();
+      const section = page!.sections.find((item) => typeof (item.fields as { action?: { href?: unknown } }).action?.href === "string")!;
+      (section.fields as { action: { href: string } }).action.href = href;
+      expect(validateContent(content).join("\n")).toMatch(/\/action\/href is not an allowed link/);
+    }
+  });
+
+  it("stops the build when a team member's linkedIn is javascript:, and allows an empty one", () => {
+    const bad = snapshotContent();
+    const member = bad.collections["team-members"][0];
+    expect(member, "the snapshot has a team member").toBeDefined();
+    (member.fields as { linkedIn: string | null }).linkedIn = "javascript:alert(document.domain)";
+    expect(validateContent(bad).join("\n")).toMatch(/team-members\/.*\/linkedIn is not an allowed link/);
+
+    for (const value of ["", "   ", null, "https://www.linkedin.com/in/someone"]) {
+      const ok = snapshotContent();
+      (ok.collections["team-members"][0].fields as { linkedIn: string | null }).linkedIn = value;
+      expect(validateContent(ok), JSON.stringify(value)).toEqual([]);
+    }
   });
 
   it("reports a field the schema does not define", () => {

@@ -7,12 +7,14 @@ public sealed class SectionSchemaSet
 {
     private readonly Dictionary<string, JsonSchema> _byType;
     private readonly Dictionary<string, HashSet<string>> _inlineTextByType;
+    private readonly Dictionary<string, List<string[]>> _urlPathsByType;
     private readonly EvaluationOptions _options;
 
     public SectionSchemaSet()
     {
         var directory = FindDirectory();
         _inlineTextByType = ReadInlineTextFields(directory);
+        _urlPathsByType = ReadUrlPaths(directory);
         var registry = new SchemaRegistry();
         var build = new BuildOptions
         {
@@ -81,6 +83,51 @@ public sealed class SectionSchemaSet
             && reference.GetString()?.EndsWith("/inlineText", StringComparison.Ordinal) == true;
     }
 
+    /// <summary>
+    /// Where a section type holds a link address (x-dh-kind "url"), directly or
+    /// through the shared link definition: one path per place, "*" for every item
+    /// of an array. Read from the schemas, so a new link field is checked by
+    /// being declared one.
+    /// </summary>
+    public IReadOnlyList<string[]> UrlPaths(string type) =>
+        _urlPathsByType.TryGetValue(type, out var paths) ? paths : [];
+
+    private static Dictionary<string, List<string[]>> ReadUrlPaths(string directory)
+    {
+        using var defsDocument = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "defs.json")));
+        var defs = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+        foreach (var definition in defsDocument.RootElement.GetProperty("$defs").EnumerateObject())
+            defs[definition.Name] = definition.Value.Clone();
+
+        var byType = new Dictionary<string, List<string[]>>(StringComparer.Ordinal);
+        foreach (var file in Directory.GetFiles(directory, "*.json"))
+        {
+            var name = Path.GetFileNameWithoutExtension(file);
+            if (name.Equals("defs", StringComparison.OrdinalIgnoreCase))
+                continue;
+            using var document = JsonDocument.Parse(File.ReadAllText(file));
+            var paths = new List<string[]>();
+            SchemaLinks.FindUrls(document.RootElement, [], defs, paths, depth: 0);
+            if (paths.Count > 0)
+                byType[name] = paths;
+        }
+
+        return byType;
+    }
+
+    /// <summary>Every link address in the fields that SectionLinks refuses, with where it is.</summary>
+    private IEnumerable<string> LinkProblems(string type, JsonElement fields)
+    {
+        foreach (var path in UrlPaths(type))
+        {
+            foreach (var (location, value) in SchemaLinks.Values(fields, path, 0, ""))
+            {
+                if (value.ValueKind == JsonValueKind.String && !SectionLinks.IsAllowed(value.GetString()!))
+                    yield return location + ": " + SectionLinks.Message;
+            }
+        }
+    }
+
     public IReadOnlyList<string> Validate(string type, string fieldsJson)
     {
         if (!_byType.TryGetValue(type, out var schema))
@@ -89,7 +136,7 @@ public sealed class SectionSchemaSet
         using var document = JsonDocument.Parse(fieldsJson);
         var result = schema.Evaluate(document.RootElement, _options);
         if (result.IsValid)
-            return [];
+            return [.. LinkProblems(type, document.RootElement)];
 
         var errors = new List<string>();
         Collect(result, errors);

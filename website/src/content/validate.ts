@@ -28,14 +28,55 @@ function readJson(file: string): object {
   return JSON.parse(fs.readFileSync(file, "utf8")) as object;
 }
 
-function loadValidators(): Validators {
-  if (validators) return validators;
+/**
+ * The addresses a section link field (x-dh-kind "url") may hold, as the API
+ * checks them (SectionLinks, finding O1): a site path, a #fragment, or an
+ * http, https, mailto or tel address. The renderer writes href as given, so
+ * the build refuses anything else rather than publish it as a live link.
+ */
+export function isAllowedSectionHref(href: string): boolean {
+  const value = href.trim();
+  if (value === "" || /[\u0000-\u001f\u007f-\u009f]/.test(value)) return false;
+  if (value.startsWith("#")) return true;
+  if (value.startsWith("/")) return value.length === 1 || (value[1] !== "/" && value[1] !== "\\");
+  const colon = value.indexOf(":");
+  const collapsed = colon < 0 ? value : value.slice(0, colon).replace(/\s/g, "") + value.slice(colon);
+  let url: URL;
+  try {
+    url = new URL(collapsed);
+  } catch {
+    return false;
+  }
+  if (url.protocol === "http:" || url.protocol === "https:") return url.hostname !== "";
+  if (url.protocol === "mailto:" || url.protocol === "tel:") return collapsed.length > url.protocol.length;
+  return false;
+}
 
+/**
+ * An ajv whose x-dh-kind "url" fields must hold an allowed link. A section link
+ * is required, so an empty one is refused; a collection link (team-members
+ * linkedIn) is optional, and empty means no link, as in the API.
+ */
+function newAjv(emptyLinkAllowed: boolean): Ajv2020 {
   const ajv = new Ajv2020({ allErrors: true, strict: true });
-  ajv.addKeyword("x-dh-kind");
+  ajv.addKeyword({
+    keyword: "x-dh-kind",
+    schemaType: "string",
+    validate: (kind: string, data: unknown) =>
+      kind !== "url" || typeof data !== "string" || (emptyLinkAllowed && data.trim() === "") || isAllowedSectionHref(data),
+    errors: false,
+  });
   ajv.addKeyword("x-dh-label");
   ajv.addKeyword("x-dh-help");
   ajv.addFormat("uuid", /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+  return ajv;
+}
+
+function loadValidators(): Validators {
+  if (validators) return validators;
+
+  // Section and collection links are checked here, as in the API (finding O1).
+  const ajv = newAjv(false);
   ajv.addSchema(readJson(path.join(packagesRoot, "sections", "defs.json")));
 
   const sections = new Map<string, ValidateFunction>();
@@ -50,9 +91,10 @@ function loadValidators(): Validators {
         .map(([name]) => name),
     );
   }
+  const collectionAjv = newAjv(true);
   const collections = new Map<string, ValidateFunction>();
   for (const name of collectionNames) {
-    collections.set(name, ajv.compile(readJson(path.join(packagesRoot, "collections", `${name}.json`))));
+    collections.set(name, collectionAjv.compile(readJson(path.join(packagesRoot, "collections", `${name}.json`))));
   }
 
   validators = { sections, collections, inlineText };
@@ -61,7 +103,7 @@ function loadValidators(): Validators {
 
 function describeErrors(validate: ValidateFunction): string {
   return (validate.errors ?? [])
-    .map((error) => `${error.instancePath || "(root)"} ${error.message ?? "is invalid"}`)
+    .map((error) => `${error.instancePath || "(root)"} ${error.keyword === "x-dh-kind" ? "is not an allowed link (use a site path, a #section, or http, https, mailto, tel)" : (error.message ?? "is invalid")}`)
     .join("; ");
 }
 
