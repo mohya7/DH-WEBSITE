@@ -13,7 +13,7 @@ checks are marked **added**. Standard: `ENGINEERING_STANDARDS.md`.
 | Front End | Pass, with 1 design difference | Website 409 unit, 30 screenshot regression, 21 browser; Studio 32 unit, 26 end-to-end | Careers apply section differs from the locked design; browser suite not in CI |
 | Back End | **Pass** | 475 / 475 integration tests | 13 nullable warnings |
 | Database | Pass, with 1 failure | 10 checks | Idempotent migration script fails at migration 7 of 15 |
-| API | **Pass** | 23 live HTTP probes: 21 pass, 2 expectations corrected; 1 low finding | `Server: Kestrel` header |
+| API | **Pass** | 23 live HTTP probes: 20 pass as written, 2 pass after correcting my expectations, 1 low finding | `Server: Kestrel` header |
 | Security | **Fail** | 6 gates, local and in GitHub Actions | 2 Critical and 1 High advisory in the website's `next` |
 
 ## Findings, most severe first
