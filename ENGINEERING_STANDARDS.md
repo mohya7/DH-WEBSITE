@@ -156,12 +156,16 @@ Each is asked directly and recorded verbatim when answered.
 | O-9 | GitHub plan for a private repository (branch protection and CODEOWNERS need a paid plan) | Upgrade, or record an exception and keep review requests manual |
 | O-10 | Staging environment for Phase D | One staging environment that mirrors production, used by the exposure test and the dynamic scan |
 | O-11 | Careers apply section: restore the locked design or accept the new form | Restore the design unless the new form is wanted; record the choice either way |
-| O-12 | A separate, limited database login for the public contact and apply endpoints (new pattern, needs an ADR) | Yes, with Phase D, so a flaw in the public forms cannot reach users, sessions or content |
+| O-12 | How to isolate the Studio from the website on the server | **Decided:** "b" (28 October 2026, in this session, reply to "A or B for the isolation."). Option B: a public-forms API with its own process and limited database login behind the website, and the admin API on the Studio subdomain behind an allow-list. Design in `docs/adr/0001-split-public-forms-api.md` (proposed) |
 | O-13 | Restrict the Studio subdomain (the Studio and its API) to known office and VPN addresses | Yes, if staff work from known networks: allow-list at IIS or the AWS security group, including the build machine that calls the build-content endpoint; the public forms reach the API through the website's domain and are unaffected. Otherwise record that sign-in, rate limits and lockout are the only barrier |
+| O-14 | What starts a website build and deploy after publishing (admin audit ADM-01b) | A "Publish website" action in the Studio for admins and editors, plus a nightly build, so a batch of edits goes out together and a failed build is shown in the Studio |
+| O-15 | Deleting Studio users (ADM-04) | No hard delete: the audit log refers to users. Add change role and reactivate; a returning employee is reactivated, not re-created |
+| O-16 | The meta-description rule on the noindex 404 and 500 pages (ADM-05) | Exempt noindex pages; search engines never show them |
+| O-17 | The unused `featured` field in seven collection schemas, against the settled "No featured flag" (ADM-25) | Remove it; the website does not read it |
 
 ## 10. Rollout
 
-The dated, reviewed schedule for these steps is `docs/quality/refinement-plan-2026-10-28.md` (Waves 0 to 4, 38 gaps, target 47 of 54 rules by 14 December 2026).
+The dated, reviewed schedule for these steps is `docs/quality/refinement-plan-2026-10-28.md` (Waves 0 to 4, 38 gaps, target 47 of 54 rules by 14 December 2026). It runs as three tracks: G1 the standard, G2 isolation (ADR 0001), G3 the Studio admin functions (`docs/quality/admin-audit-2026-10-28.md`).
 
 Each step is its own pull request, in this order. Steps 3 and 4 add gates in
 report mode first.

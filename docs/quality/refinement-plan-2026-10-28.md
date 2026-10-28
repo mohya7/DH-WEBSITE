@@ -4,7 +4,32 @@
 
 The code is sound; the gaps are in automation and process. 31 of the standard's 54 rules are not fully met. The plan closes 24 of them by 14 December 2026 (22 if OpenAPI is declined) in four waves of 26 pull requests, starting with this week's security deadline. Three rules stay review-only by design, and four wait on Phase D or an owner decision.
 
-Final version, after an independent review on 28 October; what the review changed is listed under Revision notes.
+Final version, after an independent review on 28 October; what the review changed is listed under Revision notes. Restructured later on 28 October around the owner's three goals (next section).
+
+## Three goals and the order to do them
+
+The owner set three goals on 28 October: "1 revamp the portal so it follows the standard 2 isolate the admin portal from the public portal 100% 3 the admin functions to control the portal had many issues that will block the portal management". Each is a track. Track G1 is the four waves below, unchanged. Track G2 is option B from ADR 0001. Track G3 is the 25 findings of `docs/quality/admin-audit-2026-10-28.md`.
+
+| Track | Goal | Items | Done when |
+| --- | --- | --- | --- |
+| G1 Standard | The system follows `ENGINEERING_STANDARDS.md` | GAP-01 to GAP-35, Waves 0 to 4 | 47 of 54 rules met by 14 December |
+| G2 Isolation | The Studio is separated from the website on the server too, not only in the browser | ISO-1 to ISO-6, which replace the GAP-36 and GAP-38 approach | The website's domain reaches only the two public forms, through their own API and login; the admin API answers only on the Studio host; the Studio subdomain is on an allow-list (Phase D) |
+| G3 Admin functions | Staff can run the website from the Studio without a developer | ADM-01 to ADM-25 | All six blockers fixed by 16 November, the Majors by 11 December, the Minors by 18 December; ADM-01b with Phase D |
+
+### Execution order
+
+Two merge slots a working day: slot 1 carries G1 at the pace already planned; slot 2 carries G2 and G3, one pull request a day at most. One integrator merges both, one at a time, and re-runs the suites after each (`AGENTS.md`). Parallel pull requests change different files.
+
+| Step | Dates | Slot 1 | Slot 2 | Why here |
+| --- | --- | --- | --- | --- |
+| 1 | 28 Oct to 3 Nov | Wave 0: security deadline | Owner decisions in one round, ADR 0001 reviewed and accepted | The deadline is fixed, and every later step waits on a decision |
+| 2 | 3 to 16 Nov | Wave 1: make CI honest | G3-1: the admin blockers (ADM-06, 03, 02, 07, 10, 05, 04, 12, 01a) | Blockers are small and staff need them before content work starts; CI that tells the truth checks them as they land |
+| 3 | 17 Nov to 4 Dec | Wave 2 (17 to 25 Nov), then Wave 3 from 26 Nov | G2: ISO-1 to ISO-5, the split, between G3-2 items | ADR accepted and CI honest first; the split lands before the Wave 3 route list, so the list is written once for two APIs |
+| 4 | 26 Nov to 11 Dec | Wave 3, route list (GAP-23, GAP-36) merged after ISO-4 | G3-2: the Majors (ADM-11 first) | The route list and host test cover both APIs |
+| 5 | 14 to 18 Dec | Wave 3 gates block 14 Dec | G3-3: the Minors | Friction last |
+| 6 | Phase D | Wave 4 | ISO-6 (allow-list O-13, exposure test GAP-37), ADM-01b publish to build to deploy | Need the servers |
+
+G2 adds one to two weeks against the GAP-36 and GAP-38 approach; it fits slot 2 without moving a G1 date. G3 adds 17 pull requests to slot 2.
 
 ## Where it stands
 
@@ -80,13 +105,13 @@ Start top left: six of the seven Do first gaps land in Waves 0 and 1; GAP-37 wai
 
 ### Isolation gaps, added 28 October
 
-The Studio and the website are separated in the browser (own subdomain, host-only cookies, no CORS, no admin code in the built site) but not on the server: one API process and one database login serve both, and only the planned IIS routing keeps admin routes off the website's domain.
+The Studio and the website are separated in the browser (own subdomain, host-only cookies, no CORS, no admin code in the built site) but not on the server: one API process and one database login serve both, and only the planned IIS routing keeps admin routes off the website's domain. The owner chose option B, two APIs (O-12, decided). GAP-36 and GAP-38 are now met by Track G2 below; GAP-37 stays with Wave 4.
 
 | ID | Area | Rule or finding | Today | Target | Impact | Effort | Wave |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| GAP-36 | Security | Isolation review | The API answers every route on any host (`AllowedHosts: "*"`); only IIS routing would keep admin and auth routes off the website's domain | Admin and auth routes answer only on the Studio host; public routes only on the website host; a test proves every non-public route returns 404 with the website's host | High | Medium | Wave 3 |
+| GAP-36 | Security | Isolation review | The API answers every route on any host (`AllowedHosts: "*"`); only IIS routing would keep admin and auth routes off the website's domain | The admin API answers only on the Studio host and has no `/public/` route; the public API has only its two routes; the route-list test proves both | High | Medium | G2 (ISO-4), test in Wave 3 |
 | GAP-37 | Deployment | Isolation review; A-14 | Nothing checks the deployed routing of the website's domain | The exposure test proves every non-public route returns 404 through the website's domain, and the Studio subdomain still answers | High | Low | Wave 4 |
-| GAP-38 | Database | Isolation review; O-12 | The public contact and apply endpoints use `dh_content_app`, which can read and write every table, users and sessions included | The public endpoints use their own login, limited to what they need (insert contact requests and application counts, read published vacancies and settings); recorded in an ADR | High | High | Wave 4 |
+| GAP-38 | Database | Isolation review; O-12 | The public contact and apply endpoints use `dh_content_app`, which can read and write every table, users and sessions included | The public forms run in their own API with their own login `dh_public_forms`, limited to four tables (ADR 0001) | High | High | G2 (ISO-2, ISO-3) |
 
 ## Why the gaps exist
 
@@ -176,7 +201,31 @@ Goal: the standard's release rules from the first deploy. No date until Phase D 
 | Exposure test, HTTP suite through the proxy, baseline dynamic scan | GAP-31, GAP-37 | Agent; owner decides O-10 | Only the proxy answers from outside; every non-public route returns 404 through the website's domain; the suite and the scan run against the environment O-10 names |
 | Image scanning, if Phase D uses containers | GAP-32 | Agent | 0 unlisted High or Critical in the built images |
 | Enable CodeQL, or accept Semgrep alone | GAP-33 | Owner | CodeQL runs, or a recorded owner decision says it is not needed |
-| Separate database login for the public contact and apply endpoints, limited to what they need, with an ADR | GAP-38 | Agent; owner decides O-12 | Tests like AuditLogPermissionTests prove the public login cannot read users or sessions or change content; the migration grants are shown before they are applied |
+| Allow-list the Studio subdomain and prove the website's domain reaches only the public forms | GAP-37, ISO-6 | Agent; owner decides O-13 | See Track G2 |
+
+### Track G2: isolation, option B
+
+ADR 0001 (`docs/adr/0001-split-public-forms-api.md`) holds the design. Five pull requests from 17 November to 4 December, then ISO-6 with Phase D. Exit gate: ISO-1 to ISO-5 merged, both APIs green in CI, and the owner confirms.
+
+| Item | Closes | By | Done when |
+| --- | --- | --- | --- |
+| ISO-1: move the contact and apply code (validation, intake, throttles, dedupe, email) into a `DigitalHub.Forms` library; no behaviour change | GAP-38 | Agent | All 208 integration tests and the 22 end-to-end tests pass unchanged |
+| ISO-2: new `DigitalHub.PublicApi` with only `POST /api/v1/public/contact` and `/apply`, its own small DbContext over four tables, no Identity, no signing key | GAP-38 | Agent | Its own integration suite passes against `DigitalHubContent_Test`; a test proves every other path returns 404 |
+| ISO-3: `dh_public_forms` login: INSERT on `contact_requests`; SELECT, INSERT, UPDATE on `application_counts`; SELECT on `vacancies` and `site_settings` | GAP-38 | Agent; migration shown first | A permission test, like `AuditLogPermissionTests`, proves it cannot read users, roles, sessions or audit, or change content |
+| ISO-4: the admin API drops `/api/v1/public/*`; `AllowedHosts` is the Studio host in Production. Merged after ISO-5 | GAP-36 | Agent | A test sends every admin route with the website's host and gets 400 or 404; the Studio end-to-end suite still passes |
+| ISO-5: the website's `web.config` proxies `/api/v1/public/*` to the public API and nothing else; the website end-to-end form tests run against the public API | GAP-36 | Agent | The generated `web.config` has exactly that one proxy rule; the contact and apply browser tests pass |
+| ISO-6, Phase D: Studio subdomain behind the office and VPN allow-list, with the build machine on it; the exposure test | GAP-37 | Agent; owner decides O-13 | From outside the list, the Studio host does not answer; through the website's domain only the two forms answer |
+
+### Track G3: admin functions
+
+The findings, their evidence and their fixes are in `docs/quality/admin-audit-2026-10-28.md`. Every fix carries a regression test that fails first. Each batch is a section: it stops at its exit gate until the owner confirms.
+
+| Batch | Dates | Items | Exit gate |
+| --- | --- | --- | --- |
+| G3-1, Blockers | 3 to 16 Nov | ADM-06 paging, ADM-03 rich-text images, ADM-02 and ADM-07 redirect and schema checks, ADM-10 settings share image, ADM-05 error pages, ADM-04 role change and reactivation, ADM-12 alt text in the library, ADM-01a build status in the Studio | A clean website build from `DigitalHubContent_Studio` with no patched content; each blocker reproduced before its fix and passing after it |
+| G3-2, Majors | 17 Nov to 11 Dec | ADM-11 lockout first, then ADM-08 conflicts, ADM-09 sections, ADM-14 confirmations and messages, ADM-13 navigation, ADM-15 audit filters, ADM-16 media, ADM-17 blog FAQ | The end-to-end suite has a test per item; the three reviews' scripts re-run clean |
+| G3-3, Minors | 14 to 18 Dec | ADM-18 to ADM-25 | Each fixed or a D-NNN entry with an expiry |
+| Phase D | — | ADM-01b: publishing, or a Publish website action, starts the build and deploy (O-14) | A published change appears on the staging site with no developer step |
 
 ## Success measures
 
@@ -195,10 +244,14 @@ Eleven measures tell whether the plan is working. Ten are read from CI or the re
 | Uncounted build warnings | 13 | 0 new | Blocking 2 Dec | Release build |
 | Routes in a committed list | 0 | Every route | Blocking 14 Dec | Route-list test |
 | Non-public routes that answer through the website's host | Not tested; the API accepts any host | 0, proven by a test | Blocking 14 Dec | Route-list host test |
+| Database logins that can read users and sessions and are reachable from the website | 1 (`dh_content_app`) | 0 | 4 Dec | ISO-3 permission test |
+| Admin-function blockers open | 6 | 0 | 16 Nov | `docs/quality/admin-audit-2026-10-28.md` |
+| Admin-function Majors open | 11 | 0 | 11 Dec | Same |
+| Website builds from Studio content that need patching first | Every build (error pages, redirects, schema formats) | 0 | 16 Nov | API-source build in CI |
 
 ## Risks and dependencies
 
-The biggest risk is the dependency upgrades in Wave 0 changing the built site; the biggest dependency is thirteen owner decisions, best answered together at the start of Wave 0.
+The biggest risk is the dependency upgrades in Wave 0 changing the built site; the biggest dependency is the open owner decisions, best answered together at the start of Wave 0.
 
 | Risk | Effect | Mitigation |
 | --- | --- | --- |
@@ -212,7 +265,10 @@ The biggest risk is the dependency upgrades in Wave 0 changing the built site; t
 | OpenAPI needs a new package | Wave 3 waits on an ADR and owner approval | If declined, A-1 and A-12 stay open (45 of 54); the route list and the unknown-field and error-shape tests still land |
 | The dates have no slack | A day's wait at an exit gate, or a failed check, moves every later date by a day | Answer the decisions in one round; the owner confirms each exit gate the day it is reached |
 | Phase D has no date | Wave 4 cannot be scheduled | Nothing in Waves 0 to 3 depends on it |
-| Thirteen owner decisions are open (O-1 to O-13, on the report tab) | Every wave except Wave 2 waits on at least one | Ask them as one round of questions at the start of Wave 0, each with its recommendation, as section 3 of the standard asks |
+| Sixteen owner decisions are open (O-1 to O-11, O-13 to O-17; O-12 is decided) | Every wave except Wave 2, and G2 and G3, wait on at least one | Ask them as one round of questions at the start of Wave 0, each with its recommendation, as section 3 of the standard asks |
+| Two merge slots overload the one integrator and the checkers | Merges queue; dates slip | Slot 2 takes at most one a day; three agents rotate as builder and checker; if the queue passes three pull requests, slot 2 pauses for a day |
+| The split (G2) breaks the public forms | Contact and apply stop working | ISO-1 moves code with no behaviour change first; the form browser tests run against the public API before the admin API drops the routes (ISO-4 after ISO-5's tests) |
+| G3 fixes collide with Wave 2 lint and format baselines | Pull requests fail on files the fix touched | Baselines cover existing code only; a G3 fix meets the gate on its changed lines |
 
 ## Revision notes
 
@@ -228,3 +284,5 @@ Changes made on 28 October after an independent review of the 27 October draft. 
 - **Decisions.** O-9 (GitHub plan), O-10 (staging for Phase D) and O-11 (careers section) were added, and each wave lists the decisions it waits on.
 
 **Added later on 28 October.** A review of how the Studio is isolated from the website added GAP-36 (admin routes answer only on the Studio host), GAP-37 (the exposure test proves the website's domain hides them) and GAP-38 (a separate database login for the public forms), with decision O-12, and decision O-13 (restrict the Studio subdomain to known networks) was recorded for Wave 4. GAP-36 rides in the Wave 3 route-list pull request and GAP-37 in the Wave 4 exposure test, so no date moved; GAP-38 is a new Wave 4 item. The rule counts are unchanged, since none of the three is a rule of the standard.
+
+**Restructured later on 28 October.** The owner set three goals and chose option B for isolation ("b", 28 October 2026, in this session, reply to "A or B for the isolation."). The plan now runs as three tracks in two merge slots. G1 keeps every wave and date. G2 replaces the GAP-36 and GAP-38 approach with ADR 0001: a public-forms API with its own login, and the admin API on the Studio host only. G3 adds the 25 admin findings from a hands-on audit of the running Studio (6 blockers, 11 Majors, 8 Minors). Decisions O-14 to O-17 come from that audit. The rule counts are unchanged.
