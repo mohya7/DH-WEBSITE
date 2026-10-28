@@ -157,6 +157,7 @@ Each is asked directly and recorded verbatim when answered.
 | O-10 | Staging environment for Phase D | One staging environment that mirrors production, used by the exposure test and the dynamic scan |
 | O-11 | Careers apply section: restore the locked design or accept the new form | Restore the design unless the new form is wanted; record the choice either way |
 | O-12 | A separate, limited database login for the public contact and apply endpoints (new pattern, needs an ADR) | Yes, with Phase D, so a flaw in the public forms cannot reach users, sessions or content |
+| O-13 | Restrict the Studio subdomain (the Studio and its API) to known office and VPN addresses | Yes, if staff work from known networks: allow-list at IIS or the AWS security group, including the build machine that calls the build-content endpoint; the public forms reach the API through the website's domain and are unaffected. Otherwise record that sign-in, rate limits and lockout are the only barrier |
 
 ## 10. Rollout
 

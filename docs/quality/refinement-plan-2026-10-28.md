@@ -168,7 +168,7 @@ Goal: no route or response shape can change unnoticed. Eight pull requests. Exit
 
 ### Wave 4: deployment assurance, with Phase D
 
-Goal: the standard's release rules from the first deploy. No date until Phase D is scheduled. Waits on O-3, O-8, O-10 and O-12; the CodeQL choice (GAP-33) can be made at any time.
+Goal: the standard's release rules from the first deploy. No date until Phase D is scheduled. Waits on O-3, O-8, O-10, O-12 and O-13; the CodeQL choice (GAP-33) can be made at any time.
 
 | Item | Closes | By | Done when |
 | --- | --- | --- | --- |
@@ -198,7 +198,7 @@ Eleven measures tell whether the plan is working. Ten are read from CI or the re
 
 ## Risks and dependencies
 
-The biggest risk is the dependency upgrades in Wave 0 changing the built site; the biggest dependency is twelve owner decisions, best answered together at the start of Wave 0.
+The biggest risk is the dependency upgrades in Wave 0 changing the built site; the biggest dependency is thirteen owner decisions, best answered together at the start of Wave 0.
 
 | Risk | Effect | Mitigation |
 | --- | --- | --- |
@@ -212,7 +212,7 @@ The biggest risk is the dependency upgrades in Wave 0 changing the built site; t
 | OpenAPI needs a new package | Wave 3 waits on an ADR and owner approval | If declined, A-1 and A-12 stay open (45 of 54); the route list and the unknown-field and error-shape tests still land |
 | The dates have no slack | A day's wait at an exit gate, or a failed check, moves every later date by a day | Answer the decisions in one round; the owner confirms each exit gate the day it is reached |
 | Phase D has no date | Wave 4 cannot be scheduled | Nothing in Waves 0 to 3 depends on it |
-| Twelve owner decisions are open (O-1 to O-12, on the report tab) | Every wave except Wave 2 waits on at least one | Ask them as one round of questions at the start of Wave 0, each with its recommendation, as section 3 of the standard asks |
+| Thirteen owner decisions are open (O-1 to O-13, on the report tab) | Every wave except Wave 2 waits on at least one | Ask them as one round of questions at the start of Wave 0, each with its recommendation, as section 3 of the standard asks |
 
 ## Revision notes
 
@@ -227,4 +227,4 @@ Changes made on 28 October after an independent review of the 27 October draft. 
 - **Done-when criteria.** Probes from the test run are replaced by integration tests in CI; each gate's canary is a committed fixture; the unknown-field test takes its routes from the route list.
 - **Decisions.** O-9 (GitHub plan), O-10 (staging for Phase D) and O-11 (careers section) were added, and each wave lists the decisions it waits on.
 
-**Added later on 28 October.** A review of how the Studio is isolated from the website added GAP-36 (admin routes answer only on the Studio host), GAP-37 (the exposure test proves the website's domain hides them) and GAP-38 (a separate database login for the public forms), with decision O-12. GAP-36 rides in the Wave 3 route-list pull request and GAP-37 in the Wave 4 exposure test, so no date moved; GAP-38 is a new Wave 4 item. The rule counts are unchanged, since none of the three is a rule of the standard.
+**Added later on 28 October.** A review of how the Studio is isolated from the website added GAP-36 (admin routes answer only on the Studio host), GAP-37 (the exposure test proves the website's domain hides them) and GAP-38 (a separate database login for the public forms), with decision O-12, and decision O-13 (restrict the Studio subdomain to known networks) was recorded for Wave 4. GAP-36 rides in the Wave 3 route-list pull request and GAP-37 in the Wave 4 exposure test, so no date moved; GAP-38 is a new Wave 4 item. The rule counts are unchanged, since none of the three is a rule of the standard.
