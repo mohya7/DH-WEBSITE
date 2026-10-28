@@ -13,7 +13,7 @@ recommendation in `ENGINEERING_STANDARDS.md`, section 9.
 | Hosting | IIS on Windows Server, on AWS, run by the dev team (`docs/security-deployment.md`). The website on its own domain; the Studio and its API on one origin on their own subdomain. |
 | Integration branch | `rebuild/dotnet-platform`. Every change reaches it through a pull request merged by the integrator (`AGENTS.md`). |
 | Deploy branch and environments | None yet. Nothing is deployed until Phase D. **Owner decision:** which branch deploys, and whether there is a staging environment. |
-| Default branch on GitHub | `main`, the frozen legacy Node site. Never changed (`AGENTS.md`). **Owner decision:** make `rebuild/dotnet-platform` the default (see baseline finding F2). |
+| Default branch on GitHub | `main`, the frozen legacy Node site. Its content is never changed (`AGENTS.md`); which branch is the default is a separate setting. **Owner decision:** make `rebuild/dotnet-platform` the default (see baseline finding F2). |
 | Data held | Studio users: email, name, password hash, sessions. Contact enquiries: name, organisation, role, email, situation, message. Careers: a per-vacancy daily count only; the CV is emailed and nothing about the applicant is stored. Audit log of content changes. |
 | Compliance | Personal data of people in Egypt and elsewhere. **Owner decision:** confirm which law applies (for example Egypt's Personal Data Protection Law, No. 151 of 2020) and the retention period for contact enquiries. |
 | Roles | `admin` (users, settings, everything editors do), `editor` (content and media), `hr` (application counts, end a vacancy, own password). No role: cannot sign in to the Studio. Public visitors: website, contact and apply forms only. |

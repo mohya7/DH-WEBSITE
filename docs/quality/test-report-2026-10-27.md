@@ -22,13 +22,15 @@ checks are marked **added**. Standard: `ENGINEERING_STANDARDS.md`.
 |---|---|---|---|---|---|
 | 1 | Critical | Security | `next` 16.3.6 in the website has GHSA-2464-fhr4-w9xw and GHSA-673q-mjm6-r5xr (unauthenticated remote code execution, Critical) and GHSA-p3m5-59mp-jv5r (denial of service, High). The npm audit gate fails. | Local gate exit 1; GitHub run 40564146727, job 122400994328 failed | Upgrade to `next@16.4.3` in its own pull request |
 | 2 | High | Security | The weekly security and CodeQL schedules have never run: GitHub runs schedules only from the default branch, `main`, which has no workflows. | 0 runs with `event=schedule` | Make `rebuild/dotnet-platform` the default branch (owner decision O-2) |
-| 3 | Medium | Database | The idempotent migration script (`dotnet ef migrations script --idempotent`) stops at `20260922142757_NavigationLinkRefs` with Msg 207 "Invalid column name 'link_kind'" (also `target_id`, `target_type`). The raw SQL is compiled in the same batch as the `ADD COLUMN`. A second apply fails the same way. `dotnet ef database update` is not affected. | D6 below | Wrap that migration's `migrationBuilder.Sql(...)` in `EXEC(N'...')`, or decide Phase D applies migrations with `database update` or a bundle, not the script |
-| 4 | Medium | Front End | `/careers/apply.html` `#section` differs from `feature/interviewer-portal` (new form markup and an inline `<style>` block from change #33) and is not in `accepted-differences.json`. CI does not fail on it because the comparison step is `continue-on-error`. | Section comparison: 104 / 119 match, 14 accepted, 1 failure | Restore the design, or record the difference as accepted |
-| 5 | Medium | Front End | The website's Playwright suite (`browser-tests/`, 29 tests) is not in `ci.yml`. 25 of them need a build with `SNAPSHOT_SETTINGS_FIXTURE=consent`. | `ci.yml` has no `test:browser` step | Add a CI step that builds with the fixture and runs the suite |
-| 6 | Low | Front End | GSAP and ScrollTrigger load from `cdn.jsdelivr.net` without `integrity` (SRI) and with no fallback. When the CDN is unreachable the home page throws `gsap is not defined`. | 8 browser tests fail here only because this sandbox blocks the CDN (403) | Add SRI hashes, or serve the files from the site |
-| 7 | Low | API | Responses carry `Server: Kestrel`. | Probe A2 | `options.AddServerHeader = false` on Kestrel; check the IIS header in Phase D |
-| 8 | Low | Back End | 13 nullable-reference warnings (CS8601 ×9, CS8604 ×4) in the Release build; warnings are not counted by any gate. | `build.log` | Gate step 4b in `ENGINEERING_STANDARDS.md` |
-| 9 | Info | API | The initial admin from `Auth:InitialAdminPassword` is not asked to change the password at first sign-in. Not a stated requirement; admin resets do set it (`AdminStore.cs:389`). | Probe A10 | Optional hardening |
+| 3 | High | Security | Three High advisories in the website (`next` GHSA-cjq9-62q9-8jv4, `sharp` GHSA-wq5f-xc86-pv6w, `source-map-js` GHSA-68fv-2mgg-jv7q) have been allowed in `known-findings.json` since 13 Oct with an owner but no expiry, past the 7-day deadline of rule S-7. | `.github/security/known-findings.json` | Fixed by the finding 1 upgrade and package refreshes, or an owner exception with an expiry |
+| 4 | Medium | Database | The idempotent migration script (`dotnet ef migrations script --idempotent`) stops at `20260922142757_NavigationLinkRefs` with Msg 207 "Invalid column name 'link_kind'" (also `target_id`, `target_type`). The raw SQL is compiled in the same batch as the `ADD COLUMN`. A second apply fails the same way. `20261019104504_AddRefreshTokenSessionStart` has the same add-column-then-SQL pattern (not reached by the run). `dotnet ef database update` is not affected. | D6 below | Wrap that migration's `migrationBuilder.Sql(...)` in `EXEC(N'...')`, or decide Phase D applies migrations with `database update` or a bundle, not the script |
+| 5 | Medium | Front End | `/careers/apply.html` `#section` differs from `feature/interviewer-portal` (new form markup and an inline `<style>` block from change #33) and is not in `accepted-differences.json`. CI does not fail on it because the comparison step is `continue-on-error`. | Section comparison: 104 / 119 match, 14 accepted, 1 failure | Restore the design, or record the difference as accepted |
+| 6 | Medium | Front End | The website's Playwright suite (`browser-tests/`, 29 tests) is not in `ci.yml`. 25 of them need a build with `SNAPSHOT_SETTINGS_FIXTURE=consent`. | `ci.yml` has no `test:browser` step | Add a CI step that builds with the fixture and runs the suite |
+| 7 | Medium | Security | Development dependencies are not audited (`npm audit --omit=dev`). A full-tree audit adds High advisories in `vite` and `undici` (both apps) and `source-map-js` (Studio). | Full-tree `npm audit`: website 4 High, 1 Critical; Studio 3 High | Audit the full tree, and fix or except these before the gate is switched on |
+| 8 | Low | Front End | GSAP and ScrollTrigger load from `cdn.jsdelivr.net` without `integrity` (SRI) and with no fallback. When the CDN is unreachable the home page throws `gsap is not defined`. | 8 browser tests fail here only because this sandbox blocks the CDN (403) | Add SRI hashes, or serve the files from the site |
+| 9 | Low | API | Responses carry `Server: Kestrel`. | Probe A2 | `options.AddServerHeader = false` on Kestrel; check the IIS header in Phase D |
+| 10 | Low | Back End | 13 nullable-reference warnings (CS8601 ×9, CS8604 ×4) in the Release build; warnings are not counted by any gate. | `build.log` | Gate step 4b in `ENGINEERING_STANDARDS.md` |
+| 11 | Info | API | The initial admin from `Auth:InitialAdminPassword` is not asked to change the password at first sign-in. Not a stated requirement; admin resets do set it (`AdminStore.cs:389`). | Probe A10 | Optional hardening |
 
 ## Front End level
 
@@ -41,7 +43,7 @@ checks are marked **added**. Standard: `ENGINEERING_STANDARDS.md`.
 | Design check | `npm run design:check` | 0 | All 25 files match `feature/interviewer-portal`: 24 identical, 1 ported with the recorded change |
 | Snapshot build | `CONTENT_SOURCE=snapshot npm run build` | 0 | 28 pages; build output checks passed |
 | Screenshot regression tests (Chromium) | `vitest run test/screenshot-parity-browser.test.ts` + `check-browser-test-report.mjs … 30` | 0 | 30 passed, 1 placeholder, 0 problems |
-| Section comparison | `npm run compare:sections` | 1 | 104 / 119 sections match, 14 accepted, **1 differs** (finding 4). Chrome: 42 match, 36 accepted of 78. Formerly missing sections: 16 / 16 found |
+| Section comparison | `npm run compare:sections` | 1 | 104 / 119 sections match, 14 accepted, **1 differs** (finding 5). Chrome: 42 match, 36 accepted of 78. Formerly missing sections: 16 / 16 found |
 | Browser tests, default build (**added**: not in CI) | `npx playwright test` | 1 | 3 passed, 1 failed (`gsap is not defined`, CDN blocked here), 25 skipped (need the consent build) |
 | Browser tests, consent build (**added**) | build with `SNAPSHOT_SETTINGS_FIXTURE=consent`; `playwright test browser-tests/consent.spec.ts` | 1 | 18 passed; 7 failed, all on the final "no page errors" check (`gsap is not defined`); every consent assertion before it passed |
 
@@ -62,7 +64,7 @@ write with `DENY UPDATE, DELETE ON dbo.audit_log`, then the tests as that login.
 
 | Check | Exit | Result |
 |---|---|---|
-| `dotnet build DigitalHub.slnx -c Release` | 0 | 0 errors, 13 warnings (finding 8) |
+| `dotnet build DigitalHub.slnx -c Release` | 0 | 0 errors, 13 warnings (finding 10) |
 | Migrations from empty | 0 | 15 applied |
 | `dotnet test` (Release) | 0 | **475 passed, 0 failed, 0 skipped**, 1 min 22 s |
 | Coverage (**added**, coverlet) | — | Application code (`DigitalHub.Api` without generated migrations): about 88% of lines. By folder: Auth 96.8%, Controllers 95.7%, Identity 94.8%, Data 92.1%, Content 86.6%, Infrastructure 81.8%. `DigitalHub.Images` 74.8%; the import tool 18.5%. |
@@ -83,7 +85,7 @@ Run on catalogs of its own (`DigitalHubContent_DbCheck`, `_DbScript`), dropped a
 | D3 | Roll back every migration (`database update 0`) | Pass: 0 user tables left |
 | D4 | Re-apply every migration after the rollback | Pass |
 | D5 | Upgrade from the previous schema (down one, up again) | Pass |
-| D6 | Idempotent script applied twice to an empty catalog (`sqlcmd -i`) | **Fail**: Msg 207 at migration 7 of 15, both times (finding 3) |
+| D6 | Idempotent script applied twice to an empty catalog (`sqlcmd -i`) | **Fail**: Msg 207 at migration 7 of 15, both times (finding 4) |
 | D7 | Grant the application login what production gets | Pass |
 | D8 | Least privilege as `dh_content_app` | Pass: not sysadmin, db_owner or ddladmin. `audit_log`: SELECT and INSERT allowed; UPDATE and DELETE denied. `CREATE TABLE`, `DELETE`, `TRUNCATE`, `DROP`, `ALTER` on `audit_log` all refused |
 | D9 | Schema integrity | Pass: 27 tables, all with a primary key; 35 foreign keys, none untrusted, disabled or without an index; 13 check constraints, none untrusted; 23 unique indexes; 0 triggers; compatibility level 160 |
@@ -101,7 +103,7 @@ catalog, as the restricted login. Probes are plain HTTP requests
 | # | Probe | Result |
 |---|---|---|
 | A1 | `/health` answers and checks the database | Pass: 200, Healthy |
-| A2 | `nosniff`; no server or framework banner | **Low**: `Server: Kestrel` (finding 7); `nosniff` set; no `X-Powered-By` |
+| A2 | `nosniff`; no server or framework banner | **Low**: `Server: Kestrel` (finding 9); `nosniff` set; no `X-Powered-By` |
 | A3 | Correlation id echoed when safe, replaced when not, generated when absent | Pass |
 | A4 | All 85 protected routes refuse an anonymous caller with 401 `problem+json` | Pass: 85 / 85 |
 | A5 | Unknown routes, `/swagger`, `/openapi/v1.json`, examples, `/.env`, `/appsettings.json` not served | Pass: 401 to anonymous callers (fallback policy) |
@@ -109,7 +111,7 @@ catalog, as the restricted login. Probes are plain HTTP requests
 | A7 | Wrong password and unknown email get the same answer | Pass |
 | A8 | `alg=none` and malformed bearer tokens refused | Pass |
 | A9 | Refresh cookie `HttpOnly; Secure; SameSite=Strict`, path `/api/v1/auth` | Pass |
-| A10 | Initial password must be changed first | Not a requirement (finding 9); change-password itself returns 204 |
+| A10 | Initial password must be changed first | Not a requirement (finding 11); change-password itself returns 204 |
 | A11 | Admin lists pages (`items, page, pageSize, total`) and users | Pass |
 | A12 | Admin cannot read application counts (HR only) | Pass: 403 |
 | A13 | Unknown record and unknown collection | Pass: 404 `not_found` |
