@@ -25,13 +25,13 @@ The 47 rests on two conditions. If OpenAPI is declined, A-1 and A-12 stay open (
 
 ## Priority matrix
 
-*Diagram in the doc: the 35 gaps on a 3×3 grid of impact and effort, from the register's Impact and Effort columns. The six High-impact, Low-effort gaps are GAP-01, 02, 03, 04, 05 and 07.*
+*Diagram in the doc: the 38 gaps on a 3×3 grid of impact and effort, from the register's Impact and Effort columns. The seven High-impact, Low-effort gaps are GAP-01, 02, 03, 04, 05, 07 and 37.*
 
-Start top left: all six Do first gaps land in Waves 0 and 1. The Plan and fund cell needs an ADR, a new dependency or Phase D. GAP-33 (CodeQL) sits alone in Question because it may cost more than Semgrep already gives.
+Start top left: six of the seven Do first gaps land in Waves 0 and 1; GAP-37 waits for Phase D, because it tests the deployed routing. The Plan and fund cell needs an ADR, a new dependency or Phase D. GAP-33 (CodeQL) sits alone in Question because it may cost more than Semgrep already gives.
 
 ## Gap register
 
-35 gaps. 26 rows cover the 31 rules not fully met; the other 9 cover defects the test run found and two rollout steps of the standard that no rule names. Eleven are high impact, and six of those take low effort. Impact and effort are my assessment; change the dropdowns where you see it differently.
+38 gaps. 26 rows cover the 31 rules not fully met; the other 12 cover defects the test run found, two rollout steps of the standard that no rule names, and three isolation gaps between the Studio and the website found on 28 October. Fourteen are high impact, and seven of those take low effort. Impact and effort are my assessment; change the dropdowns where you see it differently.
 
 ### Waves 0 and 1: now to 16 November
 
@@ -78,13 +78,23 @@ Start top left: all six Do first gaps land in Waves 0 and 1. The Plan and fund c
 | GAP-32 | Deployment | G-12 | No images built (IIS) | Image scanning, if Phase D uses containers | Low | Low | Wave 4 |
 | GAP-33 | Security | G-10 | CodeQL skipped on a private repository | CodeQL enabled, or Semgrep accepted as the only analyser | Low | High | Decision |
 
+### Isolation gaps, added 28 October
+
+The Studio and the website are separated in the browser (own subdomain, host-only cookies, no CORS, no admin code in the built site) but not on the server: one API process and one database login serve both, and only the planned IIS routing keeps admin routes off the website's domain.
+
+| ID | Area | Rule or finding | Today | Target | Impact | Effort | Wave |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| GAP-36 | Security | Isolation review | The API answers every route on any host (`AllowedHosts: "*"`); only IIS routing would keep admin and auth routes off the website's domain | Admin and auth routes answer only on the Studio host; public routes only on the website host; a test proves every non-public route returns 404 with the website's host | High | Medium | Wave 3 |
+| GAP-37 | Deployment | Isolation review; A-14 | Nothing checks the deployed routing of the website's domain | The exposure test proves every non-public route returns 404 through the website's domain, and the Studio subdomain still answers | High | Low | Wave 4 |
+| GAP-38 | Database | Isolation review; O-12 | The public contact and apply endpoints use `dh_content_app`, which can read and write every table, users and sessions included | The public endpoints use their own login, limited to what they need (insert contact requests and application counts, read published vacancies and settings); recorded in an ADR | High | High | Wave 4 |
+
 ## Why the gaps exist
 
-Three causes account for 32 of the 35 gaps; the other three (GAP-30 to 32) wait on Phase D.
+Three causes account for 33 of the 38 gaps; the other five (GAP-30 to 32, 37 and 38) wait on Phase D.
 
 - **CI shows green while it cannot see.** The section and screenshot comparisons are `continue-on-error`, the audit skips development packages, the browser suite is not wired in, and the schedules sit on a branch with no workflows. Each looks like a pass. Closing these comes first, because every later gate depends on CI telling the truth (GAP-02, 04, 05, 06, 07, 10).
 - **Rules held by people, not machines.** Test-first, commit format, no force-push and "never weaken a gate" are written in `AGENTS.md` and the standard, but nothing checks them, so they hold only while everyone remembers (GAP-03, 13, 14, 15, 21, 22, 34).
-- **Hardening deferred while features shipped.** Phases A to C built the product with strong tests and security scans, but dependency upgrades, lint, formatting, coverage, the route list, an API contract and smaller hardening items were left for later (GAP-01, 08, 09, 11, 12, 16 to 20, 23 to 29, 33, 35).
+- **Hardening deferred while features shipped.** Phases A to C built the product with strong tests and security scans, but dependency upgrades, lint, formatting, coverage, the route list, an API contract and smaller hardening items were left for later (GAP-01, 08, 09, 11, 12, 16 to 20, 23 to 29, 33, 35, 36).
 
 The fix pattern follows from the causes: make CI honest, then turn written rules into checks, then add each missing gate in report mode with a baseline, as the standard prescribes.
 
@@ -147,7 +157,7 @@ Goal: no route or response shape can change unnoticed. Eight pull requests. Exit
 
 | Item | Closes | By | Done when |
 | --- | --- | --- | --- |
-| Committed route list with each route's policy | GAP-23 | Agent | Adding a route without updating the list, or without a policy, fails CI |
+| Committed route list with each route's policy and the host it answers on; admin and auth routes refused on any other host | GAP-23, GAP-36 | Agent | Adding a route without updating the list, or without a policy, fails CI; a test sends every non-public route with the website's host and gets 404 |
 | Review every route's policy; record residuals with expiries | GAP-35 | Agent, checked by another | The review is recorded; each residual is a D-NNN entry with an expiry |
 | OpenAPI document generated from the code, and a contract test | GAP-24 | Agent | CI fails when a response differs from the document |
 | A test that every request body rejects unknown fields | GAP-25 | Agent | The test takes its write routes from the GAP-23 route list |
@@ -158,18 +168,19 @@ Goal: no route or response shape can change unnoticed. Eight pull requests. Exit
 
 ### Wave 4: deployment assurance, with Phase D
 
-Goal: the standard's release rules from the first deploy. No date until Phase D is scheduled. Waits on O-3, O-8 and O-10; the CodeQL choice (GAP-33) can be made at any time.
+Goal: the standard's release rules from the first deploy. No date until Phase D is scheduled. Waits on O-3, O-8, O-10 and O-12; the CodeQL choice (GAP-33) can be made at any time.
 
 | Item | Closes | By | Done when |
 | --- | --- | --- | --- |
 | Deploy guard as the first job of the deploy workflow; merge method decided | GAP-30 | Agent; owner decides O-3 | The guard's self-test passes and it refuses a commit not covered by a merged, green pull request |
-| Exposure test, HTTP suite through the proxy, baseline dynamic scan | GAP-31 | Agent; owner decides O-10 | Only the proxy answers from outside; the suite and the scan run against the environment O-10 names |
+| Exposure test, HTTP suite through the proxy, baseline dynamic scan | GAP-31, GAP-37 | Agent; owner decides O-10 | Only the proxy answers from outside; every non-public route returns 404 through the website's domain; the suite and the scan run against the environment O-10 names |
 | Image scanning, if Phase D uses containers | GAP-32 | Agent | 0 unlisted High or Critical in the built images |
 | Enable CodeQL, or accept Semgrep alone | GAP-33 | Owner | CodeQL runs, or a recorded owner decision says it is not needed |
+| Separate database login for the public contact and apply endpoints, limited to what they need, with an ADR | GAP-38 | Agent; owner decides O-12 | Tests like AuditLogPermissionTests prove the public login cannot read users or sessions or change content; the migration grants are shown before they are applied |
 
 ## Success measures
 
-Ten measures tell whether the plan is working. Nine are read from CI or the repository; the first is the standard's status column, which each pull request that closes a rule updates.
+Eleven measures tell whether the plan is working. Ten are read from CI or the repository; the first is the standard's status column, which each pull request that closes a rule updates.
 
 | Measure | Today, 27 Oct | Target | By | Read from |
 | --- | --- | --- | --- | --- |
@@ -183,10 +194,11 @@ Ten measures tell whether the plan is working. Nine are read from CI or the repo
 | Line coverage of API code | 88.4%, measured once | Measured on every pull request; at least 80% of changed lines | Blocking 2 Dec | CI coverage report |
 | Uncounted build warnings | 13 | 0 new | Blocking 2 Dec | Release build |
 | Routes in a committed list | 0 | Every route | Blocking 14 Dec | Route-list test |
+| Non-public routes that answer through the website's host | Not tested; the API accepts any host | 0, proven by a test | Blocking 14 Dec | Route-list host test |
 
 ## Risks and dependencies
 
-The biggest risk is the dependency upgrades in Wave 0 changing the built site; the biggest dependency is eleven owner decisions, best answered together at the start of Wave 0.
+The biggest risk is the dependency upgrades in Wave 0 changing the built site; the biggest dependency is twelve owner decisions, best answered together at the start of Wave 0.
 
 | Risk | Effect | Mitigation |
 | --- | --- | --- |
@@ -200,7 +212,7 @@ The biggest risk is the dependency upgrades in Wave 0 changing the built site; t
 | OpenAPI needs a new package | Wave 3 waits on an ADR and owner approval | If declined, A-1 and A-12 stay open (45 of 54); the route list and the unknown-field and error-shape tests still land |
 | The dates have no slack | A day's wait at an exit gate, or a failed check, moves every later date by a day | Answer the decisions in one round; the owner confirms each exit gate the day it is reached |
 | Phase D has no date | Wave 4 cannot be scheduled | Nothing in Waves 0 to 3 depends on it |
-| Eleven owner decisions are open (O-1 to O-11, on the report tab) | Every wave except Wave 2 waits on at least one | Ask them as one round of questions at the start of Wave 0, each with its recommendation, as section 3 of the standard asks |
+| Twelve owner decisions are open (O-1 to O-12, on the report tab) | Every wave except Wave 2 waits on at least one | Ask them as one round of questions at the start of Wave 0, each with its recommendation, as section 3 of the standard asks |
 
 ## Revision notes
 
@@ -214,3 +226,5 @@ Changes made on 28 October after an independent review of the 27 October draft. 
 - **Wave 0 settings.** The owner makes them; branch protection is checked on a throwaway branch, never by pushing to `rebuild/dotnet-platform`; the Dependabot pull requests the switch starts are planned for.
 - **Done-when criteria.** Probes from the test run are replaced by integration tests in CI; each gate's canary is a committed fixture; the unknown-field test takes its routes from the route list.
 - **Decisions.** O-9 (GitHub plan), O-10 (staging for Phase D) and O-11 (careers section) were added, and each wave lists the decisions it waits on.
+
+**Added later on 28 October.** A review of how the Studio is isolated from the website added GAP-36 (admin routes answer only on the Studio host), GAP-37 (the exposure test proves the website's domain hides them) and GAP-38 (a separate database login for the public forms), with decision O-12. GAP-36 rides in the Wave 3 route-list pull request and GAP-37 in the Wave 4 exposure test, so no date moved; GAP-38 is a new Wave 4 item. The rule counts are unchanged, since none of the three is a rule of the standard.

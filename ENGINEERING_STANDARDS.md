@@ -156,10 +156,11 @@ Each is asked directly and recorded verbatim when answered.
 | O-9 | GitHub plan for a private repository (branch protection and CODEOWNERS need a paid plan) | Upgrade, or record an exception and keep review requests manual |
 | O-10 | Staging environment for Phase D | One staging environment that mirrors production, used by the exposure test and the dynamic scan |
 | O-11 | Careers apply section: restore the locked design or accept the new form | Restore the design unless the new form is wanted; record the choice either way |
+| O-12 | A separate, limited database login for the public contact and apply endpoints (new pattern, needs an ADR) | Yes, with Phase D, so a flaw in the public forms cannot reach users, sessions or content |
 
 ## 10. Rollout
 
-The dated, reviewed schedule for these steps is `docs/quality/refinement-plan-2026-10-28.md` (Waves 0 to 4, 35 gaps, target 47 of 54 rules by 14 December 2026).
+The dated, reviewed schedule for these steps is `docs/quality/refinement-plan-2026-10-28.md` (Waves 0 to 4, 38 gaps, target 47 of 54 rules by 14 December 2026).
 
 Each step is its own pull request, in this order. Steps 3 and 4 add gates in
 report mode first.
