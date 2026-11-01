@@ -9,9 +9,11 @@
  * the working directory. The check runs as its own process, as CI runs it.
  *
  * 1. Blocking date passed, the consent run has a failed test:
- *    exit 1, and the failed test is named.
- * 2. Report mode, the consent build lost its banner (every consent test skipped):
- *    exit 1, and the unexpected skip is named.
+ *    exit 1, the failed test is named, and no problem: line is printed (it fails
+ *    for the failed test only).
+ * 2. The consent build lost its banner (every consent test skipped), with the
+ *    latest allowed blocking date (report mode until then): exit 1, the unexpected
+ *    skip is named, and no problem is printed about the blocking date.
  *
  * Exit 0 when both are rejected as described, 1 otherwise.
  */
@@ -31,13 +33,15 @@ const canaries = [
     date: "2000-01-01",
     reports: { default: "default.json", consent: "consent-failed.json" },
     output: "failed: consent: pages.spec.ts › the skipped home intro moves the logo and its classes persist after load",
+    forbidden: /^problem:/m,
   },
   {
     name: "canary 2",
-    what: "a consent build that lost its banner, in report mode",
-    date: "2999-12-31",
+    what: "a consent build that lost its banner",
+    date: "2026-11-23",
     reports: { default: "default.json", consent: "consent-lost.json" },
     output: "unexpected skip: consent: consent.spec.ts › ",
+    forbidden: /^problem: BROWSER_TESTS_BLOCKING_FROM/m,
   },
 ];
 
@@ -52,11 +56,11 @@ for (const item of canaries) {
     { encoding: "utf8", env },
   );
   const output = `${result.stdout ?? ""}${result.stderr ?? ""}`;
-  if (result.status === 1 && output.includes(item.output)) {
+  if (result.status === 1 && output.includes(item.output) && !item.forbidden.test(output)) {
     console.log(`${item.name} rejected: ${item.what}`);
   } else {
     failed += 1;
-    console.log(`::error title=Browser-suite canary::${item.name} (${item.what}) was not rejected: exit ${String(result.status)}, expected 1 with "${item.output}"`);
+    console.log(`::error title=Browser-suite canary::${item.name} (${item.what}) was not rejected for its own reason: exit ${String(result.status)}, expected 1 with "${item.output}" and no line matching ${String(item.forbidden)}`);
     console.log(output);
   }
 }

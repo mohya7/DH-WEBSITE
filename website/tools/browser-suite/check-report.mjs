@@ -9,7 +9,10 @@
  * all the tests ran. This check reads both reports and the committed expectation:
  *
  * Fails whatever the date (a gate that cannot see fails):
- * - BROWSER_TESTS_BLOCKING_FROM unset, not YYYY-MM-DD, or not a real date;
+ * - BROWSER_TESTS_BLOCKING_FROM unset, not YYYY-MM-DD, not a real date, or later
+ *   than 2026-11-23 (Wave 1's last blocking day: a report week may not be moved
+ *   past it from a step env or $GITHUB_ENV; an owner exception moves this cap in
+ *   the same change);
  * - expected.json or a report missing, empty, not JSON, without a suites array,
  *   or with top-level errors (for example the web server did not start);
  * - the reports list different tests, or fewer than minimumTests;
@@ -30,6 +33,7 @@
 import fs from "node:fs";
 
 const labels = ["default", "consent"];
+const latestBlockingDate = "2026-11-23";
 const usage = "usage: node tools/browser-suite/check-report.mjs <expected.json> default=<report.json> consent=<report.json>";
 
 function parseArguments(args) {
@@ -53,6 +57,12 @@ function blockingDate(value) {
   const parsed = new Date(`${value}T00:00:00Z`);
   if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) {
     return { problem: `BROWSER_TESTS_BLOCKING_FROM is not a real date: ${value}` };
+  }
+  if (value > latestBlockingDate) {
+    return {
+      problem: `BROWSER_TESTS_BLOCKING_FROM is ${value}, after ${latestBlockingDate}, the latest blocking date allowed`,
+      annotation: `::error title=Browser tests blocking date::BROWSER_TESTS_BLOCKING_FROM=${value} is after the latest allowed date ${latestBlockingDate}`,
+    };
   }
   return { date: value };
 }
@@ -252,6 +262,7 @@ function main() {
 
   let verdict;
   let code;
+  if (blocking.annotation) console.log(blocking.annotation);
   if (problems.length > 0) {
     verdict = `The check could not confirm the suite ran as expected: ${problems.length} problem(s). This fails before and after the blocking date.`;
     console.log(`::error title=Browser tests::${problems.length} problem(s); the suite did not run as expected`);

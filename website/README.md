@@ -177,7 +177,8 @@ Playwright suite against each. Because Playwright exits 0 when tests skip,
 `tools/browser-suite/expected.json` (the 29 tests, and exactly which skip in
 which build). A test that is missing, or skips when it should run, fails the job
 at once. A failed test is a warning until the job's `BROWSER_TESTS_BLOCKING_FROM`
-date (UTC) and fails the job from that date. Before the tests, the job runs
+date (UTC) and fails the job from that date; the checker refuses a date later
+than 2026-11-23, wherever it is set. Before the tests, the job runs
 `tools/browser-suite/run-canary.mjs`, which checks that the checker still
 rejects the committed bad reports in `tools/browser-suite/canary/`. A new browser
 test raises `minimumTests` in `expected.json` in the same pull request.
