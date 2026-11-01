@@ -1,5 +1,12 @@
 # Implementation: GAP-01
 
+Two rounds. Round 1 (below, unchanged except this note and its closing line)
+stopped with `Status: BACK TO ARCHITECT`; plan round 3 answered it. Round 2
+(at the end) implements plan steps 5 and 6 and runs every remaining check.
+The round 2 coverage table supersedes round 1's.
+
+## Round 1
+
 Developer, round 1, 1 November 2026. Branch `change/GAP-01` (no tracking, not
 pushed). Plan: `plan.md` round 2; gate 1: `plan-approval.md`,
 `Verdict: APPROVED`. Node 22.23.4 / npm 10.9.9 unless stated otherwise.
@@ -337,4 +344,333 @@ here (ref `ENVIRONMENT.md`).
 | Lockfiles by npm; `npm ci` passes | Met | both apps, exit 0 |
 | Golden copies unchanged | Met | `diff` exit 0, `git diff --stat` empty |
 
-Status: BACK TO ARCHITECT
+Round 1 status: BACK TO ARCHITECT (answered by plan round 3, gate 1 round 2).
+
+## Round 2
+
+Developer, round 2, 1 November 2026. Plan round 3 and `plan-approval.md`
+round 2 (`Verdict: APPROVED`, seven conditions), committed as `c57ac68`.
+Built on round 1's commits; nothing in them was changed. Base
+`origin/rebuild/dotnet-platform` is still `6470fac`, so every base-vs-branch
+check below is against `6470fac` (scratch `git archive` export, `npm ci`).
+
+### Commits
+
+| SHA | Subject | Plan step |
+|---|---|---|
+| `6ad1366` | GAP-01: Test that the build strips Next 16.4.3's Turbopack bootstrap | 3.1 step 5 (red) |
+| `8f03751` | GAP-01: Strip the Turbopack bootstrap and detect any Turbopack trace | 3.1 step 6 |
+| (this file) | GAP-01: Record round 2 of the implementation | — |
+
+### What changed, file by file
+
+| File | Change |
+|---|---|
+| `website/test/strip-runtime.test.ts` | New fixture `exported1643`, cut from the branch's own `about.html` exported by `next build` 16.4.3 with the strip step skipped (`gen:types --check`, `prepare:content`, `prepare:design`, `npx next build`; raw copy kept in scratch `out-raw/`). Trimmed the same way as the 16.3.6 fixture; the `_R_` element is copied verbatim (constant `turbopackBootstrap`). New tests: "removes Next 16.4.3's inline Turbopack bootstrap" (full `removed` map, no `_R_`, no `TURBOPACK`, full expected HTML, `runtimeTracesIn` → `[]`); "the trace check catches the Turbopack bootstrap if it is left in" (→ `["the Turbopack runtime", "a Next chunk path"]`); "strips a Next 16.4.3 page with no problem, and names a page that keeps a Turbopack trace" (`stripOutput`: `problems: []`, 1 removal; a page holding `<script>globalThis.TURBOPACK=[]</script>` gives "careers.html still contains the Turbopack runtime"). In "does not remove what it does not recognise", the unrecognised variant `<script>globalThis.TURBOPACK=[]</script>` is added to the loop (must stay in the page) with `runtimeTracesIn` → `["the Turbopack runtime"]`. |
+| `website/src/build/strip-runtime.ts` | New removal "Turbopack bootstrap script" after "runtime script tags", pattern `/<script id="_R_">\(globalThis\["TURBOPACK"\][\s\S]*?<\/script>/g`, with its `why`. Two new `runtimeTraces`: "the Turbopack runtime" `/TURBOPACK/`, "a Next chunk path" `/static\/chunks\//`. |
+
+**Edits to existing assertions (condition 3).** Only additions:
+
+- "removes each part of the runtime, and nothing else": the `removed`
+  `toEqual` map gains `"Turbopack bootstrap script": 0`. Before: five keys
+  (`runtime script tags` 4, `runtime preload link` 1, `payload scripts` 2,
+  `empty metadata outlet` 1, `empty boundary markers` 1). After: the same
+  five with the same counts, plus the new key at 0. The `toBe` HTML and
+  `runtimeTracesIn` → `[]` are unchanged.
+- "does not remove what it does not recognise": the loop's list gains a third
+  item, and one new `expect` line is added. The two existing items and the
+  existing `/_next/` trace assertion are unchanged.
+
+Nothing was removed or loosened.
+
+### Red (commit `6ad1366`, before the fix)
+
+```
+website$ npx vitest run test/strip-runtime.test.ts          exit 1
+     × removes each part of the runtime, and nothing else
+     × does not remove what it does not recognise, so the output check can catch it
+     × removes Next 16.4.3's inline Turbopack bootstrap
+     × the trace check catches the Turbopack bootstrap if it is left in
+     × strips a Next 16.4.3 page with no problem, and names a page that keeps a Turbopack trace
+ FAIL … removes each part of the runtime, and nothing else
+AssertionError: expected { 'runtime script tags': 4, …(4) } to deeply equal { 'runtime script tags': 4, …(5) }
+ FAIL … does not remove what it does not recognise, so the output check can catch it
+AssertionError: expected [] to deeply equal [ 'the Turbopack runtime' ]
+ FAIL … removes Next 16.4.3's inline Turbopack bootstrap
+AssertionError: expected { 'runtime script tags': 4, …(4) } to deeply equal { 'runtime script tags': 4, …(5) }
+ FAIL … the trace check catches the Turbopack bootstrap if it is left in
+AssertionError: expected [] to deeply equal [ 'the Turbopack runtime', …(1) ]
+ FAIL … strips a Next 16.4.3 page with no problem, and names a page that keeps a Turbopack trace
+AssertionError: expected undefined to be 1 // Object.is equality
+      Tests  5 failed | 4 passed (9)
+```
+
+The three new tests fail, and so do the two existing tests that gained the
+assertions above, each only on the added part. The other four tests in the
+file pass. (Plan step 5 says "every other test still passes"; the two
+extended tests cannot pass before the fix, since the new key and the new trace
+do not exist yet.)
+
+### Green (commit `8f03751`) and the website checks
+
+```
+website$ npx vitest run test/strip-runtime.test.ts          exit 0   Tests 9 passed (9)
+website$ npm run typecheck                                  exit 0
+$ git rev-parse --is-shallow-repository                     false
+website$ npm run design:check                               exit 0   (uses the already fetched origin/feature/interviewer-portal; no fetch run)
+  "All 25 files match: 24 identical, 1 ported with the recorded change."
+website$ CONTENT_SOURCE=snapshot PUBLIC_SITE_URL=https://digitalhub.com.eg npm run build   exit 0
+  Removed Next's client runtime from 29 pages:
+     203  runtime script tags
+      29  Turbopack bootstrap script
+      29  runtime preload link
+      58  payload scripts
+      29  empty metadata outlet
+      29  empty boundary markers
+     140  .txt payload files deleted
+      10  runtime scripts deleted from _next/
+  Build output checks passed.
+website$ npx vitest run                                     exit 0   Test Files 21 passed (21); Tests 412 passed | 1 skipped (413)
+```
+
+Strip counts equal the base's (base build: 203, 29, 58, 29, 29, 140, 10)
+plus 29 "Turbopack bootstrap script", one per page. Vitest: 409 + the 3 new
+tests = 412 passed, the same 1 skip (the Chromium placeholder in
+`screenshot-parity-browser.test.ts`).
+
+**Zero-difference check (plan 5.2 step 4).** The base noise floor from round 1
+(`diff -r out-base-1 out-base-2`, exit 0, empty) still holds; the base is
+unchanged.
+
+```
+$ diff -r <scratch>/out-base-1 /home/user/DH-WEBSITE/website/out      exit 0, no output
+$ grep -rl -E "TURBOPACK|static/chunks/" /home/user/DH-WEBSITE/website/out   exit 1, no file
+```
+
+After the consent build and the restore build (below), `diff -r` was run
+again: exit 0.
+
+### Section comparison, base and branch (5.3.1)
+
+Old site `/home/user/old-site` (`feature/interviewer-portal`, read only), port
+4290, Chromium 153 standing in for 141.
+
+```
+base   (6470fac export, NEW=out-base-1)   npm run compare:sections   exit 1
+branch (NEW=website/out)                  npm run compare:sections   exit 1
+  104/119 sections match; 14 accepted; 1 failures (including chrome).
+  Chrome: 42 match; 36 accepted out of 78.
+  Section 5 formerly missing sections: 9 match, 6 accepted (16/16 found).
+  differs: /careers/apply.html #section
+$ diff section-base/report.md section-branch/report.md             exit 0
+```
+
+The two reports are identical. The one failure is the known, unaccepted
+careers apply difference (GAP-05 / O-11), on base and branch alike. No new
+difference.
+
+### Website browser suite (5.3.2)
+
+`WEBSITE_TEST_PORT=4291 npx playwright test`, default build and consent build
+(`SNAPSHOT_SETTINGS_FIXTURE=consent`), base first, then branch; default `out/`
+restored afterwards on both.
+
+| Run | Exit | Passed | Failed | Skipped |
+|---|---|---|---|---|
+| base, default build | 1 | 3 | 1 | 25 |
+| branch, default build | 1 | 3 | 1 | 25 |
+| base, consent build | 1 | 20 | 8 | 1 |
+| branch, consent build | 1 | 20 | 8 | 1 |
+
+Per-test outcomes are identical between base and branch in both builds
+(sorted list of test titles and outcomes, `diff` exit 0). Every one of the 9
+failures, on base and branch, is the same assertion,
+`expect(errors).toEqual([])` receiving `["gsap is not defined"]`
+(`pages.spec.ts:17`, `consent.spec.ts:154`). The pages load GSAP from
+`cdn.jsdelivr.net`, and this container's egress proxy refuses that host:
+
+```
+$ curl … https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js
+curl: (56) CONNECT tunnel failed, response 403
+[agent-proxy] cdn.jsdelivr.net:443 — connect_rejected
+```
+
+So the plan's pass condition "0 failed on the branch" cannot be met in this
+container for a reason outside the change, and the "counts equal to base"
+half is met exactly. The pages served are byte-identical to the base's
+(`diff -r` exit 0). The tester should treat this as an environment limit, or
+rerun where `cdn.jsdelivr.net` is reachable. There is no CI job for this
+suite until GAP-04.
+
+### Screenshot checks, Chromium only (5.3.3)
+
+```
+website$ npx vitest run test/screenshot-parity-browser.test.ts --reporter=default --reporter=json --outputFile.json=<scratch>/screenshot-browser.json
+                                                            exit 0   Tests 30 passed | 1 skipped (31)
+website$ node tools/check-browser-test-report.mjs <scratch>/screenshot-browser.json 30
+  chromium regressions: passed 30, placeholder 1, problems 0         exit 0
+```
+
+`npm run compare:screenshots` (Chromium, ports 4292/4293), base
+(`NEW_ROOT=out-base-1`, from the base tree) and branch (`NEW_ROOT=website/out`).
+Both exit 1, as expected from the parity differences that exist today.
+Reports: `<scratch>/screenshots-base/report.html` and
+`<scratch>/screenshots-branch/report.html`. (The first branch run was stopped
+by the 30-minute background limit; it was rerun in full.)
+
+| | match | differs | absent (accepted) | unstable | error | rows |
+|---|---|---|---|---|---|---|
+| base | 29 | 35 | 6 | 5 | 3 | 78 |
+| branch | 33 | 35 | 6 | 2 | 2 | 78 |
+
+Hand review, row by row (`viewport page outcome`, `diff` of the two lists):
+70 of 78 rows are the same. The 8 that differ are all rows the base or branch
+run marks unstable or error, and move between those outcomes and
+match/differs from run to run:
+
+| Row | Base | Branch | Judgement |
+|---|---|---|---|
+| 1440 /blogs/index.html | match | unstable | same as base: unstable capture |
+| 1440 /services/ai-automation.html | unstable | match | same as base |
+| 1440 /services/enterprise-software.html | differs | match | same as base: flaky row |
+| 1440 /services/outsourcing.html | differs | match | same as base: flaky row |
+| 768 /index.html | unstable (size; 58 problems) | differs (size; 57 problems) | same as base: unstable capture |
+| 768 /services/outsourcing.html | unstable | error | same as base |
+| 390 /index.html | unstable (size; 58 problems) | differs (size; 57 problems) | same as base: unstable capture |
+| 390 /services/enterprise-software.html, /services/outsourcing.html | error | match | same as base |
+
+None is "new": the new site's served files are byte-identical to the base's
+(`diff -r` exit 0) and the old site is the same checkout, so a row can only
+change between runs by capture instability. The proxy refused 499
+`cdn.jsdelivr.net` connections during these runs, which the old and new pages
+both load (GSAP, Lenis, Tabler icons), and is the likely source of the
+instability. Firefox and WebKit: NOT RUN (not installed); covered by `ci.yml`
+`screenshot-parity`.
+
+### Studio checks (5.2) and `npm ci` with both npm versions (condition 6)
+
+```
+studio$ npm ci     (Node 22.23.4, npm 10.9.9)     exit 0   lockfile byte-identical afterwards (cmp)
+studio$ npm ci     (Node 24.22.1, npm 11.19.1)    exit 0   lockfile byte-identical afterwards (cmp)
+studio$ npm ci     (npm 10.9.9 again, for the runs below)   exit 0
+studio$ npm audit --audit-level=high              exit 0
+studio$ RUNNER_TEMP=… bash ../.github/security/run-npm-audit.sh studio   exit 0
+  studio: 0 finding(s) at the gate's level; 0 known, 0 new.
+```
+
+`tsc -b`, `npm test` (32/32) and the build were run in round 1 on the same
+Studio files; nothing under `studio/` changed in round 2.
+
+### Studio end-to-end suite (5.3.4, condition 1)
+
+Wrapper, quoted before the run (`which sqlcmd` →
+`<scratchpad>/bin/sqlcmd`, first on `PATH`):
+
+```
+#!/bin/bash
+exec docker exec -i -e SQLCMDPASSWORD -e SQLCMDUSER -e SQLCMDSERVER dh-mssql /opt/mssql-tools18/bin/sqlcmd "$@"
+```
+
+Session check at 17:48 UTC: no session on `DigitalHubContent_E2e`, no session
+on any user database, and the only user database was `DigitalHubContent_Test`
+(no `GAP06_*` database present). Right before the run:
+
+```
+$ sqlcmd -S localhost -U sa -P … -C -Q "SET NOCOUNT ON; SELECT COUNT(*) AS e2e_sessions FROM sys.dm_exec_sessions WHERE database_id = DB_ID('DigitalHubContent_E2e')"
+e2e_sessions
+------------
+           0
+```
+
+`dh_content_app` already existed, so the create-login step was not needed.
+Run with the `ci.yml` `studio` environment (connection strings to
+`DigitalHubContent`, which the harness rewrites to `DigitalHubContent_E2e`),
+`Auth__SigningKey` from `ci.yml`, `DH_E2E_API_PORT=4294`,
+`DH_E2E_STUDIO_PORT=4295`:
+
+```
+studio$ npx playwright test --reporter=list         exit 0
+  ✓  26 e2e/verification.spec.ts:410:1 › P2.12 Every sidebar screen loads with no console error, as admin and as editor (15.3s)
+  26 passed (4.2m)
+```
+
+26 of 26, 0 failed. The plan says 22; the suite has 26 tests on both the base
+and the branch (`npx playwright test --list` → "Total: 26 tests in 5 files"
+in each). Only `DigitalHubContent_E2e` was touched (by the harness's own
+drop, create, migrate and grant); it is left in place, as in CI.
+
+### Repository root and scope (conditions 4 and 5)
+
+```
+$ node --test .github/security/gate.test.mjs        exit 0   # tests 63, pass 63, fail 0
+$ git diff --stat 6470fac -- .github/workflows .github/security/gate.mjs .github/security/run-*.sh .github/security/*.expected* website/scripts/strip-runtime.ts website/scripts/check-output.ts website/design packages
+  (empty)
+$ git diff --name-only 6470fac HEAD
+  .github/security/gate.test.mjs, .github/security/known-findings.json,
+  docs/changes/GAP-01/{implementation,plan-approval,plan-review,plan}.md,
+  studio/package-lock.json, studio/package.json,
+  website/package-lock.json, website/package.json,
+  website/src/build/strip-runtime.ts, website/test/strip-runtime.test.ts
+website$ npm audit --audit-level=high               exit 0
+website$ RUNNER_TEMP=… bash ../.github/security/run-npm-audit.sh website   exit 0
+  website: 0 finding(s) at the gate's level; 0 known, 0 new.
+$ git rev-parse --is-shallow-repository             false
+```
+
+No `git fetch` of any kind was run in round 2. No `overrides`, no `--force`.
+
+### Conditions (plan-approval.md round 2)
+
+1. Studio end-to-end: met, 26/26, wrapper and session check quoted above.
+2. Rebase before delivery: **open**. PR #38 is not merged and
+   `origin/rebuild/dotnet-platform` is still `6470fac`. After the rebase,
+   the noise floor, the zero `diff -r`, the `TURBOPACK|static/chunks/` grep and
+   the section and screenshot comparisons must be redone against the new base.
+3. Red, then green, for the strip: met (`6ad1366` red, `8f03751` green; counts
+   and zero diff above; the existing-assertion edits quoted).
+4. Scope: met (`git diff --stat` empty for every protected path).
+5. Git safety: met (`false`, no fetch).
+6. `npm ci` with npm 10.9.9 and 11.19.1: both exit 0.
+7. Deadline: ready for test on 1 November; push is for the integrator after
+   test and gate 2 (developer never pushes).
+
+### For the tester
+
+- Website browser suite: 9 failures on base and branch alike, all
+  "gsap is not defined" because the proxy refuses `cdn.jsdelivr.net`. Not
+  caused by the change; outcome lists identical to base.
+- Screenshot comparison: 8 of 78 rows move between runs because of unstable
+  captures (same cause likely); the served files are byte-identical to base.
+- E2E count is 26, not the plan's 22, on base and branch.
+- CI (5.4) is not yet run: nothing is pushed, and `studio`,
+  `section-compare` and `screenshot-parity` wait on PR #38.
+
+### Coverage table (round 2, supersedes round 1's)
+
+| Item | Status | Evidence |
+|---|---|---|
+| Full-tree audit 0 High/Critical, website | Met | exit 0 on `8f03751`; 1 moderate (fast-uri, out of scope) |
+| Full-tree audit 0 High/Critical, Studio | Met | exit 0; total 0 |
+| Production audit 0; `run-npm-audit.sh` "0 known, 0 new", both apps | Met | exit 0, lines quoted |
+| Website entries removed from `known-findings.json` | Met | `2a4f836` |
+| Red test before the dependency fix | Met | `2a4f836`, "0 known, 6 new", exit 1 |
+| Gate self-test, no assertion weakened | Met | 63/63 |
+| D-NNN for remaining advisories | N/A | none at High/Critical |
+| Website tests green | Met | 412 passed, 1 skipped; typecheck exit 0 |
+| Studio unit tests green | Met | 32/32 (round 1; Studio unchanged since) |
+| Studio end-to-end | Met | 26/26, exit 0 (suite is 26 on base too) |
+| Website browser suite: 0 failed, counts equal to base | Partly met | counts and per-test outcomes equal to base; 9 failures on both from the blocked CDN (environment) |
+| Design check green | Met | exit 0; shallow check `false` |
+| Website and Studio builds green | Met | website exit 0 with the new removal; Studio round 1 exit 0 |
+| Built site unchanged: zero `diff -r` against base; no `TURBOPACK`/`static/chunks/` | Met | `diff -r` exit 0; grep finds nothing |
+| Red test for the Turbopack bootstrap before the fix | Met | `6ad1366` red (5 failed), `8f03751` green (9/9) |
+| Locked design untouched | Met | `git diff --stat` empty for `website/design`, `packages`, `scripts/*.ts` |
+| Section comparison: no difference beyond base | Met | reports identical (`diff` exit 0); only the known careers apply difference |
+| Screenshot regression tests pass; report reviewed by hand | Met (Chromium) | 30 passed, 0 problems; 70/78 rows equal, 8 unstable rows judged same as base; Firefox/WebKit in CI |
+| Lockfile changes expected or traced | Met | round 1 tables |
+| Lockfiles by npm; `npm ci` passes (npm 10 and 11 for Studio) | Met | all exit 0 |
+| Golden copies and gate unchanged | Met | `git diff --stat` empty |
+| Rebase after PR #38 and CI green on final head | Open | PR #38 not merged; nothing pushed |
+| PR body per template | Open | written when the pull request is opened |
+
+Status: READY FOR TEST
