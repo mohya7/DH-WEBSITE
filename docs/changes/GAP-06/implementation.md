@@ -918,4 +918,164 @@ ORDER BY line;
 - To feed a script to `sqlcmd` by hand, use `docker cp` and `-i <file>`, not stdin:
   the generated script starts with a UTF-8 BOM, which fails on stdin (5.5).
 
+## 10. Rework round 1 (answering `test-report.md` round 1, `Verdict: CHANGES NEEDED`)
+
+Developer, 1 November 2026. Fix commit `d8e2748` ("GAP-06: Answer test report round 1
+in the migration checks"); only `api/tools/migration-checks/run.sh` changed.
+`test-report.md` is left uncommitted, as instructed. The coordinator asked for
+findings 1, 3 and 4, and finding 2 if small; all four are answered. Each failing check
+was run and quoted before the fix. There is no committed self-test for `run.sh`:
+plan section 4 does not list one, so adding it would grow the scope. The checks below
+are command-level and can be re-run as written.
+
+`git rev-parse --is-shallow-repository` → `false` before and after every `run.sh` run
+in this round. Catalogs: `GAP06_*` only; at the end `SELECT COUNT(*) FROM sys.databases
+WHERE name LIKE 'GAP06%'` → `0`, and the container's `/tmp` is empty.
+
+**shellcheck install.** GAP-08's checksum-verifying installer, into a scratch folder,
+with the pins from GAP-08's `workflow-lint.yml`:
+
+```
+$ RUNNER_TEMP=<scratch>/gap06-lint ACTIONLINT_VERSION=1.7.12 ACTIONLINT_SHA256=8aca8db9…a3d8 \
+    SHELLCHECK_VERSION=0.11.0 SHELLCHECK_SHA256=8c3be12b…7198 sh /home/user/wt-GAP-08/.github/lint/install-actionlint.sh
+…/actionlint_1.7.12_linux_amd64.tar.gz: OK
+…/shellcheck-v0.11.0.linux.x86_64.tar.xz: OK
+1.7.12
+ShellCheck - shell script analysis tool
+version: 0.11.0
+exit=0
+```
+
+### Finding 1 (shellcheck, 3 findings): fixed
+
+Red, at `f77c4b0`: `shellcheck tools/migration-checks/run.sh` → exit 1:
+
+```
+In tools/migration-checks/run.sh line 32:  SC2155 (warning): Declare and assign separately to avoid masking return values.
+In tools/migration-checks/run.sh line 111: SC2329 (info): This function is never invoked. Check usage (or ignored if invoked indirectly).
+In tools/migration-checks/run.sh line 191: SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+```
+
+Fixes:
+
+- **SC2155:** `SCRIPT_DIR="$(cd … && pwd)"`, then `readonly SCRIPT_DIR` on its own line.
+  A failing `cd` now stops the script under `set -e`.
+- **SC2015:** `if [[ ! "$n" =~ ^[0-9]+$ ]] || (( n < 2 )); then cannot_run …; fi`.
+- **SC2329:** this is a false positive, shown with a 5-line script:
+  `cleanup() { echo bye; }` / `trap cleanup EXIT` / `echo hi` / `exit 0` → shellcheck
+  0.11.0 reports SC2329 on `cleanup`. The same script without the final `exit 0`, and
+  the first 433 lines of `run.sh` (everything except its final `exit 0`), report
+  nothing. So the trap handler is reported only because the script ends with an
+  explicit `exit`. I kept the explicit `exit 0`, because an implicit exit status
+  would break silently if a line were added later. The directive covers only the
+  `cleanup` function and gives the reason:
+  `# shellcheck disable=SC2329 # Run by \`trap cleanup EXIT\` below. ShellCheck 0.11.0 reports a`
+  `# trap handler as never invoked when the script ends with an explicit \`exit\`.`
+
+Green, at `d8e2748`: `shellcheck tools/migration-checks/run.sh` → exit 0, no output.
+`bash -n` → exit 0. Also, `actionlint -shellcheck=<scratch>/shellcheck
+.github/workflows/ci.yml` → exit 0.
+
+### Finding 2 (`docker exec` failure hides the cause): fixed
+
+Red, at `f77c4b0`, with a mutant in the scratch folder (the source was not edited):
+`SQLCMD="/opt/mssql-tools/bin/sqlcmd"` → exit 1:
+
+```
+== 2. Canary: add a column and use it in one batch
+::error::Migration checks cannot run: could not create catalog GAP06_Canary
+::warning::Could not drop scratch catalog GAP06_Canary
+```
+
+Fix: when the output has no `Msg …` or `Sqlcmd: Error` line, `errors_of` prints its last
+10 lines (still through `redact`). The misleading "Could not drop" warning is gone too,
+because a catalog is added to the drop list only after `CREATE DATABASE` succeeds
+(finding 4). Green, the same mutant made from `d8e2748` → exit 1:
+
+```
+== 2. Canary: add a column and use it in one batch
+OCI runtime exec failed: exec failed: unable to start container process: exec: "/opt/mssql-tools/bin/sqlcmd": stat /opt/mssql-tools/bin/sqlcmd: no such file or directory
+::error::Migration checks cannot run: could not create catalog GAP06_Canary
+```
+
+### Finding 3 (any future blocking date accepted): fixed
+
+Red, at `f77c4b0`: `MIGRATION_CHECKS_BLOCKING_FROM=9999-12-31` → accepted, "blocking from
+9999-12-31 (today 2026-11-01: report mode)". The tester's full run exited 0. I stopped
+mine with `timeout 20` once the date had been accepted, and afterwards no `GAP06`
+catalog, container file or process was left.
+
+Fix: `readonly LATEST_BLOCKING_FROM="2026-11-23"` (Wave 1's last blocking day, the same
+ceiling as GAP-08's `run-actionlint.sh`). A later date is "cannot run", exit 1. Green, at
+`d8e2748`:
+
+```
+MIGRATION_CHECKS_BLOCKING_FROM=2026-11-24 → exit=1: ::error::Migration checks cannot run: MIGRATION_CHECKS_BLOCKING_FROM 2026-11-24 is after 2026-11-23, Wave 1's last blocking day
+MIGRATION_CHECKS_BLOCKING_FROM=9999-12-31 → exit=1: ::error::Migration checks cannot run: MIGRATION_CHECKS_BLOCKING_FROM 9999-12-31 is after 2026-11-23, Wave 1's last blocking day
+MIGRATION_CHECKS_BLOCKING_FROM=2026-11-23 → exit=0, "blocking from 2026-11-23 (today 2026-11-01: report mode)", 0 failure(s)
+```
+
+The committed `2026-11-12` is within the ceiling. **For the integrator:** if the merge
+slips past 16 November, merge day plus 7 is after 2026-11-23. Then the integrator must
+move both `MIGRATION_CHECKS_BLOCKING_FROM` in `ci.yml` and `LATEST_BLOCKING_FROM` in
+`run.sh`, in the same reviewed merge. That is the point of the ceiling: the report week
+cannot be stretched by the `ci.yml` value alone.
+
+### Finding 4 (`create_catalog` silently drops an existing catalog): fixed
+
+Red, at `f77c4b0`: I created `GAP06_Canary` by hand with a table `someone_elses_work`
+(1 row), then ran `MIGRATION_CHECKS_BLOCKING_FROM=2026-11-12 run.sh dh-mssql` → exit 0,
+every check PASS, with no message, and afterwards `GAP06_Canary exists: no (dropped by
+run.sh)`.
+
+Fix: `create_catalog` runs only `CREATE DATABASE [$db]`. On `Msg 1801` it is "cannot
+run", with the reason. A catalog joins the drop-on-exit list only after this run has
+created it, so the `trap` never drops a catalog it did not make. Two runs that race on
+one name: the second `CREATE DATABASE` fails with 1801, so that run stops. Green, the
+same set-up at `d8e2748` → exit 1:
+
+```
+Msg 1801, Level 16, State 3, Server 42701ab3ab3a, Line 1
+Database 'GAP06_Canary' already exists. Choose a different database name.
+::error::Migration checks cannot run: catalog GAP06_Canary already exists. Another run may be using the prefix GAP06_, or a killed run left it: drop it by hand, or set another MIGRATION_CHECK_DB_PREFIX
+after: GAP06_Canary rows = 1
+```
+
+The pre-existing catalog and its row survived. I then dropped it by hand (it was my
+`GAP06_` scratch catalog). In CI each job has a fresh container, so this never fires
+there.
+
+### Regression run after the rework, at `d8e2748`
+
+```
+$ git rev-parse --is-shallow-repository
+false
+$ SA_PASSWORD=… MIGRATION_CHECK_DB_PREFIX=GAP06_ MIGRATION_CHECKS_BLOCKING_FROM=2000-01-01 tools/migration-checks/run.sh dh-mssql
+Migration checks: catalog prefix GAP06_, base rebuild/dotnet-platform, blocking from 2000-01-01 (today 2026-11-01: blocking mode).
+PASS  2. Canary rejected: exit 1, Msg 207 Invalid column name 'new_col'
+PASS  3. Script run 1, empty catalog: exit 0, history 15 of 15
+PASS  3. Script run 2, empty catalog: exit 0, history 15 of 15
+PASS  4a. Previous schema, script: from 20261019104504_AddRefreshTokenSessionStart: exit 0, history 15 of 15
+SKIP  4b. Base schema, script: base = head (20261020113912_AddApplicationCounts), covered by step 3
+PASS  5. database update latest, 20261019104504_AddRefreshTokenSessionStart, latest: each exit 0, history 15 of 15
+PASS  6. Same schema: 3 catalogs (GAP06_Script GAP06_Previous GAP06_Ef), 468 lines each, identical
+== Result: 0 failure(s); blocking from 2000-01-01; blocking mode.
+exit=0
+$ git rev-parse --is-shallow-repository
+false
+```
+
+The password appears in no log of this round (`grep -l` → none). No migration, `ci.yml`
+or other file changed in this round, so 5.3 #2 to #7 are unaffected: no build input
+changed, and `run.sh` is not part of the build or the tests.
+
+### Coverage changes
+
+- 5.3 #8 (script lint): now **Pass**, `shellcheck` 0.11.0 → 0 findings (it was NOT RUN
+  in round 0).
+- The row "The gate reports until `MIGRATION_CHECKS_BLOCKING_FROM`, then blocks" now also
+  covers the ceiling: a date after 2026-11-23 is refused.
+- The row "Scratch catalogs only; none left behind" now also covers this: a run never
+  drops a catalog it did not create.
+
 Status: READY FOR TEST
