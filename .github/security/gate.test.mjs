@@ -1916,10 +1916,12 @@ test("the self-test does not depend on the real npm and NuGet allow-list", () =>
   assert.ok(runStart >= 0, "run() is missing");
   const runBody = source.slice(runStart, source.indexOf("\n}\n", runStart) + 3);
   const realSpawn = "runGate(" + "gate,";
-  const directSpawn = "spawnSync(process.execPath, [" + "gate";
+  // The variable gate only: runGate's own spawnSync(process.execPath, [gateFile, ...]) is not a match.
+  const directSpawn = new RegExp(["spawnSync\\(process\\.execPath, \\[", "gate\\b"].join(""), "g");
   assert.equal(source.split(realSpawn).length - 1, 1, `the real gate is spawned outside run(): ${realSpawn}`);
   assert.equal(runBody.split(realSpawn).length - 1, 1, "run() does not hold the only spawn of the real gate");
-  assert.equal(source.split(directSpawn).length - 1, 0, `the real gate is spawned directly: ${directSpawn}`);
+  assert.equal((source.match(directSpawn) ?? []).length, 0, `the real gate is spawned directly: ${directSpawn}`);
+  assert.equal(("spawnSync(process.execPath, [" + "gate, ...args]").match(directSpawn)?.length, 1, "the direct-spawn pattern no longer matches a direct spawn");
   const guard = runBody.indexOf("if (args[0] === \"npm\" || args[0] === \"dotnet\") return runGate(cleanGate, args);");
   assert.ok(guard >= 0 && guard < runBody.indexOf(realSpawn), "run() can reach the real gate for npm or dotnet");
 });
