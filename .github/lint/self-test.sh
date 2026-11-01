@@ -129,7 +129,7 @@ new_case; stub_actionlint 3; stub_today 2026-11-05; blocking_from=2026-11-11
 run_gate workflows; expect "6 exit 3 in report mode" 1
 
 # 7. ACTIONLINT_BLOCKING_FROM unset
-new_case; stub_actionlint 0; stub_today 2026-11-05; blocking_from=unset
+new_case; stub_actionlint 0; stub_today 2026-11-05; blocking_from="unset"
 run_gate workflows; expect "7 blocking date unset" 1
 
 # 8. ACTIONLINT_BLOCKING_FROM not a real date, or not YYYY-MM-DD
@@ -175,7 +175,7 @@ run_gate canary; expect "13 canary exit 3" 1
 # 14. canary ignores the blocking date
 new_case; stub_actionlint 1 "${canary_lines[@]}"; stub_today 2026-12-01; blocking_from=2026-11-11
 run_gate canary; expect "14 canary after the blocking date" 0
-new_case; stub_actionlint 1 "${canary_lines[@]}"; stub_today 2026-11-05; blocking_from=unset
+new_case; stub_actionlint 1 "${canary_lines[@]}"; stub_today 2026-11-05; blocking_from="unset"
 run_gate canary; expect "14 canary with the date unset" 0
 
 # 15. no mode, unknown mode
