@@ -373,4 +373,242 @@ No migrations (plan section 7).
 > 2026-11-01, project thread). No exception taken. Making the check required
 > is a settings step under GAP-03 / O-9.
 
+Round 1 ended `Status: READY FOR TEST` at `70f7044`.
+
+## Round 2 (rework after gate 2, `Verdict: CHANGES NEEDED`)
+
+Inputs: `test-report.md` round 1 (three Minors) and `delivery-approval.md`
+round 1, which requires Minor 2 and Minor 1 to be fixed and leaves Minor 3
+optional. Both files are in the worktree, uncommitted. The coordinator told
+me to leave them uncommitted because the orchestrator commits the records at
+the end. That overrides item 4 of the delivery approval's round 2 list, so
+`test-report.md` is **not** committed by me. Base re-checked after
+`git fetch`: `origin/rebuild/dotnet-platform` is still `6470fac`, so no rebase.
+
+### Commits
+
+| SHA | Subject |
+| --- | --- |
+| `e18a093` | GAP-08: Add failing self-test cases for gate 2's round 1 findings (red) |
+| `46ea9c6` | GAP-08: Refuse SHELLCHECK_OPTS and late blocking dates in the gate (fix) |
+| this commit | GAP-08: Record round 2 rework |
+
+### Findings and answers
+
+**Minor 2: `SHELLCHECK_OPTS` narrows shellcheck silently. Fixed.**
+`run-actionlint.sh` refuses `SHELLCHECK_OPTS` whenever it is set
+(`${SHELLCHECK_OPTS+set}`, so an empty value is refused too). This happens
+before the mode-specific logic, so it applies in both modes and in report
+mode. The `::error` names the variable and shows its value. It is a refusal,
+not an unset, as the tech lead asked. Self-test case 18 covers `-e SC2046` and
+`''` in `workflows` and `canary` modes (four checks). Case 17 also fails if
+`SHELLCHECK_OPTS` appears anywhere in `workflow-lint.yml`, comments included.
+`run_gate` in the self-test now removes `SHELLCHECK_OPTS` from every other
+case's environment, so the outer shell cannot affect them.
+
+**Minor 1: case 17 was line-based. Fixed for all five mutations, plus one
+run-time cap.**
+- **Run time (the tech lead's suggestion):** `run-actionlint.sh` refuses an
+  `ACTIONLINT_BLOCKING_FROM` after `2026-11-23` (`latest_blocking_from`). Any
+  override, whether a step `env`, a flow mapping or a write to the runner's
+  env file, can therefore no longer extend report mode past Wave 1's last
+  blocking day. `2026-11-23` itself is accepted. This is self-test case 19.
+- **Case 17 changes:**
+  - It strips full-line and trailing comments before matching keys.
+  - It matches `continue-on-error`, `if`, `paths` and `paths-ignore` as keys
+    unquoted, single- or double-quoted, at the start of a line (with or
+    without `- `) or after `{` or `,`, which covers flow mappings.
+  - It requires the token `ACTIONLINT_BLOCKING_FROM` exactly once outside
+    comments, which is the env entry. A second mention anywhere, such as a step
+    `env` or an `echo ... >> $GITHUB_ENV`, fails.
+  - It reads the date from the key line in any quoting.
+  - It extracts every `uses` value (block, flow or quoted key) and requires
+    `owner/repo@<40 hex>`.
+  - It fails on `SHELLCHECK_OPTS` anywhere in the workflow.
+  - It fails on any `GITHUB_ENV` or `GITHUB_PATH` text in `workflow-lint.yml`
+    or in any `.github/lint/*.sh`. The self-test spells these names split
+    (`"GITHUB_""ENV"`), so it can scan itself.
+
+**Minor 3: exit 1 with empty output had no message. Fixed (optional).** The
+count is now `grep -c . || true`. When it is 0 the gate fails with
+`::error ... actionlint exited 1 (findings) but printed none`. This is case 20,
+run both before and after the blocking date.
+
+### Red run (at `e18a093`, the new self-test against the round 1 gate)
+
+```
+$ bash .github/lint/self-test.sh                                       exit=1
+FAIL 18 SHELLCHECK_OPTS='-e SC2046', workflows mode: exit 0, expected 1; output: actionlint: 0 findings in .github/workflows
+FAIL 18 SHELLCHECK_OPTS='-e SC2046', canary mode: exit 0, expected 1; output: ... actionlint canary: all 6 expected findings reported
+FAIL 18 SHELLCHECK_OPTS='', workflows mode: exit 0, expected 1; output: actionlint: 0 findings in .github/workflows
+FAIL 18 SHELLCHECK_OPTS='', canary mode: exit 0, expected 1; output: ... actionlint canary: all 6 expected findings reported
+FAIL 19 blocking date 2026-11-24: exit 0, expected 1; output: ... ::warning title=actionlint (report mode until 2026-11-24)::1 finding(s) in .github/workflows
+FAIL 19 blocking date 2099-01-01, no findings: exit 0, expected 1; output: actionlint: 0 findings in .github/workflows
+FAIL 20 exit 1 with no output, today 2026-11-05: output lacks '::error'; output:
+FAIL 20 exit 1 with no output, today 2026-12-01: output lacks '::error'; output:
+
+actionlint gate self-test: 8 failed           (31 ok, case 17 among them)
+```
+
+On the committed workflow, the hardened case 17 passes (it is red only on
+mutations, below).
+
+### Step 0, self-test green (at `46ea9c6`)
+
+```
+$ bash .github/lint/self-test.sh                                       exit=0
+... (cases 1 to 16 as in round 1)
+ok   18 SHELLCHECK_OPTS='-e SC2046', workflows mode
+ok   18 SHELLCHECK_OPTS='-e SC2046', canary mode
+ok   18 SHELLCHECK_OPTS='', workflows mode
+ok   18 SHELLCHECK_OPTS='', canary mode
+ok   19 blocking date 2026-11-24
+ok   19 blocking date 2099-01-01, no findings
+ok   19 blocking date 2026-11-23
+ok   20 exit 1 with no output, today 2026-11-05
+ok   20 exit 1 with no output, today 2026-12-01
+ok   17 workflow-lint.yml shape
+
+actionlint gate self-test: all cases passed       (39 ok, 0 FAIL)
+```
+
+### Mutation run (at `46ea9c6`)
+
+The script is `/tmp/claude-0/-home-user-DH-WEBSITE/7aefdfd4-6aa9-5555-b0de-70990eb7693f/scratchpad/gap08-mut.sh`
+(session scratchpad, not committed). Each mutation is applied with `sed` to a
+fresh scratch copy of `.github/lint` and `.github/workflows`, then the
+self-test runs. The script also checks that each mutation really changed the
+file. In every row the self-test exits 1 with exactly one FAIL line, case 17:
+
+```
+== date-after          FAIL 17: ACTIONLINT_BLOCKING_FROM 2026-11-24 is after 2026-11-23
+== date-invalid        FAIL 17: ACTIONLINT_BLOCKING_FROM '2026-11-31' is not a real YYYY-MM-DD date
+== job-if              FAIL 17: 57:    if: false
+== step-if             FAIL 17: 65:      - if: always()
+== paths               FAIL 17: 32:    paths: [".github/**"]
+== paths-ignore        FAIL 17: 30:    paths-ignore: ["docs/**"]
+== tag                 FAIL 17: actions/checkout@v4
+== coe                 FAIL 17: 57:    continue-on-error: true
+-- tester round 1 mutations --
+== T1 flow-mapping step env { ACTIONLINT_BLOCKING_FROM: "2099-01-01" }
+                       FAIL 17: ACTIONLINT_BLOCKING_FROM appears 2 times outside comments, expected once (its env entry)
+== T2 "continue-on-error": true            FAIL 17: 57:    "continue-on-error": true
+== T3 "if": false                          FAIL 17: 57:    "if": false
+== T4 install step ... >> "$GITHUB_ENV" (date)
+                       FAIL 17: ACTIONLINT_BLOCKING_FROM appears 2 times outside comments, expected once (its env entry)
+== T4b installer appends ... >> "$GITHUB_ENV"   FAIL 17: 23:echo "ACTIONLINT_BLOCKING_FROM=2099-01-01" >> "$GITHUB_ENV"
+== T4c installer appends ... >> "$GITHUB_PATH"  FAIL 17: 23:echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+== T5 top env SHELLCHECK_OPTS: "-e SC2046"      FAIL 17: 42:  SHELLCHECK_OPTS: "-e SC2046"
+-- extra forms --
+== 'ACTIONLINT_BLOCKING_FROM': "2099-01-01"     FAIL 17: ACTIONLINT_BLOCKING_FROM 2099-01-01 is after 2026-11-23
+== "uses": actions/checkout@v4                  FAIL 17: actions/checkout@v4
+== defaults: { run: { shell: bash }, "if": x }  FAIL 17: 57:    defaults: { run: { shell: bash }, "if": x }
+== install step ... echo "X=1" >> "$GITHUB_ENV" FAIL 17: 63:        run: ... echo "X=1" >> "$GITHUB_ENV"
+```
+
+T1, T4 and T5 also fail at run time, independently of case 17. The real-tool
+runs below show it: a date after 2026-11-23 is refused, and `SHELLCHECK_OPTS`
+is refused.
+
+### The tester's Minor 2 reproduction, re-run with the real tools
+
+Scratch copy of the tree with `- run: rm $(ls)` at `ci.yml` line 72;
+actionlint 1.7.12 and shellcheck 0.11.0 from the gate's installer:
+
+```
+$ ACTIONLINT_BLOCKING_FROM=2026-11-01 bash .github/lint/run-actionlint.sh workflows                      exit=1
+.github/workflows/ci.yml:72:9:shellcheck:shellcheck reported issue in this script: SC2046:warning:1:4: Quote this to prevent word ...
+::error title=actionlint::1 finding(s) in .github/workflows (blocking since 2026-11-01)
+$ SHELLCHECK_OPTS='-e SC2046' ACTIONLINT_BLOCKING_FROM=2026-11-01 bash .github/lint/run-actionlint.sh workflows   exit=1
+::error title=actionlint::SHELLCHECK_OPTS is set ('-e SC2046'). It can exclude shellcheck checks; this gate does not accept it.
+$ SHELLCHECK_OPTS='-e SC2046' ACTIONLINT_BLOCKING_FROM=2026-11-20 bash .github/lint/run-actionlint.sh workflows   exit=1   (report mode)
+::error title=actionlint::SHELLCHECK_OPTS is set ('-e SC2046'). ...
+$ SHELLCHECK_OPTS='-e SC2046' bash .github/lint/run-actionlint.sh canary                                  exit=1
+::error title=actionlint::SHELLCHECK_OPTS is set ('-e SC2046'). ...
+$ SHELLCHECK_OPTS= bash .github/lint/run-actionlint.sh canary                                             exit=1
+::error title=actionlint::SHELLCHECK_OPTS is set (''). ...
+$ ACTIONLINT_BLOCKING_FROM=2099-01-01 bash .github/lint/run-actionlint.sh workflows                       exit=1
+::error title=actionlint::ACTIONLINT_BLOCKING_FROM 2099-01-01 is after 2026-11-23, Wave 1's last blocking day
+$ ACTIONLINT_BLOCKING_FROM=2026-11-23 bash .github/lint/run-actionlint.sh workflows                       exit=0
+.github/workflows/ci.yml:72:9:shellcheck:... SC2046 ...
+::warning title=actionlint (report mode until 2026-11-23)::1 finding(s) in .github/workflows
+```
+
+Minor 3 reproduction (stub `actionlint` that only does `exit 1`, report mode):
+
+```
+$ RUNNER_TEMP=<stub dir> ACTIONLINT_BLOCKING_FROM=2026-11-20 bash .github/lint/run-actionlint.sh workflows   exit=1
+
+::error title=actionlint::actionlint exited 1 (findings) but printed none, so the result cannot be trusted
+```
+
+(The blank line above is the empty output being printed. It is harmless.)
+
+### Steps 3, 4, 6, 7, 8 re-run (at `46ea9c6`)
+
+```
+$ bash .github/lint/run-actionlint.sh canary                                        exit=0
+actionlint canary: all 6 expected findings reported
+$ ACTIONLINT_BLOCKING_FROM=2026-11-11 bash .github/lint/run-actionlint.sh workflows   exit=0
+actionlint: 0 findings in .github/workflows
+$ ACTIONLINT_BLOCKING_FROM=2026-11-01 bash .github/lint/run-actionlint.sh workflows   exit=0
+actionlint: 0 findings in .github/workflows
+$ node --test .github/security/gate.test.mjs                                        exit=0
+# tests 62
+# pass 62
+# fail 0
+```
+
+Step 6 **failed first** in this round as well:
+
+```
+$ "$RUNNER_TEMP/shellcheck" .github/lint/*.sh                                        exit=1
+In .github/lint/run-actionlint.sh line 54:
+# shellcheck reads extra options from this variable, so it can exclude checks
+^-- SC1073 (error): Couldn't parse this shellcheck directive.
+```
+
+This is the same mistake as round 1: a comment that starts with
+`# shellcheck` is read as a directive. I reworded it to "The shellcheck
+binary reads extra options from SHELLCHECK_OPTS ...". The fix is in
+`46ea9c6`. Re-run:
+
+```
+$ "$RUNNER_TEMP/shellcheck" .github/lint/*.sh                                        exit=0
+$ bash .github/lint/self-test.sh                                                    exit=0   (all cases passed)
+```
+
+Step 8, after this record's commit:
+
+```
+$ git diff --stat origin/rebuild/dotnet-platform...HEAD
+ .github/lint/canary.expected            |   6 +
+ .github/lint/canary/canary-workflow.yml |  24 ++
+ .github/lint/install-actionlint.sh      |  22 ++
+ .github/lint/run-actionlint.sh          | 137 +++++++++
+ .github/lint/self-test.sh               | 288 ++++++++++++++++++
+ .github/workflows/workflow-lint.yml     |  72 +++++
+ docs/changes/GAP-08/implementation.md   | (this file)
+ docs/changes/GAP-08/plan-approval.md    |  92 ++++++
+ docs/changes/GAP-08/plan-review.md      | 104 +++++++
+ docs/changes/GAP-08/plan.md             | 503 ++++++++++++++++++++++++++++++++
+```
+
+`workflow-lint.yml`, `install-actionlint.sh`, the canary and
+`canary.expected` are unchanged in this round. The only files that change are
+`run-actionlint.sh`, `self-test.sh` and this record.
+
+### Notes for the tester
+
+- The workflow header and the draft PR text must not contain the string
+  `SHELLCHECK_OPTS` or the env-file names in `workflow-lint.yml`, because case
+  17 reads every byte of the workflow for them. The draft PR description in
+  `delivery-approval.md` already lists "`SHELLCHECK_OPTS` set" among the
+  refusals. That is now true.
+- The run-time cap `2026-11-23` is a constant in `run-actionlint.sh`. If the
+  owner grants a schedule exception (P-7, merge after 16 November), the
+  constant, case 19 and case 17's bound move together in that change.
+- Same NOT RUN rows as round 1 (real runner; .NET, website, Studio,
+  Playwright, CodeQL).
+
 Status: READY FOR TEST
