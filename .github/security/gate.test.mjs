@@ -1925,3 +1925,70 @@ test("the self-test does not depend on the real npm and NuGet allow-list", () =>
   const guard = runBody.indexOf("if (args[0] === \"npm\" || args[0] === \"dotnet\") return runGate(cleanGate, args);");
   assert.ok(guard >= 0 && guard < runBody.indexOf(realSpawn), "run() can reach the real gate for npm or dotnet");
 });
+
+// The npm jobs run run-npm-audit.sh with whatever npm configuration the runner
+// gives it. NODE_ENV=production, NPM_CONFIG_OMIT, npm_config_production or an
+// .npmrc can make npm omit development packages without any change to the
+// script's flags, so the script refuses to audit unless npm's effective omit
+// is empty. A stub npm on PATH answers `npm audit` with a clean report (no
+// network) and passes everything else, including `npm config get`, to the
+// real npm.
+test("the npm audit script refuses an npm configuration that omits packages", () => {
+  const realNpm = spawnSync("sh", ["-c", "command -v npm"], { encoding: "utf8" }).stdout.trim();
+  assert.ok(realNpm, "npm is not on PATH");
+  const stubDir = path.join(dir, "npm-stub");
+  fs.mkdirSync(stubDir, { recursive: true });
+  const stub = path.join(stubDir, "npm");
+  fs.writeFileSync(stub, [
+    "#!/bin/sh",
+    "if [ \"$1\" = \"audit\" ]; then",
+    "  echo \"STUB-NPM-AUDIT $*\" >&2",
+    `  case " $* " in *" --json "*) printf '%s\\n' '${cleanNpm}' ;; esac`,
+    "  exit 0",
+    "fi",
+    `exec ${JSON.stringify(realNpm)} "$@"`,
+    "",
+  ].join("\n"));
+  fs.chmodSync(stub, 0o755);
+  const baseEnv = { ...process.env };
+  for (const key of Object.keys(baseEnv)) {
+    if (key === "NODE_ENV" || /^npm_config_(omit|production|only|include|dev)$/i.test(key)) delete baseEnv[key];
+  }
+  baseEnv.PATH = `${stubDir}${path.delimiter}${baseEnv.PATH}`;
+  // App folders beside fixture-clean's gate, so ../.github/security/gate.mjs resolves to it.
+  const appDir = (name, npmrc) => {
+    const folder = path.join(cleanGateDir, "..", "..", name);
+    fs.mkdirSync(folder, { recursive: true });
+    fs.writeFileSync(path.join(folder, "package.json"), "{}\n");
+    if (npmrc !== undefined) fs.writeFileSync(path.join(folder, ".npmrc"), npmrc);
+    return folder;
+  };
+  const runScript = (cwd, app, extraEnv = {}) => {
+    const runnerTemp = fs.mkdtempSync(path.join(dir, "omit-rt-"));
+    const result = spawnSync("sh", [path.join(here, "run-npm-audit.sh"), app], {
+      cwd,
+      encoding: "utf8",
+      env: { ...baseEnv, RUNNER_TEMP: runnerTemp, ...extraEnv },
+    });
+    return { code: result.status, out: `${result.stdout ?? ""}\n${result.stderr ?? ""}` };
+  };
+
+  const clean = runScript(appDir("studio"), "studio");
+  assert.equal(clean.code, 0, clean.out);
+  assert.equal((clean.out.match(/STUB-NPM-AUDIT/g) ?? []).length, 2, clean.out);
+  assert.match(clean.out, /studio: 0 finding\(s\) at the gate's level; 0 known, 0 new\./);
+  assert.equal(clean.out.includes("::error"), false, clean.out);
+
+  const cases = [
+    ["NODE_ENV=production", appDir("studio"), "studio", { NODE_ENV: "production" }],
+    ["NPM_CONFIG_OMIT=dev", appDir("studio"), "studio", { NPM_CONFIG_OMIT: "dev" }],
+    ["npm_config_production=true", appDir("studio"), "studio", { npm_config_production: "true" }],
+    [".npmrc omit=dev", appDir("website", "omit=dev\n"), "website", {}],
+  ];
+  for (const [name, cwd, app, extraEnv] of cases) {
+    const result = runScript(cwd, app, extraEnv);
+    assert.equal(result.code, 1, `${name}\n${result.out}`);
+    assert.match(result.out, new RegExp(`::error title=npm audit \\(${app}\\)::npm is set to omit "dev"; the audit must cover the full tree, development packages included`), `${name}\n${result.out}`);
+    assert.equal(result.out.includes("STUB-NPM-AUDIT"), false, `${name} reached npm audit\n${result.out}`);
+  }
+});
