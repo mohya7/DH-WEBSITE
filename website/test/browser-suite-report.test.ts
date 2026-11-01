@@ -16,9 +16,13 @@ const checker = path.join(toolDir, "check-report.mjs");
 const canaryRunner = path.join(toolDir, "run-canary.mjs");
 const expectedFile = path.join(toolDir, "expected.json");
 
+// The checker reads today's UTC date from the clock and has no date override (plan
+// 3.1). The tests fix "today" by preloading a clock stub into the child process
+// (stubToday), so report mode stays testable after the cap. The stub is test-only.
+const latestBlockingDate = "2026-11-23";
+const stubToday = "2026-11-01";
 const blocking = "2000-01-01";
-const reportMode = "2999-12-31";
-const todayUtc = () => new Date().toISOString().slice(0, 10);
+const reportMode = latestBlockingDate;
 
 const consentTitles = Array.from({ length: 25 }, (_, i) => `consent case ${i + 1}`);
 const pagesTitles = [
@@ -86,7 +90,27 @@ function report(rows: Row[], extra: Record<string, unknown> = {}): string {
   return JSON.stringify({ config: {}, suites, errors: [], stats: {}, ...extra });
 }
 
-type RunOptions = { args?: string[]; date?: string | null; expected?: string; summary?: boolean };
+type RunOptions = { args?: string[]; date?: string | null; expected?: string; summary?: boolean; today?: string };
+
+/** A module that makes `new Date()` and `Date.now()` return midday UTC of `day`; dates built from arguments are unchanged. */
+function clockStub(dir: string, day: string): string {
+  const file = path.join(dir, "clock-stub.mjs");
+  const now = Date.parse(`${day}T12:00:00Z`);
+  fs.writeFileSync(
+    file,
+    [
+      "const RealDate = Date;",
+      `const now = ${now};`,
+      "class StubDate extends RealDate {",
+      "  constructor(...args) { if (args.length === 0) super(now); else super(...args); }",
+      "  static now() { return now; }",
+      "}",
+      "globalThis.Date = StubDate;",
+      "",
+    ].join("\n"),
+  );
+  return pathToFileURL(file).href;
+}
 
 /** Writes the reports to a temp dir (null: no file) and runs the checker as CI does. */
 function run(defaultContent: string | null, consentContent: string | null, options: RunOptions = {}) {
@@ -108,7 +132,8 @@ function run(defaultContent: string | null, consentContent: string | null, optio
   const summaryFile = path.join(dir, "summary.md");
   if (options.summary) env.GITHUB_STEP_SUMMARY = summaryFile;
   const args = options.args ?? [expected, `default=${defaultFile}`, `consent=${consentFile}`];
-  const result = spawnSync(process.execPath, [checker, ...args], { encoding: "utf8", env });
+  const stub = clockStub(dir, options.today ?? stubToday);
+  const result = spawnSync(process.execPath, ["--import", stub, checker, ...args], { encoding: "utf8", env });
   const summary = options.summary && fs.existsSync(summaryFile) ? fs.readFileSync(summaryFile, "utf8") : "";
   fs.rmSync(dir, { recursive: true, force: true });
   return { code: result.status, out: result.stdout + result.stderr, summary };
@@ -144,10 +169,25 @@ describe("check-report.mjs: test results and the report week", () => {
   });
 
   it("T4 the blocking date itself blocks (today, UTC)", () => {
-    const result = run(good.default, oneConsentFailure, { date: todayUtc() });
+    const result = run(good.default, oneConsentFailure, { date: stubToday });
     expect(result.code, result.out).toBe(1);
     expect(result.out).toContain("failed: consent: consent.spec.ts › consent case 3");
-    expect(result.out).toContain(`::error title=Browser tests (blocking since ${todayUtc()})::1 failure(s)`);
+    expect(result.out).toContain(`::error title=Browser tests (blocking since ${stubToday})::1 failure(s)`);
+  });
+
+  it("T4 on the latest allowed date, and after it, a failure blocks", () => {
+    for (const today of [latestBlockingDate, "2026-11-24", "2027-06-01"]) {
+      const result = run(good.default, oneConsentFailure, { date: latestBlockingDate, today });
+      expect(result.code, `${today}: ${result.out}`).toBe(1);
+      expect(result.out).toContain(`::error title=Browser tests (blocking since ${latestBlockingDate})::1 failure(s)`);
+      expect(result.out).not.toMatch(/^problem:/m);
+    }
+  });
+
+  it("the clock stub is what decides today: the same inputs warn the day before the date", () => {
+    const result = run(good.default, oneConsentFailure, { date: latestBlockingDate, today: "2026-11-22" });
+    expect(result.code, result.out).toBe(0);
+    expect(result.out).toContain(`::warning title=Browser tests (report mode until ${latestBlockingDate})::1 failure(s)`);
   });
 
   it("T5 a flaky test (failed, then passed) is a failure", () => {
@@ -247,6 +287,36 @@ describe("check-report.mjs: what must run, in report mode too", () => {
     expect(result.out).toMatch(message);
   });
 
+  it.each(["2026-11-24", "2099-01-01", "2999-12-31"])("a blocking date of %s, after the cap, is refused even with good reports", (date) => {
+    const result = run(good.default, good.consent, { date });
+    expect(result.code, result.out).toBe(1);
+    expect(result.out).toContain(`problem: BROWSER_TESTS_BLOCKING_FROM is ${date}, after ${latestBlockingDate}, the latest blocking date allowed`);
+    expect(result.out).toContain(
+      `::error title=Browser tests blocking date::BROWSER_TESTS_BLOCKING_FROM=${date} is after the latest allowed date ${latestBlockingDate}`,
+    );
+  });
+
+  it("a blocking date after the cap is refused with a failed test too, and does not turn into report mode", () => {
+    const result = run(good.default, oneConsentFailure, { date: "2099-01-01" });
+    expect(result.code, result.out).toBe(1);
+    expect(result.out).not.toContain("::warning");
+  });
+
+  it("the latest allowed blocking date itself is accepted", () => {
+    const result = run(good.default, good.consent, { date: latestBlockingDate });
+    expect(result.code, result.out).toBe(0);
+    expect(result.out).not.toMatch(/^problem:/m);
+    expect(result.out).toMatch(/; 0 failures$/m);
+  });
+
+  it("the checker reads no setting but the blocking date and the job summary", () => {
+    const source = fs.readFileSync(checker, "utf8");
+    const reads = [...source.matchAll(/process\.env\.([A-Z_]+)/g)].map((match) => match[1]);
+    expect([...new Set(reads)].sort()).toEqual(["BROWSER_TESTS_BLOCKING_FROM", "GITHUB_STEP_SUMMARY"]);
+    expect(source).not.toMatch(/process\.env\[/);
+    expect(source).toContain(`const latestBlockingDate = "${latestBlockingDate}";`);
+  });
+
   it("T15 wrong arguments exit 2", () => {
     const e = expectedFile;
     expect(run(good.default, good.consent, { args: [] }).code).toBe(2);
@@ -312,6 +382,45 @@ describe("the committed expectation and canary", () => {
     const result = spawnSync(process.execPath, [path.join(copy, "run-canary.mjs")], { encoding: "utf8", env, cwd: websiteRoot });
     fs.rmSync(dir, { recursive: true, force: true });
     expect(result.status, result.stdout + result.stderr).toBe(1);
+  });
+});
+
+describe("the canary rejects for the intended reason only", () => {
+  function runCanaryWith(fakeChecker: string) {
+    const dir = tempDir("browser-suite-canary-reason-");
+    const copy = path.join(dir, "browser-suite");
+    fs.cpSync(toolDir, copy, { recursive: true });
+    fs.writeFileSync(path.join(copy, "check-report.mjs"), fakeChecker);
+    const env: NodeJS.ProcessEnv = { ...process.env };
+    delete env.GITHUB_STEP_SUMMARY;
+    const result = spawnSync(process.execPath, [path.join(copy, "run-canary.mjs")], { encoding: "utf8", env });
+    fs.rmSync(dir, { recursive: true, force: true });
+    return { code: result.status, out: result.stdout + result.stderr };
+  }
+
+  // Prints both canaries' expected lines, plus one extra line, and exits 1.
+  const fake = (extra: string) =>
+    [
+      `console.log(${JSON.stringify(`failed: consent: ${homeIntroId} (status unexpected)`)});`,
+      "console.log('unexpected skip: consent: consent.spec.ts › consent case 1');",
+      `console.log(${JSON.stringify(extra)});`,
+      "process.exit(1);",
+      "",
+    ].join("\n");
+
+  it("passes when each canary fails with its own line and nothing else", () => {
+    const result = runCanaryWith(fake("browser suite: 29 tests"));
+    expect(result.code, result.out).toBe(0);
+  });
+
+  it("fails when a canary is also refused for its blocking date", () => {
+    const result = runCanaryWith(fake("problem: BROWSER_TESTS_BLOCKING_FROM is 2999-12-31, after 2026-11-23, the latest blocking date allowed"));
+    expect(result.code, result.out).toBe(1);
+  });
+
+  it("fails when canary 1 has any problem besides the failed test", () => {
+    const result = runCanaryWith(fake("problem: consent: 28 tests listed, fewer than 29"));
+    expect(result.code, result.out).toBe(1);
   });
 });
 
