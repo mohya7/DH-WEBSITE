@@ -355,4 +355,122 @@ fixture-gate design, the red step "0 known, 6 new", scope, O-1 and Q-1. The
 coverage table (11) now has rows for the end-to-end run, the browser suite,
 the lockfile trace and the pull request body.
 
+Round 2 verdict: APPROVED (superseded by round 3 below).
+
+## Round 3
+
+Plan-reviewer, 1 November 2026. Reviewed `plan.md` round 3, uncommitted in the
+working tree on head `362a5e9`. It answers `implementation.md` round 1
+(`Status: BACK TO ARCHITECT`): `next` 16.4.3 adds an inline Turbopack
+bootstrap, `<script id="_R_">`, that the strip does not remove and the trace
+check does not detect.
+
+Everything below was run by the reviewer on scratch `git archive` exports of
+`362a5e9` (branch) and `6470fac` (base), each with its own `npm ci`, under
+`<scratchpad>/r3/`. In the branch export only, I applied the plan's step 6
+edit to `src/build/strip-runtime.ts` as a simulation. Nothing in the
+repository was changed except this file. No `git fetch` was run:
+`git rev-parse --is-shallow-repository` prints `false`, and
+`origin/feature/interviewer-portal` is at `eb05f0647c34…`.
+
+### What I checked, with evidence
+
+1. **The stop is real, and the fix covers all of it.** I built `next build`
+   alone (no strip) on the branch export with `CONTENT_SOURCE=snapshot
+   PUBLIC_SITE_URL=https://digitalhub.com.eg`, exit 0. That gives 29 HTML
+   files, all containing `TURBOPACK`. The developer's "28 files" is the same
+   result after the build deletes `_not-found.html`. For each of the 29 files
+   I applied the plan's exact pattern,
+   `/<script id="_R_">\(globalThis\["TURBOPACK"\][\s\S]*?<\/script>/g`.
+   On every page: exactly **1** match, exactly **1** `id="_R_"`, **0**
+   `TURBOPACK` left afterwards, and **0** `static/chunks/` left outside
+   `/_next/static/chunks/`. The 12 remaining chunk paths per page all sit
+   inside the `/_next/` script tags and preloads that the existing removals
+   already strip.
+2. **The removal is narrow.** The pattern needs the literal opening
+   `<script id="_R_">(globalThis["TURBOPACK"]` and stops at the first
+   `</script>`. Nothing the site ships starts that way. An unrecognised
+   variant such as `<script>globalThis.TURBOPACK=[]</script>` is left in
+   place for the trace to catch, which is the fail-closed split the plan
+   wants (R-11, 3.2's rejected "broad removal").
+3. **Zero difference against base after the fix.** I ran the full `npm run
+   build` on the patched branch export: exit 0, "Build output checks
+   passed.". The strip counts are 203 runtime script tags, **29 Turbopack
+   bootstrap script**, 29 preload links, 58 payload scripts, 29 metadata
+   outlets, 29 boundary markers, 140 `.txt` payloads and 10 `_next/` files.
+   Those are the base's counts plus the new row, as 5.2 step 4 requires. The
+   full base build (`6470fac` export) exits 0. `diff -r base/website/out
+   branch/website/out` gives **exit 0, no output**, across every file, not
+   only HTML.
+4. **The new traces reject nothing legitimate today.** `grep -rlE
+   "TURBOPACK|static/chunks/"` finds **0** files in the base `out/` and **0**
+   in the patched branch `out/`. I also ran `git grep -iE
+   'turbopack|static/chunks/'` over the whole tree at `362a5e9` (lockfiles
+   and `docs/changes` excluded). It finds nothing in `website/design/`, the
+   content snapshot (`website/fixtures/`), `packages/` or `behaviors/`. The
+   only hits are `turbopack.root` in `next.config.ts`, the README, and test
+   fixtures that are already `/_next/static/chunks/…`. Both callers apply the
+   traces only to HTML pages: `scripts/strip-runtime.ts:32` (`stripOutput`)
+   and `scripts/check-output.ts:134` (inside `file.endsWith(".html")`). So
+   the ported `.js` and `.css` files are never scanned. Content written later
+   in the Studio could contain one of the strings. That would fail the build
+   loudly rather than ship anything, which is R-10's stated position, and I
+   accept it.
+5. **`runtimeTracesIn` callers and the effect on existing tests.** There are
+   only the two callers above, plus `test/strip-runtime.test.ts`. With the
+   simulated step 6 edit, `npx vitest run` on the branch export fails exactly
+   two tests, both in `test/strip-runtime.test.ts`:
+   - "removes each part of the runtime, and nothing else" fails on the
+     `removed` `toEqual`, which gains the new key. This is the one edit to an
+     existing assertion that step 5 names.
+   - "explains why each removal is safe" fails only because my simulation
+     used a placeholder `why`. The plan's real `why` text is far over the
+     40-character minimum.
+
+   Every other test passes, including `test/output.test.ts` and the "stops
+   when … a page keeps a trace" case. So the extra trace names in problem
+   messages break no assertion. (32 tests skipped in the export, all for
+   environment reasons: 31 in `screenshot-parity-browser.test.ts`, which has
+   no browser path set, and 1 in `design.test.ts`, which needs a git
+   checkout. None of them touches the strip.)
+6. **The red test is genuinely red first (B-6, P-4).** On the current
+   `strip-runtime.ts`, `stripRuntime` keeps the `_R_` element and
+   `runtimeTracesIn` returns `[]` for it (point 1 and the developer's
+   evidence). So the planned tests "removes Next 16.4.3's inline Turbopack
+   bootstrap" and "the trace check catches the Turbopack bootstrap" fail
+   before step 6 and pass after it. Taking the 16.4.3 fixture from a
+   `next build` without the strip step, as the plan suggests, works; that is
+   how I produced `out-raw`.
+7. **Scope, B-8 and architecture.** The fix is the smallest one that closes
+   the hole. It adds one removal and two traces in
+   `website/src/build/strip-runtime.ts`, with tests in its own test file.
+   `scripts/*.ts`, `website/design/`, `packages/`, `ci.yml`, `gate.mjs` and
+   the golden copies are untouched. It is the same topic: the upgrade is not
+   safe to merge without it, and the PR stays "one fix". The alternatives
+   rejected in 3.2 are real: pinning an older 16.4.x leaves `<=16.4.0`
+   advisories, and a config switch or a trace without a removal leaves the
+   site unbuildable or untested. The settled design ("static HTML plus the
+   ported scripts", locked stylesheets) is preserved, as the zero `out/`
+   diff proves.
+8. **The other round 3 corrections.** The Studio lockfile is written by npm
+   11.19.1 (B-7 still met, since npm regenerated it), `VITE_PUBLIC_SITE_URL`
+   is added to the Studio build line (it matches `ci.yml`), and the
+   `@types/estree` chain is corrected. I accept all three. Replacing the
+   `--depth=1` fetch with `git rev-parse --is-shallow-repository` is correct
+   and avoids repeating the shared-`.git` incident.
+
+### Findings
+
+#### R3-1. Minor: sections 2.8 and 5.3 step 4. The `sqlcmd` wrapper fix from round 2 still lives only in `plan-approval.md`
+
+Section 2.8 still says the shared wrapper "is enough". Gate 1 closed R2-1 with
+a condition and a forwarding wrapper (`plan-approval.md`, R2-1). The round 3
+plan does not repeat it, so the developer and tester must keep reading the
+approval file for that step.
+
+**What would satisfy me:** gate 1 for round 3 carries the R2-1 condition
+forward unchanged. No architect round is needed for this.
+
+No Blocker or Major.
+
 Verdict: APPROVED

@@ -1,5 +1,7 @@
 # Plan approval: GAP-01 (gate 1)
 
+## Round 1 (plan round 2)
+
 Tech lead, 1 November 2026. Gate 1 for `docs/changes/GAP-01/plan.md` round 2,
 on `change/GAP-01` at `6470fac` (equal to `origin/rebuild/dotnet-platform`:
 `git rev-parse HEAD origin/rebuild/dotnet-platform` → both `6470fac3668a…`).
@@ -129,5 +131,180 @@ no-op, which is correct.
   mandatory. No plan change is needed.
 - Round 1 F-2, F-3 and F-4 were resolved in plan round 2. The reviewer
   verified that, and I agree. Nothing is carried forward.
+
+Round 1 result: approved (superseded by round 2 below).
+
+## Round 2 (plan round 3)
+
+Tech lead, 1 November 2026. Gate 1 again, for `plan.md` round 3 (uncommitted
+in the working tree on head `362a5e9`), after the developer stopped in
+`implementation.md` round 1 (`Status: BACK TO ARCHITECT`) and
+`plan-review.md` round 3 returned `Verdict: APPROVED` with one Minor (R3-1).
+
+### Decision
+
+Approved, with the conditions below, which replace round 1's.
+
+### What I checked myself
+
+- **Branch state.** `git log --oneline 6470fac..HEAD` shows the plan commit,
+  then steps 1 to 4 (`3e620e1`, `2a4f836`, `115071e`, `dd1628b`), then the
+  implementation record `362a5e9`. The red commit `2a4f836` comes before the
+  upgrade commits, as round 1 condition 4 required.
+  `git diff --name-only 6470fac HEAD` lists only the scoped files: the two
+  `.github/security` files, both `package.json` files and both lockfiles, plus
+  `docs/changes/GAP-01/`. `origin/rebuild/dotnet-platform` is still
+  `6470fac`.
+- **The hole is real.** `website/src/build/strip-runtime.ts`:
+  - The `runtimeTraces` list (lines 46-49) has only `/_next/`, `__next_f` and
+    the boundary markers.
+  - Every removal is keyed on `/_next/`, `self.__next_f` or a boundary marker.
+  - `runtimeTracesIn` is called only from `scripts/strip-runtime.ts:32`,
+    `scripts/check-output.ts:134` and its own test file.
+
+  So an inline `_R_` script that names `static/chunks/…` passes both the
+  strip and the check, as plan 2.9 says. The reviewer measured the fix on a
+  scratch export:
+  - 1 match per page on all 29 pages;
+  - 0 `TURBOPACK` left;
+  - `diff -r` against base: exit 0 with no output;
+  - the new trace strings appear 0 times in the base output and in the design.
+
+  I accept that evidence. The developer must reproduce it on the real branch
+  (condition 3).
+- **Shallow fetch.** `git rev-parse --is-shallow-repository` prints `false`.
+  Round 3 removed the `git fetch --depth=1` line from 5.2 and replaced it with
+  that check.
+- **The shared wrapper still forwards the variables.**
+  `<scratchpad>/bin/sqlcmd` is
+  `exec docker exec -i -e SQLCMDPASSWORD -e SQLCMDUSER -e SQLCMDSERVER dh-mssql …`.
+  In round 1 it was checked working with `sa` and `dh_content_app` (exit 0).
+
+### Reasons
+
+**The scope extension is right, and is still one change.** Upgrading `next`
+to 16.4.3 is not safe to merge unless the strip removes the new bootstrap.
+Without the fix, every page would ship an inline script whose chunks are
+deleted, while the build reports "no runtime". That is a fail-closed guard
+with a hole (P-5). The fix is the smallest one that closes it:
+
+- one narrow removal, anchored on
+  `<script id="_R_">(globalThis["TURBOPACK"]`;
+- two broad traces, `TURBOPACK` and `static/chunks/`;
+- a red test committed first.
+
+It touches only `website/src/build/strip-runtime.ts` and its test file. The
+scripts, the locked design, `packages/` and the gate files stay untouched.
+This strengthens an existing guard rather than adding a new gate, so B-8 is
+met.
+
+The pass condition is now zero difference against base. The base noise floor
+was measured empty, so the site's behaviour does not change, and no owner
+decision is needed beyond the O-1 position accepted in round 1. The rejected
+alternatives hold:
+
+- An older 16.4.x stays inside the `<=16.4.0` advisory ranges.
+- Adding the trace without the removal leaves the website unbuildable.
+- A broad removal could silently take out something else.
+
+**Order and conflicts, re-checked** with each worktree's `git status` and
+`git diff --name-only 6470fac HEAD`:
+
+- **GAP-11** (worktree still at `6470fac`, no code yet) plans to change
+  website source, including `scripts/check-output.ts`, which calls
+  `runtimeTracesIn`. It does not touch `src/build/strip-runtime.ts`. Its
+  built output will differ from base, and if it puts self-hosted GSAP or any
+  inline script into the HTML, the new traces apply to it. The two must not
+  be measured against each other's base (condition 2).
+- **GAP-06** (`b92d325`) now changes `ci.yml`, two migrations and
+  `api/tools/migration-checks/`. Those files do not overlap with this
+  change. GAP-06 also uses the shared SQL Server, and the Studio
+  end-to-end harness migrates `DigitalHubContent_E2e` from the branch's
+  migrations, which are the base's.
+- **GAP-08** (`3f7f772`: `.github/lint/`, `workflow-lint.yml`) and
+  **GAP-12** (`ffc57ac`: API only) do not overlap.
+- **PR #38** (`ci.yml`) and **PR #37** (docs) do not overlap.
+
+GAP-01 is still Wave 0, G1 slot 1, and should merge before the Wave 1 items.
+
+**Minors accepted.**
+
+- **R3-1** (the wrapper fix lives only in this file). I carry the R2-1
+  condition forward as condition 1. No architect round is needed.
+- **The round 3 corrections.** I accept these, as the reviewer did:
+  - the Studio lockfile written by npm 11.19.1, which keeps the base's `libc`
+    fields and is still regenerated by npm (B-7), provided `npm ci` passes
+    with npm 10.9.9;
+  - `VITE_PUBLIC_SITE_URL` on the Studio build, matching `ci.yml`;
+  - the corrected origin of `@types/estree`;
+  - the website test counts (409 passed and 1 skipped, against 408 and 2).
+    The extra base skip is the git-checkout-only test in `design.test.ts`.
+
+### Conditions the developer must meet
+
+1. **Studio end-to-end (5.3 step 4), carried forward unchanged from R2-1.**
+   - Put `/tmp/claude-0/-home-user-DH-WEBSITE/7aefdfd4-6aa9-5555-b0de-70990eb7693f/scratchpad/bin`
+     first on `PATH`. The shared wrapper there forwards `SQLCMDPASSWORD`,
+     `SQLCMDUSER` and `SQLCMDSERVER`; check it with `cat` before the run and
+     quote it. Plan 2.8's sentence that the wrapper "is enough" is true only
+     with this forwarding.
+   - `dh_content_app` already exists, so the `IF SUSER_ID(...) IS NULL` step
+     does nothing.
+   - A NOT RUN caused by the wrapper or the login is not acceptable evidence.
+   - Right before the run, check the sessions on `DigitalHubContent_E2e` and
+     quote the output. If a row comes back, or GAP-06 is using the shared
+     server at that moment, wait and ask the coordinator.
+   - Touch no other database.
+2. **Rebase before delivery.**
+   - Rebase on `rebuild/dotnet-platform` after PR #38 merges.
+   - Rebase again if any other change touching `website/` lands first,
+     GAP-11 in particular.
+   - After each such rebase, redo these against the new base commit, never
+     `6470fac` once the base has moved:
+     - the base noise floor and the zero-difference `diff -r` (5.2 step 4);
+     - the `TURBOPACK|static/chunks/` grep;
+     - the section and screenshot comparisons, base vs branch.
+   - If GAP-11's output trips one of the new traces, stop and report it. Do
+     not loosen a trace (P-6).
+3. **Red, then green, for the strip (steps 5 and 6).**
+   - Commit 5 changes only `website/test/strip-runtime.test.ts`. Its fixture
+     is cut from real 16.4.3 output, with the `_R_` element verbatim.
+   - At commit 5, `npx vitest run test/strip-runtime.test.ts` fails on the new
+     tests, and every other test passes. Quote the failures.
+   - Commit 6 changes only `website/src/build/strip-runtime.ts`. After it:
+     - all tests pass;
+     - the full build exits 0;
+     - the strip counts equal the base's plus one "Turbopack bootstrap
+       script" per page;
+     - `diff -r` against the base `out/` exits 0;
+     - the grep finds nothing.
+   - The only edit to an existing assertion is the added key in the
+     `removed` `toEqual`. Quote the before and after in `implementation.md`.
+4. **Keep to scope.**
+   - Change only the files in plan section 4 (round 3).
+   - These must stay byte-identical to the base: `scripts/strip-runtime.ts`,
+     `scripts/check-output.ts`, `website/design/`, `packages/`, `ci.yml`,
+     `gate.mjs`, `run-npm-audit.sh`, `security.yml` and the golden copies.
+     Check with `git diff --stat`.
+   - Use no `overrides` and no `--force`.
+   - Stop and go back to the architect, or to the owner where the plan says
+     so, if any of these happens:
+     - any other export difference;
+     - an untraceable lockfile entry;
+     - a surviving advisory.
+5. **Git safety.**
+   - Never run `git fetch --depth` or any other command that makes the
+     shared `.git` shallow.
+   - Run `git rev-parse --is-shallow-repository` (must print `false`) before
+     the design check, and quote it.
+   - The design check uses the already fetched
+     `origin/feature/interviewer-portal`.
+6. **`npm ci` with both npm versions.** For the Studio lockfile, run `npm ci`
+   with npm 10.9.9 (Node 22, as in CI) and with npm 11, and quote both exit
+   codes.
+7. **Deadline.** Push by Tuesday 3 November. If any condition cannot be met
+   in time, report it to the coordinator by the end of 2 November, so the
+   owner can choose between a slip and an exception. Do not cut checks to
+   save time.
 
 Verdict: APPROVED
