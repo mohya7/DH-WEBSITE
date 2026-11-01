@@ -355,7 +355,8 @@ describe("the CI job", () => {
 
     for (const step of job.steps) {
       expect(step, JSON.stringify(step)).not.toHaveProperty("continue-on-error");
-      if (step.uses !== undefined) expect(step.uses).toMatch(/^[\w.-]+\/[\w.-]+@[0-9a-f]{40}$/);
+      // The reader keeps a trailing "# v4.4.0" comment in the value; it is a YAML comment, not part of the ref.
+      if (step.uses !== undefined) expect(step.uses.replace(/\s+#.*$/, "")).toMatch(/^[\w.-]+\/[\w.-]+@[0-9a-f]{40}$/);
       if (step.if !== undefined) expect(step.uses, "only the upload has an if").toMatch(/^actions\/upload-artifact@/);
     }
     const runs = job.steps.map((step) => step.run ?? "");
