@@ -327,10 +327,11 @@ fi
 
 # Columns (type, length, precision, nullability, identity, collation), indexes
 # with their columns and filters, check constraints, foreign keys and defaults.
-# Default constraint names are left out: SQL Server generates them.
+# Default constraint names are left out: SQL Server generates them. Every line
+# carries COLLATE DATABASE_DEFAULT, because catalog views mix collations.
 read -r -d '' SCHEMA_QUERY <<'SQL' || true
 SELECT line FROM (
-  SELECT 'COL|' + t.name + '|' + c.name + '|' + ty.name
+  SELECT 'COL|' COLLATE DATABASE_DEFAULT + t.name + '|' + c.name + '|' + ty.name
        + '|' + CAST(c.max_length AS varchar(10)) + '|' + CAST(c.precision AS varchar(10)) + '|' + CAST(c.scale AS varchar(10))
        + '|' + CASE c.is_nullable WHEN 1 THEN 'NULL' ELSE 'NOT NULL' END
        + '|' + CASE c.is_identity WHEN 1 THEN 'IDENTITY' ELSE '' END
@@ -339,7 +340,7 @@ SELECT line FROM (
   JOIN sys.tables t ON t.object_id = c.object_id
   JOIN sys.types ty ON ty.user_type_id = c.user_type_id
   UNION ALL
-  SELECT 'IDX|' + t.name + '|' + i.name + '|' + i.type_desc
+  SELECT 'IDX|' COLLATE DATABASE_DEFAULT + t.name + '|' + i.name + '|' + i.type_desc
        + '|' + CASE i.is_unique WHEN 1 THEN 'UNIQUE' ELSE '' END
        + '|' + CASE i.is_primary_key WHEN 1 THEN 'PK' ELSE '' END
        + '|' + ISNULL((SELECT STRING_AGG(c.name + CASE ic.is_descending_key WHEN 1 THEN ' DESC' ELSE '' END
@@ -353,11 +354,11 @@ SELECT line FROM (
   JOIN sys.tables t ON t.object_id = i.object_id
   WHERE i.type > 0
   UNION ALL
-  SELECT 'CHK|' + t.name + '|' + cc.name + '|' + REPLACE(REPLACE(cc.definition, CHAR(13), ' '), CHAR(10), ' ')
+  SELECT 'CHK|' COLLATE DATABASE_DEFAULT + t.name + '|' + cc.name + '|' + REPLACE(REPLACE(cc.definition, CHAR(13), ' '), CHAR(10), ' ')
   FROM sys.check_constraints cc
   JOIN sys.tables t ON t.object_id = cc.parent_object_id
   UNION ALL
-  SELECT 'FK|' + t.name + '|' + fk.name + '|' + rt.name
+  SELECT 'FK|' COLLATE DATABASE_DEFAULT + t.name + '|' + fk.name + '|' + rt.name
        + '|' + fk.delete_referential_action_desc + '|' + fk.update_referential_action_desc
        + '|' + ISNULL((SELECT STRING_AGG(pc.name + '->' + rc.name, ',') WITHIN GROUP (ORDER BY fkc.constraint_column_id)
                        FROM sys.foreign_key_columns fkc
@@ -368,7 +369,7 @@ SELECT line FROM (
   JOIN sys.tables t ON t.object_id = fk.parent_object_id
   JOIN sys.tables rt ON rt.object_id = fk.referenced_object_id
   UNION ALL
-  SELECT 'DEF|' + t.name + '|' + c.name + '|' + dc.definition
+  SELECT 'DEF|' COLLATE DATABASE_DEFAULT + t.name + '|' + c.name + '|' + dc.definition
   FROM sys.default_constraints dc
   JOIN sys.tables t ON t.object_id = dc.parent_object_id
   JOIN sys.columns c ON c.object_id = dc.parent_object_id AND c.column_id = dc.parent_column_id
@@ -378,7 +379,8 @@ SQL
 
 schema_of() { # schema_of <database> <file>
   docker exec -e SQLCMDPASSWORD "$container" "$SQLCMD" -S localhost -U sa -C -b -I \
-    -h -1 -y 0 -d "$1" -Q "SET NOCOUNT ON; $SCHEMA_QUERY" > "$2" 2>&1
+    -h -1 -y 8000 -d "$1" -Q "SET NOCOUNT ON; $SCHEMA_QUERY" > "$2.raw" 2>&1 || return 1
+  sed 's/[[:space:]]*$//' "$2.raw" > "$2"
 }
 
 echo "== 6. Same schema"
