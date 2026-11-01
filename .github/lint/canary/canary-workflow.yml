@@ -1,0 +1,24 @@
+# Canary for the actionlint gate (GAP-08). Never copy this into .github/workflows.
+# Each numbered mistake must be reported; .github/lint/canary.expected lists them.
+# The `actions/checkout@v4` tag below is deliberate: actionlint knows an action's
+# inputs by tag, so mistake 3 needs a tag, not a SHA. Any "every uses: is pinned
+# by a 40-character SHA" check (GAP-09) must be scoped to .github/workflows/ and
+# must not read this file.
+name: actionlint canary
+
+on: pull_request
+
+permissions:
+  contents: read
+
+jobs:
+  canary:
+    runs-on: ubuntu-latst # 1 runner-label: misspelt runner
+    needs: no-such-job # 2 job-needs: unknown job
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          not-an-input: true # 3 action: unknown input
+      - run: echo "${{ github.event.pull_request.title }}" # 4 expression: untrusted input in a script
+      - run: echo "${{ matrix.missing }}" # 5 expression: undefined property
+      - run: echo $UNQUOTED # 6 shellcheck SC2086: proves shellcheck ran
