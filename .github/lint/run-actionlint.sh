@@ -11,8 +11,10 @@
 #
 # A gate that cannot run fails, in report mode too: actionlint exiting with
 # anything but 0 or 1, shellcheck missing (actionlint would skip it silently),
-# a missing or malformed blocking date, or an actionlint config file (one can
-# ignore findings by path or message). No -ignore is ever passed.
+# a missing or malformed blocking date or one after 2026-11-23, an actionlint
+# config file (one can ignore findings by path or message), SHELLCHECK_OPTS
+# set (it can exclude shellcheck checks), or exit 1 with no findings printed.
+# No -ignore is ever passed.
 # Tested by .github/lint/self-test.sh.
 set -euo pipefail
 
@@ -50,11 +52,27 @@ for config in .github/actionlint.yaml .github/actionlint.yml; do
   fi
 done
 
+# The shellcheck binary reads extra options from SHELLCHECK_OPTS, so it can exclude checks
+# the way a config file can. Refused when set at all, even empty, so an attempt
+# shows in the log rather than being quietly undone.
+if [ -n "${SHELLCHECK_OPTS+set}" ]; then
+  echo "::error title=actionlint::SHELLCHECK_OPTS is set ('$SHELLCHECK_OPTS'). It can exclude shellcheck checks; this gate does not accept it."
+  exit 1
+fi
+
+# Wave 1's last blocking day (refinement plan). No later report week is
+# accepted, whatever sets the date.
+latest_blocking_from=2026-11-23
+
 if [ "$mode" = workflows ]; then
   blocking_from="${ACTIONLINT_BLOCKING_FROM:-}"
   if ! [[ "$blocking_from" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] \
     || [ "$(date -u -d "$blocking_from" +%F 2>/dev/null || true)" != "$blocking_from" ]; then
     echo "::error title=actionlint::ACTIONLINT_BLOCKING_FROM must be a real date as YYYY-MM-DD, got '$blocking_from'"
+    exit 1
+  fi
+  if [[ "$blocking_from" > "$latest_blocking_from" ]]; then
+    echo "::error title=actionlint::ACTIONLINT_BLOCKING_FROM $blocking_from is after $latest_blocking_from, Wave 1's last blocking day"
     exit 1
   fi
 fi
@@ -98,7 +116,11 @@ case "$status" in
     ;;
   1)
     printf '%s\n' "$output"
-    count="$(printf '%s\n' "$output" | grep -c .)"
+    count="$(printf '%s\n' "$output" | grep -c . || true)"
+    if [ "$count" -eq 0 ]; then
+      echo "::error title=actionlint::actionlint exited 1 (findings) but printed none, so the result cannot be trusted"
+      exit 1
+    fi
     today="$(date -u +%F)"
     if [[ "$today" < "$blocking_from" ]]; then
       echo "::warning title=actionlint (report mode until $blocking_from)::$count finding(s) in .github/workflows"
