@@ -355,3 +355,245 @@ No database was touched, no server was started, and no port was used.
   entry counts as no valid line, so the entry fails closed.
 
 Status: READY FOR TEST
+
+## Round 2
+
+Developer, 1 November 2026. Answers `delivery-approval.md` round 1
+(`Verdict: CHANGES NEEDED`), which sends back the tester's T-2 from
+`test-report.md` round 1. Same branch, worktree and base (`57da65b`). Node
+v22.23.4, npm 10.9.9. `git rev-parse --is-shallow-repository` = `false`. No
+fetch was run. Scratch evidence (not committed):
+`/tmp/claude-0/-home-user-DH-WEBSITE/7aefdfd4-6aa9-5555-b0de-70990eb7693f/scratchpad/gap07-r2/`,
+`.../scratchpad/gap07-r2-red.txt` and `.../scratchpad/gap07-r2-green.txt`.
+
+**`test-report.md` and `delivery-approval.md` are not committed.** Gate 2's
+"What round 2 must contain", step 3, asks for `test-report.md` round 1 to be
+committed before round 2. The coordinator's instruction for this round was to
+leave both files in place, uncommitted. I followed the coordinator. Both files
+are untracked in the worktree, and committing them is left to the coordinator.
+
+Round 1 above is unchanged. Its closing status line is superseded by this
+round's.
+
+### Commits
+
+| SHA | Subject | Answers |
+|---|---|---|
+| `7628a49` | GAP-07: Add a failing test for npm configuration that omits dev packages | T-2, red (B-6) |
+| `e3006f2` | GAP-07: Refuse an npm configuration that omits packages from the audit | T-2, fix (golden copy in the same commit) |
+| (this round's record) | GAP-07: Record round 2 of the implementation | — |
+
+### Findings and how each is answered
+
+**T-2 (required): an npm setting outside the script could switch off the
+full-tree audit. Fixed.**
+
+`run-npm-audit.sh` lines 13 to 24, and `run-npm-audit.expected.sh`
+identically, now run `omit=$(npm config get omit)` before either `npm audit`
+line:
+
+- If that command fails, the script prints
+  `::error title=npm audit (<app>)::npm config get omit failed` and exits 1.
+- If the value is not empty, it prints
+  `::error title=npm audit (<app>)::npm is set to omit "<value>"; the audit must cover the full tree, development packages included. Remove NODE_ENV=production, NPM_CONFIG_OMIT, npm_config_production or the omit setting in .npmrc.`
+  and exits 1.
+
+Other properties of the fix:
+
+- The two `npm audit` lines are unchanged. N1 still finds exactly those two
+  lines: the `::error title=npm audit (` text follows `=`, not whitespace,
+  so N1's pattern does not count it.
+- No switch turns the check off.
+- The script refuses rather than adding `--include=dev`. That follows gate 2's
+  reasoning: N1 forbids `--include`, and a refusal shows the attempt in the
+  log.
+- `npm config get` sends its deprecation warnings (for example
+  `npm warn config production`) to stderr. The script captures stdout only, so
+  a warning cannot fill the value.
+
+The new test (N12), "the npm audit script refuses an npm configuration that
+omits packages", is at the end of `gate.test.mjs`. It works like this:
+
+- It runs the real `run-npm-audit.sh` with `sh`, from app folders beside the
+  `fixture-clean` gate, so `../.github/security/gate.mjs` resolves to the clean
+  byte copy.
+- A stub `npm` on `PATH` answers `npm audit` with a marker on stderr and, for
+  `--json`, a clean report, so the test needs no network. It passes every other
+  command, including `npm config get`, to the real npm.
+- The environment is the test's own, with `NODE_ENV` and
+  `npm_config_omit|production|only|include|dev` (any case) removed.
+
+What it asserts:
+
+- **No setting:** exit 0, the stub audit reached twice,
+  `studio: 0 finding(s) at the gate's level; 0 known, 0 new.`, and no
+  `::error`.
+- **`NODE_ENV=production`, `NPM_CONFIG_OMIT=dev`,
+  `npm_config_production=true`, and an `.npmrc` holding `omit=dev`** (in a
+  `website` app folder): each exits 1, prints the refusal naming `"dev"`, and
+  never reaches the stub audit.
+
+The fourth case, `npm_config_production=true`, was not required. It is one
+of gate 2's reproductions, so I added it.
+
+**T-1 (optional): N11's static scan misses other spellings of a direct spawn.
+Not taken in this round. Recorded as a follow-up for GAP-21**, as gate 2
+allows. The behavioural half of N11 (`spawnedGates` shows
+`[clean, clean, real, real]`) is unchanged.
+
+**T-3 (optional): the register parser accepts an entry inside a fence indented
+by up to three spaces, or inside an HTML comment. Not taken in this round.
+Recorded as a follow-up for the change that lands `docs/deferred-items.md`**,
+as gate 2 allows. It does not loosen the gate: the entry still needs a matching
+D-NNN and the same expiry, and it still fails the day after.
+
+### Commands run, with exit codes
+
+#### Red run on `7628a49`
+
+```
+$ node --test .github/security/gate.test.mjs     exit 1
+not ok 75 - the npm audit script refuses an npm configuration that omits packages
+  error: NODE_ENV=production
+    studio: 0 finding(s) at the gate's level; 0 known, 0 new.
+    STUB-NPM-AUDIT audit --audit-level=high
+    STUB-NPM-AUDIT audit --audit-level=high --json
+    0 !== 1
+# tests 75
+# pass 74
+# fail 1
+```
+
+The no-setting half passed. The first omit case went on to `npm audit` and
+exited 0, which is the hole T-2 describes.
+
+#### Green on `e3006f2`
+
+```
+$ node --test .github/security/gate.test.mjs     exit 0
+ok 64 - the npm audit script audits the full tree, development packages included
+ok 65 - the NuGet audit script lists vulnerable packages across the whole graph
+ok 75 - the npm audit script refuses an npm configuration that omits packages
+# tests 75
+# pass 75
+# fail 0
+```
+
+#### Gate 2's reproduction, re-run (required outcome step 3)
+
+`<r2>/hist/studio` holds `git show 6470fac:studio/package.json` and
+`package-lock.json`. `<r2>/hist/.github/security` is a copy of `e3006f2`'s
+`.github/security/`.
+
+```
+hist/studio$ RUNNER_TEMP=... bash ../.github/security/run-npm-audit.sh studio
+  (no setting)                 exit 1   5 vulnerabilities (2 moderate, 3 high)
+                                        ::error title=New finding (studio)::high source-map-js GHSA-68fv-2mgg-jv7q: ...
+                                        ::error title=New finding (studio)::high undici GHSA-xjj6-f33q-929c: ...
+                                        ::error title=New finding (studio)::high undici GHSA-4w7w-5xrc-9h26: ...
+                                        ::error title=New finding (studio)::high undici GHSA-2m5v-pch6-74hx: ...
+                                        ::error title=New finding (studio)::high undici GHSA-qrxm-fqhp-jwvm: ...
+                                        ::error title=New finding (studio)::high vite GHSA-587h-7wmj-h5pm: ...
+                                        studio: 6 finding(s) at the gate's level; 0 known, 6 new.
+  NODE_ENV=production          exit 1   ::error title=npm audit (studio)::npm is set to omit "dev"; the audit must cover the full tree, development packages included. Remove NODE_ENV=production, NPM_CONFIG_OMIT, npm_config_production or the omit setting in .npmrc.
+  NPM_CONFIG_OMIT=dev          exit 1   (same refusal)
+  npm_config_production=true   exit 1   npm warn config production Use `--omit=dev` instead.
+                                        (same refusal)
+  studio/.npmrc "omit=dev"     exit 1   (same refusal)
+```
+
+In round 1 (gate 2's run on `6e4eea9`) the four settings each exited 0 with
+`found 0 vulnerabilities`.
+
+#### The `NODE_ENV: production` workflow mutation
+
+This was run in a scratch extract of `e3006f2`
+(`git archive HEAD .github .semgrepignore .gitattributes` into `<r2>/mut`),
+not in the worktree. The line `  NODE_ENV: production` was added after
+`  NODE_VERSION: "22"` in the workflow-level `env:` of both `security.yml` and
+`security.expected.yml`.
+
+```
+mut$ grep -c "NODE_ENV: production" .github/workflows/security.yml .github/security/security.expected.yml   1, 1
+mut$ cmp .github/workflows/security.yml .github/security/security.expected.yml                             exit 0
+mut$ node --test .github/security/gate.test.mjs                                                           exit 0   # tests 75  # pass 75  # fail 0
+website$ NODE_ENV=production RUNNER_TEMP=... bash ../.github/security/run-npm-audit.sh website              exit 1
+  ::error title=npm audit (website)::npm is set to omit "dev"; the audit must cover the full tree, ...
+studio$  NODE_ENV=production RUNNER_TEMP=... bash ../.github/security/run-npm-audit.sh studio               exit 1
+  ::error title=npm audit (studio)::npm is set to omit "dev"; the audit must cover the full tree, ...
+```
+
+The mutation still passes the self-test, as gate 2 expected. The npm job that
+runs under that environment now fails with the refusal. The job step is
+simulated by setting the variable on the script, because the workflow cannot
+be run here.
+
+#### Plan 5.2, re-run on `e3006f2`
+
+```
+$ diff run-npm-audit.sh run-npm-audit.expected.sh                       exit 0, no output
+$ diff run-dotnet-audit.sh run-dotnet-audit.expected.sh                 exit 0, no output
+$ diff .github/workflows/security.yml .github/security/security.expected.yml   exit 0, no output
+$ grep -n -- "--omit" .github/security/run-npm-audit.sh                 exit 1, no match
+$ grep -n -E "continue-on-error|BLOCKING_FROM" .github/workflows/security.yml   exit 1, no match
+$ git diff --stat 57da65b..HEAD -- . ':!docs'
+ .github/security/gate.mjs                  | 152 +++++++++-
+ .github/security/gate.test.mjs             | 428 ++++++++++++++++++++++++++++-
+ .github/security/run-npm-audit.expected.sh |  16 +-
+ .github/security/run-npm-audit.sh          |  16 +-
+ .github/security/security.expected.yml     |   5 +-
+ .github/workflows/security.yml             |   5 +-
+$ git diff 57da65b..HEAD -- '*package-lock.json' '*package.json' '*.csproj' known-findings.json \
+    run-dotnet-audit.sh run-dotnet-audit.expected.sh fail-on-rules.json .github/workflows/ci.yml | wc -c   0
+```
+
+The changed files are still only those in plan section 4 (condition 5).
+
+#### Plan 5.3, re-run on `e3006f2`
+
+```
+1. website$ bash ../.github/security/run-npm-audit.sh website    exit 0   Severity: moderate / 1 moderate severity vulnerability
+                                                                         website: 0 finding(s) at the gate's level; 0 known, 0 new.
+2. studio$  bash ../.github/security/run-npm-audit.sh studio     exit 0   found 0 vulnerabilities
+                                                                         studio: 0 finding(s) at the gate's level; 0 known, 0 new.
+3. api$ dotnet restore DigitalHub.slnx                           exit 0
+   api$ bash ../.github/security/run-dotnet-audit.sh             exit 0   no vulnerable packages: DigitalHub.Api, DigitalHub.Api.Tests,
+                                                                         DigitalHub.ContentImport
+                                                                         dotnet: 0 finding(s) at the gate's level; 0 known, 0 new.
+4. website JSON: vulnerabilities {"info":0,"low":0,"moderate":1,"high":0,"critical":0,"total":1}
+                 dependencies {"prod":20,"dev":152,"optional":112,"peer":32,"peerOptional":0,"total":209}; keys ["fast-uri"]
+5. website$ bash ../.github/security/run-npm-audit.sh other      exit 1   run-npm-audit.sh app must be website or studio
+6. Historical proof: as above, no setting, exit 1 with the six Highs.
+```
+
+### NOT RUN
+
+These are unchanged from round 1:
+
+- **CI on the pull request: NOT RUN.** The branch is not pushed, and condition
+  1 still applies.
+- **The rebase onto merged GAP-01 and the re-run of 5.2 and 5.3: NOT RUN.**
+  GAP-01 has not merged. This is still owed, and the re-run now includes the
+  T-2 reproduction above.
+- **actionlint on `security.yml`: NOT RUN.** GAP-08 has not merged.
+
+### Coverage table changes
+
+| Item | Status | Evidence (round 2) |
+|---|---|---|
+| C-1 The npm gate audits development packages (full tree) in both apps | Done (on `57da65b`; re-run owed after rebase) | Round 1 evidence, plus:<br>• `e3006f2`: the script refuses any non-empty `npm config get omit`.<br>• N12 is red on `7628a49` and green on `e3006f2`; it covers `NODE_ENV=production`, `NPM_CONFIG_OMIT=dev`, `npm_config_production=true` and `.npmrc omit=dev`.<br>• Gate 2's reproduction now exits 1 on all four settings, and the `NODE_ENV: production` workflow mutation now fails both npm jobs. |
+| C-6 Golden copies change in the same commit | Done | `e3006f2` changes `run-npm-audit.sh` and `run-npm-audit.expected.sh` together, and their `diff` is empty. |
+| C-7 Red tests committed before the fix | Done | Round 1, plus `7628a49` (red: 75 / 74 / 1) before `e3006f2`. |
+
+Every other row is as in round 1.
+
+### Follow-ups added
+
+- **T-1:** a sturdier N11, which records the arguments in `spawnedGates` and
+  asserts that the real gate was never spawned for `npm` or `dotnet`. Goes to
+  GAP-21.
+- **T-3:** the register parser should skip fences indented by up to three
+  spaces and `<!-- ... -->` blocks, with a red-first test. Goes to the change
+  that lands `docs/deferred-items.md`.
+
+Status: READY FOR TEST
