@@ -16,11 +16,13 @@
 #
 # Environment:
 #   SA_PASSWORD                     required; never printed.
-#   MIGRATION_CHECKS_BLOCKING_FROM  required, YYYY-MM-DD. Before it, failures of
+#   MIGRATION_CHECKS_BLOCKING_FROM  required, YYYY-MM-DD, no later than 2026-11-23.
+#                                   Before it, failures of
 #                                   steps 3-6 are reported and the script exits 0;
 #                                   from it, they fail. Steps 1 and 2 always fail.
 #   MIGRATION_CHECK_DB_PREFIX       catalog name prefix, default MigrationCheck_.
-#                                   A prefix starting with DigitalHubContent is refused.
+#                                   A prefix starting with DigitalHubContent is refused,
+#                                   and so is a catalog name that already exists.
 #   BASE_REF                        base branch, default rebuild/dotnet-platform.
 #
 # No `set -x`: the connection strings carry SA_PASSWORD.
@@ -29,7 +31,8 @@ set -euo pipefail
 readonly PROJECT="src/DigitalHub.Api/DigitalHub.Api.csproj"
 readonly MIGRATIONS_DIR="api/src/DigitalHub.Api/Data/Migrations/"
 readonly SQLCMD="/opt/mssql-tools18/bin/sqlcmd"
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR
 readonly CANARY_FILE="$SCRIPT_DIR/canary-add-column-then-sql.sql"
 
 # ---------------------------------------------------------------- helpers
@@ -56,8 +59,15 @@ redact() {
 }
 
 # The sqlcmd error lines of a captured output, at most 40 lines.
+# Without such lines (docker exec itself failed, for example), the last 10 lines.
 errors_of() {
-  redact "$1" | grep -A1 -E '^(Msg [0-9]+|Sqlcmd: Error)' | head -n 40 || true
+  local lines
+  lines="$(redact "$1" | grep -A1 -E '^(Msg [0-9]+|Sqlcmd: Error)' | head -n 40 || true)"
+  if [[ -n "$lines" ]]; then
+    printf '%s\n' "$lines"
+  else
+    redact "$1" | tail -n 10
+  fi
 }
 
 # ---------------------------------------------------------------- inputs
@@ -71,6 +81,12 @@ blocking_from="${MIGRATION_CHECKS_BLOCKING_FROM:-}"
 if [[ ! "$blocking_from" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] \
   || [[ "$(date -u -d "$blocking_from" +%F 2>/dev/null || true)" != "$blocking_from" ]]; then
   cannot_run "MIGRATION_CHECKS_BLOCKING_FROM must be a real date, YYYY-MM-DD (got '${blocking_from}')"
+fi
+# The report week may not be stretched: a later date needs this line changed too,
+# in review, as GAP-08's gate does.
+readonly LATEST_BLOCKING_FROM="2026-11-23"
+if [[ "$blocking_from" > "$LATEST_BLOCKING_FROM" ]]; then
+  cannot_run "MIGRATION_CHECKS_BLOCKING_FROM ${blocking_from} is after ${LATEST_BLOCKING_FROM}, Wave 1's last blocking day"
 fi
 
 prefix="${MIGRATION_CHECK_DB_PREFIX:-MigrationCheck_}"
@@ -108,6 +124,8 @@ sql() { # sql <database> <query>: one query, headers off, errors fail.
     -h -1 -W -d "$1" -Q "SET NOCOUNT ON; $2"
 }
 
+# shellcheck disable=SC2329 # Run by `trap cleanup EXIT` below. ShellCheck 0.11.0 reports a
+# trap handler as never invoked when the script ends with an explicit `exit`.
 cleanup() {
   local db
   for db in "${created_catalogs[@]}"; do
@@ -119,13 +137,19 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Never drops or reuses a catalog that already exists: it may be another run's
+# (same prefix on a shared server) or left by a killed run. Only catalogs this
+# run created are dropped on exit.
 create_catalog() {
   local db="$1" out
-  created_catalogs+=("$db")
-  if ! out="$(sql master "IF DB_ID(N'$db') IS NOT NULL BEGIN ALTER DATABASE [$db] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [$db]; END; CREATE DATABASE [$db];" 2>&1)"; then
+  if ! out="$(sql master "CREATE DATABASE [$db];" 2>&1)"; then
     errors_of "$out" >&2
+    if grep -q 'Msg 1801' <<<"$out"; then
+      cannot_run "catalog $db already exists. Another run may be using the prefix ${prefix}, or a killed run left it: drop it by hand, or set another MIGRATION_CHECK_DB_PREFIX"
+    fi
     cannot_run "could not create catalog $db"
   fi
+  created_catalogs+=("$db")
 }
 
 # Copies a file into the container. A failure means the gate cannot run.
@@ -188,7 +212,9 @@ fi
 ids_json="$(dotnet tool run dotnet-ef -- migrations list --json --no-connect --no-build --configuration Release \
     --project "$PROJECT" 2>/dev/null)" || cannot_run "dotnet-ef migrations list failed"
 n="$(jq -er 'length' <<<"$ids_json" 2>/dev/null)" || cannot_run "could not parse the migrations list"
-[[ "$n" =~ ^[0-9]+$ ]] && (( n >= 2 )) || cannot_run "expected at least 2 migrations, got '${n}'"
+if [[ ! "$n" =~ ^[0-9]+$ ]] || (( n < 2 )); then
+  cannot_run "expected at least 2 migrations, got '${n}'"
+fi
 latest="$(jq -er '.[-1].id' <<<"$ids_json")" || cannot_run "could not read the latest migration id"
 prev="$(jq -er '.[-2].id' <<<"$ids_json")" || cannot_run "could not read the previous migration id"
 all_ids="$(jq -er '.[].id' <<<"$ids_json")" || cannot_run "could not read the migration ids"
