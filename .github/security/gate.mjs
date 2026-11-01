@@ -1,6 +1,11 @@
-// CI security gate. Fails only on NEW findings: anything listed in known-findings.json
+// CI security gate. Fails on NEW findings: anything listed in known-findings.json
 // (with an owner and a reason) is reported as a warning and does not fail the job.
 // Nothing is suppressed in the tools themselves; they still report everything.
+// The npm and dotnet jobs also fail on an allow-list entry that is expired, has
+// no D-NNN, or disagrees with docs/deferred-items.md: each such entry cites a
+// D-NNN register entry ("deferred") and carries the same expiry ("expires",
+// YYYY-MM-DD, valid through that UTC day), whether or not its finding is still
+// reported. The register is read only when the section has an entry.
 //
 // Each tool is validated in one pass. That pass checks every field the gate reads,
 // and anything unexpected fails closed with the file and field named. Severity is
@@ -26,8 +31,10 @@
 // An empty file, a blank file, a report of the wrong shape, or an npm audit that
 // could not run fails the job. A missing file and malformed JSON still fail.
 //
-//   node gate.mjs npm <npm-audit.json> <label>      High and Critical advisories (npm audit --json)
-//   node gate.mjs dotnet <dotnet-list.json>         High and Critical (dotnet list package --vulnerable --format json)
+//   node gate.mjs npm <npm-audit.json> <label>      High and Critical advisories (npm audit --json, full tree,
+//                                                   development packages included); expired or uncited entries fail
+//   node gate.mjs dotnet <dotnet-list.json>         High and Critical (dotnet list package --vulnerable --include-transitive
+//                                                   --format json); expired or uncited entries fail
 //   node gate.mjs gitleaks <gitleaks-report.json>   every finding, by fingerprint; values are never printed
 //   node gate.mjs semgrep <semgrep.json>            ERROR fails; a WARNING fails when its rule is listed in
 //                                                   fail-on-rules.json; any other WARNING is printed; INFO does not fail
@@ -268,6 +275,137 @@ function finish(found, knownIds, describe, staleFrom = found) {
   process.exitCode = fresh.length > 0 ? 1 : 0;
 }
 
+// The dependency allow-list rule. Each npm and dotnet entry in
+// known-findings.json cites "deferred": "D-NNN" and carries "expires":
+// "YYYY-MM-DD". docs/deferred-items.md must hold exactly one "## D-NNN: <title>"
+// heading for it, outside any fenced block, with a "- Expires: YYYY-MM-DD" line
+// giving the same date. These three functions read no file and no clock;
+// main() does both.
+const registerFile = "docs/deferred-items.md";
+const deferredPattern = /^D-\d{3}$/;
+
+function isRealDate(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+// The register's entries, D-NNN to its Expires date (null when the entry has no
+// single "- Expires: YYYY-MM-DD" line), and the ids whose heading appears more
+// than once. Lines inside fenced code blocks are skipped.
+export function parseRegister(text) {
+  const entries = new Map();
+  const duplicates = [];
+  const expiresLines = new Map();
+  let fence = null;
+  let current = null;
+  for (const line of String(text).replace(/\r\n/g, "\n").split("\n")) {
+    if (fence !== null) {
+      const closing = line.match(/^(`{3,}|~{3,})\s*$/);
+      if (closing && closing[1][0] === fence[0] && closing[1].length >= fence.length) fence = null;
+      continue;
+    }
+    const opening = line.match(/^(`{3,}|~{3,})/);
+    if (opening) {
+      fence = opening[1];
+      continue;
+    }
+    if (/^#{1,2} /.test(line)) {
+      const heading = line.match(/^## (D-\d{3}):(\s|$)/);
+      current = heading ? heading[1] : null;
+      if (current !== null) {
+        if (entries.has(current)) {
+          if (!duplicates.includes(current)) duplicates.push(current);
+        } else {
+          entries.set(current, null);
+          expiresLines.set(current, []);
+        }
+      }
+      continue;
+    }
+    if (current !== null && line.startsWith("- Expires:")) expiresLines.get(current).push(line);
+  }
+  for (const [id, lines] of expiresLines) {
+    const match = lines.length === 1 ? lines[0].match(/^- Expires: (\d{4}-\d{2}-\d{2})\s*$/) : null;
+    entries.set(id, match ? match[1] : null);
+  }
+  return { entries, duplicates };
+}
+
+function entryName(entry, index) {
+  return isRecord(entry) && nonEmpty(entry.id) ? entry.id : `entry ${index + 1}`;
+}
+
+// Shape only: each entry cites a D-NNN and carries a real YYYY-MM-DD date.
+export function allowListShapeProblems(entries) {
+  const problems = [];
+  if (!Array.isArray(entries)) return ["the allow-list section is not a list"];
+  entries.forEach((entry, index) => {
+    const name = entryName(entry, index);
+    if (!isRecord(entry)) {
+      problems.push(`${name} is not an object`);
+      return;
+    }
+    if (!Object.hasOwn(entry, "deferred")) problems.push(`${name} has no D-NNN in "deferred"`);
+    else if (typeof entry.deferred !== "string" || !deferredPattern.test(entry.deferred)) {
+      problems.push(`${name} cites ${JSON.stringify(entry.deferred)}, which is not a D-NNN id`);
+    }
+    if (!Object.hasOwn(entry, "expires")) problems.push(`${name} has no expires date`);
+    else if (!isRealDate(entry.expires)) {
+      problems.push(`${name} has expires ${JSON.stringify(entry.expires)}, which is not a real YYYY-MM-DD date`);
+    }
+  });
+  return problems;
+}
+
+// Shape, register and expiry. today is a UTC YYYY-MM-DD date; register is the
+// result of parseRegister, or null when the register file does not exist.
+export function allowListProblems(entries, today, register) {
+  const problems = allowListShapeProblems(entries);
+  if (!Array.isArray(entries)) return problems;
+  entries.forEach((entry, index) => {
+    if (!isRecord(entry)) return;
+    const name = entryName(entry, index);
+    const cited = typeof entry.deferred === "string" && deferredPattern.test(entry.deferred) ? entry.deferred : null;
+    const expires = isRealDate(entry.expires) ? entry.expires : null;
+    if (cited !== null) {
+      if (register === null) {
+        problems.push(`${name} cites ${cited}, but ${registerFile} does not exist`);
+      } else if (!register.entries.has(cited)) {
+        problems.push(`${name} cites ${cited}, which is not in ${registerFile}`);
+      } else if (register.duplicates.includes(cited)) {
+        problems.push(`${name} cites ${cited}, which appears more than once in ${registerFile}`);
+      } else if (register.entries.get(cited) === null) {
+        problems.push(`${name} cites ${cited}, which has no "- Expires: YYYY-MM-DD" line in ${registerFile}`);
+      } else if (expires !== null && register.entries.get(cited) !== expires) {
+        problems.push(`${name} expires on ${expires}, but ${cited} in ${registerFile} expires on ${register.entries.get(cited)}`);
+      }
+    }
+    if (expires !== null && today > expires) {
+      problems.push(cited !== null
+        ? `${name} cites ${cited}, which expired on ${expires}; fix the finding or record a new owner decision`
+        : `${name} expired on ${expires}; fix the finding or record a new owner decision`);
+    }
+  });
+  return problems;
+}
+
+// Runs after finish(), so new findings and entry problems are both printed, and
+// either one fails the job.
+function checkAllowList(entries, title) {
+  if (Array.isArray(entries) && entries.length === 0) return;
+  let register = null;
+  try {
+    register = parseRegister(fs.readFileSync(path.join(here, "..", "..", registerFile), "utf8"));
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  const problems = allowListProblems(entries, today, register);
+  for (const problem of problems) console.log(`::error title=Allow-list entry (${title})::${problem}`);
+  if (problems.length > 0) process.exitCode = 1;
+}
+
 export function keepSerious(found) {
   const kept = [];
   for (const item of found) {
@@ -418,11 +556,15 @@ export function validateSemgrep(report) {
 
 function main() {
   if (kind === "npm") {
+    const entries = known.npm[label] ?? [];
     const found = keepSerious(validateNpm(read(file)));
-    finish(found, new Set((known.npm[label] ?? []).map((entry) => entry.id)), (item) => `${item.severity} ${item.pkg} ${item.id}: ${item.title}`);
+    finish(found, new Set(entries.map((entry) => entry.id)), (item) => `${item.severity} ${item.pkg} ${item.id}: ${item.title}`);
+    checkAllowList(entries, label || kind);
   } else if (kind === "dotnet") {
+    const entries = known.dotnet ?? [];
     const found = keepSerious(validateDotnet(read(file)));
-    finish(found, new Set((known.dotnet ?? []).map((entry) => entry.id)), (item) => `${item.severity} ${item.pkg} ${item.id} (${item.project})`);
+    finish(found, new Set(entries.map((entry) => entry.id)), (item) => `${item.severity} ${item.pkg} ${item.id} (${item.project})`);
+    checkAllowList(entries, label || kind);
   } else if (kind === "gitleaks") {
     const found = validateGitleaks(read(file));
     finish(found, new Set((known.gitleaks ?? []).map((entry) => entry.fingerprint)), (item) => `${item.rule} in ${item.file}:${item.line} (commit ${item.commit})`);

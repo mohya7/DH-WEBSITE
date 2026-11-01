@@ -10,6 +10,6 @@ if [ "$app" != "website" ] && [ "$app" != "studio" ]; then
   echo "run-npm-audit.sh app must be website or studio"
   exit 1
 fi
-npm audit --omit=dev --audit-level=high || true
-npm audit --omit=dev --audit-level=high --json > "$RUNNER_TEMP/audit.json" || true
+npm audit --audit-level=high || true
+npm audit --audit-level=high --json > "$RUNNER_TEMP/audit.json" || true
 node ../.github/security/gate.mjs npm "$RUNNER_TEMP/audit.json" "$app"
