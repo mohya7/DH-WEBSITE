@@ -12,7 +12,9 @@ section 8). Governing files were read from the session's read-only reference cop
 |---|---|---|
 | `0f6fd6f` | GAP-06: Add failing migration checks with canary to CI | 5.1, red first (B-6) |
 | `8b41c00` | GAP-06: Run the raw SQL of two migrations through EXEC | 3.1, section 7 |
-| (this file) | GAP-06: Implementation record | 5.2, 5.3 |
+| `b92d325` | GAP-06: Show the migration change before applying it | 5.2 (this file, first part) |
+| `a77ae2e` | GAP-06: Fix the schema listing in the migration checks | fix found by 5.3 #1 (section 5.1) |
+| (the commit that completes this file; see `git log`) | GAP-06: Record the implementation results | 5.3 (this file, completed) |
 
 ## 2. What changed, file by file (plan section 4)
 
@@ -598,4 +600,322 @@ the stop after gate 2, before push (plan 5.2 step 3; approval "Open for the owne
 
 ## 5. After the fix (plan 5.3)
 
-@@RESULTS@@
+### 5.1 First run after the fix: a failure in `run.sh` (reported before it was fixed)
+
+```
+$ git rev-parse --is-shallow-repository
+false
+$ SA_PASSWORD=… MIGRATION_CHECK_DB_PREFIX=GAP06_ MIGRATION_CHECKS_BLOCKING_FROM=2000-01-01 \
+    tools/migration-checks/run.sh dh-mssql; echo "exit=$?"
+PASS  2. Canary rejected: exit 1, Msg 207 Invalid column name 'new_col'
+PASS  3. Script run 1, empty catalog: exit 0, history 15 of 15
+PASS  3. Script run 2, empty catalog: exit 0, history 15 of 15
+PASS  4a. Previous schema, script: from 20261019104504_AddRefreshTokenSessionStart: exit 0, history 15 of 15
+SKIP  4b. Base schema, script: base = head (20261020113912_AddApplicationCounts), covered by step 3
+PASS  5. database update latest, 20261019104504_AddRefreshTokenSessionStart, latest: each exit 0, history 15 of 15
+== 6. Same schema
+::error::Migration checks cannot run: could not list the schema of GAP06_Script
+exit=1
+$ git rev-parse --is-shallow-repository
+false
+```
+
+Steps 2 to 5 passed; step 6 could not run. Cause, found by running the listing query
+by hand: `Sqlcmd: The -h and the -y 0 options are mutually exclusive.` On `msdb` the
+query also raised `Msg 451 … Cannot resolve collation conflict between
+"Latin1_General_CI_AS_KS_WS" and "SQL_Latin1_General_CP1_CI_AS" in add operator`.
+Fix, commit `a77ae2e`: list with `-h -1 -y 8000`, trim trailing spaces, and give each
+line an explicit `COLLATE DATABASE_DEFAULT`. The query text by hand on `msdb`: exit 0,
+1823 lines. No check was loosened; the gate stopped as "cannot run", as designed.
+
+### 5.2 Results
+
+| # | Check | Result |
+|---|---|---|
+| 1 | The new check, blocking | **Pass.** Exit 0; 50 s locally. Output below (5.3). |
+| 1b | Step 4(b) on a real older base (extra) | **Pass.** `BASE_REF=ci/github-actions` (newest migration there: `20260922142757_NavigationLinkRefs`): 4b exit 0, history 15 of 15; four catalogs identical (5.4). |
+| 2 | No model change | **Pass.** `dotnet tool run dotnet-ef -- migrations has-pending-model-changes --no-build --configuration Release --project src/DigitalHub.Api/DigitalHub.Api.csproj` → "No changes have been made to the model since the last migration." exit 0. |
+| 3 | Only planned files | **Pass.** `git diff --name-only origin/rebuild/dotnet-platform...HEAD` → `.github/workflows/ci.yml`, the two migration `.cs` files, `api/tools/migration-checks/canary-add-column-then-sql.sql`, `api/tools/migration-checks/run.sh`, and `docs/changes/GAP-06/{implementation,plan-approval,plan-review,plan}.md`. No `*.Designer.cs`, no snapshot. |
+| 4 | Data equivalence from migration 6, with data | **Pass.** Output in 5.5. |
+| 5 | Guard still fires | **Pass**, both routes. Output in 5.5. |
+| 6 | Build | **Pass.** `dotnet build DigitalHub.slnx -c Release` → `13 Warning(s)`, `0 Error(s)`, exit 0. That is the 27 October baseline's 13, not above it. |
+| 7 | Integration tests | **Pass.** Run on `DigitalHubContent_Test` after the coordinator's confirmation (condition 3). Immediately before: `16:13:03 other sessions on DigitalHubContent_Test: 0` (`sys.dm_exec_sessions` by `database_id`). The catalog was already at 15 of 15 migrations (`20261020113912_AddApplicationCounts`), so nothing was migrated on it; it was not dropped or recreated. `dotnet test tests/DigitalHub.Api.Tests/DigitalHub.Api.Tests.csproj -c Release --no-build` with the `ci.yml` connection strings → `Passed!  - Failed:     0, Passed:   475, Skipped:     0, Total:   475, Duration: 2 m 8 s`, exit 0. |
+| 8 | Script lint | `bash -n api/tools/migration-checks/run.sh` → exit 0. `shellcheck`: **NOT RUN**. It is not installed on this container, and running a downloaded copy was refused by this session's permission policy. Covered later by actionlint with shellcheck in GAP-08 (approval condition 7), and by the tester if they have it. |
+| 9 | CI on the PR | **NOT RUN.** Nothing is pushed without the owner's OK (approval condition 6). CI job `api` covers it when the PR opens; the step log should show the canary rejected, 15/15 twice, previous schema exit 0, schemas identical, "blocking from 2026-11-12". |
+| 10 | Clean-up | **Pass.** `SELECT COUNT(*) FROM sys.databases WHERE name LIKE 'GAP06%'` → `0`, after every local run and at the end. No `GAP06` file left in the container's `/tmp`. |
+| 11 | Studio-copy test | **NOT RUN, pending owner.** There is no copy of `DigitalHubContent_Studio` on this server; the owner runs plan 5.5, with the query in section 6 below as `$schema`. |
+
+Shallow state: `git rev-parse --is-shallow-repository` printed `false` before and
+after every local run of 5.1 and 5.3 #1 (quoted with each run). At the start of this
+round it printed `true`, because another agent's `--depth=1` fetch of
+`feature/interviewer-portal` had made the shared repository shallow (15:54:02 UTC). I
+stopped and reported it, as condition 1 requires. The coordinator ran `git fetch
+--unshallow origin` and I resumed only after it printed `false`. `run.sh` itself never
+fetched locally.
+
+### 5.3 Check #1, after the fix (blocking), commit `a77ae2e`
+
+```
+$ git rev-parse --is-shallow-repository
+false
+$ SA_PASSWORD=… MIGRATION_CHECK_DB_PREFIX=GAP06_ MIGRATION_CHECKS_BLOCKING_FROM=2000-01-01 \
+    tools/migration-checks/run.sh dh-mssql; echo "exit=$?"
+Migration checks: catalog prefix GAP06_, base rebuild/dotnet-platform, blocking from 2000-01-01 (today 2026-11-01: blocking mode).
+== 1. Generate the idempotent script and read the migration ids
+N=15, latest=20261020113912_AddApplicationCounts, previous=20261019104504_AddRefreshTokenSessionStart
+base (rebuild/dotnet-platform) newest migration: 20261020113912_AddApplicationCounts
+== 2. Canary: add a column and use it in one batch
+PASS  2. Canary rejected: exit 1, Msg 207 Invalid column name 'new_col'
+== 3. Idempotent script twice on an empty catalog
+PASS  3. Script run 1, empty catalog: exit 0, history 15 of 15
+PASS  3. Script run 2, empty catalog: exit 0, history 15 of 15
+== 4a. Previous schema (20261019104504_AddRefreshTokenSessionStart), then the script
+PASS  4a. Previous schema, script: from 20261019104504_AddRefreshTokenSessionStart: exit 0, history 15 of 15
+== 4b. Base schema
+SKIP  4b. Base schema, script: base = head (20261020113912_AddApplicationCounts), covered by step 3
+== 5. dotnet-ef database update: latest, down to 20261019104504_AddRefreshTokenSessionStart, latest
+PASS  5. database update latest, 20261019104504_AddRefreshTokenSessionStart, latest: each exit 0, history 15 of 15
+== 6. Same schema
+PASS  6. Same schema: 3 catalogs (GAP06_Script GAP06_Previous GAP06_Ef), 468 lines each, identical
+== Result: 0 failure(s); blocking from 2000-01-01; blocking mode.
+exit=0
+$ git rev-parse --is-shallow-repository
+false
+```
+
+The 468 lines match the plan's 2.3 D count.
+
+### 5.4 Step 4(b) on an older base (extra; this PR's base equals head)
+
+```
+$ git rev-parse --is-shallow-repository
+false
+$ SA_PASSWORD=… MIGRATION_CHECK_DB_PREFIX=GAP06_ MIGRATION_CHECKS_BLOCKING_FROM=2000-01-01 \
+    BASE_REF=ci/github-actions tools/migration-checks/run.sh dh-mssql; echo "exit=$?"
+base (ci/github-actions) newest migration: 20260922142757_NavigationLinkRefs
+PASS  2. Canary rejected: exit 1, Msg 207 Invalid column name 'new_col'
+PASS  3. Script run 1, empty catalog: exit 0, history 15 of 15
+PASS  3. Script run 2, empty catalog: exit 0, history 15 of 15
+PASS  4a. Previous schema, script: from 20261019104504_AddRefreshTokenSessionStart: exit 0, history 15 of 15
+PASS  4b. Base schema, script: from 20260922142757_NavigationLinkRefs: exit 0, history 15 of 15
+PASS  5. database update latest, 20261019104504_AddRefreshTokenSessionStart, latest: each exit 0, history 15 of 15
+PASS  6. Same schema: 4 catalogs (GAP06_Script GAP06_Previous GAP06_Base GAP06_Ef), 468 lines each, identical
+== Result: 0 failure(s); blocking from 2000-01-01; blocking mode.
+exit=0
+$ git rev-parse --is-shallow-repository
+false
+```
+
+And the two "cannot run" paths for the base, each exit 1 before any catalog is made:
+
+```
+BASE_REF=feature/interviewer-portal → ::error::Migration checks cannot run: no migration found on feature/interviewer-portal
+BASE_REF=no/such-branch             → ::error::Migration checks cannot run: origin/no/such-branch is not available locally (this script does not fetch in a full clone)
+```
+
+### 5.5 Checks #4 and #5: data and guard, from migration 6
+
+Catalogs `GAP06_PrevEf`, `GAP06_PrevScript`, `GAP06_Guard` and `GAP06_GuardEf` were
+each created and brought to `20260922135931_AddMustChangePassword` with `dotnet-ef
+database update` (each exit 0). The idempotent script is the full script from
+`8b41c00` (section 4.3), copied in with `docker cp` and applied with `sqlcmd -S
+localhost -U sa -C -I -b -d <db> -i <file>`.
+
+(First attempt, reported: piping the script through stdin, `-i /dev/stdin`, failed
+with `Msg 102 … Incorrect syntax near '﻿'`. That is the script's UTF-8 BOM, which
+`sqlcmd` skips in a file but not on stdin. It was my harness, not the migrations, and
+`run.sh` uses `docker cp`. The catalogs were dropped and the run was repeated with
+`docker cp`.)
+
+Seed script, applied to `GAP06_PrevEf` and `GAP06_PrevScript` (each exit 0):
+
+```sql
+SET NOCOUNT ON;
+INSERT site_settings (id, phone, email, linked_in) VALUES (NEWID(), N'+20 (12) 345-678', N'hi@x.example', N'https://linkedin.example/x');
+INSERT pages (id, slug, title, status, sort_order, created_at, updated_at, version, no_index) VALUES
+ ('11111111-0000-0000-0000-000000000001', N'home', N'Home', N'published', 0, SYSUTCDATETIME(), SYSUTCDATETIME(), 1, 0),
+ ('11111111-0000-0000-0000-000000000002', N'about', N'About', N'published', 1, SYSUTCDATETIME(), SYSUTCDATETIME(), 1, 0);
+INSERT services (id, summary, icon, visual, featured, slug, title, status, sort_order, created_at, updated_at, version, no_index) VALUES
+ ('22222222-0000-0000-0000-000000000001', N's', N'i', N'v', 0, N'web', N'Web', N'published', 0, SYSUTCDATETIME(), SYSUTCDATETIME(), 1, 0);
+INSERT navigation_items (id, menu, parent_id, label, url, sort_order) VALUES
+ ('33333333-0000-0000-0000-000000000001', N'header', NULL, N'Group', N'', 0),
+ ('33333333-0000-0000-0000-000000000002', N'header', NULL, N'Home', N'/', 1),
+ ('33333333-0000-0000-0000-000000000003', N'header', NULL, N'About', N'/about', 2),
+ ('33333333-0000-0000-0000-000000000004', N'header', NULL, N'Web', N'/services/web', 3),
+ ('33333333-0000-0000-0000-000000000005', N'footer', NULL, N'Mail', N'mailto:hi@x.example', 4),
+ ('33333333-0000-0000-0000-000000000006', N'footer', NULL, N'Phone', N'tel:+2012345678', 5),
+ ('33333333-0000-0000-0000-000000000007', N'footer', NULL, N'LinkedIn', N'https://linkedin.example/x', 6);
+INSERT AspNetUsers (Id, EmailConfirmed, PhoneNumberConfirmed, TwoFactorEnabled, LockoutEnabled, AccessFailedCount, MustChangePassword) VALUES (N'u1', 0, 0, 0, 0, 0, 0);
+INSERT RefreshTokens (Id, UserId, TokenHash, CsrfTokenHash, FamilyId, ExpiresAt, CreatedAt) VALUES
+ (NEWID(), N'u1', N'a', N'a', '44444444-0000-0000-0000-000000000001', '2027-01-01', '2026-10-01T10:00:00'),
+ (NEWID(), N'u1', N'b', N'b', '44444444-0000-0000-0000-000000000001', '2027-01-01', '2026-10-05T10:00:00'),
+ (NEWID(), N'u1', N'c', N'c', '44444444-0000-0000-0000-000000000002', '2027-01-01', '2026-10-03T10:00:00');
+```
+
+Guard seed, on `GAP06_Guard` and `GAP06_GuardEf`: one row, `INSERT navigation_items
+(id, menu, parent_id, label, url, sort_order) VALUES (NEWID(), N'header', NULL,
+N'Missing', N'/services/missing', 0);`
+
+Data query:
+
+```sql
+SELECT label + '|' + ISNULL(url,'NULL') + '|' + link_kind + '|' + ISNULL(target_type,'NULL') + '|' + ISNULL(CAST(target_id AS varchar(36)),'NULL') FROM navigation_items ORDER BY sort_order;
+SELECT TokenHash + '|' + CONVERT(varchar(19), SessionStartedAt, 126) FROM RefreshTokens ORDER BY TokenHash;
+SELECT 'site_settings ' + CAST(COUNT(*) AS varchar) FROM site_settings;
+SELECT 'history ' + CAST(COUNT(*) AS varchar) FROM __EFMigrationsHistory;
+```
+
+Results:
+
+```
+ef GAP06_PrevEf latest exit=0
+script (sqlcmd -I -b) GAP06_PrevScript exit=0
+script (sqlcmd -I -b) GAP06_PrevScript exit=0
+Group|NULL|group|NULL|NULL
+Home|NULL|internal|page|11111111-0000-0000-0000-000000000001
+About|NULL|internal|page|11111111-0000-0000-0000-000000000002
+Web|NULL|internal|service|22222222-0000-0000-0000-000000000001
+a|2026-10-01T10:00:00
+b|2026-10-01T10:00:00
+c|2026-10-03T10:00:00
+site_settings 1
+history 15
+diff GAP06_PrevEf GAP06_PrevScript → DATA IDENTICAL
+
+script (sqlcmd -I -b) GAP06_Guard exit=1
+Msg 50002, Level 16, State 1, Server 42701ab3ab3a, Line 76
+Navigation link conversion left a row with no valid shape.
+history 6
+link_kind NULL
+trancount 0
+
+ef GAP06_GuardEf latest exit=1
+Microsoft.Data.SqlClient.SqlException (0x80131904): Navigation link conversion left a row with no valid shape.
+Error Number:50002,State:1,Class:16
+history 6
+link_kind NULL
+```
+
+The mail, phone and LinkedIn rows were deleted, the internal links were converted,
+and `SessionStartedAt` holds each family's earliest `CreatedAt`. This is the same on
+both routes. The guard still rolls the whole migration back on both routes. After
+this, all four catalogs were dropped and the `GAP06` count was `0`.
+
+## 6. The schema-listing query, in full (approval condition 4)
+
+This is the query `run.sh` uses in step 6, as committed in `a77ae2e`. For plan 5.5 the
+owner can paste it as `$schema` (one line or as is). Prefix it with `SET NOCOUNT ON;`,
+run it with `sqlcmd -h -1 -y 8000` (not `-W`: its default width cuts lines at 256
+characters, and the `ck_navigation_items_link_shape` line is longer), and trim trailing
+spaces before comparing, as `run.sh` does. In PowerShell 5.5, add `-y 8000` to the
+`$schema` call in place of `-W`; `Compare-Object` of the before and after files then
+compares like with like.
+
+```sql
+SELECT line FROM (
+  SELECT 'COL|' COLLATE DATABASE_DEFAULT + t.name + '|' + c.name + '|' + ty.name
+       + '|' + CAST(c.max_length AS varchar(10)) + '|' + CAST(c.precision AS varchar(10)) + '|' + CAST(c.scale AS varchar(10))
+       + '|' + CASE c.is_nullable WHEN 1 THEN 'NULL' ELSE 'NOT NULL' END
+       + '|' + CASE c.is_identity WHEN 1 THEN 'IDENTITY' ELSE '' END
+       + '|' + ISNULL(c.collation_name, '') AS line
+  FROM sys.columns c
+  JOIN sys.tables t ON t.object_id = c.object_id
+  JOIN sys.types ty ON ty.user_type_id = c.user_type_id
+  UNION ALL
+  SELECT 'IDX|' COLLATE DATABASE_DEFAULT + t.name + '|' + i.name + '|' + i.type_desc
+       + '|' + CASE i.is_unique WHEN 1 THEN 'UNIQUE' ELSE '' END
+       + '|' + CASE i.is_primary_key WHEN 1 THEN 'PK' ELSE '' END
+       + '|' + ISNULL((SELECT STRING_AGG(c.name + CASE ic.is_descending_key WHEN 1 THEN ' DESC' ELSE '' END
+                                     + CASE ic.is_included_column WHEN 1 THEN ' INCLUDE' ELSE '' END, ',')
+                              WITHIN GROUP (ORDER BY ic.is_included_column, ic.key_ordinal, c.name)
+                       FROM sys.index_columns ic
+                       JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+                       WHERE ic.object_id = i.object_id AND ic.index_id = i.index_id), '')
+       + '|' + ISNULL(i.filter_definition, '')
+  FROM sys.indexes i
+  JOIN sys.tables t ON t.object_id = i.object_id
+  WHERE i.type > 0
+  UNION ALL
+  SELECT 'CHK|' COLLATE DATABASE_DEFAULT + t.name + '|' + cc.name + '|' + REPLACE(REPLACE(cc.definition, CHAR(13), ' '), CHAR(10), ' ')
+  FROM sys.check_constraints cc
+  JOIN sys.tables t ON t.object_id = cc.parent_object_id
+  UNION ALL
+  SELECT 'FK|' COLLATE DATABASE_DEFAULT + t.name + '|' + fk.name + '|' + rt.name
+       + '|' + fk.delete_referential_action_desc + '|' + fk.update_referential_action_desc
+       + '|' + ISNULL((SELECT STRING_AGG(pc.name + '->' + rc.name, ',') WITHIN GROUP (ORDER BY fkc.constraint_column_id)
+                       FROM sys.foreign_key_columns fkc
+                       JOIN sys.columns pc ON pc.object_id = fkc.parent_object_id AND pc.column_id = fkc.parent_column_id
+                       JOIN sys.columns rc ON rc.object_id = fkc.referenced_object_id AND rc.column_id = fkc.referenced_column_id
+                       WHERE fkc.constraint_object_id = fk.object_id), '')
+  FROM sys.foreign_keys fk
+  JOIN sys.tables t ON t.object_id = fk.parent_object_id
+  JOIN sys.tables rt ON rt.object_id = fk.referenced_object_id
+  UNION ALL
+  SELECT 'DEF|' COLLATE DATABASE_DEFAULT + t.name + '|' + c.name + '|' + dc.definition
+  FROM sys.default_constraints dc
+  JOIN sys.tables t ON t.object_id = dc.parent_object_id
+  JOIN sys.columns c ON c.object_id = dc.parent_object_id AND c.column_id = dc.parent_column_id
+) AS schema_lines
+ORDER BY line;
+```
+
+## 7. Coverage table
+
+| Item | Source | Status | Evidence |
+|---|---|---|---|
+| CI applies the idempotent script twice to an empty catalog, both exit 0 | Refinement plan, GAP-06 "Done when" | Done locally; CI pending | 5.3: step 3 runs 1 and 2, exit 0, history 15 of 15. CI: 5.3 #9 NOT RUN, no push without the owner's OK. |
+| CI upgrades from the previous schema, exit 0 (script route and `database update` route) | Refinement plan, GAP-06 "Done when"; G-4 | Done locally; CI pending | 5.3: 4a exit 0, 15 of 15; 5: latest → N-1 → latest, each exit 0. |
+| Each migration change is shown before it is applied | Refinement plan, GAP-06 "Done when"; `AGENTS.md` | Done for scratch catalogs; owner confirmation pending | Section 4, committed in `b92d325` before any catalog run of `8b41c00`. The owner's confirmation is due at the stop after gate 2 (plan 5.2 step 3). |
+| `NavigationLinkRefs` applies through the idempotent script | Plan item; finding 4 | Done | 3.1 red (`Msg 207 'link_kind'`, 6 of 15) → 5.3 green (15 of 15). |
+| `AddRefreshTokenSessionStart` applies through the idempotent script | Plan item; finding 4 | Done | 15 of 15 in 5.3; `SessionStartedAt` data in 5.5. |
+| Every migration with the pattern is found and fixed (15 of 15 apply) | Refinement plan metrics | Done | 4.3: only two blocks change in the full script; 5.3: 15 of 15, twice. |
+| The edits do not change what the SQL does | Risk "Editing applied migrations" | Done | 4.2 and 4.3 (body equals the old SQL with quotes doubled); 5.3 step 6 (468 lines identical); 5.5 (data identical, guard fires and rolls back on both routes). |
+| Test on a copy of `DigitalHubContent_Studio` | Risk "Editing applied migrations" | NOT RUN, pending owner | There is no copy on this server; plan 5.5 is owner-run, with the query in section 6. |
+| CI upgrades from the base branch's schema when a PR adds migrations (step 4b) | Plan review round 1, finding 6 | Done locally | 5.4: `BASE_REF=ci/github-actions`, 4b exit 0, 4 catalogs identical. This PR logs "base = head, covered by step 3". |
+| No model or snapshot change | Plan 3.1 | Done | 5.2 #2 and #3. |
+| The gate reports until `MIGRATION_CHECKS_BLOCKING_FROM`, then blocks | `ENGINEERING_STANDARDS.md` section 3; G1 checklist | Done | 3.1 (blocking: exit 1), 3.2 (report: exit 0 with `::warning::`), 3.4 (bad date refused). Committed date `2026-11-12`, an assumption (section 2.1). |
+| The canary fixture is rejected on every run and guards `-b` | G1 checklist; GAP-21 | Done | Every run: "PASS 2. Canary rejected: exit 1, Msg 207 Invalid column name 'new_col'"; 3.3: without `-b`, exit 1 "the canary was not rejected", even in report mode. |
+| Scratch catalogs only; none left behind | `docs/changes/README.md` | Done | Only `GAP06_*` catalogs were created; `DigitalHubContent_Test` was used for tests only, not migrated or dropped; count `0` at the end (5.2 #10). |
+
+## 8. Approval conditions
+
+1. **Shallow repository.** Met. `run.sh` never fetches in a full clone (section 2.1).
+   `false` is quoted before and after each local run. The one time it printed `true`
+   (before any run), I stopped and reported it (5.2).
+2. **Show before applying, in order.** Met. `0f6fd6f` holds the check alone, with red
+   output (section 3), and comes before `8b41c00`. `b92d325` records the diff, the
+   move proof and the generated SQL, before any catalog run of the edited migrations
+   (section 4).
+3. **Throwaway catalogs only.** Met. Only `GAP06_*` catalogs were created. The
+   coordinator confirmed that `DigitalHubContent_Test` could be used for the suite;
+   there were 0 other sessions immediately before, and it was not dropped, recreated
+   or migrated. Count `0` at the end.
+4. **Schema-listing query in full.** Met, section 6.
+5. **Blocking date.** Met. `MIGRATION_CHECKS_BLOCKING_FROM: "2026-11-12"`, a literal
+   date, validated by `run.sh` (3.4). **Assumption for gate 2 and the integrator:** the
+   merge is no earlier than 5 November 2026. If it is later, move the date to the merge
+   day plus 7 in the same merge.
+6. **Merge order.** Nothing pushed. When the owner allows a merge, this PR queues in
+   Wave 1 slot 1, behind Wave 0 (GAP-01 to GAP-03).
+7. **`ci.yml` rebase.** No rebase was needed (base `6470fac` is unchanged). The step
+   sits directly after "Apply migrations to the fresh database" and inherits
+   `working-directory: api`. The `api` job's checkout keeps its default credentials,
+   so `git fetch` reaches `origin`. GAP-08's actionlint is not on the base yet.
+8. **Secrets.** Met. No `set -x`. The password goes to `sqlcmd` through an inherited
+   environment variable, and captured output is passed through `redact`. No local log
+   contains the password, and the step summary prints only check names and counts.
+
+## 9. For the tester
+
+- `run.sh` expects to be run from `api/` after `dotnet tool restore` and a Release
+  build. Locally: `SA_PASSWORD=… MIGRATION_CHECK_DB_PREFIX=<yours>_
+  MIGRATION_CHECKS_BLOCKING_FROM=<date> tools/migration-checks/run.sh dh-mssql`. Use
+  your own prefix (for example `GAP06T_`); the catalogs are dropped on exit.
+- Locally the repository must be a full clone (`--is-shallow-repository` = `false`).
+  Then the base is read from `origin/rebuild/dotnet-platform`, and there is no fetch.
+- Step 4a passes even on the unfixed migrations (N-1 → N applies only migration 15).
+  Step 3 is the one that catches the defect.
+- To feed a script to `sqlcmd` by hand, use `docker cp` and `-i <file>`, not stdin:
+  the generated script starts with a UTF-8 BOM, which fails on stdin (5.5).
+
+Status: READY FOR TEST
