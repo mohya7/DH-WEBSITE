@@ -70,13 +70,15 @@ EOF
 
 # run_gate <mode...>; ACTIONLINT_BLOCKING_FROM comes from $blocking_from
 # ("unset" leaves it out). Sets $out and $rc.
+# SHELLCHECK_OPTS is removed unless $extra_env sets it (case 18).
+extra_env=()
 run_gate() {
   if [ "$blocking_from" = "unset" ]; then
-    out="$(cd "$scratch" && env -u ACTIONLINT_BLOCKING_FROM PATH="$bin:$PATH" RUNNER_TEMP="$tmp" \
-      bash "$root/.github/lint/run-actionlint.sh" "$@" 2>&1)"
+    out="$(cd "$scratch" && env -u ACTIONLINT_BLOCKING_FROM -u SHELLCHECK_OPTS PATH="$bin:$PATH" RUNNER_TEMP="$tmp" \
+      "${extra_env[@]}" bash "$root/.github/lint/run-actionlint.sh" "$@" 2>&1)"
   else
-    out="$(cd "$scratch" && env PATH="$bin:$PATH" RUNNER_TEMP="$tmp" ACTIONLINT_BLOCKING_FROM="$blocking_from" \
-      bash "$root/.github/lint/run-actionlint.sh" "$@" 2>&1)"
+    out="$(cd "$scratch" && env -u SHELLCHECK_OPTS PATH="$bin:$PATH" RUNNER_TEMP="$tmp" ACTIONLINT_BLOCKING_FROM="$blocking_from" \
+      "${extra_env[@]}" bash "$root/.github/lint/run-actionlint.sh" "$@" 2>&1)"
   fi
   rc=$?
 }
@@ -209,26 +211,69 @@ for mode in workflows canary; do
   fi
 done
 
-# 17. the workflow itself: a valid blocking date no later than 2026-11-23, no
-# continue-on-error, no if:, no paths filter, every uses: a 40-character SHA.
+# 18. SHELLCHECK_OPTS set (shellcheck reads it, so it could drop checks the
+# way a config file can): refused in both modes, in report mode, even empty.
+for opts in "-e SC2046" ""; do
+  for mode in workflows canary; do
+    new_case; stub_today 2026-11-05; blocking_from=2026-11-11
+    if [ "$mode" = canary ]; then stub_actionlint 1 "${canary_lines[@]}"; else stub_actionlint 0; fi
+    extra_env=(SHELLCHECK_OPTS="$opts")
+    run_gate "$mode"; expect "18 SHELLCHECK_OPTS='$opts', $mode mode" 1 "SHELLCHECK_OPTS"
+    extra_env=()
+  done
+done
+
+# 19. a blocking date after 2026-11-23 (Wave 1's last blocking day) is refused
+# at run time, however the workflow sets it; 2026-11-23 itself is accepted.
+new_case; stub_actionlint 1 "$finding"; stub_today 2026-11-05; blocking_from=2026-11-24
+run_gate workflows; expect "19 blocking date 2026-11-24" 1 "2026-11-23"
+new_case; stub_actionlint 0; stub_today 2026-11-05; blocking_from=2099-01-01
+run_gate workflows; expect "19 blocking date 2099-01-01, no findings" 1 "2026-11-23"
+new_case; stub_actionlint 1 "$finding"; stub_today 2026-11-05; blocking_from=2026-11-23
+run_gate workflows; expect "19 blocking date 2026-11-23" 0 "::warning"
+
+# 20. actionlint exits 1 but prints nothing: fails, with a message
+for when in 2026-11-05 2026-12-01; do
+  new_case; stub_actionlint 1; stub_today "$when"; blocking_from=2026-11-11
+  run_gate workflows; expect "20 exit 1 with no output, today $when" 1 "::error"
+done
+
+# 17. the workflow itself: a valid blocking date no later than 2026-11-23, set
+# exactly once; no continue-on-error, if, paths or paths-ignore key, quoted or
+# not, in block or flow style; every uses a 40-character SHA; no SHELLCHECK_OPTS;
+# no write to the runner's env or path files in the workflow or the gate's
+# scripts. Full-line and trailing comments are ignored, except for the
+# SHELLCHECK_OPTS and env-file checks, which read every byte.
+key_re() { printf '%s' "(^[[:space:]]*(-[[:space:]]+)?|[{,][[:space:]]*)[\"']?$1[\"']?[[:space:]]*:"; }
 check_workflow() {
   if [ ! -f "$workflow" ]; then echo "$workflow is missing"; return; fi
-  local dates date_value
-  dates="$(grep -E '^[[:space:]]*ACTIONLINT_BLOCKING_FROM:' "$workflow")"
-  if [ "$(grep -c . <<<"$dates")" -ne 1 ]; then echo "ACTIONLINT_BLOCKING_FROM set $(grep -c . <<<"$dates") times, expected once"; return; fi
-  date_value="$(sed -E 's/^[[:space:]]*ACTIONLINT_BLOCKING_FROM:[[:space:]]*"?([^"#[:space:]]*)"?.*$/\1/' <<<"$dates")"
+  local code
+  code="$(sed -E -e 's/^[[:space:]]*#.*$//' -e 's/[[:space:]]#.*$//' "$workflow")"
+  local mentions date_value
+  mentions="$(grep -o 'ACTIONLINT_BLOCKING_FROM' <<<"$code" | grep -c .)"
+  if [ "$mentions" -ne 1 ]; then echo "ACTIONLINT_BLOCKING_FROM appears $mentions times outside comments, expected once (its env entry)"; return; fi
+  date_value="$(grep -E "$(key_re ACTIONLINT_BLOCKING_FROM)" <<<"$code" \
+    | sed -E "s/^.*ACTIONLINT_BLOCKING_FROM[\"']?[[:space:]]*:[[:space:]]*[\"']?([^\"',}[:space:]]*).*$/\1/")"
   if ! grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' <<<"$date_value" \
     || [ "$("$real_date" -u -d "$date_value" +%F 2>/dev/null)" != "$date_value" ]; then
     echo "ACTIONLINT_BLOCKING_FROM '$date_value' is not a real YYYY-MM-DD date"; return
   fi
   if [[ "$date_value" > "2026-11-23" ]]; then echo "ACTIONLINT_BLOCKING_FROM $date_value is after 2026-11-23"; return; fi
-  if grep -nE '^[[:space:]]*(-[[:space:]]+)?continue-on-error[[:space:]]*:' "$workflow"; then echo "continue-on-error present"; return; fi
-  if grep -nE '^[[:space:]]*(-[[:space:]]+)?if[[:space:]]*:' "$workflow"; then echo "if: present"; return; fi
-  if grep -nE '^[[:space:]]*(-[[:space:]]+)?paths(-ignore)?[[:space:]]*:' "$workflow"; then echo "paths filter present"; return; fi
+  local key
+  for key in continue-on-error if paths paths-ignore; do
+    if grep -nE "$(key_re "$key")" <<<"$code"; then echo "$key key present"; return; fi
+  done
+  if grep -n 'SHELLCHECK_OPTS' "$workflow"; then echo "SHELLCHECK_OPTS in the workflow"; return; fi
+  local env_files="GITHUB_""ENV|GITHUB_""PATH" script
+  if grep -nE "$env_files" "$workflow"; then echo "the workflow writes the runner's env or path file"; return; fi
+  for script in "$repo"/.github/lint/*.sh; do
+    if grep -nE "$env_files" "$script"; then echo "$script writes the runner's env or path file"; return; fi
+  done
   local uses
-  uses="$(grep -E '^[[:space:]]*(-[[:space:]]+)?uses[[:space:]]*:' "$workflow")"
+  uses="$(grep -oE "[\"']?uses[\"']?[[:space:]]*:[[:space:]]*[\"']?[^\"',}[:space:]]*" <<<"$code" \
+    | sed -E "s/^[\"']?uses[\"']?[[:space:]]*:[[:space:]]*[\"']?//")"
   if [ -z "$uses" ]; then echo "no uses: found"; return; fi
-  if grep -vE '^[[:space:]]*(-[[:space:]]+)?uses:[[:space:]]+[A-Za-z0-9_.-]+/[A-Za-z0-9_./-]+@[0-9a-f]{40}([[:space:]]+#.*)?$' <<<"$uses"; then
+  if grep -vE '^[A-Za-z0-9_.-]+/[A-Za-z0-9_./-]+@[0-9a-f]{40}$' <<<"$uses"; then
     echo "a uses: is not pinned by a 40-character SHA"; return
   fi
 }
