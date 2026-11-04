@@ -21,9 +21,33 @@ function write(name, contents) {
   return file;
 }
 
-function run(args) {
-  const result = spawnSync(process.execPath, [gate, ...args], { encoding: "utf8" });
+function runGate(gateFile, args) {
+  const result = spawnSync(process.execPath, [gateFile, ...args], { encoding: "utf8" });
   return { code: result.status, out: `${result.stdout ?? ""}\n${result.stderr ?? ""}` };
+}
+
+function run(args) {
+  return runGate(gate, args);
+}
+
+// A byte-for-byte copy of the real gate that reads a fixture allow-list from its
+// own folder. The npm known-list tests use it, so they keep proving that a known
+// advisory is passed and does not hide a new one, whatever the real npm
+// allow-list holds. The other tools keep using the real gate and allow-list.
+const fixtureGateDir = path.join(dir, "fixture-gate");
+fs.mkdirSync(fixtureGateDir);
+for (const name of ["gate.mjs", "fail-on-rules.json"]) fs.copyFileSync(path.join(here, name), path.join(fixtureGateDir, name));
+const fixtureGate = path.join(fixtureGateDir, "gate.mjs");
+const fixtureKnown = structuredClone(known);
+fixtureKnown.npm.website = [
+  { id: "GHSA-fixture-known-0001", package: "fixture-critical 1.0.0", severity: "critical", title: "fixture known critical", owner: "gate self-test", reason: "Fixture entry; not a real advisory." },
+  { id: "GHSA-fixture-known-0002", package: "fixture-high-a 1.0.0", severity: "high", title: "fixture known high a", owner: "gate self-test", reason: "Fixture entry; not a real advisory." },
+  { id: "GHSA-fixture-known-0003", package: "fixture-high-b 1.0.0", severity: "high", title: "fixture known high b", owner: "gate self-test", reason: "Fixture entry; not a real advisory." },
+];
+fs.writeFileSync(path.join(fixtureGateDir, "known-findings.json"), `${JSON.stringify(fixtureKnown, null, 2)}\n`);
+
+function runFixture(args) {
+  return runGate(fixtureGate, args);
 }
 
 function npmReport(advisories) {
@@ -210,24 +234,32 @@ test("a NuGet package array or vulnerabilities value that is an object fails and
   assert.equal(vulnResult.out.includes("GHSA-review-high"), false);
 });
 
+test("the fixture gate is the real gate", () => {
+  for (const name of ["gate.mjs", "fail-on-rules.json"]) {
+    assert.ok(fs.readFileSync(path.join(fixtureGateDir, name)).equals(fs.readFileSync(path.join(here, name))), `${name} differs from the real one`);
+  }
+});
+
 test("a known-only npm report passes", () => {
-  const result = run(["npm", write("known-npm.json", npmReport(known.npm.website)), "website"]);
+  const result = runFixture(["npm", write("known-npm.json", npmReport(fixtureKnown.npm.website)), "website"]);
   assert.equal(result.code, 0, result.out);
   assert.match(result.out, /3 known, 0 new/);
 });
 
 test("a new High advisory fails", () => {
-  const advisories = [...known.npm.website, { id: "GHSA-new-high-0000", package: "example-high", severity: "high", title: "synthetic high" }];
-  const result = run(["npm", write("new-high.json", npmReport(advisories)), "website"]);
+  const advisories = [...fixtureKnown.npm.website, { id: "GHSA-new-high-0000", package: "example-high", severity: "high", title: "synthetic high" }];
+  const result = runFixture(["npm", write("new-high.json", npmReport(advisories)), "website"]);
   assert.equal(result.code, 1, result.out);
   assert.match(result.out, /GHSA-new-high-0000/);
+  assert.match(result.out, /3 known, 1 new/);
 });
 
 test("a new Critical advisory fails", () => {
-  const advisories = [...known.npm.website, { id: "GHSA-new-crit-0000", package: "example-critical", severity: "critical", title: "synthetic critical" }];
-  const result = run(["npm", write("new-critical.json", npmReport(advisories)), "website"]);
+  const advisories = [...fixtureKnown.npm.website, { id: "GHSA-new-crit-0000", package: "example-critical", severity: "critical", title: "synthetic critical" }];
+  const result = runFixture(["npm", write("new-critical.json", npmReport(advisories)), "website"]);
   assert.equal(result.code, 1, result.out);
   assert.match(result.out, /critical example-critical GHSA-new-crit-0000/);
+  assert.match(result.out, /3 known, 1 new/);
 });
 
 test("an unknown gitleaks fingerprint fails and does not print the value", () => {
@@ -299,7 +331,7 @@ test("a moderate NuGet advisory passes and a High one fails", () => {
 
 const knownAdvisory = {
   severity: "high",
-  url: "https://github.com/advisories/GHSA-cjq9-62q9-8jv4",
+  url: `https://github.com/advisories/${fixtureKnown.npm.website[0].id}`,
   title: "known",
 };
 
@@ -488,7 +520,9 @@ for (const [tool, specs] of Object.entries(consumedFields)) {
     assert.ok(fixture, `no fixture for ${tool}`);
     const samples = acceptedValues[tool];
     assert.ok(samples, `no mutation cases for ${tool}`);
-    const baseline = run([tool, write(`${tool}-mutation-base.json`, JSON.stringify(fixture.body)), fixture.label].filter((part, index) => index < 2 || part));
+    // The npm fixture's advisory is known only to the fixture allow-list.
+    const runTool = tool === "npm" ? runFixture : run;
+    const baseline = runTool([tool, write(`${tool}-mutation-base.json`, JSON.stringify(fixture.body)), fixture.label].filter((part, index) => index < 2 || part));
     assert.equal(baseline.code, 0, baseline.out);
     let count = 0;
     for (const spec of specs) {
@@ -506,7 +540,7 @@ for (const [tool, specs] of Object.entries(consumedFields)) {
         const value = accepted ? sample[kind] : wrongValues[kind];
         const mutated = applyMutation(fixture.body, spec.path, value, false);
         const file = write(`${tool}-${count}-${kind}.json`, JSON.stringify(mutated));
-        const result = run([tool, file, fixture.label].filter((part, index) => index < 2 || part));
+        const result = runTool([tool, file, fixture.label].filter((part, index) => index < 2 || part));
         if (accepted) {
           assert.equal(result.code, 0, `${tool} ${key} ${kind}\n${result.out}`);
         } else {
@@ -518,7 +552,7 @@ for (const [tool, specs] of Object.entries(consumedFields)) {
       count += 1;
       const removed = applyMutation(fixture.body, spec.path, undefined, true);
       const removedFile = write(`${tool}-${count}-removed.json`, JSON.stringify(removed));
-      const removedResult = run([tool, removedFile, fixture.label].filter((part, index) => index < 2 || part));
+      const removedResult = runTool([tool, removedFile, fixture.label].filter((part, index) => index < 2 || part));
       if (spec.optional) {
         assert.equal(removedResult.code, 0, `${tool} ${key} removed\n${removedResult.out}`);
       } else {
