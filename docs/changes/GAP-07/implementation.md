@@ -597,3 +597,175 @@ Every other row is as in round 1.
   that lands `docs/deferred-items.md`.
 
 Status: READY FOR TEST
+
+## Round 3: rebase onto merged GAP-01 (gate 1 condition 1)
+
+Developer, 4 November 2026. This round discharges the rebase and re-run that
+rounds 1 and 2 recorded as owed. No code changed in this round.
+Node v22.23.4, npm 10.9.9, .NET SDK 10.0.114. No fetch of any kind was run.
+Scratch evidence (not committed):
+`/tmp/claude-0/-home-user-DH-WEBSITE/7aefdfd4-6aa9-5555-b0de-70990eb7693f/scratchpad/gap07-r3/`.
+
+### The rebase
+
+The coordinator ran it, not me:
+`git rebase --onto origin/rebuild/dotnet-platform 57da65b change/GAP-07`.
+
+- **Base:** `5c38406` (`5c3840647c8afc43b397c61f3ffaae109336fd50`). This is the
+  GAP-01 squash merge, which follows `f96d719`, the runner pin (#38). It is
+  `origin/rebuild/dotnet-platform`.
+- **Applied:** cleanly. Head before this record: `ff62b2b`.
+- **Shallow:** `git rev-parse --is-shallow-repository` = `false`.
+- **Ancestor:** `git merge-base --is-ancestor 5c38406 HEAD` exits 0.
+- **Tracking:** the branch still tracks nothing, and nothing is pushed.
+
+`git range-diff 57da65b..3b758b2 5c38406..ff62b2b` shows each commit as `=`.
+Commit 9 is new.
+
+| Old | New | Subject |
+|---|---|---|
+| `4a85138` | `edcb9e7` | GAP-07: Plan |
+| `881a1ae` | `e1889a5` | GAP-07: Add failing tests for the full-tree audit and expiring allow-list entries |
+| `8902d05` | `289b7a5` | GAP-07: Match only the real gate variable in N11's static scan |
+| `3b1b9c6` | `0139205` | GAP-07: Audit the full dependency tree and expire allow-list entries |
+| `6e4eea9` | `2949520` | GAP-07: Record the implementation |
+| `7628a49` | `c58ce5b` | GAP-07: Add a failing test for npm configuration that omits dev packages |
+| `e3006f2` | `490b560` | GAP-07: Refuse an npm configuration that omits packages from the audit |
+| `3b758b2` | `51b2397` | GAP-07: Record round 2 of the implementation |
+| — | `ff62b2b` | GAP-07: Test report and approvals (committed by the coordinator; it holds `test-report.md` and `delivery-approval.md`) |
+| — | (this record) | GAP-07: Record round 3, the rebase onto merged GAP-01 |
+
+In rounds 1 and 2, commits are named by their old SHAs. The table above maps
+them to the new ones.
+
+**What the base change brings in.**
+`git diff --stat 57da65b 5c38406` lists only `.github/workflows/ci.yml` and
+`docs/changes/ci-runner-pin/`. Nothing under `.github/security/`, in
+`security.yml`, or in `website/`, `studio/` or `api/` changed.
+
+**The code diff is unchanged.** The two diffs below are byte-identical:
+
+- `git diff 57da65b..3b758b2 -- .github`
+- `git diff 5c38406..HEAD -- .github`
+
+`ENGINEERING_STANDARDS.md` and `docs/deferred-items.md` are still not on the
+base (O-18). So C-9 stays moved, and no D-NNN can exist.
+
+### Plan 5.2 against `5c38406`
+
+```
+$ node --test .github/security/gate.test.mjs                                       exit 0
+# tests 75
+# pass 75
+# fail 0
+$ diff run-npm-audit.sh run-npm-audit.expected.sh                                  exit 0, no output
+$ diff run-dotnet-audit.sh run-dotnet-audit.expected.sh                            exit 0, no output
+$ diff .github/workflows/security.yml .github/security/security.expected.yml       exit 0, no output
+$ grep -n -- "--omit" .github/security/run-npm-audit.sh                            exit 1, no match
+$ grep -n -E "continue-on-error|BLOCKING_FROM" .github/workflows/security.yml      exit 1, no match
+$ git diff --stat 5c38406..HEAD
+ .github/security/gate.mjs                  | 152 ++++++-
+ .github/security/gate.test.mjs             | 428 ++++++++++++++++++-
+ .github/security/run-npm-audit.expected.sh |  16 +-
+ .github/security/run-npm-audit.sh          |  16 +-
+ .github/security/security.expected.yml     |   5 +-
+ .github/workflows/security.yml             |   5 +-
+ docs/changes/GAP-07/  (plan, plan-review, plan-approval, implementation, test-report, delivery-approval)
+$ git diff 5c38406..HEAD -- '*package-lock.json' '*package.json' '*.csproj' known-findings.json \
+    run-dotnet-audit.sh run-dotnet-audit.expected.sh fail-on-rules.json .github/workflows/ci.yml | wc -c     0
+```
+
+### Plan 5.3 against `5c38406`: the jobs as CI runs them
+
+```
+1. website$ bash ../.github/security/run-npm-audit.sh website    exit 0   Severity: moderate / 1 moderate severity vulnerability
+                                                                         website: 0 finding(s) at the gate's level; 0 known, 0 new.
+2. studio$  bash ../.github/security/run-npm-audit.sh studio     exit 0   found 0 vulnerabilities
+                                                                         studio: 0 finding(s) at the gate's level; 0 known, 0 new.
+3. api$ dotnet restore DigitalHub.slnx                           exit 0
+   api$ bash ../.github/security/run-dotnet-audit.sh             exit 0
+   The given project `DigitalHub.Api` has no vulnerable packages given the current sources.
+   The given project `DigitalHub.Api.Tests` has no vulnerable packages given the current sources.
+   The given project `DigitalHub.ContentImport` has no vulnerable packages given the current sources.
+   dotnet: 0 finding(s) at the gate's level; 0 known, 0 new.
+4. website JSON: vulnerabilities {"info":0,"low":0,"moderate":1,"high":0,"critical":0,"total":1}
+                 dependencies {"prod":20,"dev":152,"optional":112,"peer":32,"peerOptional":0,"total":209}; keys ["fast-uri"]
+   studio JSON:  vulnerabilities {...,"total":0}
+                 dependencies {"prod":135,"dev":173,"optional":76,"peer":0,"peerOptional":0,"total":312}; keys []
+5. website$ bash ../.github/security/run-npm-audit.sh other      exit 1   run-npm-audit.sh app must be website or studio
+```
+
+**There is no High or Critical finding in the website, the Studio or the
+NuGet graph on the rebased head.** The stop rule (condition 1, R-1) does not
+apply, and no allow-list entry was added.
+
+### Historical proof and the T-2 reproduction against `5c38406`
+
+`<r3>/hist/studio` holds `git show 6470fac:studio/package.json` and
+`package-lock.json`. `<r3>/hist/.github/security` is a copy of the rebased
+head's `.github/security/`.
+
+```
+hist/studio$ RUNNER_TEMP=... bash ../.github/security/run-npm-audit.sh studio
+  (no setting)                 exit 1   5 vulnerabilities (2 moderate, 3 high)
+                                        ::error title=New finding (studio)::high source-map-js GHSA-68fv-2mgg-jv7q: ...
+                                        ::error title=New finding (studio)::high undici GHSA-xjj6-f33q-929c: ...
+                                        ::error title=New finding (studio)::high undici GHSA-4w7w-5xrc-9h26: ...
+                                        ::error title=New finding (studio)::high undici GHSA-2m5v-pch6-74hx: ...
+                                        ::error title=New finding (studio)::high undici GHSA-qrxm-fqhp-jwvm: ...
+                                        ::error title=New finding (studio)::high vite GHSA-587h-7wmj-h5pm: ...
+                                        studio: 6 finding(s) at the gate's level; 0 known, 6 new.
+  NODE_ENV=production          exit 1   ::error title=npm audit (studio)::npm is set to omit "dev"; the audit must cover the full tree, development packages included. Remove NODE_ENV=production, NPM_CONFIG_OMIT, npm_config_production or the omit setting in .npmrc.
+  NPM_CONFIG_OMIT=dev          exit 1   (same refusal)
+  npm_config_production=true   exit 1   npm warn config production Use `--omit=dev` instead. / (same refusal)
+  studio/.npmrc "omit=dev"     exit 1   (same refusal)
+```
+
+The `NODE_ENV: production` workflow mutation was run in a scratch extract of
+the rebased head (`git archive HEAD .github .semgrepignore .gitattributes`).
+The line was added after `  NODE_VERSION: "22"` in `security.yml` and
+`security.expected.yml`:
+
+```
+grep -c "NODE_ENV: production"   1, 1;   cmp exit 0;   node --test gate.test.mjs   exit 0, 75 / 75
+website$ NODE_ENV=production bash ../.github/security/run-npm-audit.sh website   exit 1   ::error title=npm audit (website)::npm is set to omit "dev"; ...
+studio$  NODE_ENV=production bash ../.github/security/run-npm-audit.sh studio    exit 1   ::error title=npm audit (studio)::npm is set to omit "dev"; ...
+```
+
+Every result matches round 2.
+
+### Parallel files (condition 6), re-checked after the rebase
+
+```
+for each local change/* and origin/* branch:
+  git diff --name-only 5c38406...<branch> -- .github/security .github/workflows/security.yml
+change/GAP-01, origin/change/GAP-01   2 files   (merged into the base as the 5c38406 squash; nothing new)
+origin/phase-d/ci-security            4 files   2026-10-14, stale (gate 2: a subset of the base)
+origin/phase-d/ci-semgrep             22 files  2026-10-19, stale (gate 2: no diff from the base)
+```
+
+No new branch is open on these files.
+
+### Condition 1: status
+
+The rebase, the shallow check, and the re-run of 5.2 and 5.3 (including the
+`security.yml` diff and the T-2 reproduction) are done on `5c38406`, with no
+High or Critical. These are still open, and none of them is a developer step:
+
+- The tester's round on the rebased head.
+- The short gate 2 re-check: the range-diff above plus these results.
+- The owner's OK to push and open the pull request.
+- CI on the final head, then actionlint once GAP-08 merges.
+
+### Coverage table changes
+
+| Item | Status | Evidence (round 3) |
+|---|---|---|
+| C-1 The npm gate audits development packages (full tree) in both apps | Done | Rebased-head runs above: the dependency counts in the full-tree audit JSON show 152 and 173 development packages, `fast-uri` (a dev package) is reported, the six historical Highs fail, and the T-2 refusals hold. |
+| C-8 Full-tree audit today: 0 High or Critical in website, Studio and API | Done | 5.3 steps 1 to 3 on `5c38406`: each gate reports `0 known, 0 new` and exits 0. |
+
+Every other row is as in rounds 1 and 2. C-9 stays moved, because
+`ENGINEERING_STANDARDS.md` is still not on the base. C-10 is still open on
+O-20.
+
+Status: READY FOR TEST
