@@ -33,10 +33,14 @@ env:
   APP_LOGIN: dh_content_app
   APP_PASSWORD: CiOnlyApp2026Passw0rd
 
+# Every job runs on ubuntu-24.04, not ubuntu-latest. ubuntu-latest moved to Ubuntu 26.04,
+# where Playwright 1.56.1 cannot install its browsers, so the end-to-end and comparison jobs fail.
+# Moving to a newer image means upgrading Playwright and re-baselining the screenshots in the
+# same change.
 jobs:
   api:
     name: API — Release build, migrations, integration tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       mssql:
         image: mcr.microsoft.com/mssql/server:2022-latest
@@ -117,7 +121,7 @@ jobs:
 
   website:
     name: Website — typecheck, tests, design check, snapshot build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: website
@@ -172,7 +176,7 @@ jobs:
 
   studio:
     name: Studio — typecheck, build, end-to-end
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       mssql:
         image: mcr.microsoft.com/mssql/server:2022-latest
@@ -266,7 +270,7 @@ jobs:
 
   section-compare:
     name: Section comparison against feature/interviewer-portal
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: website
     # Non-blocking until Section 5 has merged. This branch's comparison is the
     # website's current section tool. When Section 5 is on
@@ -331,7 +335,7 @@ jobs:
 
   screenshot-parity:
     name: Screenshot parity (optional, label "screenshots")
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: website
     # Optional and manual: runs only on a pull request labelled "screenshots".
     # The comparison does not fail the workflow while the screenshot register waits
