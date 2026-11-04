@@ -479,4 +479,137 @@ gate 2 allows.
 | C-8 0 High or Critical today | Verified on `57da65b` base | Section 5 steps 1 to 3; re-run owed after rebase |
 | Other rows | Unchanged from round 1 | `gate.mjs` and `security.yml` unchanged since `6e4eea9` |
 
+Round 2 result: approved, T-2 resolved, Minors T-1, T-3, T-4. Superseded by
+round 3.
+
+## Round 3
+
+Tester, 4 November 2026. Commit tested: `66ec60d` (`change/GAP-07` head after
+the rebase), on base `5c38406` (`origin/rebuild/dotnet-platform`, the GAP-01
+squash merge #39, above `f96d719`, the runner pin #38). Detached checkout
+`/home/user/wt-GAP-07-test`, removed when done. Not shallow (`false`); no
+fetch of any kind; nothing pushed; no database or port. Node v22.23.4, npm
+10.9.9, .NET SDK 10.0.114. Scratch:
+`.../scratchpad/gap07-test/r3/`. Rounds 1 and 2 name commits by their pre-rebase
+SHAs; the developer's round 3 table maps them (for example `3b1b9c6` is now
+`0139205` and `e3006f2` is `490b560`).
+
+### 1. The rebase changed no code
+
+```
+$ git merge-base --is-ancestor 5c38406 HEAD        exit 0
+$ git range-diff 57da65b..3b758b2 5c38406..ff62b2b
+ 1: 4a85138 = 1: edcb9e7 GAP-07: Plan
+ 2: 881a1ae = 2: e1889a5 ... failing tests for the full-tree audit ...
+ 3: 8902d05 = 3: 289b7a5 ... N11's static scan
+ 4: 3b1b9c6 = 4: 0139205 ... Audit the full dependency tree ...
+ 5: 6e4eea9 = 5: 2949520 ... Record the implementation
+ 6: 7628a49 = 6: c58ce5b ... failing test for npm configuration ...
+ 7: e3006f2 = 7: 490b560 ... Refuse an npm configuration ...
+ 8: 3b758b2 = 8: 51b2397 ... Record round 2 ...
+ -: ------- > 9: ff62b2b GAP-07: Test report and approvals
+$ diff <(git diff 57da65b..3b758b2 -- .github) <(git diff 5c38406..66ec60d -- .github)   exit 0, identical
+$ git diff --stat ff62b2b 66ec60d          implementation.md only (+172)
+$ git show ff62b2b --stat                  delivery-approval.md, test-report.md only
+$ git diff --stat 57da65b 5c38406          .github/workflows/ci.yml and docs/changes/ci-runner-pin/ only
+$ git diff --stat 57da65b 5c38406 -- .github/security .github/workflows/security.yml website studio api   (empty)
+```
+
+Every commit is `=` (patch unchanged), the one new commit holds only the two
+records, and the base brings in nothing the gate or the audits read.
+
+### 2. Self-test and plan 5.2 on `66ec60d`
+
+```
+$ node --test .github/security/gate.test.mjs                       exit 0   # tests 75  # pass 75  # fail 0
+$ cmp run-npm-audit.sh run-npm-audit.expected.sh                  exit 0
+$ cmp run-dotnet-audit.sh run-dotnet-audit.expected.sh            exit 0
+$ cmp .github/workflows/security.yml .github/security/security.expected.yml   exit 0
+$ grep -n -- "--omit" .github/security/run-npm-audit.sh           exit 1, no match
+$ grep -n -E "continue-on-error|BLOCKING_FROM" .github/workflows/security.yml   exit 1, no match
+$ git diff --stat 5c38406 HEAD -- . ':!docs'
+  gate.mjs 152, gate.test.mjs 428, run-npm-audit.expected.sh 16, run-npm-audit.sh 16,
+  security.expected.yml 5, security.yml 5   (plan section 4 files only)
+$ git diff 5c38406 HEAD -- '*package-lock.json' '*package.json' '*.csproj' known-findings.json
+    fail-on-rules.json run-dotnet-audit.sh run-dotnet-audit.expected.sh ci.yml | wc -c      0
+```
+
+### 3. The three audits as CI runs them, on the new base (plan 5.3)
+
+```
+1. website$ RUNNER_TEMP=<r3>/rt-w bash ../.github/security/run-npm-audit.sh website   exit 0
+   website: 0 finding(s) at the gate's level; 0 known, 0 new.
+   JSON: {"info":0,"low":0,"moderate":1,"high":0,"critical":0,"total":1}, dev 152, keys ["fast-uri"]
+2. studio$  RUNNER_TEMP=<r3>/rt-s bash ../.github/security/run-npm-audit.sh studio    exit 0
+   found 0 vulnerabilities / studio: 0 finding(s) at the gate's level; 0 known, 0 new.
+   JSON: total 0, dev 173
+3. api$ dotnet restore DigitalHub.slnx                                                 exit 0
+   api$ RUNNER_TEMP=<r3>/rt-a bash ../.github/security/run-dotnet-audit.sh             exit 0
+   DigitalHub.Api, DigitalHub.Api.Tests, DigitalHub.ContentImport: no vulnerable packages
+   dotnet: 0 finding(s) at the gate's level; 0 known, 0 new.
+   dotnet.json: 0 vulnerable package entries (top-level and transitive)
+4. website$ npm audit --audit-level=high   exit 0;   studio$ npm audit --audit-level=high   exit 0
+5. website$ bash ../.github/security/run-npm-audit.sh other                            exit 1
+   run-npm-audit.sh app must be website or studio
+```
+
+**No High or Critical finding on the new base** in the website, the Studio
+(full tree, development packages included) or the NuGet graph. The stop rule
+(condition 1, R-1) does not apply; no allow-list entry exists or was added.
+
+### 4. T-2 refusals and the historical lockfile, on the rebased scripts
+
+`<r3>/hist/studio` holds `6470fac:studio/package.json` and `package-lock.json`;
+`<r3>/hist/.github/security` is a byte copy of `66ec60d`'s (script `cmp`
+exit 0). Same harness as round 2 (`harness/omit.sh`).
+
+| Setting | `config get omit` | Raw highs | Script |
+|---|---|---|---|
+| none | "" | 3 | exit 1, 6 new (below) |
+| `NODE_ENV=production` | "dev" | 0 | exit 1, refused |
+| `NPM_CONFIG_OMIT=dev` | "dev" | 0 | exit 1, refused |
+| `npm_config_production=true` | "dev" | 0 | exit 1, refused |
+| `npm_config_only=prod` | "dev" | 0 | exit 1, refused |
+| `NPM_CONFIG_USERCONFIG` file with `omit=dev` | "dev" | 0 | exit 1, refused |
+| `studio/.npmrc` `omit=dev` | "dev" | 0 | exit 1, refused |
+| `npm_config_workspace=nope` (`npm config get` fails) | "" (exit 1) | error | exit 1, `npm config get omit failed` |
+
+```
+hist/studio$ RUNNER_TEMP=... bash ../.github/security/run-npm-audit.sh studio        exit 1
+  5 vulnerabilities (2 moderate, 3 high)
+  ::error title=New finding (studio)::high source-map-js GHSA-68fv-2mgg-jv7q
+  ::error title=New finding (studio)::high undici GHSA-xjj6-f33q-929c / GHSA-4w7w-5xrc-9h26 /
+                                             GHSA-2m5v-pch6-74hx / GHSA-qrxm-fqhp-jwvm
+  ::error title=New finding (studio)::high vite GHSA-587h-7wmj-h5pm
+  studio: 6 finding(s) at the gate's level; 0 known, 6 new.
+website$ NODE_ENV=production RUNNER_TEMP=... bash ../.github/security/run-npm-audit.sh website   exit 1
+  ::error title=npm audit (website)::npm is set to omit "dev"; the audit must cover the full tree, ...
+```
+
+### NOT RUN
+
+- CI on the pull request (plan 5.4): NOT RUN, not pushed. Now that GAP-01 has
+  merged the pull request may be opened; the Security workflow jobs
+  `Security gate self-test`, `npm audit (website)`, `npm audit (studio)` and
+  `NuGet vulnerable packages (api)` cover it, and their run must be quoted.
+- Semgrep and gitleaks (not installed; `semgrep`, `gitleaks-pr`,
+  `gitleaks-history` jobs); the api, website and studio suites (no file they
+  read changed; CI jobs `api`, `website`, `studio`); actionlint (GAP-08 not
+  merged): unchanged from rounds 1 and 2.
+
+### Findings
+
+No new finding; no Blocker or Major. T-1, T-3 and T-4 (Minor) stand as
+recorded, as follow-ups.
+
+### Coverage table rows verified (round 3)
+
+| Item | Status | Tester evidence |
+|---|---|---|
+| C-1 full tree, both apps | Verified on `5c38406` | Section 3 (dev 152 and 173, `fast-uri` reported); section 4 refusals and six historical Highs |
+| C-2 NuGet whole graph | Verified on `5c38406` | Section 3 step 3 |
+| C-6 golden copies | Verified | Three `cmp` exit 0 |
+| C-8 0 High or Critical today | Verified on `5c38406` | Section 3; condition 1's re-run is discharged |
+| Other rows | Unchanged | Range-diff all `=`; `.github` diff byte-identical to round 2's |
+
 Verdict: APPROVED
