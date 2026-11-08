@@ -193,3 +193,146 @@ detail text that the current gate never prints, but the plan should say it.
 - **Security impact, migrations and rollback.** There are no routes, secrets, dependencies or migrations. Rollback is a revert. The risk table is specific, and each row names its check.
 
 Verdict: CHANGES NEEDED
+
+## Round 2
+
+Plan reviewer, 8 November 2026. Reviewed `docs/changes/semgrep-error-detail/plan.md`
+(architect, round 2) at `6e038e3`, against the Round 1 findings above
+(`99dd28b`) and the §12 revision log. As in Round 1, I built the round 2 design
+in a throwaway copy of the base tree
+(`/tmp/claude-0/-home-user-DH-WEBSITE/7aefdfd4-6aa9-5555-b0de-70990eb7693f/scratchpad/proto2`):
+first the `withoutDetail` tightening alone (the red state), then the `gate.mjs`
+change, with five slots, the ` (malformed)` marker, the plain indexed loop, and
+detail on the not-an-object, level, path-missing and type rejections. Nothing in
+the worktree was changed.
+
+### Round 1 findings, as answered
+
+**1. Major (mutation guard): resolved.** §3.2 and §3.3 add `withoutDetail(out)`,
+which cuts each line at the first ` (error `, and match the two `\b<field>\b`
+assertions against it. §4 lists this as a tightening, and §5 makes the
+regression check a required command. A value cannot contain `(`, so the first
+` (error ` on a rejection line is always the gate's own text.
+
+- Red state, with the tightened guard and the base `gate.mjs`:
+  `node --test .github/security/gate.test.mjs` gives `# tests 63`, `# pass 63`,
+  `# fail 0`. The tightening does not break the base.
+- Green state, with the round 2 `gate.mjs`: `# tests 63`, `# pass 63`, `# fail 0`.
+- My Round 1 regression on the green state (type check folded into the level
+  check):
+
+  ```
+  not ok 1 - semgrep mutations of every consumed field
+      semgrep ["errors",0,"type"] null did not name the field
+  # pass 0
+  # fail 1
+  ```
+
+  The guard tells the checks apart again, as it did before the change.
+
+**2. Minor (`entries()`): resolved.** §3.2 names only
+`for (let index = 0; index < report.errors.length; index += 1)` and gives the
+reason. With that loop, the read-tracking test passes on the prototype (part of
+the 63 above).
+
+**3. Minor (path-missing and not-an-object): resolved.** On the prototype:
+
+- A missing path prints `field path is missing (error 1 of 1; level warn; type
+  Timeout; path (none); rule csharp.example.rule)` (N8).
+- `path: ""` prints `path (unrecognised)`. `nonEmpty` (`gate.mjs` line 250)
+  rejects `""`, and the path pattern's `{1,240}` refuses it, so the N6 case
+  holds.
+- A non-object entry prints `field error is not an object (error 3 of 3)` and
+  nothing after it (N9).
+
+**4. Minor (malformed PartialParsing): resolved.** All three existing malformed
+shapes print `type PartialParsing (malformed)`. A valid PartialParsing type at
+`level: "error"` prints `type PartialParsing; path …` with no marker, exactly as
+N10 asserts.
+
+**5. Minor (level slot): resolved.**
+
+- `level: "error"` prints `level error` (N4).
+- `"error\n::error::injected"`, `null` and `{}` print `level (unrecognised)`.
+- A 64-character level prints in full (N7).
+- The word `level` in the detail is covered by `withoutDetail`.
+
+**6. Minor (record of the split): resolved.**
+
+- §1 now states "keep the report" as a non-goal.
+- Coverage row 12 reads "Moved to F2, pending O-1" and names §3.4, F2 and O-1.
+- §1 and §9 say O-1 goes to the owner with the pull request, and that until O-1
+  is answered the card must not be described as fully delivered.
+
+**7. Minor (red commit): resolved.**
+
+- §5 commits the red tests and the guard tightening alone, as
+  `semgrep-error-detail: Red tests`, before the `gate.mjs` commit. The failing
+  output is quoted, and `git log` and `git show --stat` check the order.
+- A "Fails today on" column names the failing assertion for each of N1 to N10.
+  Each one asserts detail text the base gate never prints, so each fails today.
+
+### New findings
+
+**8. Minor — §3.2, §4 and §5: two line numbers are wrong, and one sentence
+contradicts the tightening.**
+
+- The two `\b<field>\b` assertions are at lines **549 and 561**, not 548 and 559
+  (`grep -n 'spec.field}\\\\b' .github/security/gate.test.mjs`). The wrong
+  numbers were mine in Round 1, finding 1, and the plan copied them.
+- §5's first command still says "The 63 existing tests must be unchanged and
+  green". The mutation test is changed by design (§4, and §11 row 9 says
+  "tightened only").
+
+Neither affects the design. What would satisfy me: the architect corrects these
+at the next touch of the plan, or the developer's `implementation.md` records
+them. This does not block.
+
+**9. Minor — §3.5 and F3: the accepted parse-warning line is a demonstrated
+workflow-command injection, not just "an unchecked path".**
+
+On the base gate, and unchanged by this plan, a valid PartialParsing warning
+whose `path` is `"a\n::error::x"` exits 0 and prints:
+
+```
+semgrep parse warning: a
+::error::x
+```
+
+The injected text is the second line, and it starts with `::`. A file name with
+a newline can be committed to git. So whoever can open a pull request can make
+the Semgrep job emit a workflow command. The harm is limited, because
+`set-env` and `add-path` are disabled, but `::error`, `::warning` and
+`::add-mask::` annotations can be forged.
+
+This change does not make it worse, and keeping it out is right for B-8. But
+F3's entry understates it.
+
+What would satisfy me: F3 is recorded as a log-injection defect with this
+reproduction, so it is scheduled as a security change rather than as a
+cosmetic one. This does not block.
+
+### Checked that nothing else moved
+
+- **Injection and leakage under round 2.**
+  - On the prototype, hostile levels, types, paths and rules all print
+    `(unrecognised)`: newline plus `::`, `null`, `{}`, 65, 241 and 201
+    characters.
+  - No rejection line has a second line, and the canary never appears.
+  - The ` (malformed)` marker is fixed text, so it cannot be forged. A value
+    cannot contain `(` or `)`.
+  - The level slot reuses the tag pattern, which is bounded and linear.
+- **Gate strength (P-6).** Every case above exits 1, by the same check as
+  before. The not-an-object rejection reads nothing from the entry.
+  `consumedFields` is unchanged. Gate decisions are unchanged.
+- **PR #44 clash.**
+  - `git merge-tree --write-tree HEAD 4e1e4fe` on `6e038e3` exits 0.
+  - With both prototype files committed through a temporary index (a dangling
+    commit, +28/−5 in `gate.mjs` and +9/−2 in `gate.test.mjs`),
+    `git merge-tree --write-tree --name-only <proto> 4e1e4fe` exits 0 with no
+    conflicted file (tree `d66b91f`).
+- **Scope (B-8).** It is still two files plus the records. No golden file,
+  workflow, allow-list or `results`-loop rejection is touched. The test count
+  of 73 (63 + N1 to N10) is consistent.
+
+Verdict: APPROVED
