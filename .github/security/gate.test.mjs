@@ -21,9 +21,33 @@ function write(name, contents) {
   return file;
 }
 
-function run(args) {
-  const result = spawnSync(process.execPath, [gate, ...args], { encoding: "utf8" });
+function runGate(gateFile, args) {
+  const result = spawnSync(process.execPath, [gateFile, ...args], { encoding: "utf8" });
   return { code: result.status, out: `${result.stdout ?? ""}\n${result.stderr ?? ""}` };
+}
+
+function run(args) {
+  return runGate(gate, args);
+}
+
+// A byte-for-byte copy of the real gate that reads a fixture allow-list from its
+// own folder. The npm known-list tests use it, so they keep proving that a known
+// advisory is passed and does not hide a new one, whatever the real npm
+// allow-list holds. The other tools keep using the real gate and allow-list.
+const fixtureGateDir = path.join(dir, "fixture-gate");
+fs.mkdirSync(fixtureGateDir);
+for (const name of ["gate.mjs", "fail-on-rules.json"]) fs.copyFileSync(path.join(here, name), path.join(fixtureGateDir, name));
+const fixtureGate = path.join(fixtureGateDir, "gate.mjs");
+const fixtureKnown = structuredClone(known);
+fixtureKnown.npm.website = [
+  { id: "GHSA-fixture-known-0001", package: "fixture-critical 1.0.0", severity: "critical", title: "fixture known critical", owner: "gate self-test", reason: "Fixture entry; not a real advisory." },
+  { id: "GHSA-fixture-known-0002", package: "fixture-high-a 1.0.0", severity: "high", title: "fixture known high a", owner: "gate self-test", reason: "Fixture entry; not a real advisory." },
+  { id: "GHSA-fixture-known-0003", package: "fixture-high-b 1.0.0", severity: "high", title: "fixture known high b", owner: "gate self-test", reason: "Fixture entry; not a real advisory." },
+];
+fs.writeFileSync(path.join(fixtureGateDir, "known-findings.json"), `${JSON.stringify(fixtureKnown, null, 2)}\n`);
+
+function runFixture(args) {
+  return runGate(fixtureGate, args);
 }
 
 function npmReport(advisories) {
@@ -210,24 +234,32 @@ test("a NuGet package array or vulnerabilities value that is an object fails and
   assert.equal(vulnResult.out.includes("GHSA-review-high"), false);
 });
 
+test("the fixture gate is the real gate", () => {
+  for (const name of ["gate.mjs", "fail-on-rules.json"]) {
+    assert.ok(fs.readFileSync(path.join(fixtureGateDir, name)).equals(fs.readFileSync(path.join(here, name))), `${name} differs from the real one`);
+  }
+});
+
 test("a known-only npm report passes", () => {
-  const result = run(["npm", write("known-npm.json", npmReport(known.npm.website)), "website"]);
+  const result = runFixture(["npm", write("known-npm.json", npmReport(fixtureKnown.npm.website)), "website"]);
   assert.equal(result.code, 0, result.out);
   assert.match(result.out, /3 known, 0 new/);
 });
 
 test("a new High advisory fails", () => {
-  const advisories = [...known.npm.website, { id: "GHSA-new-high-0000", package: "example-high", severity: "high", title: "synthetic high" }];
-  const result = run(["npm", write("new-high.json", npmReport(advisories)), "website"]);
+  const advisories = [...fixtureKnown.npm.website, { id: "GHSA-new-high-0000", package: "example-high", severity: "high", title: "synthetic high" }];
+  const result = runFixture(["npm", write("new-high.json", npmReport(advisories)), "website"]);
   assert.equal(result.code, 1, result.out);
   assert.match(result.out, /GHSA-new-high-0000/);
+  assert.match(result.out, /3 known, 1 new/);
 });
 
 test("a new Critical advisory fails", () => {
-  const advisories = [...known.npm.website, { id: "GHSA-new-crit-0000", package: "example-critical", severity: "critical", title: "synthetic critical" }];
-  const result = run(["npm", write("new-critical.json", npmReport(advisories)), "website"]);
+  const advisories = [...fixtureKnown.npm.website, { id: "GHSA-new-crit-0000", package: "example-critical", severity: "critical", title: "synthetic critical" }];
+  const result = runFixture(["npm", write("new-critical.json", npmReport(advisories)), "website"]);
   assert.equal(result.code, 1, result.out);
   assert.match(result.out, /critical example-critical GHSA-new-crit-0000/);
+  assert.match(result.out, /3 known, 1 new/);
 });
 
 test("an unknown gitleaks fingerprint fails and does not print the value", () => {
@@ -299,7 +331,7 @@ test("a moderate NuGet advisory passes and a High one fails", () => {
 
 const knownAdvisory = {
   severity: "high",
-  url: "https://github.com/advisories/GHSA-cjq9-62q9-8jv4",
+  url: `https://github.com/advisories/${fixtureKnown.npm.website[0].id}`,
   title: "known",
 };
 
@@ -475,6 +507,17 @@ function sampleKey(specPath) {
 
 const loadedFields = loadConsumedFields();
 const consumedFields = loadedFields.fields ?? {};
+
+// A semgrep error rejection appends " (error i of n; level ...; type ...; path ...;
+// rule ...)". That detail can contain the words error, level, type and path, so a
+// field is matched only in the message before it. Lines without it are unchanged.
+function withoutDetail(out) {
+  return out.split("\n").map((line) => {
+    const at = line.indexOf(" (error ");
+    return at === -1 ? line : line.slice(0, at);
+  }).join("\n");
+}
+
 const mutationCounts = {};
 
 test("the gate exports the consumed field list", () => {
@@ -488,7 +531,9 @@ for (const [tool, specs] of Object.entries(consumedFields)) {
     assert.ok(fixture, `no fixture for ${tool}`);
     const samples = acceptedValues[tool];
     assert.ok(samples, `no mutation cases for ${tool}`);
-    const baseline = run([tool, write(`${tool}-mutation-base.json`, JSON.stringify(fixture.body)), fixture.label].filter((part, index) => index < 2 || part));
+    // The npm fixture's advisory is known only to the fixture allow-list.
+    const runTool = tool === "npm" ? runFixture : run;
+    const baseline = runTool([tool, write(`${tool}-mutation-base.json`, JSON.stringify(fixture.body)), fixture.label].filter((part, index) => index < 2 || part));
     assert.equal(baseline.code, 0, baseline.out);
     let count = 0;
     for (const spec of specs) {
@@ -506,25 +551,25 @@ for (const [tool, specs] of Object.entries(consumedFields)) {
         const value = accepted ? sample[kind] : wrongValues[kind];
         const mutated = applyMutation(fixture.body, spec.path, value, false);
         const file = write(`${tool}-${count}-${kind}.json`, JSON.stringify(mutated));
-        const result = run([tool, file, fixture.label].filter((part, index) => index < 2 || part));
+        const result = runTool([tool, file, fixture.label].filter((part, index) => index < 2 || part));
         if (accepted) {
           assert.equal(result.code, 0, `${tool} ${key} ${kind}\n${result.out}`);
         } else {
           assert.equal(result.code, 1, `${tool} ${key} ${kind}\n${result.out}`);
           assert.ok(result.out.includes(file), `${tool} ${key} ${kind} did not name the file\n${result.out}`);
-          assert.match(result.out, new RegExp(`\\b${spec.field}\\b`), `${tool} ${key} ${kind} did not name the field\n${result.out}`);
+          assert.match(withoutDetail(result.out), new RegExp(`\\b${spec.field}\\b`), `${tool} ${key} ${kind} did not name the field\n${result.out}`);
         }
       }
       count += 1;
       const removed = applyMutation(fixture.body, spec.path, undefined, true);
       const removedFile = write(`${tool}-${count}-removed.json`, JSON.stringify(removed));
-      const removedResult = run([tool, removedFile, fixture.label].filter((part, index) => index < 2 || part));
+      const removedResult = runTool([tool, removedFile, fixture.label].filter((part, index) => index < 2 || part));
       if (spec.optional) {
         assert.equal(removedResult.code, 0, `${tool} ${key} removed\n${removedResult.out}`);
       } else {
         assert.equal(removedResult.code, 1, `${tool} ${key} removed\n${removedResult.out}`);
         assert.ok(removedResult.out.includes(removedFile), `${tool} ${key} removed did not name the file`);
-        assert.match(removedResult.out, new RegExp(`\\b${spec.field}\\b`), `${tool} ${key} removed did not name the field\n${removedResult.out}`);
+        assert.match(withoutDetail(removedResult.out), new RegExp(`\\b${spec.field}\\b`), `${tool} ${key} removed did not name the field\n${removedResult.out}`);
       }
     }
     mutationCounts[tool] = count;
@@ -844,6 +889,150 @@ test("a malformed semgrep PartialParsing type fails", () => {
     assert.match(result.out, /field type is not a partial parse/);
     assert.equal(result.out.includes(canary), false, result.out);
   }
+});
+
+// A rejected semgrep error is described by its position, level, type tag, path and
+// rule. Every fixture carries the canary in message, spans and, for an array type,
+// type[1]; none of them may reach the output, and no output line may start a
+// workflow command.
+function semgrepErrorRun(name, errors) {
+  const file = write(`semgrep-detail-${name}.json`, JSON.stringify(semgrepReport([], errors)));
+  const result = run(["semgrep", file]);
+  assert.equal(result.code, 1, `${name}\n${result.out}`);
+  assert.ok(result.out.includes(file), `${name} did not name the file\n${result.out}`);
+  assert.equal(result.out.includes(canary), false, `${name}\n${result.out}`);
+  assert.equal(result.out.split("\n").some((line) => line.startsWith("::")), false, `${name}\n${result.out}`);
+  return result;
+}
+
+function semgrepError(fields) {
+  return { message: canary, spans: [{ file: canary, start: { line: 1, col: 1 } }], ...fields };
+}
+
+const detailParse = ["PartialParsing", [{ path: canary, start: { line: 1, col: 1, offset: 0 } }]];
+
+test("a rejected semgrep error names its type, path and rule", () => {
+  const result = semgrepErrorRun("n1", [semgrepError({
+    level: "warn",
+    type: "Timeout",
+    path: "website\\src\\app\\[[...path]]\\page.tsx",
+    rule_id: "javascript.lang.security.audit.example",
+  })]);
+  assert.match(result.out, /field type is not a partial parse/);
+  assert.ok(result.out.includes("(error 1 of 1; level warn; type Timeout; path website/src/app/[[...path]]/page.tsx; rule javascript.lang.security.audit.example)"), result.out);
+});
+
+test("a rejected tagged semgrep error names only its tag", () => {
+  const result = semgrepErrorRun("n2", [semgrepError({
+    level: "warn",
+    type: ["PatternParseError", [canary]],
+    path: "api\\src\\Example.cs",
+  })]);
+  assert.match(result.out, /field type is not a partial parse/);
+  assert.ok(result.out.includes("type PatternParseError; path api/src/Example.cs; rule (none))"), result.out);
+});
+
+test("a rejected semgrep error gives its position", () => {
+  const result = semgrepErrorRun("n3", [
+    semgrepError({ level: "warn", type: detailParse, path: "api\\src\\Example.cs" }),
+    semgrepError({ level: "warn", type: "Timeout", path: "api\\src\\Example.cs" }),
+  ]);
+  assert.match(result.out, /field type is not a partial parse/);
+  assert.ok(result.out.includes("(error 2 of 2; level warn; type Timeout;"), result.out);
+});
+
+test("a semgrep level rejection names the error and its level", () => {
+  const result = semgrepErrorRun("n4", [semgrepError({ level: "error", type: "Timeout" })]);
+  assert.match(result.out, /field level is not a parse warning/);
+  assert.ok(result.out.includes("(error 1 of 1; level error; type Timeout; path (none); rule (none))"), result.out);
+});
+
+test("hostile semgrep error types and levels are shown as unrecognised", () => {
+  const types = [
+    "Timeout\n::error::injected",
+    "::error::injected",
+    "T".repeat(65),
+    "Out;of(memory)",
+    "Tïmeout",
+    42,
+    null,
+    {},
+    [],
+    [42, [canary]],
+    ["::error::injected", [canary]],
+  ];
+  types.forEach((type, index) => {
+    const result = semgrepErrorRun(`n5-type-${index}`, [semgrepError({ level: "warn", type, path: "api\\src\\Example.cs" })]);
+    assert.match(result.out, /field type is not a partial parse/);
+    assert.ok(result.out.includes("type (unrecognised);"), `type ${index}\n${result.out}`);
+    assert.equal(result.out.includes("injected"), false, `type ${index}\n${result.out}`);
+  });
+  const levels = ["error\n::error::injected", "::error::injected", "e".repeat(65), 42, null, {}];
+  levels.forEach((level, index) => {
+    const result = semgrepErrorRun(`n5-level-${index}`, [semgrepError({ level, type: "Timeout", path: "api\\src\\Example.cs" })]);
+    assert.match(result.out, /field level is not a parse warning/);
+    assert.ok(result.out.includes("level (unrecognised);"), `level ${index}\n${result.out}`);
+    assert.equal(result.out.includes("injected"), false, `level ${index}\n${result.out}`);
+  });
+});
+
+test("hostile semgrep error paths and rules are shown as unrecognised", () => {
+  const strings = ["a\n::error::injected", "a::error::injected", "a".repeat(241), "a;b", "a(b)", "a b"];
+  strings.forEach((errorPath, index) => {
+    const result = semgrepErrorRun(`n6-path-${index}`, [semgrepError({ level: "warn", type: "Timeout", path: errorPath })]);
+    assert.match(result.out, /field type is not a partial parse/);
+    assert.ok(result.out.includes("; path (unrecognised); rule (none))"), `path ${index}\n${result.out}`);
+    assert.equal(result.out.includes("injected"), false, `path ${index}\n${result.out}`);
+  });
+  ["", 42, {}, null].forEach((errorPath, index) => {
+    const result = semgrepErrorRun(`n6-missing-path-${index}`, [semgrepError({ level: "warn", type: "Timeout", path: errorPath })]);
+    assert.match(result.out, /field path is missing/);
+    assert.ok(result.out.includes("; path (unrecognised); rule (none))"), `missing path ${index}\n${result.out}`);
+  });
+  [...strings, "r".repeat(201), 42, {}, null].forEach((rule, index) => {
+    const result = semgrepErrorRun(`n6-rule-${index}`, [semgrepError({ level: "warn", type: "Timeout", path: "api\\src\\Example.cs", rule_id: rule })]);
+    assert.match(result.out, /field type is not a partial parse/);
+    assert.ok(result.out.includes("; path api/src/Example.cs; rule (unrecognised))"), `rule ${index}\n${result.out}`);
+    assert.equal(result.out.includes("injected"), false, `rule ${index}\n${result.out}`);
+  });
+});
+
+test("a rejected semgrep error at the length limits is shown", () => {
+  const level = "l".repeat(64);
+  const tag = "T".repeat(64);
+  const longPath = `${"a/".repeat(119)}bc`;
+  const rule = "r".repeat(200);
+  assert.equal(longPath.length, 240);
+  const result = semgrepErrorRun("n7", [semgrepError({ level, type: [tag, [canary]], path: longPath, rule_id: rule })]);
+  assert.match(result.out, /field level is not a parse warning/);
+  assert.ok(result.out.includes(`(error 1 of 1; level ${level}; type ${tag}; path ${longPath}; rule ${rule})`), result.out);
+});
+
+test("a semgrep error with no path names its type and rule", () => {
+  const result = semgrepErrorRun("n8", [semgrepError({ level: "warn", type: "Timeout", rule_id: "csharp.example.rule" })]);
+  assert.match(result.out, /field path is missing/);
+  assert.ok(result.out.includes("(error 1 of 1; level warn; type Timeout; path (none); rule csharp.example.rule)"), result.out);
+});
+
+test("a semgrep error that is not an object gives its position only", () => {
+  const result = semgrepErrorRun("n9", [
+    semgrepError({ level: "warn", type: detailParse, path: "api\\src\\Example.cs" }),
+    semgrepError({ level: "warn", type: detailParse, path: "api\\src\\Example.cs" }),
+    "x",
+  ]);
+  assert.match(result.out, /field error is not an object/);
+  assert.match(result.out, /error is not an object \(error 3 of 3\)$/m);
+});
+
+test("a malformed PartialParsing type is marked as malformed", () => {
+  ["PartialParsing", ["PartialParsing"], ["PartialParsing", "locations"]].forEach((type, index) => {
+    const result = semgrepErrorRun(`n10-${index}`, [semgrepError({ level: "warn", type, path: "api\\src\\Example.cs" })]);
+    assert.match(result.out, /field type is not a partial parse/);
+    assert.ok(result.out.includes("(error 1 of 1; level warn; type PartialParsing (malformed); path api/src/Example.cs; rule (none))"), `${index}\n${result.out}`);
+  });
+  const result = semgrepErrorRun("n10-level", [semgrepError({ level: "error", type: detailParse, path: "api\\src\\Example.cs" })]);
+  assert.match(result.out, /field level is not a parse warning/);
+  assert.ok(result.out.includes("type PartialParsing; path api/src/Example.cs;"), result.out);
 });
 
 const requiredRoots = [

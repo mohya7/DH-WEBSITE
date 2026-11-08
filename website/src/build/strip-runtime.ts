@@ -21,6 +21,12 @@ export const removals: Removal[] = [
     pattern: /<script\b[^>]*\bsrc="\/_next\/[^"]*"[^>]*><\/script>/g,
   },
   {
+    name: "Turbopack bootstrap script",
+    why: "Next 16.4's inline _R_ script: it registers the runtime's chunks with Turbopack so they can hydrate the page. Those chunks are deleted with /_next/, and the site does not hydrate.",
+    // Narrow on purpose: any other Turbopack shape stays in the page for the trace check to catch.
+    pattern: /<script id="_R_">\(globalThis\["TURBOPACK"\][\s\S]*?<\/script>/g,
+  },
+  {
     name: "runtime preload link",
     why: "Asks the browser to fetch one of the runtime scripts above early. With the scripts gone it would only waste a download.",
     pattern: /<link\b(?=[^>]*\brel="preload")(?=[^>]*\bas="script")[^>]*\bhref="\/_next\/[^"]*"[^>]*\/?>/g,
@@ -47,6 +53,8 @@ export const runtimeTraces: { name: string; pattern: RegExp }[] = [
   { name: "a /_next/ URL", pattern: /\/_next\// },
   { name: "the __next_f payload", pattern: /__next_f/ },
   { name: "a React boundary marker", pattern: /<!--\/?\$[?!]?-->/ },
+  { name: "the Turbopack runtime", pattern: /TURBOPACK/ },
+  { name: "a Next chunk path", pattern: /static\/chunks\// },
 ];
 
 export function stripRuntime(html: string): { html: string; removed: Record<string, number> } {
