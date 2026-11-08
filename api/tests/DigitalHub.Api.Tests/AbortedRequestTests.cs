@@ -20,11 +20,13 @@ namespace DigitalHub.Api.Tests;
 public sealed class AbortedRequestTests
 {
     [Theory]
-    [InlineData("/api/v1/auth/login")]
-    [InlineData("/api/v1/public/contact")]
-    public async Task A_client_that_disconnects_mid_body_is_not_a_server_error(string path)
+    [InlineData("/api/v1/auth/login", 0)]
+    [InlineData("/api/v1/public/contact", 0)]
+    // The request-log line written 300 ms late, after the client has its answer.
+    [InlineData("/api/v1/auth/login", 300)]
+    public async Task A_client_that_disconnects_mid_body_is_not_a_server_error(string path, int requestLogDelayMs)
     {
-        using var factory = new LoggingFactory();
+        using var factory = new LoggingFactory(requestLogDelayMs);
         // The client side of an aborted request sees the abort, as a real client does.
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => factory.Server.SendAsync(ctx =>
         {
@@ -41,13 +43,15 @@ public sealed class AbortedRequestTests
     }
 
     [Theory]
-    [InlineData("/api/v1/auth/login")]
-    [InlineData("/api/v1/public/contact")]
-    public async Task A_chunked_body_that_ends_early_is_a_400_not_a_server_error(string path)
+    [InlineData("/api/v1/auth/login", 0)]
+    [InlineData("/api/v1/public/contact", 0)]
+    // The request-log line written 300 ms late, after the client has its answer.
+    [InlineData("/api/v1/auth/login", 300)]
+    public async Task A_chunked_body_that_ends_early_is_a_400_not_a_server_error(string path, int requestLogDelayMs)
     {
         // What Kestrel raises when a chunked body stops before its last chunk (seen on
         // raw TCP; the test server cannot produce it, so the body raises it).
-        using var factory = new LoggingFactory();
+        using var factory = new LoggingFactory(requestLogDelayMs);
         var context = await factory.Server.SendAsync(ctx =>
         {
             ctx.Request.Method = HttpMethods.Post;
@@ -130,9 +134,9 @@ public sealed class AbortedRequestTests
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
-    private sealed class LoggingFactory : ApiFactory
+    private sealed class LoggingFactory(int requestLogDelayMs = 0) : ApiFactory
     {
-        public CollectingSink Sink { get; } = new();
+        public CollectingSink Sink { get; } = new(requestLogDelayMs);
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
@@ -141,12 +145,25 @@ public sealed class AbortedRequestTests
         }
     }
 
-    private sealed class CollectingSink : ILogEventSink
+    /// <summary>
+    /// Collects every rendered event. With a delay above zero, the request-log event
+    /// is held back that long before it is collected: a synchronous sleep on the
+    /// thread that writes it, as a late write on the server thread is.
+    /// </summary>
+    private sealed class CollectingSink(int requestLogDelayMs = 0) : ILogEventSink
     {
+        // The start of the request-log template in Program.cs (UseSerilogRequestLogging).
+        private const string RequestLogTemplatePrefix = "HTTP {RequestMethod} ";
+
         private readonly ConcurrentQueue<(LogEventLevel Level, string Text)> _events = new();
 
         public void Emit(LogEvent logEvent)
         {
+            if (requestLogDelayMs > 0 && logEvent.MessageTemplate.Text.StartsWith(RequestLogTemplatePrefix, StringComparison.Ordinal))
+            {
+                Thread.Sleep(requestLogDelayMs);
+            }
+
             using var writer = new StringWriter();
             logEvent.RenderMessage(writer);
             _events.Enqueue((logEvent.Level, writer.ToString()));
