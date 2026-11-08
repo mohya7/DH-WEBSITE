@@ -21,7 +21,10 @@
 //             does not fail. Any other type, including Timeout, out of memory,
 //             stack overflow, a fatal error, and a rule parse error, fails.
 //             A missing or malformed type fails. The error message and spans
-//             are not read.
+//             are not read. A rejected error is described by its position, its
+//             level, the tag of its type, its path and its rule_id, each only when
+//             it matches a strict pattern, otherwise as (none) or (unrecognised).
+//             rule_id is read only for that description and is not a consumed field.
 //
 // An empty file, a blank file, a report of the wrong shape, or an npm audit that
 // could not run fails the job. A missing file and malformed JSON still fail.
@@ -373,6 +376,31 @@ export function validateGitleaks(report) {
   return found;
 }
 
+// A rejected semgrep error is described with values that cannot form a workflow
+// command or forge the description: no ":", ";", "(", ")", quote, control
+// character or non-ASCII, and a bounded length. Anything else is a placeholder.
+const semgrepTagPattern = /^[A-Za-z][A-Za-z0-9 _-]{0,63}$/;
+const semgrepPathPattern = /^[A-Za-z0-9._@+\[\]/-]{1,240}$/;
+const semgrepRulePattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/;
+
+function shown(value, pattern) {
+  if (value === undefined) return "(none)";
+  return typeof value === "string" && pattern.test(value) ? value : "(unrecognised)";
+}
+
+// Called only when the gate has already decided to reject. Reads level, type
+// (only its tag, never type[1]), path and rule_id; never message or spans.
+function describeSemgrepError(error, index, count) {
+  let tag = "(none)";
+  if (error.type !== undefined) {
+    const raw = Array.isArray(error.type) ? error.type[0] : error.type;
+    tag = typeof raw === "string" && semgrepTagPattern.test(raw) ? raw : "(unrecognised)";
+    if (tag === "PartialParsing" && !isPartialParse(error.type)) tag += " (malformed)";
+  }
+  const errorPath = typeof error.path === "string" ? error.path.replaceAll("\\", "/") : error.path;
+  return ` (error ${index + 1} of ${count}; level ${shown(error.level, semgrepTagPattern)}; type ${tag}; path ${shown(errorPath, semgrepPathPattern)}; rule ${shown(error.rule_id, semgrepRulePattern)})`;
+}
+
 function isPartialParse(type) {
   return Array.isArray(type)
     && type.length === 2
@@ -386,11 +414,12 @@ export function validateSemgrep(report) {
   if (!Array.isArray(report.errors)) reject("semgrep report field errors is not an array");
   const found = [];
   const parseWarnings = [];
-  for (const error of report.errors) {
-    if (!isRecord(error)) reject("semgrep report field error is not an object");
-    if (error.level !== "warn") reject("semgrep report field level is not a parse warning");
-    if (!nonEmpty(error.path)) reject("semgrep report field path is missing");
-    if (!isPartialParse(error.type)) reject("semgrep report field type is not a partial parse");
+  for (let index = 0; index < report.errors.length; index += 1) {
+    const error = report.errors[index];
+    if (!isRecord(error)) reject(`semgrep report field error is not an object (error ${index + 1} of ${report.errors.length})`);
+    if (error.level !== "warn") reject(`semgrep report field level is not a parse warning${describeSemgrepError(error, index, report.errors.length)}`);
+    if (!nonEmpty(error.path)) reject(`semgrep report field path is missing${describeSemgrepError(error, index, report.errors.length)}`);
+    if (!isPartialParse(error.type)) reject(`semgrep report field type is not a partial parse${describeSemgrepError(error, index, report.errors.length)}`);
     parseWarnings.push(error.path.replaceAll("\\", "/"));
   }
   found.parseWarnings = parseWarnings;
