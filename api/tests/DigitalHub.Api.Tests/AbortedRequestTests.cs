@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Text;
 using DigitalHub.Api.Infrastructure;
 using Microsoft.AspNetCore.Hosting;
@@ -36,6 +37,10 @@ public sealed class AbortedRequestTests
             ctx.Request.Body = new DisconnectingBody(ctx, Encoding.UTF8.GetBytes("{\"email\":\"x@example.test\",\"password\":\"" + new string('y', 500)));
         }));
 
+        // The request-log line is the last one the request writes, and it can land
+        // after the client has its answer: wait for it (any status) before reading.
+        await factory.Sink.WaitForAsync(line => line.Contains($"\"{path}\" responded ", StringComparison.Ordinal), TimeSpan.FromSeconds(5));
+
         // The server records it as the client's doing, not as an error.
         Assert.Empty(factory.Sink.AtLeast(LogEventLevel.Warning));
         Assert.Contains(factory.Sink.All(), line => line.Contains("Client closed the request", StringComparison.Ordinal));
@@ -61,6 +66,9 @@ public sealed class AbortedRequestTests
         });
 
         Assert.Equal(StatusCodes.Status400BadRequest, context.Response.StatusCode);
+        // The request-log line is the last one the request writes, and it can land
+        // after the client has its answer: wait for it (any status) before reading.
+        await factory.Sink.WaitForAsync(line => line.Contains($"\"{path}\" responded ", StringComparison.Ordinal), TimeSpan.FromSeconds(5));
         Assert.Empty(factory.Sink.AtLeast(LogEventLevel.Warning));
         Assert.Contains(factory.Sink.All(), line => line.Contains($"\"{path}\" responded 400", StringComparison.Ordinal));
     }
@@ -172,5 +180,18 @@ public sealed class AbortedRequestTests
         public List<string> AtLeast(LogEventLevel level) => _events.Where(item => item.Level >= level).Select(item => $"{item.Level}: {item.Text}").ToList();
 
         public List<string> All() => _events.Select(item => item.Text).ToList();
+
+        /// <summary>
+        /// Waits until a collected line matches, or the timeout passes. It never throws
+        /// and asserts nothing: the assertions that follow report what is missing.
+        /// </summary>
+        public async Task WaitForAsync(Func<string, bool> match, TimeSpan timeout)
+        {
+            var clock = Stopwatch.StartNew();
+            while (!_events.Any(item => match(item.Text)) && clock.Elapsed < timeout)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(10));
+            }
+        }
     }
 }
