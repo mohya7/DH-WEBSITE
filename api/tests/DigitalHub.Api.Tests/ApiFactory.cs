@@ -1,3 +1,7 @@
+using System.Xml.Linq;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.AspNetCore.DataProtection.Repositories;
+using Microsoft.AspNetCore.DataProtection.XmlEncryption;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -58,7 +62,40 @@ public class ApiFactory : WebApplicationFactory<Program>
         {
             services.AddSingleton<NoteStore>();
             services.AddControllers().AddApplicationPart(typeof(ConventionProbeController).Assembly);
+
+            // The test host never uses the user profile's key ring: on Linux the default
+            // ring has no encryptor and logs a Warning whenever it makes a key, so the
+            // first host of a run on a fresh profile failed any test that asserts no
+            // warnings (FU-1). Keys live and die with the host; the API stores nothing
+            // protected, so nothing needs them afterwards.
+            // Every test host must derive from ApiFactory and call
+            // base.ConfigureWebHost, or it gets the profile's key ring again.
+            services.Configure<KeyManagementOptions>(options =>
+            {
+                options.XmlRepository = new InMemoryKeyRing();
+                options.XmlEncryptor = new NullXmlEncryptor();
+            });
         });
+    }
+
+    /// <summary>
+    /// A Data Protection key ring held in memory for the life of one test host.
+    /// </summary>
+    private sealed class InMemoryKeyRing : IXmlRepository
+    {
+        private readonly List<XElement> _elements = [];
+
+        public IReadOnlyCollection<XElement> GetAllElements()
+        {
+            lock (_elements)
+                return _elements.Select(element => new XElement(element)).ToList();
+        }
+
+        public void StoreElement(XElement element, string friendlyName)
+        {
+            lock (_elements)
+                _elements.Add(new XElement(element));
+        }
     }
 
     /// <summary>
