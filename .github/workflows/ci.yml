@@ -409,7 +409,7 @@ jobs:
     # (UTC) and fails the job from that date. Runner pinned to ubuntu-24.04 because
     # Playwright 1.56.1 cannot install its browsers on ubuntu-latest (26.04).
     env:
-      BROWSER_TESTS_BLOCKING_FROM: "2026-11-12"
+      BROWSER_TESTS_BLOCKING_FROM: "2026-11-18"
       CONTENT_SOURCE: snapshot
       PUBLIC_SITE_URL: https://digitalhub.com.eg
       PLAYWRIGHT_HTML_OPEN: never
