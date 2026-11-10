@@ -1261,6 +1261,7 @@ function semgrepShapeProblems(workflow, script) {
     "--quiet \\",
     "--json \\",
     "--output \"$RUNNER_TEMP/semgrep.json\" \\",
+    "--timeout 30 \\",
   ]);
   const roots = scanLines
     .filter((line) => !knownFlags.has(line.trim()) && !line.trim().startsWith("--config ") && !line.trim().startsWith("--exclude "))
