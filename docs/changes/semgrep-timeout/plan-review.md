@@ -214,3 +214,122 @@ scripts plus `knownFlags` follow in a second commit.
   rollback is a revert.
 
 Verdict: CHANGES NEEDED
+
+## Round 2
+
+Plan reviewer, 10 November 2026. Reviewed `docs/changes/semgrep-timeout/plan.md`
+round 2 at `12e8399`, against Round 1 (`8ece505`). `git diff 8ece505 12e8399
+--stat` → only `docs/changes/semgrep-timeout/plan.md` (173 insertions, 64
+deletions); no code changed. I rebuilt the prototype from round 2's text in
+`/tmp/claude-0/-home-user/7aefdfd4-6aa9-5555-b0de-70990eb7693f/scratchpad/sim2`
+(`git archive HEAD`), wrote its two commits as loose objects with a temporary
+index (`GIT_INDEX_FILE` in the scratchpad, `git commit-tree`), and ran
+`git merge-tree` on them. The worktree and its index were not touched
+(`git status --short` prints nothing).
+
+**The base has moved again.** `git fetch origin rebuild/dotnet-platform
+change/GAP-07` → `origin/rebuild/dotnet-platform` is `f5dd209` ("GAP-08: Lint
+every workflow with actionlint (#41)"), GAP-07 is still `e8a8d9d`. `git diff
+--stat cc99e20 origin/rebuild/dotnet-platform -- .github` lists only
+`.github/lint/*` and `.github/workflows/workflow-lint.yml`. On a `git archive
+origin/rebuild/dotnet-platform` copy the self-test gives `# tests 73`, `# pass
+73`, `# fail 0`. `run-actionlint.sh` passes shellcheck to actionlint, which
+checks workflow `run:` blocks only, so `run-semgrep.sh` is not linted by GAP-08.
+The plan's §2 account of the move is right.
+
+### Round 1 findings, as answered
+
+**1. Major (scratch-branch CI): resolved.** §5 step 9 now reads "NOT RUN on this
+change", with the reason (no scratch-branch push) and the covering job (#44's
+Semgrep job after #44 merges the base); the scratch-branch route is gone. Done
+when 4 is now this PR's own job plus the merge-tree check, both runnable here.
+Done when 5 and coverage row 8 read "Moved to PR #44 (GAP-07), after it merges
+the base", and name who (GAP-07's tester), how often (three runs) and where
+(`docs/changes/GAP-07/test-report.md`). §10 risk row 1 points to steps 8 and 7.
+The follow-up's `--time` run no longer assumes a scratch branch.
+
+**2. Minor (new test green before the fix): resolved.** With §3 point 4 as
+written (unmodified files give no `timeout flags are` problem;
+`assert.notEqual(mutated.script, script, name)`; each mutation gives the
+message), the red prototype:
+
+```
+not ok 55 - the semgrep job and scan script match their golden copies
+not ok 69 - workflow-shape mutations are rejected
+  error: 'drop-timeout did not change anything'
+not ok 70 - the scan's timeout is pinned by its own check, not only the golden copy
+# tests 74
+# pass 71
+# fail 3
+```
+
+This is exactly §5's expected red (three named tests, 74/71/3). Green, with both
+scripts (the §3 example comment above `set +e`, the flag after `--output`) and
+`knownFlags`:
+
+```
+# shape drop-timeout: old new, new caught
+# shape timeout-unlimited: old new, new caught
+# shape timeout-equals-spelling: old new, new caught
+# shape add-timeout-threshold: old new, new caught
+# tests 74
+# pass 74
+# fail 0
+```
+
+**3. Minor (test placement): resolved.** §3 point 4 and §4 place the test
+directly after "workflow-shape mutations are rejected". With the prototype's two
+commits (red `d028e45`, green `4f84ed8`, test placed there):
+
+- `git merge-tree --write-tree d028e45 origin/change/GAP-07` → exit 0.
+- `git merge-tree --write-tree 4f84ed8 origin/change/GAP-07` → `ba6065d…`,
+  exit 0. On a `git archive ba6065d` copy, `run-semgrep.sh` has one
+  `--timeout 30` line and the self-test gives `# tests 86`, `# pass 86`,
+  `# fail 0` (GAP-07's tests plus this change's).
+- `git merge-tree --write-tree 4f84ed8 origin/rebuild/dotnet-platform` →
+  `ba2dddd…`, exit 0.
+
+§5 step 7 now runs this on the developer's code commit and quotes it.
+
+**4. Minor (diff base): resolved.** §5 steps 3 and 4 use
+`origin/rebuild/dotnet-platform...HEAD`; step 8 records the base commit CI
+merged with; §10 adds a row for a further base move. On the prototype, `git
+diff --stat HEAD 4f84ed8` lists only `gate.test.mjs` (21 lines, 1 removed: the
+count), `run-semgrep.sh` and `run-semgrep.expected.sh` (2 lines each).
+
+**5. Minor (threshold wording): resolved.** §3 "Worst-case cost" and
+"`--timeout-threshold`" now match what I ran in Round 1: the threshold's
+timeouts are reported at level `warn`, the rest of the rules on that file leave
+no entry, Semgrep exits 0, and the gate's rejection fails the job. "At least one
+timeout is always reported (any threshold from 1 up, and 0 reports all)" matches
+the 1, 3 and 0 runs (1, 3 and 5 entries).
+
+**6. Minor (comment text): resolved.** §3 adds `--timeout` to the forbidden
+strings, with the reason. The example comment contains none of `semgrep scan`,
+`-o `, `|| true`, `SEMGREP_ROOTS` or `--timeout`, and passes in the green run
+above.
+
+**7. Minor (red not committed): resolved.** §4 splits the work into commit 1
+(`gate.test.mjs` only, `knownFlags` unchanged, red) and commit 2 (both scripts,
+`knownFlags`, `implementation.md`), and §5 quotes the red run with commit 1's
+hash. The prototype shows commit 1 is red for exactly the three intended tests
+and commit 2 is green.
+
+### New findings
+
+None.
+
+### Checked that nothing else moved
+
+- §1 Done when 1 to 3, §3 "Why 30", the alternatives, §6 security impact, §7
+  migrations, §8 rollback and §9 owner decisions are unchanged from Round 1,
+  which found them sound. The owner's quote is unchanged.
+- No new file is in scope: §4 still names `run-semgrep.sh`,
+  `run-semgrep.expected.sh`, `gate.test.mjs` and `implementation.md`.
+  `docs/changes/GAP-07/test-report.md` is named only as where GAP-07's own
+  tester records the moved item; this change does not write it. The coordinator
+  should pass Done when 5 to GAP-07's pipeline so it is not lost.
+- Gate strength (P-6): `gate.mjs`, the workflow and the golden YAML files stay
+  untouched; the new check only adds problems.
+
+Verdict: APPROVED
