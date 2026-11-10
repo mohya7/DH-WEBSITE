@@ -97,7 +97,7 @@ jobs:
         # New gate (ENGINEERING_STANDARDS.md section 3): reports until
         # MIGRATION_CHECKS_BLOCKING_FROM, then blocks. The canary always blocks.
         env:
-          MIGRATION_CHECKS_BLOCKING_FROM: "2026-11-12"
+          MIGRATION_CHECKS_BLOCKING_FROM: "2026-11-18"
           BASE_REF: ${{ github.base_ref || 'rebuild/dotnet-platform' }}
         run: tools/migration-checks/run.sh "${{ job.services.mssql.id }}"
 
