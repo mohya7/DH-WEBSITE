@@ -1250,6 +1250,10 @@ function semgrepShapeProblems(workflow, script) {
   const scanLines = start >= 0 && end > start ? lines.slice(start, end) : [];
   const packs = scanLines.filter((line) => line.trim().startsWith("--config ")).map((line) => continuedValue(line).slice("--config ".length));
   const excludes = scanLines.filter((line) => line.trim().startsWith("--exclude ")).map((line) => continuedValue(line).slice("--exclude ".length));
+  const timeoutFlags = scanLines.map((line) => line.trim()).filter((line) => line.startsWith("--timeout"));
+  if (JSON.stringify(timeoutFlags) !== JSON.stringify(["--timeout 30 \\"])) {
+    problems.push(`run-semgrep.sh timeout flags are ${timeoutFlags.length === 0 ? "(none)" : timeoutFlags.join(" ")}; expected --timeout 30`);
+  }
   const knownFlags = new Set([
     "semgrep scan \\",
     "--metrics=off \\",
@@ -1585,6 +1589,22 @@ const shapeMutations = [
     ...files,
     script: files.script.replace("  --json \\\n", "  --json \\\n  --max-target-bytes 1000 \\\n"),
   })],
+  ["drop-timeout", null, (files) => ({
+    ...files,
+    script: files.script.replace("  --timeout 30 \\\n", ""),
+  })],
+  ["timeout-unlimited", null, (files) => ({
+    ...files,
+    script: files.script.replace("--timeout 30", "--timeout 0"),
+  })],
+  ["timeout-equals-spelling", null, (files) => ({
+    ...files,
+    script: files.script.replace("--timeout 30", "--timeout=30"),
+  })],
+  ["add-timeout-threshold", null, (files) => ({
+    ...files,
+    script: files.script.replace("  --timeout 30 \\\n", "  --timeout 30 \\\n  --timeout-threshold 0 \\\n"),
+  })],
   ["change-version-pin", null, (files) => ({
     ...files,
     workflow: files.workflow.replace("semgrep==1.180.0", "semgrep==1.180.1"),
@@ -1609,7 +1629,7 @@ const shapeMutations = [
 test("workflow-shape mutations are rejected", () => {
   const workflow = normalizeNewlines(fs.readFileSync(workflowPath, "utf8"));
   const script = normalizeNewlines(fs.readFileSync(scriptPath, "utf8"));
-  assert.equal(shapeMutations.length, 26);
+  assert.equal(shapeMutations.length, 30);
   for (const [name, previouslyCaught, apply] of shapeMutations) {
     const mutated = apply({ workflow, script });
     assert.notDeepEqual(mutated, { workflow, script }, `${name} did not change anything`);
@@ -1617,6 +1637,23 @@ test("workflow-shape mutations are rejected", () => {
     const oldResult = previouslyCaught === null ? "new" : previouslyCaught ? "caught" : "not caught";
     console.log(`shape ${name}: old ${oldResult}, new ${problems.length === 0 ? "not caught" : "caught"}`);
     assert.ok(problems.length > 0, `${name} was not caught`);
+  }
+});
+
+test("the scan's timeout is pinned by its own check, not only the golden copy", () => {
+  const workflow = normalizeNewlines(fs.readFileSync(workflowPath, "utf8"));
+  const script = normalizeNewlines(fs.readFileSync(scriptPath, "utf8"));
+  const timeoutProblem = (problems) => problems.some((problem) => problem.startsWith("run-semgrep.sh timeout flags are"));
+  const unmodified = semgrepShapeProblems(workflow, script);
+  assert.equal(timeoutProblem(unmodified), false, unmodified.join("\n"));
+  const timeoutMutations = ["drop-timeout", "timeout-unlimited", "timeout-equals-spelling", "add-timeout-threshold"];
+  for (const name of timeoutMutations) {
+    const entry = shapeMutations.find(([mutationName]) => mutationName === name);
+    assert.ok(entry, `${name} is missing from shapeMutations`);
+    const mutated = entry[2]({ workflow, script });
+    assert.notEqual(mutated.script, script, name);
+    const problems = semgrepShapeProblems(mutated.workflow, mutated.script);
+    assert.ok(timeoutProblem(problems), `${name}: ${problems.join("; ")}`);
   }
 });
 
