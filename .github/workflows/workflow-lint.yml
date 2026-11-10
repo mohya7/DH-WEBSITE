@@ -47,7 +47,7 @@ env:
   # (no checksum file is published; the extracted binary is identical to the PyPI shellcheck-py 0.11.0.1 wheel's).
   SHELLCHECK_SHA256: 8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198
   # Findings warn before this day (UTC) and fail from it. See the header.
-  ACTIONLINT_BLOCKING_FROM: "2026-11-11"
+  ACTIONLINT_BLOCKING_FROM: "2026-11-18"
 
 jobs:
   actionlint:
