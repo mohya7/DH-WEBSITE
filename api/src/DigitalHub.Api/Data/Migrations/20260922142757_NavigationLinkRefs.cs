@@ -14,6 +14,89 @@ namespace DigitalHub.Api.Data.Migrations
     /// </summary>
     public partial class NavigationLinkRefs : Migration
     {
+        // The idempotent script compiles each migration as one batch, before the
+        // AddColumn calls in Up have run, so a direct reference to link_kind,
+        // target_type or target_id fails (Msg 207). EXEC compiles it when it runs.
+        private const string ConvertLinksSql =
+            """
+            DELETE n
+            FROM navigation_items n
+            CROSS JOIN site_settings s
+            WHERE n.url = 'mailto:' + s.email
+               OR n.url = s.linked_in
+               OR n.url = s.facebook
+               OR n.url = s.instagram
+               OR n.url = s.tik_tok
+               OR (
+                    n.url LIKE 'tel:%'
+                    AND REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(ISNULL(s.phone, ''), ' ', ''), '-', ''), '(', ''), ')', ''), '.', '')
+                        = REPLACE(n.url, 'tel:', '')
+                  );
+
+            UPDATE n SET
+              link_kind = 'internal',
+              target_type = 'service',
+              target_id = s.id,
+              url = NULL
+            FROM navigation_items n
+            INNER JOIN services s ON n.url = '/services/' + s.slug;
+
+            UPDATE n SET
+              link_kind = 'internal',
+              target_type = 'partner',
+              target_id = p.id,
+              url = NULL
+            FROM navigation_items n
+            INNER JOIN partners p ON n.url = '/partners/' + p.slug;
+
+            UPDATE n SET
+              link_kind = 'internal',
+              target_type = 'case_study',
+              target_id = c.id,
+              url = NULL
+            FROM navigation_items n
+            INNER JOIN case_studies c ON n.url = '/cases/' + c.slug;
+
+            UPDATE n SET
+              link_kind = 'internal',
+              target_type = 'blog_post',
+              target_id = b.id,
+              url = NULL
+            FROM navigation_items n
+            INNER JOIN blog_posts b ON n.url = '/blogs/' + b.slug;
+
+            UPDATE n SET
+              link_kind = 'internal',
+              target_type = 'page',
+              target_id = pg.id,
+              url = NULL
+            FROM navigation_items n
+            INNER JOIN pages pg ON
+              (n.url = '/' AND pg.slug = 'home')
+              OR (n.url = '/about' AND pg.slug = 'about')
+              OR (n.url = '/contact' AND pg.slug = 'contact')
+              OR (n.url = '/news' AND pg.slug = 'news')
+              OR (n.url = '/partners' AND pg.slug = 'partners')
+              OR (n.url = '/cases' AND pg.slug = 'cases')
+              OR (n.url = '/blogs' AND pg.slug = 'blogs')
+              OR (n.url = '/careers' AND pg.slug = 'careers')
+              OR (n.url = '/careers/apply' AND pg.slug = 'apply');
+
+            UPDATE navigation_items
+            SET url = NULL, target_type = NULL, target_id = NULL
+            WHERE link_kind = 'group' AND (url IS NULL OR LTRIM(RTRIM(url)) = '');
+
+            IF EXISTS (
+              SELECT 1 FROM navigation_items
+              WHERE NOT (
+                (link_kind = 'group' AND target_type IS NULL AND target_id IS NULL AND url IS NULL)
+                OR (link_kind = 'external' AND target_type IS NULL AND target_id IS NULL AND url IS NOT NULL AND url <> '')
+                OR (link_kind = 'internal' AND target_type IS NOT NULL AND target_id IS NOT NULL AND url IS NULL)
+              )
+            )
+              THROW 50002, 'Navigation link conversion left a row with no valid shape.', 1;
+            """;
+
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
@@ -48,85 +131,7 @@ namespace DigitalHub.Api.Data.Migrations
                 maxLength: 32,
                 nullable: true);
 
-            migrationBuilder.Sql(
-                """
-                DELETE n
-                FROM navigation_items n
-                CROSS JOIN site_settings s
-                WHERE n.url = 'mailto:' + s.email
-                   OR n.url = s.linked_in
-                   OR n.url = s.facebook
-                   OR n.url = s.instagram
-                   OR n.url = s.tik_tok
-                   OR (
-                        n.url LIKE 'tel:%'
-                        AND REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(ISNULL(s.phone, ''), ' ', ''), '-', ''), '(', ''), ')', ''), '.', '')
-                            = REPLACE(n.url, 'tel:', '')
-                      );
-
-                UPDATE n SET
-                  link_kind = 'internal',
-                  target_type = 'service',
-                  target_id = s.id,
-                  url = NULL
-                FROM navigation_items n
-                INNER JOIN services s ON n.url = '/services/' + s.slug;
-
-                UPDATE n SET
-                  link_kind = 'internal',
-                  target_type = 'partner',
-                  target_id = p.id,
-                  url = NULL
-                FROM navigation_items n
-                INNER JOIN partners p ON n.url = '/partners/' + p.slug;
-
-                UPDATE n SET
-                  link_kind = 'internal',
-                  target_type = 'case_study',
-                  target_id = c.id,
-                  url = NULL
-                FROM navigation_items n
-                INNER JOIN case_studies c ON n.url = '/cases/' + c.slug;
-
-                UPDATE n SET
-                  link_kind = 'internal',
-                  target_type = 'blog_post',
-                  target_id = b.id,
-                  url = NULL
-                FROM navigation_items n
-                INNER JOIN blog_posts b ON n.url = '/blogs/' + b.slug;
-
-                UPDATE n SET
-                  link_kind = 'internal',
-                  target_type = 'page',
-                  target_id = pg.id,
-                  url = NULL
-                FROM navigation_items n
-                INNER JOIN pages pg ON
-                  (n.url = '/' AND pg.slug = 'home')
-                  OR (n.url = '/about' AND pg.slug = 'about')
-                  OR (n.url = '/contact' AND pg.slug = 'contact')
-                  OR (n.url = '/news' AND pg.slug = 'news')
-                  OR (n.url = '/partners' AND pg.slug = 'partners')
-                  OR (n.url = '/cases' AND pg.slug = 'cases')
-                  OR (n.url = '/blogs' AND pg.slug = 'blogs')
-                  OR (n.url = '/careers' AND pg.slug = 'careers')
-                  OR (n.url = '/careers/apply' AND pg.slug = 'apply');
-
-                UPDATE navigation_items
-                SET url = NULL, target_type = NULL, target_id = NULL
-                WHERE link_kind = 'group' AND (url IS NULL OR LTRIM(RTRIM(url)) = '');
-
-                IF EXISTS (
-                  SELECT 1 FROM navigation_items
-                  WHERE NOT (
-                    (link_kind = 'group' AND target_type IS NULL AND target_id IS NULL AND url IS NULL)
-                    OR (link_kind = 'external' AND target_type IS NULL AND target_id IS NULL AND url IS NOT NULL AND url <> '')
-                    OR (link_kind = 'internal' AND target_type IS NOT NULL AND target_id IS NOT NULL AND url IS NULL)
-                  )
-                )
-                  THROW 50002, 'Navigation link conversion left a row with no valid shape.', 1;
-                """);
+            migrationBuilder.Sql("EXEC(N'" + ConvertLinksSql.Replace("'", "''") + "');");
 
             migrationBuilder.AddCheckConstraint(
                 name: "ck_navigation_items_link_shape",

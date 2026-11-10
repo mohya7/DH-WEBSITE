@@ -65,6 +65,18 @@ Two behaviours are known and kept as they are:
   use that to stop the real user changing their password for up to an hour.
   An admin reset still works, and it ends that stolen session.
 
+## API: response headers
+
+- **No `Server` header from the API.** Kestrel's own `Server: Kestrel` banner
+  is turned off in `Program.cs` (`AddServerHeader = false`, GAP-12, finding 9).
+  This also covers the 400s Kestrel writes itself for malformed requests.
+  `ServerHeaderTests` runs the API on real Kestrel and checks it.
+- **The dev team, Phase D:** under IIS, IIS adds its own
+  `Server: Microsoft-IIS/10.0` whatever Kestrel does. Remove it for the API
+  site, for example with `<requestFiltering removeServerHeader="true" />` in the
+  API's `web.config`, and confirm with the Phase D black-box probes that no API
+  response carries a `Server` header.
+
 ## Studio: headers and routing
 
 The Studio is a static build served by IIS on its own subdomain, with the API on
