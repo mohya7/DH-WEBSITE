@@ -93,6 +93,14 @@ jobs:
           --project src/DigitalHub.Api/DigitalHub.Api.csproj
           --connection "Server=localhost,1433;Database=DigitalHubContent_Test;User ID=sa;Password=$SA_PASSWORD;Encrypt=True;TrustServerCertificate=True"
 
+      - name: Migration checks — idempotent script twice, previous schema
+        # New gate (ENGINEERING_STANDARDS.md section 3): reports until
+        # MIGRATION_CHECKS_BLOCKING_FROM, then blocks. The canary always blocks.
+        env:
+          MIGRATION_CHECKS_BLOCKING_FROM: "2026-11-18"
+          BASE_REF: ${{ github.base_ref || 'rebuild/dotnet-platform' }}
+        run: tools/migration-checks/run.sh "${{ job.services.mssql.id }}"
+
       - name: Grant the restricted login read and write, and nothing else
         # The audit log is append-only for the application login (finding L6).
         run: |
