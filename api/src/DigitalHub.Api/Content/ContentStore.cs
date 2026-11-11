@@ -244,10 +244,12 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas, 
         if (loaded.Record.Status == ContentStatus.Published)
             return ContentOutcome.Fail(StatusCodes.Status409Conflict, "published", "Unpublish this item before deleting it.");
 
+        // By address: a redirect to /s/ points at this item as much as one to /s (ADM-07).
         var path = ContentPaths.PublicPath(collection, loaded.Record.Slug);
+        var targets = path is null ? [] : RedirectPaths.Spellings(path);
         var redirects = path is null
             ? []
-            : await db.Redirects.Where(redirect => redirect.ToPath == path).ToListAsync(cancellationToken);
+            : await db.Redirects.Where(redirect => targets.Contains(redirect.ToPath)).ToListAsync(cancellationToken);
         db.Redirects.RemoveRange(redirects);
         foreach (var redirect in redirects)
         {
@@ -1063,12 +1065,13 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas, 
 
         /* A redirect starts at the old address whether it was stored as /old or
            /old/ (the build gives both one address), so it is found and reused by
-           address, never duplicated (ADM-02). Targets are compared as stored. */
+           address, never duplicated (ADM-02). Targets are compared by address
+           too, so a redirect to /old/ is retargeted like one to /old (ADM-07). */
         var oldSpellings = RedirectPaths.Spellings(oldPath);
         var redirects = await db.Redirects
-            .Where(redirect => redirect.ToPath == oldPath || oldSpellings.Contains(redirect.FromPath))
+            .Where(redirect => oldSpellings.Contains(redirect.ToPath) || oldSpellings.Contains(redirect.FromPath))
             .ToListAsync(cancellationToken);
-        foreach (var redirect in redirects.Where(redirect => redirect.ToPath == oldPath && RedirectPaths.Key(redirect.FromPath) != oldPath).ToList())
+        foreach (var redirect in redirects.Where(redirect => oldSpellings.Contains(redirect.ToPath) && RedirectPaths.Key(redirect.FromPath) != oldPath).ToList())
         {
             redirect.ToPath = newPath;
             if (RedirectPaths.Key(redirect.FromPath) == RedirectPaths.Key(redirect.ToPath))
