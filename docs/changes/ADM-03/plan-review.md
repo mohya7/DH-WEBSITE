@@ -217,4 +217,126 @@ in the risk table or in section 9.**
 
 Round 1 result: CHANGES NEEDED (one Major, five Minors).
 
-Verdict: CHANGES NEEDED
+## Round 2
+
+Reviewer: plan-reviewer, 11 November 2026. Plan: `docs/changes/ADM-03/plan.md`,
+round 2, commit `877b2b5`. Round 1 of this review is at `fda6532`.
+
+Read: the whole round 2 diff of the plan (`git diff fda6532 877b2b5`), its
+section 12, the round 2 prototype (`proto/RichTextEditor.fixed.tsx`,
+`proto/RichTextEditor.round1.tsx`, `proto/planned.test.tsx`) and
+`planned-runs-round2.txt`. Every check was read-only in the repository. I re-ran
+the fifteen prototype tests against three editors and added three probes (Q1 to
+Q3) in a scratch folder. No browser, SQL Server or port was used.
+
+### Round 1 findings
+
+- **Finding 1, Major: closed.**
+  - The design now keeps a pasted media id only if the session got it from the
+    API. 3.1 (4) names the three places an id enters the set. Any other id is
+    sent as `null`, and the real `ImageNode` drops a non-string `mediaId`
+    (`RichText.cs:315-317`) and reports `imagesDropped`.
+  - Section 6 states the real worst case and no longer claims a library check
+    for the error-page save. 2.2 names both hosts. The server gap has a
+    destination (ADM-05) and a coverage row.
+  - T13 is the attack test, in commit 2. Re-run by me: red today
+    (`not to contain '"src"'`), red against the round 1 design
+    (`not to contain '44444444-…'`), green against round 2.
+- **Finding 2, Minor: closed.** O-ADM03-2 carries the caveat and the B-8 reason.
+  It stays PENDING and no answer is assumed.
+- **Finding 3, Minor: closed.** Both end-to-end tests assert the empty
+  paste-request list first, and count images.
+- **Finding 4, Minor: closed.** The wait rule is stated, the prototype settles
+  with a zero-delay flush and still gives the same results, T10 asserts, and
+  `tsc -b` runs after commit 2.
+- **Finding 5, Minor: closed.** The replaced-document counter and T15 (red
+  against round 1: `'Other itemPasted'`) cover the first point. The other two
+  are in the risk table, section 9 and the "For ADM-22" note.
+- **Finding 6, Minor: closed.** Listed in section 9 with the reason.
+
+### What the coordinator asked me to check: the set of known ids
+
+My probes, against the round 2 prototype with a foreign GUID `5555…`:
+
+```
+Q1 drop handled true in editor false sent has id false onChange has id false pastes 3
+Q2 sent […{"type":"image","attrs":{"mediaId":null,…}}…{"type":"image","attrs":{"mediaId":null,…}}…,{"type":"image","attrs":{"mediaId":"22222222-…","alt":"Up","decorative":false}}]
+Q2 in editor false
+Q3 B out has id false C has id false sent has id false
+```
+
+- **Pasted content cannot seed it.** The set is filled from the first document,
+  from a document the `value` effect sets, and from `insertImage`. A paste with
+  an image never enters the document unfiltered, so it cannot reach `onChange`,
+  `value` or the set. Q1: the same crafted paste three times, the third after an
+  undo, a redo and a drop, is dropped each time and the id is never sent.
+- **Dropped content cannot seed it.** The drop is refused before anything is
+  read from it (Q1, `handled true`).
+- **Nesting does not hide an image.** The rule recurses: a foreign image inside
+  a list item and inside a table cell is sent as `null` (Q2).
+- **Undo and redo do not weaken it.** History can only restore nodes that were
+  in the document, and no foreign id ever is.
+- **The second host does not weaken it.** The set is one per module, so both
+  hosts share it. `ErrorPagesPage.tsx` loads its bodies from the API. A foreign
+  id pasted into a second editor is dropped, and remounting an editor with
+  another editor's output adds nothing foreign (Q3). T14 shows the shared set
+  keeps a legitimate copy between fields.
+- **`value` is not fed from anywhere else today.** No Studio source builds a
+  rich-text document from the clipboard or browser storage
+  (`grep -rn 'clipboard\|localStorage\|sessionStorage' studio/src` finds only
+  `InlineTextEditor.tsx`'s plain-text paste). See finding 1 below.
+
+### New findings (round 2)
+
+**1. Minor. Section 3.1 (4): the rule rests on an unstated condition.**
+- "From a document the `value` effect sets" is safe only because every host
+  passes a value that came from the API or from the editor itself. That is true
+  today for both hosts. A later host that fed `value` from anything else would
+  seed the set silently. State the condition in 3.1 (4) and ask for a comment
+  beside the set, or add a risk row.
+
+**2. Minor. Section 5.1, T13: it proves one paste, not that a paste leaves the
+set alone.**
+- Pasting the crafted HTML a second time in T13, with the same assertions,
+  would fail if a later change added pasted ids to the set. One more line.
+
+**3. Minor. Sections 3.1 (4) and 6: an id is never removed from the set.**
+- If an image is deleted from the library during the session, its id stays
+  known. A paste of it is then kept; a page or item save refuses it, and the
+  error-page save stores it. This is narrow and needs a library image already
+  on the person's clipboard. Add it to the "Worst case left" bullet and to the
+  "For ADM-05" note.
+
+**4. Minor. Section 4, "Files to change": the `RichTextEditor.tsx` row still
+says "the `value` effect … unchanged".**
+- Round 2 adds two things to that effect: it fills the set and raises the
+  counter. The condition that decides whether it runs is unchanged. Say that.
+
+None of these changes the design, the tests' red state or the commit order.
+
+### Checked and found sound (round 2)
+
+- **Re-run.** Today's editor: `Tests 13 failed | 2 passed (15)`. Round 1
+  design: `Tests 2 failed | 13 passed (15)` (T13, T15). Round 2 design:
+  `Tests 15 passed (15)`. These match `planned-runs-round2.txt` and the plan's
+  counts in 5.1 and 5.3 (12 red and 2 guards without T3).
+- **Fails closed.** A legitimate image the tab has not seen is dropped with the
+  notice, and the Image button adds it. Today every pasted image is lost, so
+  nothing that works today stops working. It is listed for the owner.
+- **Alternatives.** The per-id library lookup and the server-side check are
+  real options and the reasons against them hold: the first lets pasted content
+  drive requests, the second is an API change and a split.
+- **No server change, no weakened gate.** Still no `api/` file, dependency,
+  config or workflow change. `Validate` on save is untouched.
+- **Scope.** Still one module. The set and the counter are part of closing the
+  paste path this change opens, not a new topic.
+- **Owner decisions.** O-ADM03-1 and O-ADM03-2 are PENDING. O-ADM03-1 blocks
+  only the first push; O-ADM03-2 blocks only commits 4 and 5. Neither is
+  assumed, and no D-NNN is claimed. Section 9's "noted, not decisions" list now
+  holds every behaviour change I found.
+- Everything listed as sound in Round 1 still holds; round 2 touched none of it.
+
+Round 2 result: APPROVED (no Blocker, no Major, four Minors to carry into the
+plan approval as conditions or a wording pass).
+
+Verdict: APPROVED
