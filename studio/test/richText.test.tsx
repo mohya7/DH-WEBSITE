@@ -496,7 +496,7 @@ describe("ADM-03 rich text images", () => {
    * selected for them, after the paste was made.
    */
 
-  // T16. The Image button leaves the new image selected.
+  // T16. Plan round 4: the Image button leaves a caret after its new image, so the answer takes the caret rule.
   it("an image inserted while a paste is being checked is kept", async () => {
     api.held = [];
     const editor = mount(documentOf(paragraph("Start")));
@@ -510,8 +510,8 @@ describe("ADM-03 rich text images", () => {
     expect(editor.text()).toContain("Start");
     expect(editor.text()).toContain("Pasted");
     expect(editor.notice()).toBe(imageNotice);
-    // Straight after the selection (plan 3.1 (3), round 3). The editor keeps an empty paragraph after a last image.
-    expect(editor.lastDocument().content).toEqual([paragraph("Start"), image(diagramId, "Diagram"), paragraph("Pasted"), { type: "paragraph" }]);
+    // At the caret (plan 3.1 (3), rule 1): the caret is in the paragraph after the picked image, and the answer fills it.
+    expect(editor.lastDocument().content).toEqual([paragraph("Start"), image(diagramId, "Diagram"), paragraph("Pasted")]);
   });
 
   // T17.
@@ -623,5 +623,40 @@ describe("ADM-03 rich text images", () => {
     expect(selectionAfterPick).toBe("text");
     expect(editor.lastDocument().content).toEqual([paragraph("Intro."), image(diagramId, "Diagram"), paragraph("After the image.")]);
     expect(api.pastes).toEqual([]);
+  });
+
+  // T23. Plan round 4, 3.1 (8): with another image straight after the new one, the caret goes beyond both.
+  it("inserting a library image before another image leaves neither selected", async () => {
+    const editor = mount(documentOf(paragraph("Intro."), image(storedId, "Chart")));
+    await settle();
+
+    // The caret at the end of "Intro.", where it is after typing.
+    await act(async () => {
+      editor.dom().editor.commands.setTextSelection(1 + "Intro.".length);
+    });
+    await pickFromLibrary(editor, "Diagram");
+    const selectionAfterPick = editor.dom().editor.state.selection.toJSON().type as string;
+    await editor.typeAtSelection("Next.");
+
+    expect(editor.images().map((node) => node.attrs?.mediaId)).toEqual([diagramId, storedId]);
+    expect(selectionAfterPick).toBe("text");
+    expect(editor.lastDocument().content).toEqual([
+      paragraph("Intro."),
+      image(diagramId, "Diagram"),
+      image(storedId, "Chart"),
+      paragraph("Next."),
+    ]);
+  });
+
+  // T24. An empty field is what a new section's editor is.
+  it("inserting a library image into an empty field keeps it when typing follows", async () => {
+    const editor = mount("");
+    await settle();
+
+    await pickFromLibrary(editor, "Diagram");
+    await editor.typeAtSelection("After the image.");
+
+    expect(editor.images().map((node) => node.attrs?.mediaId)).toEqual([diagramId]);
+    expect(editor.lastDocument().content).toEqual([image(diagramId, "Diagram"), paragraph("After the image.")]);
   });
 });

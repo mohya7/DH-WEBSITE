@@ -184,9 +184,10 @@ test("ADM-03 rich text: an inserted image stays, and a pasted web image is filte
   await picker.getByRole("button", { name: alt }).click();
   await expect(picker).toBeHidden();
 
-  // The caret must be in the paragraph after the image, not on the image.
+  // Typed straight after the pick, with no caret move: the Image button leaves
+  // the caret after the new image. The focus call stands for keyboard focus
+  // being in the editor; it does not move the caret.
   await body.focus();
-  await page.keyboard.press("Control+End");
   await page.keyboard.type("After the image.");
 
   // First: inserting an image and typing after it never calls the paste filter.
