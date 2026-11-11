@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lastPage, latestOnly, withPage } from "../src/ui/paging";
+import { afterEmptyPage, lastPage, latestOnly, withPage } from "../src/ui/paging";
 
 describe("paging helpers", () => {
   it("lastPage is never below 1", () => {
@@ -19,5 +19,13 @@ describe("paging helpers", () => {
     const b = requests.start();
     expect(requests.isLatest(a)).toBe(false);
     expect(requests.isLatest(b)).toBe(true);
+  });
+
+  it("afterEmptyPage jumps to the last page once, then fails", () => {
+    expect(afterEmptyPage(1, 120, 50, false)).toBe("show");
+    expect(afterEmptyPage(3, 0, 50, false)).toBe("show");
+    expect(afterEmptyPage(3, 51, 50, false)).toBe(2);
+    expect(afterEmptyPage(2, 51, 50, true)).toBe("fail");
+    expect(afterEmptyPage(2, 120, 50, false)).toBe("fail");
   });
 });

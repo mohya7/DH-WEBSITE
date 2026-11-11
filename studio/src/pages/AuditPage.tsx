@@ -77,15 +77,15 @@ export function AuditPage() {
     setPage(result.body as Page);
   }
 
+  // The pager moves when the page arrives (load), so after a failure it still
+  // shows the page whose rows are on screen.
   function goTo(pageNumber: number) {
-    setCurrent(pageNumber);
     void load(applied, pageNumber);
   }
 
   function filter() {
     const filters = { action, entityType, userId, range };
     setApplied(filters);
-    setCurrent(1);
     void load(filters, 1);
   }
 

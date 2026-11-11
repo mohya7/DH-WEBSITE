@@ -73,14 +73,14 @@ export function MediaPicker({
     setItems(page.items);
   }
 
+  // The pager moves when the page arrives (load), so after a failure it still
+  // shows the page whose rows are on screen.
   function goTo(pageNumber: number) {
-    setCurrent(pageNumber);
     void load(applied, pageNumber);
   }
 
   function submitSearch(term: string) {
     setApplied(term);
-    setCurrent(1);
     void load(term, 1);
   }
 
@@ -121,7 +121,6 @@ export function MediaPicker({
         // shows that search, so the box and the images agree.
         if (visible) {
           setSearch(applied);
-          setCurrent(1);
           void load(applied, 1);
         }
       }}

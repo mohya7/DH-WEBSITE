@@ -5,7 +5,7 @@ import { jsonInit, request } from "../api/http";
 import { MediaPicker } from "../content/MediaPicker";
 import { ListPager } from "../ui/ListPager";
 import { PageHeader } from "../ui/PageHeader";
-import { lastPage, latestOnly, withPage } from "../ui/paging";
+import { afterEmptyPage, latestOnly, withPage } from "../ui/paging";
 
 type MediaRow = {
   id: string;
@@ -42,7 +42,7 @@ export function MediaLibraryPage() {
     void load("", 1);
   }, []);
 
-  async function load(term: string, pageNumber: number) {
+  async function load(term: string, pageNumber: number, jumped = false) {
     const ticket = requests.current.start();
     const result = await request(`/api/v1/media?${withPage(new URLSearchParams({ search: term }), pageNumber, pageSize)}`);
     if (!requests.current.isLatest(ticket)) return;
@@ -51,9 +51,15 @@ export function MediaLibraryPage() {
       return;
     }
     const body = result.body as MediaPage;
-    // Past the last page after a delete: show the new last page instead.
-    if (body.items.length === 0 && pageNumber > 1 && body.total > 0) {
-      await load(term, lastPage(body.total, pageSize));
+    // Past the last page after a delete: show the new last page instead,
+    // once. A list that promises rows it does not give is a load error.
+    const step = body.items.length === 0 ? afterEmptyPage(pageNumber, body.total, pageSize, jumped) : "show";
+    if (step === "fail") {
+      setMessage("The library could not be loaded.");
+      return;
+    }
+    if (step !== "show") {
+      await load(term, step, true);
       return;
     }
     setCurrent(pageNumber);
@@ -61,21 +67,20 @@ export function MediaLibraryPage() {
     setItems(body.items);
   }
 
+  // The pager moves when the page arrives (load), so after a failure it still
+  // shows the page whose rows are on screen.
   function goTo(pageNumber: number) {
-    setCurrent(pageNumber);
     void load(applied, pageNumber);
   }
 
   function submitSearch(term: string) {
     setApplied(term);
-    setCurrent(1);
     void load(term, 1);
   }
 
   /* After an upload: the list is newest first, so the new image is on page 1. */
   function afterUpload() {
     setUpload(false);
-    setCurrent(1);
     void load(applied, 1);
   }
 

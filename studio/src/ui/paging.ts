@@ -32,3 +32,17 @@ export function latestOnly(): { start(): number; isLatest(ticket: number): boole
     },
   };
 }
+
+/**
+ * What a screen does with a reload that came back with no rows (ADM-06b).
+ * - a page number: past the last page after a change, so load that last page
+ *   instead. Only once per reload chain (`jumped` is true on the retry).
+ * - "show": nothing is promised (first page, or no rows at all); show it.
+ * - "fail": the list promises rows it does not give; stop and show the load
+ *   error rather than ask again (P-5).
+ */
+export function afterEmptyPage(page: number, total: number, pageSize: number, jumped: boolean): number | "show" | "fail" {
+  if (page <= 1 || total <= 0) return "show";
+  const last = lastPage(total, pageSize);
+  return !jumped && last < page ? last : "fail";
+}
