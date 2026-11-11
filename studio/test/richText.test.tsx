@@ -170,12 +170,28 @@ function mount(initial: string, other?: string) {
         });
       }
     },
-    async paste(html: string) {
+    // A paste at the end of the document, or with `keepSelection`, at the selection as it is.
+    async paste(html: string, keepSelection = false) {
       await act(async () => {
-        dom().editor.commands.focus("end");
+        if (!keepSelection) dom().editor.commands.focus("end");
         fireEvent.paste(dom(), {
           clipboardData: { getData: (type: string) => (type === "text/html" ? html : ""), files: [], types: ["text/html"] },
         });
+      });
+    },
+    // Selects the first image as a click on it does (a node selection).
+    async selectImage() {
+      await act(async () => {
+        let at = -1;
+        dom().editor.state.doc.descendants((node: { type: { name: string } }, position: number) => {
+          if (at < 0 && node.type.name === "image") at = position;
+        });
+        dom().editor.commands.setNodeSelection(at);
+      });
+    },
+    async selectAll() {
+      await act(async () => {
+        dom().editor.commands.selectAll();
       });
     },
     images: () => (dom().editor.getJSON().content as Node[]).filter((node) => node.type === "image"),
@@ -459,5 +475,115 @@ describe("ADM-03 rich text images", () => {
     expect(editor.text()).toContain("Other item");
     expect(editor.text()).not.toContain("Pasted");
     expect(editor.notice()).toBe(failedNotice);
+  });
+
+  /*
+   * T16 to T21: the test report's round 1, findings 1 and 2. The answer to a
+   * paste check must not replace what the person selected, or what the editor
+   * selected for them, after the paste was made.
+   */
+
+  // T16. The Image button leaves the new image selected.
+  it("an image inserted while a paste is being checked is kept", async () => {
+    api.held = [];
+    const editor = mount(documentOf(paragraph("Start")));
+    await settle();
+
+    await editor.paste(`<p>Pasted</p>${webImage}`);
+    await pickFromLibrary(editor, "Diagram");
+    await release();
+
+    expect(editor.images().map((node) => node.attrs?.mediaId)).toEqual([diagramId]);
+    expect(editor.text()).toContain("Start");
+    expect(editor.text()).toContain("Pasted");
+    expect(editor.notice()).toBe(imageNotice);
+  });
+
+  // T17.
+  it("an image selected while a paste is being checked is kept", async () => {
+    api.held = [];
+    const editor = mount(stored);
+    await settle();
+
+    await editor.paste(`<p>Pasted</p>${webImage}`);
+    await editor.selectImage();
+    await release();
+
+    expect(editor.images().map((node) => node.attrs?.mediaId)).toEqual([storedId]);
+    expect(editor.text()).toContain("Before");
+    expect(editor.text()).toContain("After");
+    expect(editor.text()).toContain("Pasted");
+  });
+
+  // T18.
+  it("a document selected while a paste is being checked is kept", async () => {
+    api.held = [];
+    const editor = mount(stored);
+    await settle();
+
+    await editor.paste(`<p>Pasted</p>${webImage}`);
+    await editor.selectAll();
+    await release();
+
+    expect(editor.images().map((node) => node.attrs?.mediaId)).toEqual([storedId]);
+    expect(editor.text()).toContain("Before");
+    expect(editor.text()).toContain("After");
+    expect(editor.text()).toContain("Pasted");
+  });
+
+  // T19. A guard: it passes before the fix too. What was selected when the paste was made is replaced, as a paste does.
+  it("a paste over a selection replaces that selection", async () => {
+    api.held = [];
+    const editor = mount(stored);
+    await settle();
+
+    await editor.selectAll();
+    await editor.paste(`<p>Pasted</p>${webImage}`, true);
+    await release();
+
+    expect(editor.images()).toHaveLength(0);
+    expect(editor.text()).toContain("Pasted");
+    expect(editor.text()).not.toContain("Before");
+    expect(editor.text()).not.toContain("After");
+  });
+
+  // T20.
+  it("a paste that is added clears the notice that nothing was added", async () => {
+    const editor = mount(stored);
+    await settle();
+    const copied = (editor.dom().querySelector("img") as HTMLImageElement).outerHTML;
+
+    api.fail = true;
+    await editor.paste(copied);
+    await settle();
+    expect(editor.images()).toHaveLength(1);
+    expect(editor.notice()).toBe(failedNotice);
+
+    // The notice says "Paste again."
+    api.fail = false;
+    await editor.paste(copied);
+    await settle();
+
+    expect(editor.images()).toHaveLength(2);
+    expect(editor.notice()).toBeNull();
+  });
+
+  // T21.
+  it("a paste that is added clears the notice that a drop was refused", async () => {
+    const editor = mount(documentOf(paragraph("Start")));
+    await settle();
+    const view = editor.dom().editor.view;
+
+    act(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- ProseMirror's handleDrop prop
+      view.someProp("handleDrop", (handler: any) => handler(view, new Event("drop"), sliceOf(editor, `<p>Dropped</p>${webImage}`), false));
+    });
+    expect(editor.notice()).toBe(dropNotice);
+
+    await editor.paste("<p>Plain text</p>");
+    await settle();
+
+    expect(editor.text()).toContain("Plain text");
+    expect(editor.notice()).toBeNull();
   });
 });
