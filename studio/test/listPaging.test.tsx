@@ -409,12 +409,22 @@ describe("media picker paging", () => {
     await screen.findByText("Image 001");
     fireEvent.click(pageItem("2"));
     await screen.findByText("Image 025");
+    // A term typed but never submitted before the picker closes.
+    const box = screen.getByPlaceholderText<HTMLInputElement>("Search alt text, caption, or file name");
+    fireEvent.change(box, { target: { value: "Image 02" } });
+    expect(box.value).toBe("Image 02");
 
     view.rerender(<MediaPicker open={false} onClose={() => {}} onSelect={() => {}} />);
     const before = listQueries("/api/v1/media").length;
     view.rerender(<MediaPicker open onClose={() => {}} onSelect={() => {}} />);
 
     await waitFor(() => expect(listQueries("/api/v1/media").length).toBeGreaterThan(before));
-    expect(lastListQuery("/api/v1/media").get("page")).toBe("1");
+    const query = lastListQuery("/api/v1/media");
+    expect(query.get("page")).toBe("1");
+    // The reopened picker uses the applied search (none), and the box shows it.
+    expect(query.get("search")).toBe("");
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText<HTMLInputElement>("Search alt text, caption, or file name").value).toBe(""),
+    );
   });
 });
