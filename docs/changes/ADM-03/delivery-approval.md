@@ -16,6 +16,28 @@ This approval is a pipeline role. It is not the owner's confirmation that
 `AGENTS.md` requires, and it decides no owner question (P-7). This file is the
 only one written, and it is not committed. Nothing was pushed.
 
+## Update after the conditions were worked (same day)
+
+Head `fc7fac5`. Since `a625f00`: `6fcf2ef` (this file, as first written),
+`3a1baa0` (`implementation.md` section 15) and `fc7fac5` (`plan-review.md`
+Round 3). `git diff --quiet aef22b5 HEAD -- studio api website packages .github`
+exits 0, so everything verified below on `aef22b5` and `a625f00` still holds.
+
+- **Condition 1: met.** `plan-review.md` Round 3 ends `Verdict: APPROVED` with
+  three Minors, none needing a code change. Gate 1 for round 3 is recorded in
+  `plan-approval.md` ("Gate 1 again: plan round 3"). Minors 1 and 2 are
+  accepted as record notes; Minor 3 goes to ADM-22. The draft pull request
+  body below carries all three.
+- **Condition 2: holds.** No file under `studio/` changed since `aef22b5`.
+- **Condition 3: met.** `implementation.md` section 15 (`3a1baa0`) changes
+  nothing above it and records the later pushes, the cancelled runs on
+  `fb7615f`, run `42959042545` on `aef22b5`, and that the red of `c4d93b9` is
+  local. I read it against what I saw on GitHub; it matches.
+- **Still open:** conditions 4 (CI on the final head), 5 (the pull request
+  body), 6 to 9.
+
+The decision is unchanged.
+
 ## Decision
 
 **Approved, with conditions 1 to 9 below for the integrator.** The code, the
@@ -281,7 +303,7 @@ pushed head, so nothing was rebased or amended.
 
 ## Conditions for the integrator
 
-1. **Plan round 3 goes to the plan reviewer.** Run the plan-reviewer on the
+1. **Met (see the update at the top).** Plan round 3 goes to the plan reviewer. Run the plan-reviewer on the
    round 3 change (`git diff 877b2b5 213cdb8 -- docs/changes/ADM-03/plan.md`)
    and record Round 3 in `plan-review.md`; then gate 1 records round 3 in
    `plan-approval.md`. Both are records only. Do this before the pull request
@@ -289,7 +311,7 @@ pushed head, so nothing was rebased or amended.
    and the change goes back to the architect.
 2. **No file under `studio/` changes after `aef22b5`.** If one does, the change
    goes back to the tester for a full round and to this gate again.
-3. **Records addendum (finding 5).** The developer adds a dated section 15 to
+3. **Met at `3a1baa0`.** Records addendum (finding 5). The developer adds a dated section 15 to
    `implementation.md`, and changes nothing above it, saying: `fb7615f` and then
    `aef22b5` were pushed by the integrator; the Studio and API runs on `fb7615f`
    were cancelled by the next push; run `42959042545`, job `130321040327`, on
@@ -297,7 +319,8 @@ pushed head, so nothing was rebased or amended.
    them; `c4d93b9` was never a pushed head on its own, so its red is local
    evidence (developer, tester, gate 2). Records only.
 4. **CI green on the final pushed head.** The head will move past `aef22b5`
-   (`a625f00`, the records of conditions 1 and 3, this file). Push them
+   (`a625f00`, the records of conditions 1 and 3, this file and
+   `plan-approval.md` round 3). Push them
    together, by merge only if the base has moved (B-3, B-5), never a bare push
    or a force push. Wait for every check run to conclude; a cancelled run is
    re-run. Quote the run and job ids in the pull request body where the draft
@@ -334,7 +357,7 @@ pushed head, so nothing was rebased or amended.
 | Every new or changed route has a guard | Yes, vacuously: no route added or changed. `POST /api/v1/rich-text/paste` keeps policy `studio` |
 | Tests exist for the behaviour changed; every security fix has a regression test | Yes: T1, T2, T4 to T21, E1, E2; T13 is the attack test, red before the fix. Changed-line coverage: no gate exists yet (G-8 is a Gap) and none was measured; say so |
 | PR checks green on the final head (run ids) | **Open.** Green on `aef22b5` (run `42959042545`); the final head will be later (condition 4) |
-| Independent code review run; findings fixed or accepted | Yes for the code: plan review rounds 1 and 2, tester rounds 1 and 2 (two Minors fixed red first), this gate. **Open for plan round 3** until condition 1 |
+| Independent code review run; findings fixed or accepted | Yes for the code: plan review rounds 1 and 2, tester rounds 1 and 2 (two Minors fixed red first), this gate. Plan round 3 now has its review (Round 3, three Minors accepted) |
 | Reviewed by someone other than the author | Yes, by pipeline roles; the owner's review is still to come |
 | Rollback understood | Yes. Revert the pull request; no migration, nothing stored differently |
 | Deployment note | Until Phase D: the integrator merges into `rebuild/dotnet-platform` and re-runs the suites after the merge. **Open** until then |
@@ -541,6 +564,9 @@ Found here and left alone:
   carries an image, the server filter also removes a hard break and a rule.
 - A paste of table cells that hold an image is inserted as a table at the
   caret, not merged into the selected cells.
+- If table cells are selected while a paste is being checked, the pasted
+  content goes in after that selection and replaces nothing, but where it
+  lands in the table is not tested (plan review round 3, Minor 3).
 - A library image copied in another tab is dropped on paste. A library lookup
   could allow it (plan 3.3).
 - Per-use alt text and a decorative switch inside rich text.
@@ -574,7 +600,7 @@ Found here and left alone:
 - [x] Every new or changed route has a guard (no route changed)
 - [x] Tests exist for the behaviour changed; the security fix has a regression test, T13 (changed-line coverage: no gate yet, G-8; not measured)
 - [ ] PR checks are green on the final head (run IDs quoted) — tick when the runs on `<final head>` are in
-- [ ] Independent code review was run and its findings are fixed or explicitly accepted below — tick when plan round 3 has its plan review (the code has been reviewed by the tester in two rounds and by the tech lead)
+- [x] Independent code review was run and its findings are fixed or explicitly accepted below (plan review rounds 1 to 3, tester rounds 1 and 2, both gates)
 - [x] Reviewed by someone other than the author (pipeline roles); owner review pending
 - [x] Rollback is understood: revert this PR; no schema or data change, nothing stored differently
 - [ ] Deployment note: the integrator merges into rebuild/dotnet-platform after the owner confirms, and re-runs the suites after the merge
@@ -582,9 +608,17 @@ Found here and left alone:
 ## Review findings accepted
 
 - Plan round 3 (`213cdb8`), which made the late-paste rule the design, was
-  written after the rework and went to the tester and gate 2 without a plan
-  review round. The tech lead read it against the code and found no fault; the
-  plan review is being added as a record before this leaves draft.
+  written after the rework and went to the tester and gate 2 before the plan
+  reviewer saw it. The plan review (Round 3) and gate 1 for round 3 were
+  recorded afterwards; both approve it, and no code changed as a result.
+- Plan review round 3, Minor 1: the plan's own test tables stop at T15 and two
+  of its coverage rows still say "Planned". T16 to T21, with their red and
+  green runs, are in `implementation.md` section R and the test report,
+  round 2.
+- Plan review round 3, Minor 2: a paste with no image clears the "could not be
+  checked" and refused-drop notices as soon as it is made, before the editor
+  inserts it, so they clear even if that paste adds nothing. Harmless; the
+  image notice is never cleared this way.
 - Tester observation (a): the filter's answer is inserted as it comes. Only the
   API can send it, and the real filter rebuilds every image node. Not taken;
   it can be added later.
@@ -595,7 +629,7 @@ Found here and left alone:
 - The e2e spec adds two steps the plan did not list (an "Edit" click to open a
   stored section; a focus before `Control+End`). No assertion is weakened.
 - Parts of `implementation.md` written before the later pushes say CI was not
-  run; its last section and the test report give the runs.
+  run; its section 15 and the test report give the runs.
 
 ## Governance
 

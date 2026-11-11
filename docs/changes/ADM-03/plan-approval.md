@@ -314,4 +314,83 @@ the pull request body (condition 14), and the owner's merge confirmation is
 where they are accepted or refused. If the owner refuses one, the change goes
 back to the architect.
 
+Result for plan round 2: approved, with conditions 1 to 16. Superseded by the
+section below, which holds the file's only verdict.
+
+## Gate 1 again: plan round 3
+
+Technical lead, 11 November 2026. Plan: `plan.md` round 3 (`213cdb8`). Review:
+`plan-review.md` Round 3 (`fc7fac5`), `Verdict: APPROVED`, three Minors.
+
+**This round is recorded late, and I say so.** Round 3 was written after the
+developer's rework (`c4d93b9`, `1177ac7`) and went to the tester and to gate 2
+before the plan reviewer or this gate saw it. I found that at gate 2 and made
+the review a condition (`delivery-approval.md`, condition 1). The reviewer has
+now passed it, so this gate can record it. The order was wrong; the content is
+not.
+
+Read again: `git diff 877b2b5 213cdb8 -- docs/changes/ADM-03/plan.md` in full,
+`plan-review.md` Round 3 in full, and `RichTextEditor.tsx` at the head.
+`git diff --quiet aef22b5 HEAD -- studio api website packages .github` exits 0:
+the four commits since the tested head are records only.
+
+### Decision
+
+Approved. Round 3 changes one rule and two wordings, and adds no condition for
+the developer. Conditions 1 to 16 stand as met or closed at gate 2.
+
+### Why I accept round 3
+
+- **It removes a contradiction in the plan I approved.** Round 2's 3.1 (3) said
+  both "`replaceSelection` at the selection of that moment" and "Nothing is
+  lost". The reviewer and I both passed that. The tester showed they disagree
+  once something is selected after the paste. Round 3 keeps the intent.
+- **The rule keeps content when it cannot tell.** A caret takes the content at
+  the caret. The selection pasted over is replaced only if both the document
+  and the selection are as they were at paste time. Any other selection is
+  kept and the content goes straight after it. That is the fail-safe direction
+  (P-5).
+- **The code is the rule.** I read it: `state.selection.empty || untouched`
+  takes `replaceSelection(piece)`; otherwise `replaceRange(after, after, piece)`
+  with `after = state.selection.to`. One transaction. The mounted flag and the
+  replaced-document counter are still checked first.
+- **Red first, and pinned.** `c4d93b9` precedes `1177ac7`; I reproduced
+  `5 failed | 15 passed (20)` on an export of `c4d93b9` at gate 2. `eb696cc`
+  makes T16 to T18 assert the exact document, so the place cannot drift.
+- **Scope, security and owner questions are unchanged.** Same module, same
+  request, same known-id rule, no new input. O-ADM03-1 and O-ADM03-2 are as
+  recorded above and at gate 2. The changed landing place and the cleared
+  notices are behaviour changes for the owner and are in the pull request
+  body's list.
+
+### Reviewer's Minors (round 3)
+
+All three are accepted as not blocking. None needs a code or test change, and I
+do not send the plan back for a fourth round of wording.
+
+1. **The plan's test tables stop at T15, and two coverage rows say "Planned"
+   for committed tests.** Accepted as a record note. `implementation.md`
+   section R and section 13 are the record of T16 to T21, with their red and
+   green runs; `test-report.md` round 2 verifies them. Noted in the pull
+   request body under "Review findings accepted".
+2. **"A paste that is added clears" is slightly wider in the code.** Confirmed:
+   for a paste with no image, `handlePaste` clears the two notices before
+   ProseMirror inserts, so they clear even if that paste adds nothing. It is
+   harmless: the notice it clears is about an earlier paste or drop, and the
+   image notice is never cleared this way. Accepted as it is, and noted in the
+   pull request body under "Review findings accepted".
+3. **A table cell selection takes the insert-after rule, and where the content
+   lands is untested.** Nothing is replaced, by construction. Accepted, and
+   moved to ADM-22: added to the "For ADM-22" section of the pull request body,
+   beside the existing table-cell paste item.
+
+### Owner decisions, as of round 3
+
+| Id | Question | Status | Blocks |
+| --- | --- | --- | --- |
+| O-ADM03-1 | Push the end-to-end red test alone first? | Not asked for ADM-03; no owner answer for ADM-03. The integrator pushed `0975b00` alone on its own notice to the owner | Nothing now; recorded as it happened |
+| O-ADM03-2 | Insert an image the library marks decorative as decorative? | Asked by card, recommendation "Yes". Unanswered | Nothing here: not built; moved to the "For ADM-22" note |
+| Behaviour changes | Shown, not decided | In the pull request body for the owner's merge confirmation | The merge |
+| G3-1 exit-gate date | The owner's open question about 16 November | Not this change's decision | Nothing in this plan |
+
 Verdict: APPROVED
