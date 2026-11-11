@@ -7,10 +7,134 @@ with conditions 1 to 16. Worktree `/home/user/dh-change-adm06b`, branch
 by the orchestrator as draft PR #51 (remote head `58caf70`, checked with
 `git ls-remote`); I pushed nothing in this round.
 
-**Result: round 3 is done. Commit 4a (red) and 4b (fix) are made as condition 11
-asks; `tsc -b`, the build, and every Studio unit test pass at 4b.** Section 0 is
-this round. Sections 1 to 7 are the round-2 record, updated where round 3 changes
-them. Section 1 is kept as the record of the stop that round 3 answered.
+**Result: the tester's round-1 rework is done (section R).** `test-report.md`
+round 1 (`d907336`) passed `0558ebd` with two Minors. Both are fixed, failing
+tests first, and the CI red on `58caf70` is recorded. Section 0 is round 3.
+Sections 1 to 7 are the round-2 record, updated where later rounds change them.
+
+## R. Rework after the test report (round 1, two Minors) and the CI red
+
+### Each finding, and how it is answered
+
+| Finding | Answer | Red | Fix |
+| --- | --- | --- | --- |
+| 1 (Minor). A failed page load leaves the pager on the requested page while the previous page's rows stay; a later Mark handled reloads that page | Nothing moves the pager before a request returns any more. `load` alone calls `setCurrent`, when the rows arrive. The early `setCurrent` is removed from `goTo` in all five screens. It is also removed from the other places that set it before loading: inbox, library, picker and redirects search; audit Filter; the library's after-upload; the picker's opening. Each had the same defect on a failure. | `c15a886`: S13 (`it.each` over the five screens): page 2 answers 500, then the error shows, page 1's first row stays, and the active item is "1". S14: after that failure, Mark handled reloads `page=1` | `9ac4d7e` |
+| 2 (Minor). The jump to the last page after an empty reload has no bound (inbox, redirects, library) | A new pure helper `afterEmptyPage(page, total, pageSize, jumped)` in `studio/src/ui/paging.ts` gives a page number (jump to the last page, only when it is before the page asked for and no jump has been made yet), `"show"`, or `"fail"`. On `"fail"`, the screen shows its existing load error and keeps the rows and pager it had. It does not request again (P-5, as `previewData.ts` fails closed). The three screens pass `jumped = true` on the retry. | `c15a886`: S15 (`it.each` over inbox, redirects, library). Page 1 is normal; every other page answers `{ items: [], total: 120 }`. After clicking "2" there are at most 2 list requests, the load error shows, and the pager stays on "1". The fake API cuts off after 10 calls so the red run ends | `9ac4d7e`; U4 in `test/paging.test.ts` |
+
+Finding 1 has no shared piece to put in the helper or in `ListPager`. The fix is
+to remove the early `setCurrent` calls, and `load` already set the page on
+success. Finding 2's rule is in the shared helper. Each screen keeps its own
+message and its own `jumped` argument.
+
+U4 (`afterEmptyPage jumps to the last page once, then fails`) is in the fix
+commit, not the red one. The red commit could not import `afterEmptyPage` before
+it exists, because `tsc -b` would then fail on `test/paging.test.ts`, and the red
+commit must keep `tsc -b` at exit 0. The behaviour U4 covers is shown red by S15.
+
+### CI red on `58caf70` (condition 6), relayed by the coordinator
+
+Draft PR #51, run `42932462397`, job `130234325372` ("Studio — typecheck, build,
+end-to-end"), conclusion `failure`: **2 failed, 26 passed.**
+
+- **E1** fails as planned at `paging.spec.ts:74`. `locator.click` waits for the
+  "Inbox pages" pager's title "2" until the 90 s test timeout.
+- **E2** also hit the 90 s test timeout. Playwright reported the cleanup instead:
+  `apiRequestContext.delete: Target page, context or browser has been closed` at
+  `paging.spec.ts:148`. The real failure line was hidden, and none of the 51
+  redirects were deleted. The server log shows 51 `POST /redirects`, 5
+  `GET /audit` and no `GET /redirects`, so the test stalled in the audit section,
+  almost certainly at `pageTwo(auditPager).click()`. That is the missing pager, as
+  planned. Every other e2e test passed.
+
+`ef6fb38` gives the three pager clicks and the two `waitForResponse` waits a
+`timeout: 15_000` (`stepTimeout`), well under the 90 s test timeout. A missing
+pager then fails at its own line, and the `finally` block has time to delete the
+redirects. No assertion, expectation or value changed, and the config's 90 s test
+timeout and 15 s `expect` timeout are unchanged.
+
+E1 and E2 were **NOT RUN locally**: there is no SQL Server and no `dotnet` here.
+The changed spec is type-checked with the scratch config from section 4:
+`npx tsc -p <scratch>/tsconfig.e2e.json --noEmit` gave exit 0, and
+`--listFilesOnly` lists `studio/e2e/paging.spec.ts`. CI job `studio` covers E1
+and E2 on the next pushed head.
+
+### Commits this round
+
+| SHA | Subject | Files |
+| --- | --- | --- |
+| `c15a886` | ADM-06b: Test that a failed or empty page load keeps the pager honest | `studio/test/listPaging.test.tsx` |
+| `9ac4d7e` | ADM-06b: Move the pager only when a page arrives, and jump to the last page once | `studio/src/ui/paging.ts`, `studio/test/paging.test.ts`, `studio/src/pages/ContactInboxPage.tsx`, `AuditPage.tsx`, `RedirectsPage.tsx`, `MediaLibraryPage.tsx`, `studio/src/content/MediaPicker.tsx` |
+| `ef6fb38` | ADM-06b: Fail the paging e2e at the pager, not the test timeout | `studio/e2e/paging.spec.ts` |
+| this file | ADM-06b: Record the rework after the test report | `docs/changes/ADM-06b/implementation.md` |
+
+Nothing was pushed, rebased, amended or merged.
+
+### Red, at `c15a886`
+
+```
+$ cd /home/user/dh-change-adm06b/studio && npx tsc -b; echo $?
+0
+$ npx vitest run test/listPaging.test.tsx; echo $?
+     × inbox keeps the pager on the page shown when page 2 fails to load
+     × audit log keeps the pager on the page shown when page 2 fails to load
+     × redirects keeps the pager on the page shown when page 2 fails to load
+     × media library keeps the pager on the page shown when page 2 fails to load
+     × media picker keeps the pager on the page shown when page 2 fails to load
+     × after a failed page load, Mark handled reloads the page shown
+     × inbox jumps to the last page at most once when pages come back empty with rows promised
+     × redirects jumps to the last page at most once when pages come back empty with rows promised
+     × media library jumps to the last page at most once when pages come back empty with rows promised
+AssertionError: expected '2' to be '1' // Object.is equality        (S13 x5, S14)
+AssertionError: expected 10 to be less than or equal to 2          (S15 x3)
+ Test Files  1 failed (1)
+      Tests  9 failed | 12 passed (21)
+1
+$ npm test
+ Test Files  1 failed | 9 passed (10)
+      Tests  9 failed | 50 passed (59)
+```
+
+Only the nine new tests fail, and each fails on the defect: the pager is on "2",
+or there are 10 requests (the fake API's cut-off). S1 to S12 and every other
+Studio test pass.
+
+### Green, at `9ac4d7e` (and unchanged by `ef6fb38`, which touches only the e2e spec)
+
+```
+$ npx vitest run test/listPaging.test.tsx test/previewData.test.ts test/paging.test.ts; echo $?
+ Test Files  3 passed (3)
+      Tests  35 passed (35)          (21 + 10 + 4)
+0
+$ npm test; echo $?
+ Test Files  10 passed (10)
+      Tests  60 passed (60)
+0
+$ npx tsc -b; echo $?
+0
+$ VITE_PUBLIC_SITE_URL=https://website.ci.invalid npm run build; echo $?
+✓ built in 1.09s
+Preview design: /website-design/d1ebe4132f8cfa8e/ matches website/design/ byte for byte.
+0
+$ git -C /home/user/dh-change-adm06b diff --exit-code -- studio/package-lock.json studio/package.json; echo $?
+0
+$ npx vitest run test/listPaging.test.tsx | grep -ciE "warning|not wrapped in act|unhandled"
+0
+$ grep -rnE "ResizeObserver|motion" studio/src        (condition 14)
+(no output, exit 1)
+$ git status --short
+(empty)
+```
+
+`npx tsc -b` was run again after `ef6fb38` and gave exit 0.
+
+### Behaviour changes for the owner (added this round)
+
+- After a page fails to load, the pager stays on the page whose rows are shown,
+  next to the error.
+- If the server reports rows on a page it then returns empty, the screen shows
+  its "could not be loaded" message once instead of asking again.
+
+The round-3 picker note in section 0 still stands.
 
 ## 0. Round 3 (rework after BACK TO ARCHITECT)
 
@@ -513,10 +637,13 @@ in a collection). The same section goes in the pull request body.
 | Pager follows the navy look | `docs/phase-b-studio.md` lines 480, 501 | Done in code; assertions NOT RUN | `theme.ts` six tokens (section 5); E1, E2 `toHaveCSS` in CI `studio` |
 | Collection list past 100 | Audit ADM-06, bullet 2 | Moved to ADM-08 | Section 6 of this file; PR body |
 | Overview counts past 100 | Found in plan 2.3 | Moved to ADM-08 | Section 6 of this file; PR body |
-| Merge order: final head contains #49 and `3e1fc47` | Plan 3.5; conditions 2, 12, 16 | Open | Not merged in (`--is-ancestor 3e1fc47 HEAD` gives 1 at `161b5b5`); `git merge` after the CI red on `58caf70` and after #49 merges; quoted at gate 2 |
-| Studio end-to-end test past page 1 | ADM-06a 3.3, 5.5 | Written; NOT RUN locally | `58caf70`, pushed alone as draft PR #51; type-checked (exit 0); CI `studio` red run pending |
-| Regression tests shown failing before the fix | G3 checklist | Done locally for S1 to S12, P2, P3; E1, E2 red NOT RUN | Section 4; E1/E2 red in CI on `58caf70` alone (O-ADM06B-1 "Yes") |
+| Merge order: final head contains #49 (`1f53484`) and `3e1fc47` | Plan 3.5; conditions 2, 12, 16 | Open | Not merged in. Both `--is-ancestor` checks give 1 (tester, at `0558ebd`). The CI red is now recorded, so the base can come in with `git merge`, not by me in this round. Quoted at gate 2 |
+| Studio end-to-end test past page 1 | ADM-06a 3.3, 5.5 | Red in CI; green NOT RUN | `58caf70` red in CI (section R); `ef6fb38` timeouts; green on a final head that contains #49 |
+| Regression tests shown failing before the fix | G3 checklist; condition 6 | Done | S1 to S12, P2, P3 locally (section 4); E1, E2 red in CI on `58caf70` alone: run `42932462397`, job `130234325372`, 2 failed, 26 passed (section R) |
 | `tsc -b` and `npm run build` pass | Plan 5.3; condition 13 | Done | Failed at `8c4ab16` (TS6307, section 1); exit 0 at `933b3b9` and `161b5b5` (section 0) |
+| Pager shows the page on screen after a failed load | Test report round 1, finding 1 | Done (unit) | S13 (five screens), S14 red at `c15a886`, green at `9ac4d7e` (section R) |
+| Jump to the last page at most once per reload | Test report round 1, finding 2 | Done (unit) | S15 (three screens) red at `c15a886` (10 requests), green at `9ac4d7e`; U4 at `9ac4d7e` |
+| E2E fails at the pager line, cleanup still runs | Coordinator, from CI run `42932462397` | Done in code; NOT RUN locally | `ef6fb38`, type-checked (exit 0); CI `studio` on the next pushed head |
 | Shims test-only | Condition 14 | Done | No match for `ResizeObserver` or `motion` in `studio/src` (section 0) |
 | Picker change shown to the owner | Condition 15 | Done here; PR body open | Section 0; the PR body needs the same note |
 | ADM-06 closed | ADM-06a 3.3 | Open | Needs #49 and this change merged |
