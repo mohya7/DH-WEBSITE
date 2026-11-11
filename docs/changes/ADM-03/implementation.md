@@ -721,4 +721,33 @@ $ npx tsc -b; echo $?
 Nothing was pushed, amended or rebased. CI on these commits is NOT RUN until
 the integrator pushes; CI `studio` covers them.
 
+## 15. Addendum, 11 November 2026: the later pushes and CI on `aef22b5`
+
+Added for gate 2, condition 3 (`delivery-approval.md`). Nothing above this
+section is changed. It supersedes the statements in section R, and in section
+14, that the round-2 and later commits are "not pushed" and that CI on them is
+"NOT RUN".
+
+I did not push and did not read CI. This is as the coordinator relayed it, as
+read by the tester and the tech lead.
+
+- **Who pushed, and what.** The integrator pushed `fb7615f`. It then pushed
+  `213cdb8`, `eb696cc` and `aef22b5` together.
+- **CI on `fb7615f`: no result.** Its Studio and API runs were cancelled by the
+  second push. A cancelled run is not evidence, and none is claimed for that
+  commit.
+- **CI on `aef22b5`: green.** `ci.yml` run `42959042545`, job `130321040327`,
+  "Studio — typecheck, build, end-to-end": `success`. Unit tests `80 passed`;
+  end-to-end `30 passed`, E1 and E2 among them. Every other check run is
+  `success`; CodeQL and screenshot parity are `skipped`, as on the earlier
+  heads.
+- **So E1 and E2 pass with the round-2 fix (`1177ac7`) and the order
+  assertions (`eb696cc`)** in Chromium against the real API. Section R left
+  that open until the next pushed head.
+- **The red of `c4d93b9` has local evidence only.** That commit was never
+  pushed alone, so CI did not run on it as a head. Its red run is the local one
+  quoted in section R: `5 failed | 15 passed (20)`, with `tsc -b` exit 0. No
+  end-to-end test changed in round 2, so there was no end-to-end red to show
+  for it; the end-to-end red is the one on `0975b00` (run `42956506481`).
+
 Status: READY FOR TEST
