@@ -2,9 +2,11 @@
 
 Change id: `ADM-03`. Branch: `change/ADM-03`, worktree `/home/user/dh-change-adm03`,
 cut from `origin/rebuild/dotnet-platform` at `77296ba`.
-Architect, round 2, 11 November 2026. Round 1 (`15164df`) came back CHANGES
-NEEDED (`plan-review.md` Round 1 at `fda6532`: one Major, five Minors). Section
-12 answers each one.
+Architect, round 3, 11 November 2026. Round 1 (`15164df`) came back CHANGES
+NEEDED (`plan-review.md` Round 1 at `fda6532`: one Major, five Minors), answered
+in round 2. Round 3 confirms the developer's insert rule after the tester's
+finding 1 (`test-report.md` round 1; `implementation.md` section R at
+`fb7615f`). Section 12 answers each point.
 
 **One change, no split.** ADM-06 was split because it had an API half and a
 Studio half. ADM-03 is fixed in one module, the Studio's rich-text editor: two
@@ -328,21 +330,44 @@ All in `RichTextEditor.tsx`, plus one field in `MediaPicker.tsx` (item 7).
      without it the reviewer's probe P7 gave `"Other itemPasted"`.)
    - On success: build a fragment from the filtered nodes
      (`Fragment.fromJSON(view.state.schema, content)`, from `@tiptap/pm/model`,
-     already a dependency) and dispatch one transaction,
-     `view.state.tr.replaceSelection(piece)`, at the selection of that moment.
-     `piece` is a `Slice` over the fragment whose open depths are the pasted
+     already a dependency) and dispatch one transaction that
+     inserts `piece` by the rule in the next bullet. `piece` is a `Slice` over the fragment whose open depths are the pasted
      slice's, each capped by `Slice.maxOpen(fragment)`. So pasted text joins the
      sentence it is pasted into, as a normal paste does. An empty fragment
      inserts nothing.
+   - **Where the answer goes (round 3; replaces round 2's "at the selection of
+     that moment").** The editor state at paste time is kept and compared with
+     the state when the answer arrives.
+     1. The selection is a caret: `replaceSelection(piece)`, at the caret.
+     2. The selection is the one the paste was made over and the document has
+        not changed since (`doc.eq` and `selection.eq` against the kept state):
+        `replaceSelection(piece)`. That is a paste over a selection, which the
+        person asked for.
+     3. Any other selection, so one made after the paste: insert straight after
+        it, `replaceRange(to, to, piece)` with `to` the selection's end, and
+        put the caret at the end of what was added. Nothing is replaced.
+     "After the selection" is the design, not only the developer's choice. It
+     is the nearest place to the caret rule that replaces nothing; it keeps
+     reading order; and for the Image button, which leaves its new image
+     selected, the pasted content follows the image, as it follows text typed
+     in that moment. Inserting before the selection, or collapsing it to its
+     head, would do no better and would differ from rule 1 for no reason.
+   - A paste that is added clears this change's own two notices, "could not be
+     checked" and the drop notice, and only those (round 3). The older image
+     notice stays as it was, for ADM-22.
    - If `imagesDropped`: show the existing notice, "This paste included an image.
      Use the image button so you can add alt text."
    - On a failed request, or an answer that cannot be built: insert nothing and
      show "The paste could not be checked, so nothing was added. Paste again."
      This fails closed (P-5), and the clipboard still holds the content.
-   - What was typed while the request was out stays. The pasted content lands at
-     the caret, so it may follow text typed in that moment. Two pastes whose
-     answers come back in the other order are inserted in answer order
-     (reviewer's probe P3: `"StartBBBAAA"`). Nothing is lost in either case.
+   - **What is kept (corrected in round 3; round 2 said "Nothing is lost").**
+     Everything in the editor when the answer arrives is kept: text typed
+     meanwhile, an image inserted meanwhile, and anything selected meanwhile.
+     The only content the answer replaces is what was selected when the person
+     pasted, if it is still selected and the document is unchanged. The pasted
+     content may follow text typed, or a selection made, in that moment. Two
+     pastes whose answers come back in the other order are inserted in answer
+     order (reviewer's probe P3: `"StartBBBAAA"`); both are added.
 4. **A library image survives a copy or cut and paste, and only a library
    image does.** (Audit fix 2; the second half is round 2.)
    - `StudioImage.parseHTML()` returns `img[mediaid]` first, then the existing
@@ -887,9 +912,14 @@ live only in `DigitalHubContent_E2e`, which the harness resets before every run.
   - Two new notices: "The paste could not be checked, so nothing was added.
     Paste again." and "The dropped content included an image, so it was not
     added. Use the image button for images."
-  - Content pasted with an image lands at the caret when the check returns, so
-    it can follow text typed in that moment. Two such pastes made one straight
-    after the other can land in the other order. Nothing is lost.
+  - Content pasted with an image is added when the check returns: at the caret,
+    or, if something was selected after pasting, straight after that selection.
+    So it can follow text typed or an image inserted in that moment. Nothing
+    already in the editor is replaced, except what was selected at the moment
+    of pasting, as with any paste. Two such pastes made one straight after the
+    other can land in the other order; both are added. (Reworded in round 3.)
+  - A paste that is added removes an earlier "could not be checked" or
+    refused-drop notice. The image notice stays until the editor is reloaded.
   - If another item is opened in the same editor while a paste is being
     checked, that paste is not added, and the "could not be checked" notice
     shows.
@@ -907,7 +937,10 @@ live only in `DigitalHubContent_E2e`, which the harness resets before every run.
 
 | Risk | Effect | Caught by |
 | --- | --- | --- |
-| The filter answer still replaces content | The defect remains in another form | T5 (stored image, typed text and pasted text all present); the insert is a `replaceSelection` transaction, and `setContent` is no longer called from the paste path |
+| The filter answer still replaces content | The defect remains in another form | T5 (stored image, typed text and pasted text all present); the insert is one transaction by the rule in 3.1 (3), and `setContent` is no longer called from the paste path |
+| A selection made while a paste is being checked is replaced by the answer (tester's finding 1) | An image just inserted, a selected image or a whole selected document is removed | The three-way rule in 3.1 (3). T16, T17, T18 red at `c4d93b9`, green at `1177ac7`; T19 guards the paste over a selection |
+| The place of a late insert drifts in a later change | Pasted content lands somewhere unexpected, with no test failing | T16 to T18 gain an order assertion (round 3, section 12) |
+| A stale "nothing was added" notice contradicts a paste that was added | Staff distrust the editor | Cleared on an added paste; T20, T21 |
 | Stale answers arrive out of order | Lost or garbled text, as in R4 | T1 holds and releases answers; after the fix typing sends no request at all |
 | The fake filter in the render tests drifts from `RichText.cs` | Render tests pass while the real paste fails | E2 pastes against the real API in CI; the fake's comment names the server lines; runs A to F can be re-run (5.3) |
 | The server stops accepting a bare list | Pasted text with an image is lost | E2: "Pasted line" must show |
@@ -946,6 +979,8 @@ live only in `DigitalHubContent_E2e`, which the harness resets before every run.
 | No image without a media id enters by drop or by typing | Found here (2.3 c) | Planned | |
 | A pasted media id the session did not get from the API is dropped; no pasted address is sent or rendered | `plan-review.md` Round 1, finding 1; P-4 | Planned (T13) | |
 | A paste answer never lands in a replaced document | `plan-review.md` Round 1, finding 5 | Planned (T15) | |
+| A paste answer replaces nothing but the selection it was pasted over; a later selection is kept and the content goes after it | `test-report.md` round 1, finding 1; plan 3.1 (3), round 3 | Planned (T16 to T19) | |
+| An added paste clears the "not added" notices | `test-report.md` round 1, finding 2 | Planned (T20, T21) | |
 | Library check on the error-page save | `plan-review.md` Round 1, finding 1 (server gap, older than this change) | Moved to ADM-05: "For ADM-05" in `implementation.md` and the PR body | |
 | Paste of table cells with an image; image copied in another tab | `plan-review.md` Round 1, findings 1 and 5 | Moved to ADM-22: "For ADM-22" note | |
 | A decorative library image is inserted as decorative | Found here (2.3 c) | Planned, only on "Yes" to O-ADM03-2; otherwise moved to ADM-22 | |
@@ -1021,3 +1056,44 @@ live only in `DigitalHubContent_E2e`, which the harness resets before every run.
     it.
   - Nothing else in the plan changes. The commit order and both owner questions
     stand.
+- **Round 3 (11 November 2026):** answers the coordinator's request for a design
+  confirmation after `test-report.md` round 1, finding 1, and the developer's
+  rework (`c4d93b9` red, `1177ac7` fix, `implementation.md` section R at
+  `fb7615f`). Documents only; no code was touched.
+  - **The insert rule: confirmed as the design.** Round 2's 3.1 (3) said both
+    "`replaceSelection` at the selection of that moment" and "Nothing is lost".
+    The tester showed they disagree once something is selected after the paste.
+    The intent was the second. The developer's three-way rule keeps it and is
+    now the text of 3.1 (3): a caret takes the content at the caret; the
+    selection pasted over, with the document unchanged, is replaced as any
+    paste does; any other selection is kept and the content goes straight
+    after it.
+  - **"After the selection" is confirmed**, with the reasons in 3.1 (3). I read
+    `1177ac7`: `replaceRange(to, to, piece)` with the caret set to the end of
+    what was added. For a selected image `to` is the position after it; for a
+    whole-document selection it is the end of the document; for selected text
+    it is inside the paragraph, so the content joins the sentence there. None
+    replaces anything.
+  - **One case decided on the safe side.** If the person pasted over a selection
+    and then changed the document elsewhere while keeping that selection, rule
+    2 does not apply and the selection is kept, not replaced. That is right:
+    when the rule cannot tell, it keeps content.
+  - **One strengthening for the developer.** Since the place is now design, T16
+    to T18 should also assert the order `implementation.md` section R records:
+    T16 "Start", image, "Pasted"; T17 "Before", image, "Pasted", "After"; T18
+    "Before", image, "After", "Pasted". It adds assertions and removes none
+    (P-6), and needs no code change. The tech lead decides whether gate 2 waits
+    for it or it rides with the next commit.
+  - **Clearing the two notices: confirmed** (3.1 (3), section 9). It answers the
+    tester's finding 2 within this change's own notices and leaves the image
+    notice for ADM-22, as section 4 already says.
+  - **Tester's observation (a), passing the server's answer through the
+    known-id rule: not taken.** The answer comes from the API, which is the
+    boundary (S-1), and the real filter rebuilds every image node. It can be
+    added later without undoing anything.
+  - **Wording corrected** in 3.1 (3), section 9 and the risk table: "Nothing is
+    lost" is replaced by what is kept and what a paste replaces. Two risk rows
+    and two coverage rows are added.
+  - Sections 5.1 to 5.3 are left as the round 2 record of the planned tests.
+    T16 to T21 and their red and green runs are in `implementation.md`
+    section R.
