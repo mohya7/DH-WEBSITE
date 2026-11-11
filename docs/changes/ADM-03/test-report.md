@@ -974,4 +974,335 @@ security probes are clean. The verdict is for finding 1: this change still
 deletes a library image on the next key, by the paste path instead of the
 button.
 
-Verdict: CHANGES NEEDED
+Round 3 result: CHANGES NEEDED (one Major: finding 1).
+
+## Round 4
+
+Tester and security engineer, 11 November 2026. A full round, as condition 43
+of `plan-approval.md` ("Gate 1 again: plan round 6") asks.
+
+- **Commit tested:** `c1df803` (`c1df80334dfa…`), the pushed head of
+  `change/ADM-03`; still the remote head when I finished. New since round 3's
+  head `2e3f510`, outside records: `a2a0852` (tests only: T6 and T14 extended,
+  T25 to T32, one E2 step), `93ab48f` (fix, `RichTextEditor.tsx` only),
+  `c1df803` (`implementation.md` section 18).
+- **Where:** a fresh detached worktree, `/home/user/dh-test-adm03`, removed at
+  the end. No commit, push, rebase or amend; no port; no database; no source,
+  test, lockfile or workflow changed. This section is the only thing written.
+- **Read:** `plan.md` 3.1 item 9 and section 5.6, `plan-review.md` Rounds 5 and
+  6, `plan-approval.md` "Gate 1 again: plan round 6" (conditions 31 to 46),
+  `implementation.md` section 18.
+
+### 1. Red, then green
+
+Setup: `npm ci` exit 0, `found 0 vulnerabilities`;
+`git diff --exit-code -- studio/package-lock.json studio/package.json` exit 0.
+
+**Red, on a checkout of `a2a0852`** (the editor is still `40ad04a`'s):
+
+```
+$ npx tsc -b; echo $?
+0
+$ npx vitest run test/richText.test.tsx; echo $?
+ Test Files  1 failed (1)
+      Tests  8 failed | 23 passed (31)
+1
+$ npm test
+ Test Files  1 failed | 10 passed (11)
+      Tests  8 failed | 83 passed (91)
+```
+
+| Id | Test | Message | Line |
+| --- | --- | --- | --- |
+| T6 | pasting a copied library image keeps it | `expected 'node' to be 'text'` | 342 |
+| T14 | a library image copied from another rich-text field on the page is kept | `expected 'node' to be 'text'` | 494 |
+| T25 | text and a library image pasted at the end are kept when typing follows | `expected 'node' to be 'text'` | 705 |
+| T26 | an image cut and pasted at the end is kept when typing follows, and undo takes back only the typing | `expected 'node' to be 'text'` | 725 |
+| T27 | a library image pasted into an empty field is kept when typing follows | `expected 'node' to be 'text'` | 754 |
+| T28 | two library images pasted at the end are both kept when typing follows | `expected 'node' to be 'text'` | 768 |
+| T29 | a late paste answer that ends in an image keeps it when typing follows | `expected 'node' to be 'text'` | 784 |
+| T32 | redoing a pasted image does not leave it selected | `expected 'node' to be 'text'` | 867 |
+
+- The eight and only the eight; T30 and T31 pass as guards with the 21 other
+  tests. No "is not a function" or "is not defined" line.
+- **All eight stop at the selection-type assertion, before the key.** So the
+  red shows "the image is left selected", not "the image is deleted". That the
+  key deletes it is shown by my round 3 probes P1, P4, P5, P9 and P10 on the
+  old code, and that it no longer does is shown by the same probes below, not
+  by the red run.
+- The test file's diff against `2e3f510` removes no line. T6 and T14 only gain
+  lines after their old assertions; a helper is added to `mount`; T25 to T32
+  are appended. The fake filter is unchanged since `da940bb`.
+
+**Green, on a checkout of `93ab48f`, and again on `c1df803`** (same on both):
+
+```
+$ npx vitest run test/richText.test.tsx; echo $?
+ Test Files  1 passed (1)
+      Tests  31 passed (31)
+0
+$ npm test; echo $?
+ Test Files  11 passed (11)
+      Tests  91 passed (91)
+0
+$ npx tsc -b; echo $?
+0
+$ VITE_PUBLIC_SITE_URL=https://website.ci.invalid npm run build; echo $?
+✓ built in 1.01s            (995ms on c1df803)
+Preview design: /website-design/d1ebe4132f8cfa8e/ matches website/design/ byte for byte.
+0
+$ git status --short            (prints nothing)
+$ git diff --exit-code -- studio/package-lock.json studio/package.json; echo $?
+0
+$ npm audit --audit-level=high
+found 0 vulnerabilities
+```
+
+The 31 tests also pass with the fake swapped for the real
+`RichText.FilterPaste` (scratch console, rebuilt from this commit's
+`RichText.cs`).
+
+### 2. Scope
+
+| Commit | Files |
+| --- | --- |
+| `a2a0852` | `studio/test/richText.test.tsx`, `studio/e2e/rich-text.spec.ts` |
+| `93ab48f` | `studio/src/content/RichTextEditor.tsx` |
+| `c1df803` | `docs/changes/ADM-03/implementation.md` |
+
+- The whole branch (`77296ba..c1df803`), outside `docs/changes/ADM-03/`, still
+  changes four files: the editor, the render test, its fake, the e2e spec.
+  `git diff --quiet 77296ba c1df803 --` over the package files,
+  `MediaPicker.tsx`, `api`, `website`, `packages`, `.github`, the `tsconfig`,
+  Vitest and Playwright configs, `e2e/env.ts` and `e2e/helpers.ts`: exit 0.
+- The fix is 13 added and 6 removed lines: one call,
+  `caretAfterSelectedImage(view)`, straight after `filteredPaste`'s one
+  dispatch, with its comment; and the helper's header comment reworded. The
+  helper's body is unchanged. `grep -n caretAfterSelectedImage`: the definition
+  (109) and two call sites (263, 366). No `onCreate`, nothing in or after the
+  `value` effect. Condition 36 is met.
+- E2's diff is the one step of plan 5.6 and the two counts that follow from it
+  (`toHaveCount(2)` after the reload). No wait, retry, `Control+End` or extra
+  focus call (condition 32).
+
+### 3. The paste probes again: P1 to P10, at `c1df803`
+
+Real editor, real filter. Each: paste, read the selection, press one key ("X",
+put in as a pressed key is), count the images.
+
+| Probe | Round 3 (`2e3f510`) | Now |
+| --- | --- | --- |
+| P1. Image alone, caret at the end of the last paragraph | selection `node`; 2 images, then 1 | `text`; 2, then 2; "Bottom", image, "X" |
+| P2. Image alone, end of a middle paragraph | `text`; kept | same: "Middle", image, "XBottom" |
+| P3. Image alone, middle of a word | `text`; kept | same |
+| P4. Image alone, into an empty field | `node`; 1, then 0 | `text`; 1, then 1; image, "X" |
+| P5. Text then image, at the end | `node`; image lost | `text`; "BottomPasted", image, "X" |
+| P6. Text then image, end of a middle paragraph | `text`; kept | same |
+| P7. Image then text, at the end | `text`; kept | same |
+| P8. Late answer after another selection (rule 3) | `text`; kept | same |
+| P9. Two images at the end | `node`; the second lost | `text`; 3 images, then 3; "X" after both |
+| P10. Cut the image, paste it at the end, press a key, undo | `node`; 0 images after the key | `text`; 1 image; "Top", "Middle", "Bottom", image, "X". One undo removes only the "X"; 1 image. One paste request |
+
+**So the image survives the key after the fix, in every case where it was lost
+before.** That is the thing the red run alone does not show.
+
+### 4. The sweep, done independently
+
+Forty cases of my own (W01 to W40), real editor, real filter, each ending in
+one pressed key, with the selection type read first. "Lost" means fewer images
+after the key than before it.
+
+| Group | Cases | Result |
+| --- | --- | --- |
+| **Rule 2, a paste over a selection, ending in an image** (the row the developer said was untested) | W01 over a text range at the end; W02, W03 over the whole document (image alone; text then image); W04 over the selected stored image when it is last; W05 the same with text following; W06 over a range in the only cell of a table | All six: selection `text` before the key; nothing lost. E.g. W03: "Pasted", image, "X" |
+| Rule 1 inside structures (the reviewer's list and table rows) | W07 end of the last item of a last list; W08 end of an item with another after it; W09 end of a table cell with another after it; W10 end of the last cell of a last table; W11 end of a last blockquote; W15 inside a last code block | All `text`; nothing lost. The caret goes to the trailing line (W07, W10, W11, W15) or to the start of the next item or cell ("Xtwo", "Xc2"), as the owner's sentence in section 9 says |
+| Pasted content that itself ends in an image inside a structure | W12 a pasted list whose last item ends in the image; W13 a pasted table whose last cell does; W16 a known image then a dropped web image | All `text`; nothing lost |
+| Rule 3, the late answer (the architect's L2) | W18 the stored last image selected meanwhile; W19 a range in the last paragraph selected meanwhile; W20 the whole document selected, two images; W21 two pastes answered in the other order | All `text`; nothing lost |
+| Undo and redo (the architect's U1) | W22, W23 Image button, undo, redo (end of text; empty field); W24 paste, type, undo the typing; W25 rule 2 paste, undo, redo; W26 cut-and-paste move, undo twice, redo twice; W27 rule 3 paste, undo, redo | All `text`; nothing lost. The Image-button redo is not in the plan's table; it is safe |
+| Toolbar and the two paths mixed | W34 Image button then Bold; W35, W36 paste an image then the List or Table button; W37 paste an image then the Image button; W38 Image button then paste an image | All `text`; nothing lost. W37: "Bottom", pasted image, picked image, "X" |
+| Load, text first | W33 | `text`; kept |
+| **Load, image first (M1)** | W31 image, "Mid", image: `focus()`, key; W32 an image alone | Selection `node`; **the first image is deleted by the key.** Unchanged, as plan round 6 says it would be. This is the known limit of condition 38, **recorded here as a known limit and not as a pass** |
+| **The `value` effect** | W28 the host replaces the value with image, "Mid", image; W29 with an image alone; W30 a stored value that is not in the editor's own shape and starts with an image (the effect runs at mount) | Selection `node`; **the first image is deleted by the key.** Finding 1 below: plan 5.6's table says "Not seen" |
+| The person's own selection | W39 the stored last image selected, then a paste whose check fails; W40 the same, pasting only a web image (nothing is added) | The image stays selected, as the person left it, and a key replaces it. Not this change's selection |
+| A stored image last, then `focus("end")` and a paste (W14); an image-only document, paste with the load selection (W17) | | The paste replaces the selected image (rule 2); one image, caret after it. The M1 family: the selection came from the start or end of the document, not from this change |
+
+Found in the sweep and missing from, or wrong in, plan 5.6's table: one row,
+the `value` effect (finding 1). Nothing else. In particular I found no path
+through `insertImage` or `filteredPaste` that leaves an image selected.
+
+Also re-run and unchanged: the 21 Image-button cases of round 3 (I 01 to 21),
+J1 to J5, F1, F2, L1 to L6, U1, U2, N1, M1 (Markdown), R1 to R8, E1.
+
+### 5. Opening changes nothing; a paste is one change
+
+**Opening (probe O1),** ten stored documents, each mounted plain and in
+`StrictMode`, read after two settles with nothing done:
+
+| Stored document | `onChange` calls | `can().undo()` | Editor document equals the stored one |
+| --- | --- | --- | --- |
+| image, "Mid", image | 0 | false | yes |
+| an image alone | 0 | false | yes (one node: no paragraph was added) |
+| image, bullet list | 0 | false | yes |
+| text, image last | 0 | false | yes |
+| a table last | 0 | false | yes |
+| an image in a last list item | 0 | false | yes |
+| a code block last | 0 | false | yes |
+| text only | 0 | false | yes |
+| two images only | 0 | false | yes |
+| the empty string | 0 | **true** | yes |
+
+- Then the host replaces the value: `onChange` still 0 in all twenty runs.
+- `onChange` is never called by opening or by a replacement. T30's rule holds
+  on more documents than T30 uses, and in `StrictMode`.
+- The one `true`: an empty field has an undo step at open, because the `value`
+  effect runs `setContent` when the value is `""`. That effect's guard and call
+  are the same at the base `77296ba`; this change did not make it. For ADM-22,
+  not a finding here.
+
+**A filtered paste (probe O2):**
+
+| Paste | `onChange` calls | Undo steps back to the stored document |
+| --- | --- | --- |
+| Image at the end (the helper moves the caret) | 1 | 1 |
+| Text and image at the end | 1 | 1 |
+| Image in the middle (the helper does nothing) | 1 | 1 |
+| Text and a web image at the end | 1 | 1 |
+| A web image only (nothing added) | 0 | 0 |
+| Late answer, rule 3, ending in an image | 1 | 1 |
+| A plain paste, not filtered (for comparison) | 1 | 1 |
+
+The helper's selection-only dispatch adds no `onChange` call and no undo step.
+
+### 6. Security probes again (the file changed)
+
+All at `c1df803`, real filter; all as in rounds 1 to 3.
+
+| Probe | Result |
+| --- | --- |
+| S1. Nine crafted `img[mediaid][src]` variants, each twice; a drop; a paste; close and reopen; two more pastes | 21 requests; none has the foreign id in any form, `evil.example`, `javascript` or `"src"`. No image node, no `img` element. Paste, drop and remount do not seed the set |
+| S2. A known id with the page's own address and alt | Kept with the page's alt text; no address sent, stored or rendered (the plan's stated worst case) |
+| S3. An id the picker only listed | Sent as `null`, dropped |
+| L4. Crafted paste with a later selection, over a selection, after a remount; undo and redo; the document replaced, and replaced and put back, while the answer is out | 5 requests, clean; only the stored image in the editor; nothing inserted into a replaced document |
+| D1. Outside drop: nested image, known id, crafted, `data:` only, text only, a real drop event | Refused with the notice where there is an image node; document unchanged; no request |
+| J2. After the Image button: a plain paste, a web-image paste, a copied library image, a crafted image twice | 5 images, all known ids (round 3 had 4: the copied image had replaced the picked one). Nothing foreign sent or kept; `Validate` accepts the document |
+
+The new call only sets a selection. It reads no pasted content and adds
+nothing to the set of known ids.
+
+Probe runs: 144 tests over eight files; 137 passed. The 7 that failed were my
+own harness (two editors mounted, so "the Image button" matched two buttons);
+scoped to the editor under test and re-run: 7 passed. Nothing in the editor
+failed.
+
+### 7. CI, and what it does and does not show
+
+- **On `c1df803`:** run `42976109409`, attempt 1, job `130375585045`, "Studio —
+  typecheck, build, end-to-end": `completed`, `success`, 06:58:39 to 07:04:15
+  UTC.
+  ```
+   Test Files  11 passed (11)
+        Tests  91 passed (91)
+    ✓   8 e2e/rich-text.spec.ts:88:1 › ADM-03 rich text: typing after a stored image keeps the image and the text (6.7s)
+    ✓   9 e2e/rich-text.spec.ts:162:1 › ADM-03 rich text: an inserted image stays, and a pasted web image is filtered (10.2s)
+    30 passed (3.6m)
+  ```
+  Every other check run on `c1df803` is `success` (API, Website, website
+  browser tests, section comparison, both npm audits, NuGet audit, Semgrep,
+  both gitleaks scans, security gate self-test, actionlint); CodeQL and
+  screenshot parity `skipped`.
+- **What it shows:** in Chromium, against the real API and the real paste
+  route, a library image pasted as the editor's own HTML is kept (two images,
+  two paste requests), real keys typed straight after it leave both images and
+  the text, and a save and reload keep both. It also repeats round 3's result
+  for the Image button with no `Control+End`. Once.
+- **What it does not show:**
+  - That an intermittent failure is gone. This is one attempt. Gate 2's three
+    completed `success` attempts on the final `studio/` tree (condition 44)
+    are still to come.
+  - A red for the new E2 step. None exists and none can: on `a2a0852` CI stops
+    at the unit tests.
+  - The paste at the very end of an otherwise empty line with the image last
+    in the document in every form: E2 pastes after typed text, one case. The
+    other cases are T25 to T29, T32 and section 4.
+  - The load case (M1), or where keyboard focus is when the picker closes.
+    Neither has been run in a browser by anyone. I have no Chromium here (the
+    download failed in round 3).
+- **Deterministic evidence for this round's fix:** T6, T14, T25 to T29 and T32,
+  red on `a2a0852` and green on `93ab48f`; and probes P1, P4, P5, P9, P10 and
+  W01 to W27, which show the image after the key.
+
+### Findings, round 4
+
+No Blocker. No Major. Round 3's finding 1 (Major) is closed.
+
+**1. Minor. The `value` effect can leave an image selected; plan 5.6's sweep
+table and `implementation.md` section 18 say "Not seen".**
+
+- Steps (probe W28): a field holding "Old". The host replaces the value with
+  image, "Mid", image, as opening another item in the same editor does. Press
+  one key.
+- Expected, from the table's row "The `value` effect (`setContent`) | Not seen:
+  … gave a text selection after a replacement": a caret.
+- Actual: the selection is a node selection on the first image; the key
+  deletes it ("X", "Mid", image). W29, an image alone: 0 images after the key.
+  W30, a stored value that is not in the editor's own shape (here, an image
+  with no `decorative` key) and starts with an image: the effect runs at mount,
+  and the result is the same. In probe O1 the selection was `node` after every
+  replacement by an image-first document, twenty runs of twenty.
+- It is the load case again by a second door: ProseMirror puts the selection
+  at the start, and the start is an image. `setContent` in that effect is not
+  new in this change, the document must begin with an image, and before ADM-03
+  that image was deleted by any key. So it is the same known limit, not a new
+  defect, and I do not ask for a fix here.
+- What is wrong is the record. The sweep is the thing gate 1 leaned on ("This
+  time there is a sweep"), and one of its rows is not true. The "Known limit"
+  paragraph for the owner says a field that begins with an image "opens with
+  that image selected"; it should also cover a field whose content is replaced
+  while it is open. The table row and the ADM-22 entry should say "Yes: the
+  same as editor creation, when the new document starts with an image".
+
+**2. Minor, carried since round 1. The pull request body is still the commit-1
+draft text.** Only "What and why". The integrator's; gate 2 will not read it
+until it is rewritten (condition 45).
+
+**3. Observations, not findings.**
+
+- An empty field has an undo step when it opens (section 5). Older than this
+  change. For ADM-22.
+- After the Image button or a paste, the caret is at the start of the line
+  after the image. Backspace there selects the image, as it does in any
+  ProseMirror editor, and the next key or Backspace removes it. That is the
+  person's own key, like a click on the image; with the picture not drawn
+  (ADM-22) there is little to show that the image is selected.
+- The load case and keyboard focus after the picker closes are NOT RUN in a
+  browser.
+
+### Coverage, round 4
+
+| Item | Source | Status | Evidence |
+| --- | --- | --- | --- |
+| A pasted or moved library image is kept when typing follows | Plan 3.1 (9); audit Fix 2; round 3 finding 1 | Verified | T6, T14, T25 to T29, T32 red at `a2a0852`, green at `93ab48f` and `c1df803`; the image after the key: probes P1 to P10 (section 3) |
+| The same for a paste over a selection (rule 2) | `implementation.md` section 18, the untested row | Verified | Probes W01 to W06, W25 |
+| The same in lists, tables, blockquotes and code blocks | `plan-review.md`, the list and table rows | Verified | Probes W07 to W13, W15 |
+| The same for the late answer, and after undo and redo | Plan 5.6, L2 and U1 | Verified | T29, T32; probes W18 to W27 |
+| No path through `insertImage` or `filteredPaste` leaves an image selected | Condition 43, the sweep | Verified | Section 4: 32 cases through those two functions (W01 to W27, W34 to W38), none lost; P1 to P10 |
+| The sweep table is complete and true | Plan 5.6; condition 39 | One row wrong | Finding 1 (the `value` effect) |
+| Opening an item changes nothing | Plan 3.1 (9) round 6; T30 | Verified | T30; probe O1: `onChange` 0 on ten documents, plain and `StrictMode`, and after a replacement |
+| A filtered paste is one `onChange` call and one undo step | Condition 43 | Verified | Probe O2 |
+| A field that begins with an image opens with it selected (M1) | Plan 5.6; condition 38 | **Known limit, not fixed, not a pass.** Moved to ADM-22 | Probes W31, W32: the image is deleted by the first key after `focus()`. Not run in a browser |
+| Typing straight after the Image button keeps the image | Round 3 | Verified again | T22 to T24; the 21 probes of round 3 re-run; W22, W23, W34, W37, W38 |
+| A crafted media id is dropped and never sent; the set is not seeded | Plan section 6 | Verified | T13; probes S1, S2, S3, L4, D1, J2 |
+| A paste answer never lands in a replaced document | T15 | Verified | T15; probe L4 |
+| E2 with the pasted library image and real keys | Plan 5.6 | Verified in CI once; NOT RUN locally | Run `42976109409`, attempt 1, job `130375585045` (section 7) |
+| The Studio job green three times in a row | Condition 44 | Not yet: one attempt | Gate 2 |
+| `tsc -b`, `npm test`, build, lockfile | Conditions 33, 36 | Verified | Section 1 |
+| Scope: `93ab48f` touches only `RichTextEditor.tsx`; one call added | Condition 36 | Verified | Section 2 |
+| Pull request body | Condition 45 | Open, integrator | Finding 2 |
+
+Every planned check passes, the images lost in round 3 are kept after the key,
+and the sweep found no other path through this change's own code. The two
+Minors are records: one row of the sweep table and the owner's known-limit
+wording, and the pull request body. The load case stays a known limit that the
+owner must read before merging.
+
+Verdict: APPROVED
