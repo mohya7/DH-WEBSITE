@@ -497,6 +497,8 @@ describe("ADM-03 rich text images", () => {
     expect(editor.text()).toContain("Start");
     expect(editor.text()).toContain("Pasted");
     expect(editor.notice()).toBe(imageNotice);
+    // Straight after the selection (plan 3.1 (3), round 3). The editor keeps an empty paragraph after a last image.
+    expect(editor.lastDocument().content).toEqual([paragraph("Start"), image(diagramId, "Diagram"), paragraph("Pasted"), { type: "paragraph" }]);
   });
 
   // T17.
@@ -513,6 +515,8 @@ describe("ADM-03 rich text images", () => {
     expect(editor.text()).toContain("Before");
     expect(editor.text()).toContain("After");
     expect(editor.text()).toContain("Pasted");
+    // Straight after the selected image.
+    expect(editor.lastDocument().content).toEqual([paragraph("Before"), image(storedId, "Chart"), paragraph("Pasted"), paragraph("After")]);
   });
 
   // T18.
@@ -529,6 +533,8 @@ describe("ADM-03 rich text images", () => {
     expect(editor.text()).toContain("Before");
     expect(editor.text()).toContain("After");
     expect(editor.text()).toContain("Pasted");
+    // Straight after the selection, which is the whole document.
+    expect(editor.lastDocument().content).toEqual([paragraph("Before"), image(storedId, "Chart"), paragraph("After"), paragraph("Pasted")]);
   });
 
   // T19. A guard: it passes before the fix too. What was selected when the paste was made is replaced, as a paste does.
