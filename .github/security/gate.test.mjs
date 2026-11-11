@@ -21,34 +21,127 @@ function write(name, contents) {
   return file;
 }
 
+// Every gate this file spawns, in order. N11 reads it to prove where run() sends
+// each tool.
+const spawnedGates = [];
+
 function runGate(gateFile, args) {
+  spawnedGates.push(gateFile);
   const result = spawnSync(process.execPath, [gateFile, ...args], { encoding: "utf8" });
   return { code: result.status, out: `${result.stdout ?? ""}\n${result.stderr ?? ""}` };
 }
 
+// The gate files every fixture copy carries, byte for byte.
+const gateFiles = ["gate.mjs", "fail-on-rules.json"];
+
+// A fixture repository: a byte copy of the real gate in
+// <tmp>/<name>/.github/security/ beside its own known-findings.json, and, unless
+// register is null, <tmp>/<name>/docs/deferred-items.md, where the copied gate
+// looks for the register exactly as the real one does.
+function fixtureRepo(name, knownDocument, register) {
+  const securityDir = path.join(dir, name, ".github", "security");
+  fs.mkdirSync(securityDir, { recursive: true });
+  for (const file of gateFiles) fs.copyFileSync(path.join(here, file), path.join(securityDir, file));
+  fs.writeFileSync(path.join(securityDir, "known-findings.json"), `${JSON.stringify(knownDocument, null, 2)}\n`);
+  if (register !== null) {
+    fs.mkdirSync(path.join(dir, name, "docs"));
+    fs.writeFileSync(path.join(dir, name, "docs", "deferred-items.md"), register);
+  }
+  return securityDir;
+}
+
+// A register in the form of docs/deferred-items.md, template block included, so
+// the copied gate also has to skip the fenced example.
+function registerText(entries) {
+  const lines = [
+    "# Deferred-items register",
+    "",
+    "Each entry has this form:",
+    "",
+    "```markdown",
+    "## D-NNN: <short title>",
+    "",
+    "- Expires: <YYYY-MM-DD>",
+    "```",
+    "",
+  ];
+  for (const [id, expires] of entries) {
+    lines.push(`## ${id}: gate self-test fixture`, "", "- Rule waived: S-7", `- Expires: ${expires}`, "");
+  }
+  return `${lines.join("\n")}`;
+}
+
+const fixtureEntry = (id, pkg, severity, deferred, expires) => ({
+  id,
+  package: `${pkg} 1.0.0`,
+  severity,
+  title: `fixture ${pkg}`,
+  owner: "gate self-test",
+  reason: "Fixture entry; not a real advisory.",
+  deferred,
+  expires,
+});
+
+// The npm and NuGet tests below never read the real npm and dotnet allow-list:
+// an entry there that expires would otherwise fail the self-test, and through
+// `needs:` skip gitleaks and Semgrep. Those sections are checked for shape here
+// (N10) and for expiry by the npm and NuGet jobs.
+//
+// fixture-clean: the real allow-list with the npm and dotnet sections emptied.
+// run() sends npm and dotnet to it; gitleaks and semgrep keep the real gate.
+const cleanKnown = structuredClone(known);
+cleanKnown.npm.website = [];
+cleanKnown.npm.studio = [];
+cleanKnown.dotnet = [];
+const cleanGateDir = fixtureRepo("fixture-clean", cleanKnown, null);
+const cleanGate = path.join(cleanGateDir, "gate.mjs");
+
 function run(args) {
+  if (args[0] === "npm" || args[0] === "dotnet") return runGate(cleanGate, args);
   return runGate(gate, args);
 }
 
-// A byte-for-byte copy of the real gate that reads a fixture allow-list from its
-// own folder. The npm known-list tests use it, so they keep proving that a known
-// advisory is passed and does not hide a new one, whatever the real npm
-// allow-list holds. The other tools keep using the real gate and allow-list.
-const fixtureGateDir = path.join(dir, "fixture-gate");
-fs.mkdirSync(fixtureGateDir);
-for (const name of ["gate.mjs", "fail-on-rules.json"]) fs.copyFileSync(path.join(here, name), path.join(fixtureGateDir, name));
-const fixtureGate = path.join(fixtureGateDir, "gate.mjs");
+// fixture-repo: the known-list tests. npm.website holds three valid entries
+// (D-901 to D-903, valid through 2999-12-31), so a known advisory is passed and
+// does not hide a new one. npm.studio (D-900) and dotnet (D-904) hold one
+// expired entry each.
 const fixtureKnown = structuredClone(known);
 fixtureKnown.npm.website = [
-  { id: "GHSA-fixture-known-0001", package: "fixture-critical 1.0.0", severity: "critical", title: "fixture known critical", owner: "gate self-test", reason: "Fixture entry; not a real advisory." },
-  { id: "GHSA-fixture-known-0002", package: "fixture-high-a 1.0.0", severity: "high", title: "fixture known high a", owner: "gate self-test", reason: "Fixture entry; not a real advisory." },
-  { id: "GHSA-fixture-known-0003", package: "fixture-high-b 1.0.0", severity: "high", title: "fixture known high b", owner: "gate self-test", reason: "Fixture entry; not a real advisory." },
+  fixtureEntry("GHSA-fixture-known-0001", "fixture-critical", "critical", "D-901", "2999-12-31"),
+  fixtureEntry("GHSA-fixture-known-0002", "fixture-high-a", "high", "D-902", "2999-12-31"),
+  fixtureEntry("GHSA-fixture-known-0003", "fixture-high-b", "high", "D-903", "2999-12-31"),
 ];
-fs.writeFileSync(path.join(fixtureGateDir, "known-findings.json"), `${JSON.stringify(fixtureKnown, null, 2)}\n`);
+fixtureKnown.npm.studio = [fixtureEntry("GHSA-fixture-expired-0900", "fixture-expired", "high", "D-900", "2000-01-01")];
+fixtureKnown.dotnet = [fixtureEntry("GHSA-fixture-expired-0904", "Fixture.Expired", "high", "D-904", "2000-01-01")];
+const fixtureRegister = registerText([
+  ["D-900", "2000-01-01"],
+  ["D-901", "2999-12-31"],
+  ["D-902", "2999-12-31"],
+  ["D-903", "2999-12-31"],
+  ["D-904", "2000-01-01"],
+]);
+const fixtureGateDir = fixtureRepo("fixture-repo", fixtureKnown, fixtureRegister);
+const fixtureGate = path.join(fixtureGateDir, "gate.mjs");
 
 function runFixture(args) {
   return runGate(fixtureGate, args);
 }
+
+// fixture-no-register: one valid-looking npm.website entry and no docs/ folder.
+const noRegisterKnown = structuredClone(known);
+noRegisterKnown.npm.website = [fixtureEntry("GHSA-fixture-known-0001", "fixture-critical", "critical", "D-901", "2999-12-31")];
+const noRegisterGateDir = fixtureRepo("fixture-no-register", noRegisterKnown, null);
+const noRegisterGate = path.join(noRegisterGateDir, "gate.mjs");
+
+// fixture-expired-real: the real allow-list plus an expired npm.studio entry
+// and an expired dotnet entry, with a register that holds both.
+const expiredRealKnown = structuredClone(known);
+expiredRealKnown.npm.studio = [...(known.npm.studio ?? []), fixtureEntry("GHSA-fixture-expired-0900", "fixture-expired", "high", "D-900", "2000-01-01")];
+expiredRealKnown.dotnet = [...(known.dotnet ?? []), fixtureEntry("GHSA-fixture-expired-0904", "Fixture.Expired", "high", "D-904", "2000-01-01")];
+const expiredRealGateDir = fixtureRepo("fixture-expired-real", expiredRealKnown, registerText([["D-900", "2000-01-01"], ["D-904", "2000-01-01"]]));
+const expiredRealGate = path.join(expiredRealGateDir, "gate.mjs");
+
+const fixtureGateDirs = [fixtureGateDir, cleanGateDir, noRegisterGateDir, expiredRealGateDir];
 
 function npmReport(advisories) {
   const vulnerabilities = {};
@@ -235,8 +328,11 @@ test("a NuGet package array or vulnerabilities value that is an object fails and
 });
 
 test("the fixture gate is the real gate", () => {
-  for (const name of ["gate.mjs", "fail-on-rules.json"]) {
-    assert.ok(fs.readFileSync(path.join(fixtureGateDir, name)).equals(fs.readFileSync(path.join(here, name))), `${name} differs from the real one`);
+  assert.equal(fixtureGateDirs.length, 4);
+  for (const fixtureDir of fixtureGateDirs) {
+    for (const name of gateFiles) {
+      assert.ok(fs.readFileSync(path.join(fixtureDir, name)).equals(fs.readFileSync(path.join(here, name))), `${path.relative(dir, fixtureDir)}/${name} differs from the real one`);
+    }
   }
 });
 
@@ -1783,5 +1879,309 @@ test("every field the gate reads is listed, and every listed field is read", asy
     assert.deepEqual(unexpected, [], `${tool} read a field that is not listed: ${unexpected.join(", ")}`);
     const missing = fields[tool].filter((spec) => ![...reads].some((recorded) => fieldShape(JSON.parse(recorded)) === fieldShape(spec.path)));
     assert.deepEqual(missing.map((spec) => spec.path), [], `${tool} listed a field it did not read`);
+  }
+});
+
+// GAP-07: the full dependency tree is audited, and every npm and NuGet
+// allow-list entry cites a D-NNN in docs/deferred-items.md and expires.
+
+// Each line that invokes `npm audit`, comments left out.
+function npmAuditLines(script) {
+  return normalizeNewlines(script).split("\n").filter((line) => !line.trim().startsWith("#") && /(^|\s)npm audit(\s|$)/.test(line));
+}
+
+function npmAuditTreeProblems(script) {
+  const problems = [];
+  const lines = npmAuditLines(script);
+  if (lines.length !== 2) problems.push(`expected two npm audit lines, found ${lines.length}`);
+  for (const line of lines) {
+    for (const flag of ["--omit", "--production", "--only", "--include"]) {
+      if (line.split(/\s+/).some((token) => token === flag || token.startsWith(`${flag}=`))) problems.push(`npm audit narrows the tree with ${flag}: ${line.trim()}`);
+    }
+  }
+  return problems;
+}
+
+function dotnetAuditTreeProblems(script) {
+  const problems = [];
+  const lines = normalizeNewlines(script).split("\n").filter((line) => line.trim().startsWith("dotnet list"));
+  if (lines.length !== 2) problems.push(`expected two dotnet list lines, found ${lines.length}`);
+  for (const line of lines) {
+    const tokens = line.trim().split(/\s+/);
+    for (const required of ["DigitalHub.slnx", "--vulnerable", "--include-transitive"]) {
+      if (!tokens.includes(required)) problems.push(`dotnet list does not name ${required}: ${line.trim()}`);
+    }
+  }
+  return problems;
+}
+
+test("the npm audit script audits the full tree, development packages included", () => {
+  const script = fs.readFileSync(path.join(here, "run-npm-audit.sh"), "utf8");
+  assert.equal(npmAuditLines(script).length, 2);
+  assert.deepEqual(npmAuditTreeProblems(script), []);
+  const narrowed = script.replaceAll("npm audit --audit-level=high", "npm audit --omit=dev --audit-level=high");
+  assert.notEqual(narrowed, script);
+  const problems = npmAuditTreeProblems(narrowed);
+  assert.equal(problems.filter((problem) => problem.startsWith("npm audit narrows the tree with --omit")).length, 2, problems.join("\n"));
+});
+
+test("the NuGet audit script lists vulnerable packages across the whole graph", () => {
+  const script = fs.readFileSync(path.join(here, "run-dotnet-audit.sh"), "utf8");
+  assert.deepEqual(dotnetAuditTreeProblems(script), []);
+  const direct = script.replaceAll(" --include-transitive", "");
+  assert.notEqual(direct, script);
+  const problems = dotnetAuditTreeProblems(direct);
+  assert.equal(problems.filter((problem) => problem.startsWith("dotnet list does not name --include-transitive")).length, 2, problems.join("\n"));
+});
+
+test("an expired npm allow-list entry fails while its advisory is still reported", () => {
+  const entry = fixtureKnown.npm.studio[0];
+  const result = runFixture(["npm", write("expired-npm-reported.json", npmReport([entry])), "studio"]);
+  assert.equal(result.code, 1, result.out);
+  assert.match(result.out, /1 known, 0 new/);
+  assert.match(result.out, /::error title=Allow-list entry \(studio\)::GHSA-fixture-expired-0900 cites D-900, which expired on 2000-01-01/);
+});
+
+test("an expired npm allow-list entry fails after its advisory is gone", () => {
+  const result = runFixture(["npm", write("expired-npm-gone.json", cleanNpm), "studio"]);
+  assert.equal(result.code, 1, result.out);
+  assert.match(result.out, /0 known, 0 new/);
+  assert.match(result.out, /::error title=Allow-list entry \(studio\)::GHSA-fixture-expired-0900 cites D-900, which expired on 2000-01-01/);
+});
+
+test("an expired NuGet allow-list entry fails", () => {
+  const result = runFixture(["dotnet", write("expired-nuget.json", cleanNuget)]);
+  assert.equal(result.code, 1, result.out);
+  assert.match(result.out, /0 known, 0 new/);
+  assert.match(result.out, /::error title=Allow-list entry \(dotnet\)::GHSA-fixture-expired-0904 cites D-904, which expired on 2000-01-01/);
+});
+
+const register = (text) => text.split("\n").map((line) => line.replace(/^ {4}/, "")).join("\n");
+
+test("an entry is valid through its expiry day and expired the day after", async () => {
+  const { allowListProblems, parseRegister } = await import(pathToFileURL(gate).href);
+  const parsed = parseRegister(register(`
+    ## D-010: boundary
+    - Expires: 2026-11-30
+  `));
+  const entries = [{ id: "GHSA-boundary", deferred: "D-010", expires: "2026-11-30" }];
+  assert.deepEqual(allowListProblems(entries, "2026-11-29", parsed), []);
+  assert.deepEqual(allowListProblems(entries, "2026-11-30", parsed), []);
+  const after = allowListProblems(entries, "2026-12-01", parsed);
+  assert.equal(after.length, 1, after.join("\n"));
+  assert.match(after[0], /^GHSA-boundary cites D-010, which expired on 2026-11-30; fix the finding or record a new owner decision$/);
+});
+
+test("an allow-list entry without a D-NNN, with a malformed one, or citing one the register does not hold fails", async () => {
+  const { allowListProblems, parseRegister } = await import(pathToFileURL(gate).href);
+  const today = "2026-11-01";
+  const parsed = parseRegister(register(`
+    ## D-012: twelve
+    - Expires: 2026-11-30
+  `));
+  const entry = (deferred) => {
+    const value = { id: "GHSA-cite", expires: "2026-11-30" };
+    if (deferred !== undefined) value.deferred = deferred;
+    return value;
+  };
+  assert.deepEqual(allowListProblems([entry("D-012")], today, parsed), []);
+  const missing = allowListProblems([entry(undefined)], today, parsed);
+  assert.ok(missing.some((problem) => /^GHSA-cite has no D-NNN/.test(problem)), missing.join("\n"));
+  for (const malformed of ["D-12", "d-012", "D-0123"]) {
+    const problems = allowListProblems([entry(malformed)], today, parsed);
+    assert.ok(problems.some((problem) => problem.includes(`"${malformed}", which is not a D-NNN id`)), `${malformed}\n${problems.join("\n")}`);
+  }
+  const absent = allowListProblems([entry("D-999")], today, parsed);
+  assert.ok(absent.some((problem) => problem === "GHSA-cite cites D-999, which is not in docs/deferred-items.md"), absent.join("\n"));
+
+  const twice = parseRegister(register(`
+    ## D-012: twelve
+    - Expires: 2026-11-30
+
+    ## D-012: twelve again
+    - Expires: 2026-11-30
+  `));
+  assert.deepEqual(twice.duplicates, ["D-012"]);
+  const duplicate = allowListProblems([entry("D-012")], today, twice);
+  assert.ok(duplicate.some((problem) => problem === "GHSA-cite cites D-012, which appears more than once in docs/deferred-items.md"), duplicate.join("\n"));
+
+  const fencedOnly = parseRegister(register(`
+    \`\`\`markdown
+    ## D-900: example
+    - Expires: 2026-11-30
+    \`\`\`
+  `));
+  assert.equal(fencedOnly.entries.has("D-900"), false);
+  const fenced = allowListProblems([{ id: "GHSA-cite", deferred: "D-900", expires: "2026-11-30" }], today, fencedOnly);
+  assert.ok(fenced.some((problem) => problem === "GHSA-cite cites D-900, which is not in docs/deferred-items.md"), fenced.join("\n"));
+
+  const realAndFenced = parseRegister(register(`
+    ~~~
+    ## D-900: example
+    - Expires: 2026-12-31
+    ~~~
+
+    ## D-900: real
+    - Expires: 2026-11-30
+  `));
+  assert.deepEqual(realAndFenced.duplicates, []);
+  assert.equal(realAndFenced.entries.get("D-900"), "2026-11-30");
+  assert.deepEqual(allowListProblems([{ id: "GHSA-cite", deferred: "D-900", expires: "2026-11-30" }], today, realAndFenced), []);
+});
+
+test("an allow-list entry without an expiry, with a malformed or impossible date, or with a date that differs from the register fails", async () => {
+  const { allowListProblems, parseRegister } = await import(pathToFileURL(gate).href);
+  const today = "2026-11-01";
+  const parsed = parseRegister(register(`
+    ## D-012: twelve
+    - Expires: 2026-11-30
+
+    ## D-013: no expiry
+    - Rule waived: S-7
+
+    ## D-014: later in the register
+    - Expires: 2026-12-31
+  `));
+  const entry = (deferred, expires) => {
+    const value = { id: "GHSA-date", deferred };
+    if (expires !== undefined) value.expires = expires;
+    return value;
+  };
+  assert.deepEqual(allowListProblems([entry("D-012", "2026-11-30")], today, parsed), []);
+  const missing = allowListProblems([entry("D-012", undefined)], today, parsed);
+  assert.ok(missing.some((problem) => /^GHSA-date has no expires date/.test(problem)), missing.join("\n"));
+  for (const bad of ["30-11-2026", "2026-02-30"]) {
+    const problems = allowListProblems([entry("D-012", bad)], today, parsed);
+    assert.ok(problems.some((problem) => problem.includes(`expires "${bad}", which is not a real YYYY-MM-DD date`)), `${bad}\n${problems.join("\n")}`);
+  }
+  const noLine = allowListProblems([entry("D-013", "2026-11-30")], today, parsed);
+  assert.ok(noLine.some((problem) => problem === "GHSA-date cites D-013, which has no \"- Expires: YYYY-MM-DD\" line in docs/deferred-items.md"), noLine.join("\n"));
+  const differs = allowListProblems([entry("D-014", "2026-11-30")], today, parsed);
+  assert.ok(differs.some((problem) => problem === "GHSA-date expires on 2026-11-30, but D-014 in docs/deferred-items.md expires on 2026-12-31"), differs.join("\n"));
+});
+
+test("an allow-list entry fails closed when docs/deferred-items.md is missing", () => {
+  assert.equal(fs.existsSync(path.join(noRegisterGateDir, "..", "..", "docs")), false);
+  const result = runGate(noRegisterGate, ["npm", write("no-register.json", cleanNpm), "website"]);
+  assert.equal(result.code, 1, result.out);
+  assert.match(result.out, /::error title=Allow-list entry \(website\)::GHSA-fixture-known-0001 cites D-901, but docs\/deferred-items\.md does not exist/);
+});
+
+test("every npm and NuGet entry in known-findings.json cites a D-NNN and carries a valid expiry", async () => {
+  const { allowListShapeProblems } = await import(pathToFileURL(gate).href);
+  for (const [name, entries] of [["npm.website", known.npm.website], ["npm.studio", known.npm.studio], ["dotnet", known.dotnet]]) {
+    assert.ok(Array.isArray(entries), `${name} is not a list`);
+    assert.deepEqual(allowListShapeProblems(entries), [], name);
+  }
+  const broken = structuredClone(known);
+  broken.npm.studio.push(
+    { id: "GHSA-shape-no-deferred", owner: "gate self-test", reason: "Fixture.", expires: "2000-01-01" },
+    { id: "GHSA-shape-soon", owner: "gate self-test", reason: "Fixture.", deferred: "D-999", expires: "soon" },
+  );
+  const problems = allowListShapeProblems(broken.npm.studio);
+  assert.equal(problems.length, 2, problems.join("\n"));
+  assert.match(problems[0], /^GHSA-shape-no-deferred has no D-NNN/);
+  assert.match(problems[1], /^GHSA-shape-soon has expires "soon", which is not a real YYYY-MM-DD date/);
+  assert.equal(problems.some((problem) => /deferred-items|expired/.test(problem)), false, problems.join("\n"));
+});
+
+test("the self-test does not depend on the real npm and NuGet allow-list", () => {
+  const npmFile = write("expired-real-npm.json", cleanNpm);
+  const nugetFile = write("expired-real-nuget.json", cleanNuget);
+  const npmExpired = runGate(expiredRealGate, ["npm", npmFile, "studio"]);
+  assert.equal(npmExpired.code, 1, npmExpired.out);
+  assert.match(npmExpired.out, /D-900, which expired on 2000-01-01/);
+  const nugetExpired = runGate(expiredRealGate, ["dotnet", nugetFile]);
+  assert.equal(nugetExpired.code, 1, nugetExpired.out);
+  assert.match(nugetExpired.out, /D-904, which expired on 2000-01-01/);
+
+  const before = spawnedGates.length;
+  const npmRun = run(["npm", npmFile, "studio"]);
+  assert.equal(npmRun.code, 0, npmRun.out);
+  const nugetRun = run(["dotnet", nugetFile]);
+  assert.equal(nugetRun.code, 0, nugetRun.out);
+  run(["gitleaks", write("routing-leaks.json", "[]"), "full-history"]);
+  run(["semgrep", write("routing-semgrep.json", JSON.stringify({ results: [], errors: [] }))]);
+  assert.deepEqual(spawnedGates.slice(before), [cleanGate, cleanGate, gate, gate]);
+
+  const source = normalizeNewlines(fs.readFileSync(fileURLToPath(import.meta.url), "utf8"));
+  const runStart = source.indexOf("\nfunction run(args) {\n");
+  assert.ok(runStart >= 0, "run() is missing");
+  const runBody = source.slice(runStart, source.indexOf("\n}\n", runStart) + 3);
+  const realSpawn = "runGate(" + "gate,";
+  // The variable gate only: runGate's own spawnSync(process.execPath, [gateFile, ...]) is not a match.
+  const directSpawn = new RegExp(["spawnSync\\(process\\.execPath, \\[", "gate\\b"].join(""), "g");
+  assert.equal(source.split(realSpawn).length - 1, 1, `the real gate is spawned outside run(): ${realSpawn}`);
+  assert.equal(runBody.split(realSpawn).length - 1, 1, "run() does not hold the only spawn of the real gate");
+  assert.equal((source.match(directSpawn) ?? []).length, 0, `the real gate is spawned directly: ${directSpawn}`);
+  assert.equal(("spawnSync(process.execPath, [" + "gate, ...args]").match(directSpawn)?.length, 1, "the direct-spawn pattern no longer matches a direct spawn");
+  const guard = runBody.indexOf("if (args[0] === \"npm\" || args[0] === \"dotnet\") return runGate(cleanGate, args);");
+  assert.ok(guard >= 0 && guard < runBody.indexOf(realSpawn), "run() can reach the real gate for npm or dotnet");
+});
+
+// The npm jobs run run-npm-audit.sh with whatever npm configuration the runner
+// gives it. NODE_ENV=production, NPM_CONFIG_OMIT, npm_config_production or an
+// .npmrc can make npm omit development packages without any change to the
+// script's flags, so the script refuses to audit unless npm's effective omit
+// is empty. A stub npm on PATH answers `npm audit` with a clean report (no
+// network) and passes everything else, including `npm config get`, to the
+// real npm.
+test("the npm audit script refuses an npm configuration that omits packages", () => {
+  const realNpm = spawnSync("sh", ["-c", "command -v npm"], { encoding: "utf8" }).stdout.trim();
+  assert.ok(realNpm, "npm is not on PATH");
+  const stubDir = path.join(dir, "npm-stub");
+  fs.mkdirSync(stubDir, { recursive: true });
+  const stub = path.join(stubDir, "npm");
+  fs.writeFileSync(stub, [
+    "#!/bin/sh",
+    "if [ \"$1\" = \"audit\" ]; then",
+    "  echo \"STUB-NPM-AUDIT $*\" >&2",
+    `  case " $* " in *" --json "*) printf '%s\\n' '${cleanNpm}' ;; esac`,
+    "  exit 0",
+    "fi",
+    `exec ${JSON.stringify(realNpm)} "$@"`,
+    "",
+  ].join("\n"));
+  fs.chmodSync(stub, 0o755);
+  const baseEnv = { ...process.env };
+  for (const key of Object.keys(baseEnv)) {
+    if (key === "NODE_ENV" || /^npm_config_(omit|production|only|include|dev)$/i.test(key)) delete baseEnv[key];
+  }
+  baseEnv.PATH = `${stubDir}${path.delimiter}${baseEnv.PATH}`;
+  // App folders beside fixture-clean's gate, so ../.github/security/gate.mjs resolves to it.
+  const appDir = (name, npmrc) => {
+    const folder = path.join(cleanGateDir, "..", "..", name);
+    fs.mkdirSync(folder, { recursive: true });
+    fs.writeFileSync(path.join(folder, "package.json"), "{}\n");
+    if (npmrc !== undefined) fs.writeFileSync(path.join(folder, ".npmrc"), npmrc);
+    return folder;
+  };
+  const runScript = (cwd, app, extraEnv = {}) => {
+    const runnerTemp = fs.mkdtempSync(path.join(dir, "omit-rt-"));
+    const result = spawnSync("sh", [path.join(here, "run-npm-audit.sh"), app], {
+      cwd,
+      encoding: "utf8",
+      env: { ...baseEnv, RUNNER_TEMP: runnerTemp, ...extraEnv },
+    });
+    return { code: result.status, out: `${result.stdout ?? ""}\n${result.stderr ?? ""}` };
+  };
+
+  const clean = runScript(appDir("studio"), "studio");
+  assert.equal(clean.code, 0, clean.out);
+  assert.equal((clean.out.match(/STUB-NPM-AUDIT/g) ?? []).length, 2, clean.out);
+  assert.match(clean.out, /studio: 0 finding\(s\) at the gate's level; 0 known, 0 new\./);
+  assert.equal(clean.out.includes("::error"), false, clean.out);
+
+  const cases = [
+    ["NODE_ENV=production", appDir("studio"), "studio", { NODE_ENV: "production" }],
+    ["NPM_CONFIG_OMIT=dev", appDir("studio"), "studio", { NPM_CONFIG_OMIT: "dev" }],
+    ["npm_config_production=true", appDir("studio"), "studio", { npm_config_production: "true" }],
+    [".npmrc omit=dev", appDir("website", "omit=dev\n"), "website", {}],
+  ];
+  for (const [name, cwd, app, extraEnv] of cases) {
+    const result = runScript(cwd, app, extraEnv);
+    assert.equal(result.code, 1, `${name}\n${result.out}`);
+    assert.match(result.out, new RegExp(`::error title=npm audit \\(${app}\\)::npm is set to omit "dev"; the audit must cover the full tree, development packages included`), `${name}\n${result.out}`);
+    assert.equal(result.out.includes("STUB-NPM-AUDIT"), false, `${name} reached npm audit\n${result.out}`);
   }
 });
