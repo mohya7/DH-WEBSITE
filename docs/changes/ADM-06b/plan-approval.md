@@ -172,4 +172,162 @@ the scope.
 | O-ADM06B-1 | Push the e2e red commit first? | PENDING, not yet asked | The first push only |
 | G3-1 exit-gate date | Owner's unanswered card about moving 16 November | Not this change's decision | Nothing in this plan; noted for the integrator |
 
+Result for plan round 2: approved, with conditions 1 to 10. Superseded by the
+section below, which holds the file's only verdict.
+
+## Gate 1 again: plan round 3
+
+Technical lead, 11 November 2026. Plan: `plan.md` round 3 (uncommitted edit on
+head `cbff1f1`). Review: `plan-review.md` Round 3, `Verdict: APPROVED`, four
+Minors. Trigger: the developer's BACK TO ARCHITECT in `implementation.md` at
+`cbff1f1`. Read again: `implementation.md` in full, `plan-review.md` Round 3 in
+full, `git diff -- docs/changes/ADM-06b/plan.md` (the whole round-3 change), and
+`git log f171f7a..HEAD` with bodies.
+
+### Decision
+
+Approved, with conditions 11 to 16 below in addition to 1 to 10. Condition 1 is
+now met (O-ADM06B-1 answered). Condition 8 is widened by one line in
+`tsconfig.node.json`.
+
+### What changed and why I accept it
+
+- **The cause of the stop.** I checked it myself: `studio/tsconfig.node.json`
+  has `"composite": true` (line 14) and an `include` that lists the `src` files
+  its tests import by name (`src/content/siteUrl.ts`, `src/content/model.ts`,
+  line 17). An unlisted import gives TS6307, as the developer reported. The
+  developer stopped and reported it under condition 10 instead of editing an
+  out-of-scope file. That is what the condition asked.
+- **Option (a), one `include` entry for `src/ui/paging.ts`.** It adds a file to a
+  type-check gate and removes nothing, so it does not weaken a gate (P-6). It
+  follows the two existing entries. Rejecting (b) and (c) is right: both would take
+  `test/paging.test.ts` out of type-checking when a fix that keeps it in exists.
+  The reviewer reproduced the error and its removal in a scratch copy.
+- **The two jsdom shims** (`ResizeObserver` stub; `motion: false` around S11 and
+  S12). Test-only, in `listPaging.test.tsx`, assert nothing, and keep the
+  production path (`afterOpenChange`) under test. They were reported with the
+  failing output before the red commit, not hidden. The committed red at
+  `f1b4215` fails all twelve S tests at `getByTitle("2")`, as plan 5.1 requires.
+  Real motion stays covered by 10.15 and P2.8 in CI.
+- **The picker reset on opening.** Accepted. It is in scope as a consequence of
+  the round-2 rule "every list request uses the applied values". See Minor 1.
+- **Test count 25, not 26.** Checked against the developer's red
+  (`14 failed | 8 passed (22)`) and green (`Tests 25 passed (25)`) output; the
+  arithmetic holds (12 + 10 + 3).
+- **Commits 1 to 3 stand.** `58caf70` touches only `studio/e2e/paging.spec.ts`
+  and no `tsconfig` includes `e2e/*.spec.ts`, so CI's `studio` job gets past
+  `tsc -b`, `npm test` and the build and reaches the end-to-end step on it.
+  `f1b4215` and `8c4ab16` fail `tsc -b`, but they are never a pushed head on
+  their own, so no CI run sees them.
+
+### Owner decision O-ADM06B-1: answered
+
+"Yes, red test first like #49" (Mohamed Elbadry, 11 November 2026, project
+thread), relayed by the coordinator and quoted in `implementation.md` section 2
+and plan section 9. It applies to ADM-06b only. Condition 1 is met; conditions 2
+and 6 now apply to the push of `58caf70`.
+
+### Base and open work, as of this round
+
+- **Base is now `3e1fc47`** (#50, semgrep-timeout), one commit past `f171f7a`.
+  `git show 3e1fc47 --stat`: `.github/security/*` and
+  `docs/changes/semgrep-timeout/` only, no `studio/` file. It carries the Semgrep
+  timeout fix, so condition 7 (Semgrep green on the final head) needs only the base
+  merged in, not any change here.
+- **#49** (ADM-06a): open, not merged, no longer a draft, head `abe177b`; its
+  check runs are 13 success and 2 skipped, with no failure. It still changes only
+  `api/` and `docs/changes/ADM-06/`. The owner has been asked whether to merge it.
+  This approval does not answer that. ADM-06b's final head must contain #49's
+  squash commit (condition 2).
+- **#44** (GAP-07): still open, still no `studio/` file. No overlap.
+
+### Reviewer's Minors (round 3)
+
+1. **The picker discards an unsubmitted term on reopening; "opening counts as a
+   submit" was not weighed.** Accepted as the plan has it. Both options keep box
+   and images in agreement. The reset follows the plan's single rule (only a submit
+   applies), and the unsubmitted term is in a modal that was closed. I agree with
+   the reviewer that it is not an exception under P-7. It is still a visible change
+   staff could notice, so it must be put in front of the owner, not left inside the
+   plan. Condition 15.
+2. **Commit 4 mixes the new S12 assertions and the code they test.** Accepted, and
+   made a condition (11). Nothing in commit 4 has been made or pushed, so splitting
+   costs nothing and keeps the red-then-fix pattern the G3 rule and B-6 expect.
+3. **Plan 3.5 step 2 (rebase before the first push) conflicts with pushing
+   `58caf70` alone.** Accepted, and made a condition (12). A rebase would replace
+   `58caf70` and every SHA in `implementation.md`, and is not needed: a
+   `pull_request` run tests the head merged with the current base anyway. For
+   ADM-06b, condition 12 replaces plan 3.5 step 2.
+4. **Round-2 wording carried (`itemActiveBg` reason; "observation for ADM-08").**
+   Accepted as wording in the plan. Both are already right where it matters:
+   `implementation.md` section 5 gives the `itemActiveBg` reason as the design
+   document's `Segmented` row and `Tag.defaultBg` (condition 3 met), and
+   `implementation.md` section 6 is the "For ADM-08" record naming
+   `CollectionListPage.tsx:63`, `:65-69`, `:76` and `OverviewPage.tsx:28`
+   (condition 4 met, the PR body still to come). Plan 5.1's "read
+   `getComputedStyle`" is the same kind of nit: `58caf70` already uses `toHaveCSS`
+   (condition 5 met, per the reviewer's reading of lines 29-30 and 78-79).
+
+### Conditions added in round 3
+
+11. **Split commit 4 (Minor 2).** Two commits on top of `cbff1f1`, in this order:
+    - **4a, red:** `studio/tsconfig.node.json` (the one `include` entry) and the
+      new S12 assertions in `studio/test/listPaging.test.tsx`. Quote, at 4a:
+      `npx tsc -b` exit 0, and
+      `npx vitest run test/listPaging.test.tsx` exit 1 with S12 the only failure,
+      failing on the search box still showing the typed term.
+    - **4b, fix:** `studio/src/content/MediaPicker.tsx` only. Quote the full
+      green set from plan 5.3 at 4b: the three files (25 passed), `npm test`,
+      `npx tsc -b` exit 0, `npm run build` exit 0 (with the preview design check),
+      `git status --short` empty.
+    - Subjects with the `ADM-06b:` prefix, a body saying why, the attribution
+      trailer (B-4); exact paths staged (B-5).
+12. **Push `58caf70` as it is; then merge only (Minor 3).** Do not rebase, amend,
+    reorder or squash `58caf70`, `f1b4215`, `8c4ab16`, `cbff1f1` or the commits
+    from condition 11, before or after any push. Push `58caf70` alone as the
+    branch head, open the draft pull request (condition 2), and push nothing more
+    until its "Studio — typecheck, build, end-to-end" check run has conclusion
+    `failure` with E1 and E2 named at the pager locator (condition 6). After that,
+    bring `origin/rebuild/dotnet-platform` in only with `git merge` (B-3, B-5),
+    and again after #49 merges. Never a bare `git push`, never a force push.
+13. **Scope, widened by one line.** Condition 8 now allows exactly one change to
+    `studio/tsconfig.node.json`: adding `"src/ui/paging.ts"` to `include`. Every
+    other line of that file, and `tsconfig.json` and `tsconfig.app.json`, stay
+    unchanged. Quote `git diff f171f7a -- studio/tsconfig.node.json` at gate 2.
+14. **Shims stay test-only.** The `ResizeObserver` stub and `motion: false` live in
+    `studio/test/listPaging.test.tsx` only. No shim, no `motion` setting and no
+    `ConfigProvider` change in `studio/src`.
+15. **Show the picker change to the owner (Minor 1).** `implementation.md` and the
+    pull request body each get a short "Behaviour changes for the owner" note:
+    "The image picker now reopens with the last submitted search; text typed but
+    not submitted before closing is cleared." This approval is not the owner's
+    acceptance of it. If the owner objects, the change goes back to the architect,
+    and "opening counts as a submit" is the ready alternative.
+16. **Gate-2 merge-order evidence.** Quote, at the final head:
+    `git merge-base --is-ancestor <#49 squash sha> HEAD; echo $?` giving `0`, and
+    `git merge-base --is-ancestor 3e1fc47 HEAD; echo $?` giving `0`. Gate 2 does
+    not approve without both.
+
+### Schedule
+
+- The owner's "Yes" lets `58caf70` go out as soon as the coordinator chooses.
+  `implementation.md` section 2 says the orchestrator plans to push it after the
+  tester and gate 2. That works, but the CI red and the CI green would then both
+  be open at gate 2, and gate 2 cannot approve on them. Pushing `58caf70` as soon
+  as condition 11 is under way gets the red run in parallel with the remaining
+  local work. That is a suggestion, not a condition.
+- ADM-06b cannot merge before #49, and #49 waits on the owner. On one merge a day
+  in slot 2, ADM-06b's earliest merge is the working day after #49's.
+- The G3-1 exit gate on 16 November is still the subject of the owner's unanswered
+  card. Nothing in this approval assumes an answer or shortens a step to meet it.
+
+### Owner decisions, as of round 3
+
+| Id | Question | Status | Blocks |
+| --- | --- | --- | --- |
+| O-ADM06B-1 | Push the e2e red commit first? | ANSWERED: "Yes, red test first like #49" (Mohamed Elbadry, 11 November 2026, project thread) | Nothing |
+| Merge of #49 | The owner has been asked whether to merge ADM-06a | PENDING; not this change's decision | ADM-06b leaving draft and merging (conditions 2 and 16) |
+| Picker reset | Condition 15 | Shown to the owner in the PR body; not an exception | Nothing at gate 1 |
+| G3-1 exit-gate date | Owner's unanswered card about moving 16 November | Not this change's decision | Nothing in this plan |
+
 Verdict: APPROVED

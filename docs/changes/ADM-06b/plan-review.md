@@ -383,4 +383,167 @@ assertion.**
   is required to the owner as a D-NNN entry. That is a delivery-time condition and
   does not block this plan.
 
+Round 2 result: APPROVED (three Minors).
+
+## Round 3
+
+Reviewer: plan-reviewer, 11 November 2026. Plan: `docs/changes/ADM-06b/plan.md`,
+round 3 (section 12), written after the developer's BACK TO ARCHITECT
+(`implementation.md` at `cbff1f1`). Branch head `cbff1f1`. Commits `58caf70`
+(e2e), `f1b4215` (unit tests), `8c4ab16` (fix), `cbff1f1` (record). Nothing
+pushed. Read-only checks. My experiments ran from
+`/tmp/claude-0/-home-user/a2e5e522-d1b3-56cb-8c85-c4d5ca889de1/scratchpad/r3/`,
+with a symlink to the worktree's existing `studio/node_modules`. Nothing was
+installed, and the worktree is unchanged apart from the architect's `plan.md`
+edit.
+
+### The five points asked for this round
+
+**1. The `tsconfig.node.json` include, judged against P-6: sound.**
+- The cause is as the developer reported. `tsconfig.node.json` is `composite: true`
+  and lists Studio sources by name (`src/content/siteUrl.ts`,
+  `src/content/model.ts`), so an imported `src` file that is not listed gives
+  TS6307. I reproduced it with a scratch composite copy of the node project:
+  - without the entry: `test/paging.test.ts(2,48): error TS6307: File '.../src/ui/paging.ts' is not listed ...`;
+  - with `src/ui/paging.ts` added: that error is gone.
+- With composite off, the node project plus `src/ui/paging.ts` type-checks with
+  `tsc -p ... --noEmit`, exit 0. So `paging.ts` (no imports, only
+  `URLSearchParams` from `@types/node`) compiles cleanly under `lib: ES2023`,
+  `strict`.
+- Against P-6: the entry adds a file to a type-check gate and removes nothing.
+  Rejecting (c), excluding the test, is right: that would take a file out of a
+  gate when a non-weakening fix exists. Rejecting (b), renaming to `.tsx`, is also
+  right: no `.tsx` test is type-checked by either project, so it is (c) by another
+  name.
+- Option (a) follows the existing pattern exactly. Section 4 keeps every other
+  line of the file out of scope. A file in both projects is already the case for
+  `siteUrl.ts` and `model.ts`.
+
+**2. The two jsdom workarounds: accepted.**
+- The `ResizeObserver` stub, like `matchMedia`, fills a browser API jsdom lacks,
+  asserts nothing and stays in `listPaging.test.tsx` only. Vitest isolates
+  environments per file, so it does not leak.
+- `ConfigProvider theme={{ token: { motion: false } }}` around S11 and S12 uses
+  antd's own motion switch, in the test only. The picker still loads in
+  `afterOpenChange` (`8c4ab16`, `MediaPicker.tsx:119-123`), so the path under test
+  is the production path. Real motion is still covered in CI by 10.15 and P2.8,
+  which open the picker in Chromium.
+- The developer's evidence: the first red run failed S5 and S6 on
+  `ReferenceError: ResizeObserver is not defined`, and S11 and S12 on "Unable to
+  find an element with the text: Image 001". The run committed in `f1b4215` fails
+  all twelve S tests at `getByTitle("2")`, as 5.1 requires. Both shims were made
+  before the red commit and reported, not hidden.
+
+**3. The picker search reset and the new S12 assertions: acceptable, with one Minor
+(new finding 1).**
+- Before ADM-06b, `afterOpenChange` called `load(search)` with whatever was in the
+  box (`f171f7a`, `MediaPicker.tsx:94-95`). Under the round-2 rule, `8c4ab16` loads
+  with `applied` while the box keeps the typed text. That leaves exactly the
+  box/result mismatch the plan says it is fixing. Resetting the box on opening
+  removes it.
+- The new S12 assertions (the typed term is not sent on reopening, and the box shows
+  the applied search) would pass the request half and fail the box half on
+  `cbff1f1`, which matches the plan's stated red ("the box still shows the typed
+  term").
+- See new finding 1 on the choice of direction and new finding 2 on the commit
+  shape.
+
+**4. The corrected test count: correct.**
+- `test/previewData.test.ts` at `f171f7a` has two `it` (lines 50, 64) and one
+  `it.each` with five rows (lines 73-79): 7 tests.
+- Plus P1 to P3, that file has 10. With 12 S tests and 3 U tests, the three files
+  hold 25 tests.
+- The developer's green run quotes `Tests 25 passed (25)`. The red run quotes
+  `14 failed | 8 passed (22)`: 12 S, P2 and P3 failed; the 7 existing tests and P1
+  passed; `paging.test.ts` failed to load. That is consistent.
+- The commit 4 S12 assertions extend an existing test, so the count stays 25.
+
+**5. A new commit 4 on top of `cbff1f1`: sound, with two Minors (new findings 2 and 3).**
+- Adding a commit instead of rewriting keeps the SHAs that `implementation.md`
+  quotes valid. Commit 1, `58caf70`, stays the e2e-only commit to push alone for
+  the red run.
+- At `58caf70`, `tsc -b` passes, because no `tsconfig` includes `e2e/*.spec.ts`.
+  The developer type-checked the spec with a scratch config, exit 0. So the
+  `studio` job reaches the end-to-end step on that push.
+- The intermediate commits `f1b4215` and `8c4ab16` fail `tsc -b`. That does not
+  matter: CI runs only on each pushed head, and the second push's head will contain
+  commit 4.
+
+### Round-2 Minors
+
+- Round 2, finding 3 (retrying CSS assertions): **met in code.**
+  `58caf70:studio/e2e/paging.spec.ts:29-30,78-79` uses `toHaveCSS`. The constants
+  at lines 15-18 equal `surfaces.card`, `surfaces.raised`, `accent.studio` and
+  `text.primary` (`rgb(14, 27, 44)`, `rgb(17, 31, 50)`, `rgb(31, 158, 233)`,
+  `rgb(244, 248, 252)`). `8c4ab16:studio/src/theme.ts:85-92` has exactly the six
+  token-only entries the plan lists. 5.1 still says "read `getComputedStyle`".
+  That is a wording nit only.
+- Round 2, findings 1 and 2: **still open, carried as Minors** (new finding 4).
+
+### New findings (round 3)
+
+**1. Minor. Sections 3.1 (4) and 4 (`MediaPicker.tsx`): the reset discards input,
+and an alternative that keeps today's behaviour was not weighed.**
+- Today, reopening the picker searches with whatever is in the box. Round 3
+  resets the box and drops an unsubmitted term instead. A second option also
+  keeps box and images in agreement and changes nothing staff see today: treat
+  opening as a submit, so on opening `applied` is set to the box's text and page 1
+  loads with it. Under the round-2 rule ("only a submit copies typed to applied")
+  that needs one more named submit, which is a small, clear amendment.
+- Discarding the text is a minor UX change outside the ADM-06 defect. I do not
+  rate it as an owner decision under P-7. But the plan should either pick the
+  option that keeps today's behaviour, or state in 3.3 why discarding is
+  preferred and list it under section 9 "Noted, not a decision" so the owner sees
+  it at the gate.
+
+**2. Minor. Section 5.2, commit 4: the new assertions and the code they test go into
+one commit.**
+- The plan shows S12's new red only by a local run "on `cbff1f1` with the new
+  assertions before the `MediaPicker.tsx` edit". The pipeline's pattern, and the
+  G3 rule "regression test is committed and shown failing before the fix", is
+  red-then-fix as separate commits. Splitting costs nothing, since nothing has
+  been pushed:
+  - 4a: `tsconfig.node.json` plus the S12 assertions, red, quoted;
+  - 4b: `MediaPicker.tsx`, green.
+- What would satisfy me: split commit 4 that way. Or, if the plan keeps one commit,
+  say why the in-commit red is enough. I accept the plan's argument that this is
+  the change's own behaviour, not the audit defect, so this is not a Major.
+
+**3. Minor. Sections 3.5 (sequence, step 2) and 5.2/5.4: the rebase rule conflicts
+with "`58caf70` is pushed alone".**
+- 3.5 step 2 still says to rebase the unpublished commits onto the current base
+  before the first push if ADM-06a has merged by then. That would replace
+  `58caf70` and every SHA in `implementation.md`. Also,
+  `origin/rebuild/dotnet-platform` has already moved: `git ls-remote` gives
+  `3e1fc47`, one commit past `f171f7a` (#50, semgrep-timeout, `.github/security/*`
+  and its records only, no `studio/` file). #49 is still open, not merged.
+- What would satisfy me: one rule. For example, "push `58caf70` as it is; the
+  `pull_request` run tests it merged with the current base anyway; after the push,
+  bring the base in only by `git merge` (B-3, B-5)". Drop or narrow step 2 so it
+  cannot rewrite the commits that 5.4 and `implementation.md` name.
+
+**4. Minor, carried from round 2 (findings 1 and 2), still unchanged in the text.**
+- 3.2's `itemActiveBg` row still says "Same choice as `Segmented`" (plan line 366).
+  `theme.ts` `Segmented` uses an accent tint.
+- Section 4 "Out of scope" (line 563) and the 5.5 D-NNN row (line 860) still say
+  "observation for ADM-08" instead of pointing to 3.4's "For ADM-08" records.
+
+### Checked and still sound
+
+- **Owner decision.** O-ADM06B-1 is ANSWERED in section 9 with the owner's exact
+  words, "Yes, red test first like #49" (Mohamed Elbadry, 11 November 2026, project
+  thread), and the same quote is in `implementation.md` section 2. The plan applies
+  it only to ADM-06b. It still does not infer ADM-06a's decision from "continue
+  work". 5.4 keeps the draft-PR first line and the wait for `failure`. No D-NNN is
+  needed.
+- **Scope.** The new files in scope are `tsconfig.node.json` (one entry) and the
+  existing `MediaPicker.tsx` and `listPaging.test.tsx`. `8c4ab16`'s 14 changed
+  files match section 4. There is no dependency, workflow, harness or `api/`
+  change, and #50 on the base shares no file.
+- **Gates.** Nothing is weakened (P-6). `tsc -b`, `npm test`, `npm run build` and
+  the preview design check are all required green after commit 4 (5.3), and CI
+  `studio` runs the same.
+- Everything approved in rounds 1 and 2 (design, pager tokens, merge-order
+  safeguards, E1/E2, red reasons, security, rollback) is unchanged by round 3.
+
 Verdict: APPROVED

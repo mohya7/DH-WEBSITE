@@ -2,8 +2,10 @@
 
 Change id: `ADM-06b`. Branch: `change/ADM-06b`, worktree `/home/user/dh-change-adm06b`,
 cut from `origin/rebuild/dotnet-platform` at `f171f7a`, not tracking it.
-Architect, round 2, 11 November 2026. Round 1 came back CHANGES NEEDED
-(`plan-review.md` Round 1: two Majors, six Minors). Section 12 answers each one.
+Architect, round 3, 11 November 2026. Round 1 came back CHANGES NEEDED
+(`plan-review.md` Round 1: two Majors, six Minors), answered in round 2. Round 3
+answers the developer's BACK TO ARCHITECT (`implementation.md` at `cbff1f1`).
+Section 12 records each answer.
 
 **This change is ADM-06b, the second of two.** ADM-06a (PR #49, branch
 `change/ADM-06`) fixes the API binding. ADM-06b adds the Studio paging controls,
@@ -235,6 +237,14 @@ worktree is unchanged.
 - **Type check:** `tsconfig.node.json` includes `test/**/*.ts` (so a new `.ts`
   test file is type-checked) but not `.tsx`, and excludes `test/previewData.test.ts`.
   `tsconfig.app.json` includes `src`.
+  - **Corrected in round 3.** `tsconfig.node.json` is a `composite` project
+    (line 14). A composite project refuses any file its `include` does not list,
+    even one that is only imported (TS6307). Its `include` names the `src` files its
+    tests import one by one: `src/content/siteUrl.ts` and `src/content/model.ts`.
+    So a `.ts` test under `test/` that imports another `src` file fails `tsc -b`
+    unless that file is added to `include`. The developer hit this with
+    `test/paging.test.ts` importing `src/ui/paging.ts` (`implementation.md`
+    section 1). Round 2 missed it.
 - **Studio end-to-end:** `studio/playwright.config.ts`, one worker, files in
   alphabetical order, a 90 s test timeout. The harness (`e2e/env.ts`) starts the
   API on `DigitalHubContent_E2e` and refuses any other catalogue. It sets
@@ -320,7 +330,12 @@ files").
    - After an upload from the library's Upload dialog, the library loads page 1,
      where the new image is (the list is newest first). The existing e2e tests
      10.15 and P2.8 rely on seeing the uploaded image.
-   - The picker opens on page 1 with its current search each time it opens.
+   - The picker opens on page 1 with its **applied** search each time it opens
+     (round 3). Before ADM-06b it reloaded with whatever was in the box. Now an
+     unsubmitted term typed before closing is discarded on the next opening: the
+     box is reset to the applied search, so the box and the images always agree.
+     The developer built the request side; the box reset is added in round 3
+     (section 4, `MediaPicker.tsx`).
    - The inbox tiles are unchanged: "Total requests" is still `total`, and New and
      Handled still count the loaded page. That is ADM-21 ("The tiles count only
      the loaded page"), not this change.
@@ -532,12 +547,13 @@ stacked on `change/ADM-06`.
 
 | File | Change |
 | --- | --- |
+| `studio/tsconfig.node.json` | **Round 3.** Add `"src/ui/paging.ts"` to `include`, next to `"src/content/siteUrl.ts"` and `"src/content/model.ts"`, which are there for the same reason (their tests import them). Nothing else in the file changes. This adds a file to the type check; it removes nothing from it (P-6). |
 | `studio/src/theme.ts` | Add `components.Pagination` with the six token-only values in 3.2. Nothing else changes. |
 | `studio/src/pages/ContactInboxPage.tsx` | Applied search kept apart from the typed search (3.1, 4); current page in state; `page` and `pageSize=50` on the request; `ListPager` under the cards; the page rules in 3.1 (4); `latestOnly`. Tiles unchanged. |
 | `studio/src/pages/AuditPage.tsx` | Applied filters kept apart from the typed ones; current page in state; `page` and `pageSize=50`; `pagination={tablePager(...)}` replaces `pagination={false}`; Filter loads page 1; `latestOnly`. Filters and columns unchanged (ADM-15). |
 | `studio/src/pages/RedirectsPage.tsx` | As the audit log, with an applied search: `tablePager`, `page` and `pageSize=50`; search loads page 1; Create and Delete reload the current page, clamped to the last page. |
 | `studio/src/pages/MediaLibraryPage.tsx` | Applied search; keep `total` as well as `items`; current page in state; `withPage(..., 48)`; `ListPager` under the grid; search loads page 1; Save and Delete reload the current page, clamped; the Upload dialog's close or select loads page 1. |
-| `studio/src/content/MediaPicker.tsx` | Applied search; keep `total`; current page in state; `withPage(..., 24)`; `ListPager size="small"` between the grid and "Upload"; opening the modal loads page 1 with the current search; search loads page 1. `rememberMedia` still records every loaded item. |
+| `studio/src/content/MediaPicker.tsx` | Applied search; on each opening, reset the box to the applied search and load page 1 with it (round 3); keep `total`; current page in state; `withPage(..., 24)`; `ListPager size="small"` between the grid and "Upload"; opening the modal loads page 1 with the current search; search loads page 1. `rememberMedia` still records every loaded item. |
 | `studio/src/preview/previewData.ts` | `published`: keep the first occurrence of each id; throw the existing error if a non-empty page adds no new id; stop on unique rows >= total or an empty page (3.1, 5). Nothing else in the file changes. |
 | `studio/test/previewData.test.ts` | Add a `describe("published lists across pages")` block with P1 to P3 (5.1). The existing block is unchanged. The file is already excluded from `tsc -b`, so the mock typing needs no config change. |
 
@@ -556,8 +572,9 @@ stacked on `change/ADM-06`.
   and ADM-16).
 - `studio/src/index.css`, and every part of `theme.ts` other than the new
   `Pagination` entry (3.2).
-- `studio/package.json`, `studio/package-lock.json`, `tsconfig*.json`,
-  `vitest.config.ts`, `playwright.config.ts`, `e2e/env.ts`, `e2e/helpers.ts`,
+- `studio/package.json`, `studio/package-lock.json`, `tsconfig.json`,
+  `tsconfig.app.json`, every line of `tsconfig.node.json` except the one `include`
+  entry in "Files to change" (round 3), `vitest.config.ts`, `playwright.config.ts`, `e2e/env.ts`, `e2e/helpers.ts`,
   `.github/workflows/*`. No dependency, config, harness or workflow change.
   `Media:UploadPermitLimit` is not raised for the e2e API (5.1, "Why media has no
   e2e test here").
@@ -573,6 +590,20 @@ stacked on `change/ADM-06`.
   as `case-study-theme.test.tsx` does.
 - A `window.matchMedia` stub, in this file only (2.6). It returns
   `{ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }`.
+- **Round 3, accepted from the developer:** a `window.ResizeObserver` stub, in this
+  file only. It is a class with empty `observe`, `unobserve` and `disconnect`.
+  antd `Table` and `DatePicker` observe their size through
+  `@rc-component/resize-observer`, and jsdom has no `ResizeObserver`. Without it
+  S5 and S6 failed with `ReferenceError: ResizeObserver is not defined` instead of
+  at the pager. It is the same kind of shim as `matchMedia`: it fills a browser
+  API jsdom lacks and asserts nothing.
+- **Round 3, accepted from the developer:** S11 and S12 render the picker inside
+  `<ConfigProvider theme={{ token: { motion: false } }}>`. jsdom never fires
+  `animationend`, so antd's `Modal` stays in its opening animation and
+  `afterOpenChange`, where the picker loads, never runs. `motion: false` is antd's
+  own token for turning motion off. The picker's code still loads in
+  `afterOpenChange`, so the tests still exercise that path. Real motion is
+  exercised by the existing e2e tests that open the picker (10.15, P2.8).
 - `vi.mock("../src/api/http", ...)`: `request` is a `vi.fn` that answers list
   paths with `pagedBody` (from `test/support/pagedApi.ts`) and records every path.
   `jsonInit` is a plain implementation. Mocking `http` also keeps `auth/session.ts`
@@ -601,7 +632,7 @@ because the fake API pages correctly.
 | S9 | `media library reaches the 49th image on page 2` | `MediaLibraryPage` | 56 images (the audit's number). Page 1 has 48 tiles and no "Image 049". Click "2": 8 tiles, "Image 049" among them. The request has `page=2&pageSize=48`. |
 | S10 | `media library search goes back to page 1` | `MediaLibraryPage` | On page 2, search. The request has `page=1` and `search`. |
 | S11 | `picker reaches the 25th image and selects it` | `MediaPicker` (`open`) | 30 images. Page 1 has 24 tiles and no "Image 025". Click "2": click "Image 025". `onSelect` gets that image's id. The request has `page=2&pageSize=24`. |
-| S12 | `picker opens on page 1` | `MediaPicker` | Open, go to page 2, close (re-render with `open={false}`), open again. The request on reopening has `page=1`. |
+| S12 | `picker opens on page 1` | `MediaPicker` | Open, go to page 2, close (re-render with `open={false}`), open again. The request on reopening has `page=1`. **Round 3:** before closing, type a term in the search box without submitting. On reopening, the request carries the applied search (none), not the typed term, and the search box shows the applied search (empty). |
 
 **Preview loader** (`studio/test/previewData.test.ts`, new describe block). Uses
 the file's existing mocking pattern. `services` gets the rows under test; every
@@ -703,8 +734,9 @@ on other spec files.
 
 ### 5.2 Commit order (B-6, P-4)
 
-Three commits, so the end-to-end red can be shown in CI. A failing unit test would
-stop the `studio` job before the end-to-end step (2.7).
+Three commits, so the end-to-end red can be shown in CI, then one more for the
+round 3 changes. A failing unit test would stop the `studio` job before the
+end-to-end step (2.7).
 
 1. `ADM-06b: Test that Studio lists reach rows past page 1 end to end`
    - `studio/e2e/paging.spec.ts` only.
@@ -714,7 +746,19 @@ stop the `studio` job before the end-to-end step (2.7).
      `studio/test/previewData.test.ts`.
 3. `ADM-06b: Add paging controls to the audit, inbox, redirects and media screens`
    - Every file under "Files to change" except the tests, plus `paging.ts` and
-     `ListPager.tsx`.
+     `ListPager.tsx`. Already made as `8c4ab16`.
+4. **Round 3.** `ADM-06b: Type-check the paging helpers and reset the picker search on opening`
+   - `studio/tsconfig.node.json` (the one `include` entry);
+   - `studio/src/content/MediaPicker.tsx` (the box reset);
+   - `studio/test/listPaging.test.tsx` (the S12 assertions added in round 3).
+   - A new commit on top of `cbff1f1`. Commits 1 to 3 stay as they are, so the
+     SHAs in `implementation.md` stay valid. Nothing has been pushed, but nothing
+     needs rewriting either. Commit 1 (`58caf70`) is still the commit pushed alone
+     for the CI red (5.4).
+   - The new S12 assertions test new behaviour of the change's own code, not the
+     ADM-06 defect. Their red is shown by running S12 on `cbff1f1` with the new
+     assertions before the `MediaPicker.tsx` edit: the box still shows the typed
+     term. Quote that run.
 
 ### 5.3 Local evidence, in this container
 
@@ -734,14 +778,15 @@ npx vitest run test/listPaging.test.tsx test/previewData.test.ts test/paging.tes
 
 Expected:
 - `listPaging.test.tsx`: 12 failed (S1 to S12), each on the missing pager item.
-- `previewData.test.ts`: the 8 existing tests pass; P1 passes; P2 and P3 fail.
+- `previewData.test.ts`: the 7 existing tests pass (2 `it` and a 5-row `it.each`;
+  round 2 said 8, corrected in round 3); P1 passes; P2 and P3 fail.
 - `paging.test.ts`: the file fails to load (`Failed to resolve import "../src/ui/paging"`).
   Vitest reports it as a failed suite.
 - Exit 1. Quote the summary lines and one assertion message per failing test.
 - Also run `npm test` once and confirm every test outside these three files
   still passes, which shows commit 2 changed nothing else.
 
-**After commit 3 (green):**
+**After commit 3 and again after commit 4 (green):**
 
 ```bash
 npx vitest run test/listPaging.test.tsx test/previewData.test.ts test/paging.test.ts
@@ -752,10 +797,13 @@ git -C /home/user/dh-change-adm06b status --short
 ```
 
 Expected:
-- All three files pass: 12 + 11 + 3 = 26 tests.
+- All three files pass: 12 + 10 + 3 = **25** tests (corrected in round 3; the
+  developer's run at `8c4ab16` gave `Tests 25 passed (25)`).
 - `npm test`: every Studio unit test passes; quote the count.
-- `tsc -b`: exit 0. This type-checks the screens, `paging.ts`, `ListPager.tsx`
-  and `test/support/pagedApi.ts`.
+- `tsc -b`: exit 0 after commit 4 (at commit 3 it fails with TS6307, as reported
+  in `implementation.md`). This type-checks the screens, `paging.ts` (in both
+  projects, as `siteUrl.ts` and `model.ts` already are), `ListPager.tsx`,
+  `test/paging.test.ts` and `test/support/pagedApi.ts`.
 - `npm run build`: exit 0, including the preview design check
   (`scripts/check-preview-design.ts`).
 - `git status --short`: only the planned files. `dist/` and `node_modules/` are
@@ -768,7 +816,7 @@ local port is used. If a later step starts Vite or the API, it uses 42xx
 
 ### 5.4 CI evidence on the pull request
 
-- **Red end-to-end (needs O-ADM06B-1, section 9).** If the owner answers "Yes":
+- **Red end-to-end. O-ADM06B-1 is "Yes" (section 9), so this is done:**
   - Push commit 1 alone and open the pull request **as a draft**, with the first
     line "Do not merge before #49 (ADM-06a)." (3.5).
   - CI `studio` reaches the end-to-end step, because commit 1 has no unit test
@@ -807,7 +855,7 @@ local port is used. If a later step starts Vite or the API, it uses 42xx
 | Item | How it is met |
 | --- | --- |
 | The finding, its evidence and its fix come from the audit | Section 1 quotes the bullets this half closes. 2.3 and 2.4 show them in the code. The fix is the audit's "Add paging controls to the audit, inbox and media screens", plus redirects (3.4) and the preview loader (the audit's bullet 4) |
-| The regression test is committed and shown failing before the fix | Commits 1 and 2 come before commit 3. S1 to S12, P2 and P3 are shown failing locally, then passing (5.3). E1 and E2 are shown failing in CI if O-ADM06B-1 is "Yes" (5.4). If it is "No", see section 9 |
+| The regression test is committed and shown failing before the fix | Commits 1 and 2 come before commit 3. S1 to S12, P2 and P3 are shown failing locally, then passing (5.3). E1 and E2 are shown failing in CI on `58caf70` alone, since O-ADM06B-1 is "Yes" (5.4) |
 | The end-to-end suite gets a test for each Major | ADM-06 is a Blocker. E1 and E2 are added anyway, as ADM-06a's plan promised |
 | A Minor that is not fixed becomes a D-NNN entry | Not a Minor. The collection list is not part of ADM-06's fix; it goes to ADM-08 as an observation (3.4) |
 | G3-1 exit gate: "each blocker reproduced before its fix and passing after it" | 2.3 to 2.4 and the red runs reproduce it; the green runs show it passing. ADM-06 is done only when both ADM-06a and ADM-06b have merged |
@@ -849,7 +897,12 @@ shows it. The e2e data (51 enquiries, 51 redirect audit entries) lives only in
 
 ## 9. Owner decisions needed
 
-- **O-ADM06B-1. Status: PENDING. BLOCKED for the push step only.**
+- **O-ADM06B-1. Status: ANSWERED, "Yes".** The owner's words: **"Yes, red test
+  first like #49"** (Mohamed Elbadry, 11 November 2026, project thread), relayed
+  by the coordinator and recorded in `implementation.md` section 2. So 5.4 applies:
+  `58caf70` is pushed alone, as a draft pull request, and nothing more is pushed
+  until its `studio` run has conclusion `failure`. The "No" branch below no longer
+  applies; it is kept as the record of round 2.
   - **Question:** "May the developer push ADM-06b's first commit (the end-to-end
     paging test only) to `change/ADM-06b` and open the pull request before the
     other commits are pushed, so that CI's `studio` job shows the end-to-end test
@@ -898,6 +951,9 @@ shows it. The e2e data (51 enquiries, 51 redirect audit entries) lives only in
 | ADM-06a slips past 12 November | ADM-06b waits; ADM-06 and the G3-1 exit gate stay open | 3.5 forbids stacking. The integrator tells the owner at the gate (ADM-06a 3.3) |
 | antd shows the size changer above 50 rows | Staff can pick 100 per page; page counts differ from the plan | `showSizeChanger: false` in both pager settings; S1 asserts `.ant-pagination-options` is absent and `pageSize=50` is sent |
 | jsdom lacks `matchMedia` | Render tests crash for a reason that is not the defect | The stub in `listPaging.test.tsx` (5.1). The red run must show the pager assertion failing, not a `matchMedia` TypeError |
+| jsdom lacks `ResizeObserver` and never ends antd's motion | S5, S6, S11 and S12 fail for reasons other than the defect | The `ResizeObserver` stub and `motion: false` for the picker tests (5.1, round 3). The developer's red run at `f1b4215` shows all twelve S tests failing at `getByTitle("2")` |
+| `motion: false` hides a real bug in the picker's opening | The picker loads in tests but not in the browser | Only the test wraps the picker; its code still loads in `afterOpenChange`. 10.15 and P2.8 open the real picker with motion in CI `studio` |
+| A test imports a `src` file the node project does not list | `tsc -b` fails with TS6307 | The `include` entry for `src/ui/paging.ts` (round 3); `tsc -b` in 5.3 and CI |
 | Out-of-order responses | Page 2's rows show under page 3's highlight | `latestOnly`; S3 |
 | A delete or Mark handled leaves the user past the last page | Empty list with rows still in the set | The clamp rule in 3.1 (4); S8 |
 | After an upload the new image is on page 1 but the library stays on page 2 | Staff cannot see what they uploaded; e2e 10.15 and P2.8 could fail | Upload loads page 1 (3.1, 4); those e2e tests still run in `studio` |
@@ -931,7 +987,8 @@ shows it. The e2e data (51 enquiries, 51 redirect audit entries) lives only in
 | Overview counts past 100 (`OverviewPage.tsx:28`) | Found here (2.3) | Moved to ADM-08: "For ADM-08" in `implementation.md` and the PR body (3.4) | |
 | Merge order: final head contains #49 | Found here (3.5) | Planned (`merge-base --is-ancestor` at gate 2) | |
 | Studio end-to-end test past page 1 | ADM-06a 3.3 and 5.5 | Planned | |
-| Regression tests committed and shown failing before the fix | G3 checklist; refinement plan Track G3 | Planned (CI red for E1 and E2 waits on O-ADM06B-1) | |
+| Regression tests committed and shown failing before the fix | G3 checklist; refinement plan Track G3 | Planned (CI red for E1 and E2 on `58caf70` alone; O-ADM06B-1 "Yes") | |
+| `tsc -b` and `npm run build` pass | Plan 5.3; CI `studio` | Planned (round 3, `tsconfig.node.json` include) | |
 | ADM-06 closed (ADM-06a and ADM-06b both merged) | ADM-06a 3.3 | Planned | |
 
 ## 12. Revision log
@@ -1003,3 +1060,47 @@ shows it. The e2e data (51 enquiries, 51 redirect audit entries) lives only in
         and can argue the harness change there.
     - The three media rows in section 11 now say "unit (S9 to S12) plus ADM-06a's
       `Media_list_returns_page_two`; no end-to-end".
+- **Round 3 (11 November 2026):** answers the developer's BACK TO ARCHITECT
+  (`implementation.md`, head `cbff1f1`) and the coordinator's three questions.
+  - **TS6307: `tsc -b` and `npm run build` fail on `test/paging.test.ts`.**
+    - The cause is a wrong statement in round 2 (2.7). `tsconfig.node.json` is
+      `composite` and lists its `src` files by name, so the import of
+      `src/ui/paging.ts` is refused. 2.7 is corrected.
+    - **Chosen: option (a).** Add `"src/ui/paging.ts"` to `tsconfig.node.json`
+      `include`. That file is now in "Files to change", in a fourth commit
+      (5.2). This follows the existing pattern: `src/content/siteUrl.ts` and
+      `src/content/model.ts` are listed for the same reason. The test stays
+      type-checked, and `paging.ts` is pure, so it compiles under the node
+      project. The developer saw TS6307 as the only error.
+    - **Rejected: (b), rename to `.tsx`.** It would take the test out of
+      type-checking by a naming trick. The file has no JSX, so the name would
+      mislead.
+    - **Rejected: (c), exclude the test.** It removes a file from a type-check
+      gate to make the build pass, which P-6 forbids when a non-weakening fix
+      exists. `previewData.test.ts` is excluded for its mock typing; that is not
+      a reason to add more exclusions.
+  - **jsdom shims in `listPaging.test.tsx`: both accepted** (5.1, two risk rows).
+    - The `ResizeObserver` stub fills a browser API jsdom lacks, as the planned
+      `matchMedia` stub does, and asserts nothing.
+    - `motion: false` through `ConfigProvider` for S11 and S12 is antd's own
+      switch, and it is set in the test only. The picker still loads in
+      `afterOpenChange`; real motion is covered in CI by 10.15 and P2.8.
+    - With both, the red run fails every S test at the pager, as 5.1 requires.
+  - **The picker reopens with the last submitted search: accepted, with one
+    addition.**
+    - Loading with the applied search follows the round 2 rule in 3.1 (4):
+      "every list request uses the applied values".
+    - But the box could then show an unsubmitted term while the images use
+      another. So on each opening the box is reset to the applied search, and
+      the two always agree.
+    - That is a small edit to `MediaPicker.tsx` with new S12 assertions, in
+      commit 4, shown red on `cbff1f1` before the edit (5.2).
+  - **Test count corrected:** `previewData.test.ts` has 7 existing tests, not 8,
+    so the three files have 12 + 10 + 3 = 25 tests, not 26 (5.3).
+  - **O-ADM06B-1 answered:** "Yes, red test first like #49" (Mohamed Elbadry,
+    11 November 2026, project thread). Section 9 records it. 5.4, 5.5 and the
+    coverage table no longer treat it as pending. The push sequence is unchanged:
+    `58caf70` alone, as a draft whose first line is "Do not merge before #49
+    (ADM-06a).", then wait for a `failure` conclusion.
+  - Nothing else in the plan changes. Commits `58caf70`, `f1b4215` and `8c4ab16`
+    stand.
