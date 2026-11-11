@@ -416,4 +416,120 @@ None needs a code change or holds the delivery.
 
 Round 3 result: APPROVED (no Blocker, no Major, three Minors).
 
+## Round 4
+
+Reviewer: plan-reviewer, 11 November 2026. Plan: `docs/changes/ADM-03/plan.md`,
+round 4, commit `0cb72af`. Reviewed: `git diff fc7fac5 HEAD --
+docs/changes/ADM-03/plan.md`, `implementation.md` section 16, the red test T22
+(`48f256f`) and the drafted patch
+(`/tmp/claude-0/-home-user/a2e5e522-d1b3-56cb-8c85-c4d5ca889de1/scratchpad/adm03-insertImage-caret.patch`).
+Read-only in the repository. I applied the patch to a scratch copy of the
+editor outside the repository and ran thirteen probes against the editor
+before and after it. No browser, SQL Server or port, so every statement about
+keyboard focus in Chromium is NOT RUN.
+
+### What round 4 changes
+
+- New 3.1 item 8: after the Image button, if the new image is node-selected,
+  the selection moves to the first text position after it.
+- T16's expected document becomes "Start", image, "Pasted". New T23 for an
+  image inserted straight before another image. E2 loses `Control+End` and
+  keeps `body.focus()`.
+- Commit order: tests (T16, T22, T23 fail; 19 pass), the patch (22 pass), the
+  record, then the tester and CI.
+
+### Probes
+
+Pick "Diagram" with the Image button, then insert "X" at the selection.
+"Before" is the branch head; "After" is the head with the drafted patch.
+
+| Caret before the pick | Before | After |
+| --- | --- | --- |
+| End of the only paragraph | image selected; image lost: "Intro.", "X" | "Intro.", image, "X" |
+| Empty document | image selected; image lost | image, "X" |
+| End of a paragraph, another paragraph follows (heading case) | image lost | "Head", image, "XTail" |
+| Start of text | caret; image, "XIntro." | same |
+| Middle of text | caret; "Int", image, "Xro." | same |
+| A range selected | range replaced by the image; caret after | same |
+| End of a list item, another item follows | image lost | item 1: "one", image; item 2: "Xtwo" |
+| End of the last list item | image lost | item 2: "two", image; then "XTail" |
+| End of a table cell | image lost | cell 1: "c1", image; cell 2: "Xc2" |
+| End of a blockquote | image lost | quote: "quote", image; then "XTail" |
+| End of text, a stored image follows | Diagram lost | "Intro.", Diagram, Chart, "X" |
+| A stored image selected | stored image replaced by Diagram, then Diagram lost | stored image replaced by Diagram; "XAfter" |
+| Inside a code block | caret; block split around the image | same |
+
+### Assessment
+
+- **The rule is right.** In every probe the new image survives the next key.
+  Before the patch it is lost in nine of the thirteen. The rule acts only on a
+  node-selected image, so the cases that already leave a caret (start, middle,
+  range, code block) are untouched. Finding 1 covers where the caret lands.
+- **Scope (B-8).** In scope. This is the audit's third bullet, "Inserting a
+  library image removes it at once", one key later, in the same module and the
+  same file. Sending it back to the architect before patching was the right
+  order.
+- **T16, T17, T18.** T16 now takes rule 1 (a caret in the trailing paragraph),
+  and its new expected document follows from that. Rule 3 of round 3 keeps its
+  tests: T17 selects an image after the paste and T18 selects the whole
+  document, each with a full order assertion (`richText.test.tsx`, the T17 and
+  T18 blocks at the head). The picker was only ever an accidental route into
+  rule 3. No new rule 3 test is needed.
+- **Red first.** T22 is red at `48f256f`. T23 is red today by my probe ("End of
+  text, a stored image follows": Diagram lost) and its expected order matches
+  the patched result. T16's new expectation is red today because the trailing
+  empty paragraph is still there. 19 + 3 = 22 matches the plan's counts.
+- **P-6.** T16's assertion stays exact and changes by a recorded decision. E2
+  becomes stricter. Nothing is weakened.
+- **Security, migrations, owner decisions.** No route, request or stored shape
+  changes. The caret line is in section 9 for the owner. O-ADM03-1 and
+  O-ADM03-2 are untouched.
+
+### Findings (round 4)
+
+**1. Minor. Sections 3.1 (8) and 9: "the line after the new image" is not
+always a new line, and three cases are not described.**
+- The rule finds the next text position anywhere after the image. When the
+  image is the last node of the document it is the trailing empty paragraph.
+  Otherwise it is the **start of existing text**: the next paragraph ("XTail"),
+  the next list item ("Xtwo"), the next table cell ("Xc2"), or the paragraph
+  after a blockquote. Typed text then joins the front of that text, and in a
+  list or table the caret has left the item or cell the image went into.
+- Nothing is lost, and it is far better than today. But 3.1 (8) names only the
+  following-image case, and section 9 tells the owner "the caret is in the line
+  after the new image".
+- What would satisfy me: 3.1 (8) and section 9 say that the caret goes to the
+  next place text can be typed, which may be the start of the following
+  paragraph, list item or cell; the list and table cases go in the "For ADM-22"
+  note. A guard test for one of them is welcome, not required.
+
+**2. Minor. Section 5.1, E2, and section 12 (5): what E2 does and does not
+show after this round.**
+- Removing `Control+End` hides nothing: it was the thing hiding the defect.
+- `body.focus()` keeps E2 independent of where focus goes when the picker
+  closes, and the plan says so and records the question for ADM-22. That is
+  honest. It also means E2 does not show that staff can pick and then type
+  with no click. The plan should say that in one line beside the E2 step, so
+  nobody reads a green E2 as that proof.
+- The CI failure was intermittent. One green `studio` run after the patch is
+  weak evidence for an intermittent fault. The deterministic proof is T22 and
+  T23. The record should say which is which, and the tester should not accept
+  the green run alone.
+
+**3. Minor. Section 3.1 (8): "If there is no such position, the selection is
+left as it is."**
+- In that branch the image stays selected and the defect remains. With
+  `TrailingNode` registered (StarterKit default) a text position always exists
+  after a last image, and my empty-document probe confirms it. Say that this is
+  why the branch is not expected to run.
+
+**4. Minor. Section 5.1: no test for the empty document.**
+- It is the first thing a new section's editor is, and before the patch the
+  image is lost there too. The patch fixes it (probe above). T22 covers the end
+  of text only. One line added to T22 or T23 would hold it.
+
+None of these changes the rule, the patch or the commit order.
+
+Round 4 result: APPROVED (no Blocker, no Major, four Minors).
+
 Verdict: APPROVED
