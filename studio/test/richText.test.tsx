@@ -170,6 +170,19 @@ function mount(initial: string, other?: string) {
         });
       }
     },
+    // Characters at the selection as it is, replacing it when it is not a caret, as a pressed key does
+    // (prosemirror-view's keypress handler: handleTextInput, else tr.insertText over the selection).
+    async typeAtSelection(text: string) {
+      for (const character of text) {
+        await act(async () => {
+          const { view } = dom().editor;
+          const { from, to } = view.state.selection;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- ProseMirror's handleTextInput prop
+          const handled = view.someProp("handleTextInput", (handler: any) => handler(view, from, to, character));
+          if (!handled) view.dispatch(view.state.tr.insertText(character));
+        });
+      }
+    },
     // A paste at the end of the document, or with `keepSelection`, at the selection as it is.
     async paste(html: string, keepSelection = false) {
       await act(async () => {
@@ -591,5 +604,24 @@ describe("ADM-03 rich text images", () => {
 
     expect(editor.text()).toContain("Plain text");
     expect(editor.notice()).toBeNull();
+  });
+
+  // T22. CI, E2 on 7aece22: the image was gone after it was picked and text was typed.
+  it("typing straight after inserting a library image keeps the image", async () => {
+    const editor = mount("");
+    await settle();
+
+    // As E2 does: type, so the caret is at the end of the text, then pick.
+    await editor.type("Intro.");
+    await pickFromLibrary(editor, "Diagram");
+    // No caret move in between: the keys go where the Image button left the selection.
+    const selectionAfterPick = editor.dom().editor.state.selection.toJSON().type as string;
+    await editor.typeAtSelection("After the image.");
+
+    expect(editor.images().map((node) => node.attrs?.mediaId)).toEqual([diagramId]);
+    // A caret, not the image selected: a selected image is replaced by the next key.
+    expect(selectionAfterPick).toBe("text");
+    expect(editor.lastDocument().content).toEqual([paragraph("Intro."), image(diagramId, "Diagram"), paragraph("After the image.")]);
+    expect(api.pastes).toEqual([]);
   });
 });
