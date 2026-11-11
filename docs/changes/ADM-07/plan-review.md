@@ -168,4 +168,81 @@ mis-stated, and the coverage table overstates Phase C 10.7.**
 - **Rollback and risks** are specific. Each fix commit reverts on its own, and
   nothing is stored differently.
 
-Verdict: CHANGES NEEDED
+Round 1 result: CHANGES NEEDED (finding 1). The file's single verdict line is at
+the end, after the latest round.
+
+## Round 2
+
+Plan reviewer, 11 November 2026. Plan round 2 at `1145b3f` ("ADM-07: Plan round
+2"), read as `git diff df3af90 1145b3f -- docs/changes/ADM-07/plan.md` and then in
+full where it changed. That commit touches only `plan.md` (`git diff --stat`, 1 file).
+The worktree is clean.
+
+### Round 1 findings
+
+| # | Severity | Resolved? | Evidence |
+| --- | --- | --- | --- |
+| 1 | Major | **Yes** | T10 `A_create_that_cannot_get_the_lock_in_time_is_refused_as_busy` is in 5.1, in commit 1, and in 5.4's red list ("T10's must show 201 where 503 was expected"). Commit 6 makes it green. It asserts 503, `redirect_busy`, no row, and 201 after the holder rolls back. It is red at base, because no lock is taken today, and it pins the resource name. It is also added to 3.3, B5, section 10 and the coverage table. See new Minor 7 for one wording point |
+| 2 | Minor | Yes | The match now uses "contains" and allows for both EF 10 parameter shapes, still confirmed from the EF log. There is a warm-up before arming. The 2 s cap and 5 s timeout coupling is written down and is to sit in a test comment. There are risk rows in 10 |
+| 3 | Minor | Yes | The same warm-up runs before T8's round 1. Each round's slowest request is written out and quoted in 5.4. A `redirect_busy` at green is reported as a failure, not retried |
+| 4 | Minor | Yes | S1 and S3 assert on hoisted spies for `message.success` and `message.warning`. The file keeps the empty-body `afterEach`. I checked the cited lines: `listPaging.test.tsx:57-67` and `165-169` match. S2's marker is inside `render()`'s root, so asserting it as text is right |
+| 5 | Minor | Yes | 3.1 now looks files up in the walked list (`walk(outDir)` into a `Set`) and never calls `fs.existsSync`. I checked the cited lines: `check-output.ts:105-106` build `files` and `fileSet` that way. W3 states the `/About` case |
+| 6 | Minor | Yes | 2.2 and the 3.5 row now rest on the audit's "warns" and Phase B 4.5 and 8.3. The `AdminApiTests` 201s are named as a consequence, and the P-6 claim is gone. The coverage table has a separate row marking 10.7 and BA 530 "Partly: reported, not enforced (B3)", with the IIS check in Phase D |
+
+### New findings
+
+**7. Minor. Section 5.1 (T10): the holder's connection string is not reachable as
+the plan describes it.** T10 opens a `SqlConnection` with "the test connection
+string (the factory's, rewritten to `DigitalHubContent_Test`)". But
+`ApiFactory.TestConnectionString()` is `private static` (`ApiFactory.cs:188`).
+Taken literally, the developer would have to edit `ApiFactory.cs`, which section 4
+does not list. Two routes need no harness change:
+- `ApiFactory.ElevatedTestConnectionString()` (`internal`, line 161), which the
+  existing tests already use with `new SqlConnection` (`CareersTests.cs:247`,
+  `AuditRollbackTests.cs:75`);
+- or `GetConnectionString()` on a `ContentDbContext` resolved from the factory's
+  services.
+
+An application lock belongs to the database, not to the login, so either one
+blocks the API's `dh_content_app` session. This does not block the plan. The
+developer should use one of these routes, or record an `ApiFactory.cs` change as
+a scope deviation in `implementation.md`.
+
+### Checked in round 2 and found sound
+
+- **Owner answers.** O-ADM07-1 ("Yes, red tests first") and O-ADM07-2 ("Yes, refuse
+  it") are quoted with name, date (11 November 2026), place (project thread, card
+  tap) and how they reached the architect (relayed by the coordinator; the
+  architect says plainly that they did not see the thread). Each answer is read
+  narrowly. The "delete the ended vacancy first" route is marked as the plan's
+  reading, not the owner's words, and goes in the PR body. No owner decision is
+  open, and none is assumed.
+- **F-2 in scope.**
+  - T9 now has no conditions and is in commit 1, red at base. At base the POST is
+    201, and `CheckRedirectAsync` (`AdminStore.cs:873-892`) reaches the same
+    `OccupiesLivePathAsync` that counts only Published vacancies, so there is no
+    import error either.
+  - Commit 7 is the one-line predicate, matching `BuildContentStore.cs:176`.
+  - Section 6 now says one input that is accepted today is refused (B6).
+  - The D-NNN fallback and T9-B have been removed, consistently.
+- **The O-ADM02-2 context** (0 redirects in `DigitalHubContent_Studio`; the build
+  content passed `check:content`) is recorded as relayed and not as the architect's
+  own evidence. The plan uses it only to drop the clean-up and query-widening notes,
+  which is safe. The G3-1 exit-gate row still says this change alone does not meet
+  it.
+- **Red first still holds.**
+  - Commit 1 is tests only: T1 to T10, W1 to W4 and E1.
+  - The Studio unit tests are still in commit 2, pushed after commit 1's CI has
+    finished.
+  - T7's warm-up runs before the gate is armed, so it cannot trip the gate.
+- **Nothing new weakens a gate or test.** There is still no migration, lockfile,
+  `package.json`, `*.csproj` or workflow change. T10's holder runs only against the
+  test catalog and releases the lock in `finally`.
+- **Unchanged from round 1 and still sound:** the scope against the audit and
+  ADM-02's hand-over, T7's feasibility and determinism, T8 possibly green at base,
+  the 201 decision, the single-name `sp_getapplock` design, security, rollback and
+  risks.
+
+There are no Blockers or Majors. Finding 7 is a Minor for the developer.
+
+Verdict: APPROVED
