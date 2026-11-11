@@ -576,8 +576,11 @@ its text is kept and only its image is removed.**
    added. Use the image button for images."
 4. Content pasted with an image is added when the check returns, not at once.
    It lands at the caret, so it can follow text typed in that moment. If
-   something was selected after the paste was made (the Image button leaves its
-   new image selected), it lands after that selection and replaces nothing.
+   something was selected after the paste was made (an image the person
+   clicked, or the whole document), it lands after that selection and replaces
+   nothing. An image inserted with the Image button while the check is out is
+   not selected (item 10): the caret is in the line after it, and the pasted
+   content fills that line.
    Two such pastes made one straight after the other can land in the other
    order. What is in the editor is kept; only what was selected when the paste
    was made is replaced, as any paste does. The pasted content itself is not
@@ -597,6 +600,11 @@ its text is kept and only its image is removed.**
 9. (Round 2.) The two new notices of item 3 go away when a later paste is
    added. The older notice, "This paste included an image. Use the image
    button so you can add alt text.", still stays until the editor is reloaded.
+10. (Round 4.) After the Image button the caret is at the next place text can
+    be typed after the new image. When the image is last, that is a new empty
+    line. Otherwise it is the start of the text that follows (the next
+    paragraph, list item or table cell), so typing joins the front of that
+    text. If another image follows directly, the caret is after that one.
 
 ## 10. For ADM-22
 
@@ -616,6 +624,10 @@ Found here and left alone (plan section 4):
 - A library image copied in another tab is dropped on paste. A library lookup
   could allow it (plan 3.3).
 - Per-use alt text and a decorative switch inside rich text.
+- (Round 4.) After the Image button at the end of a list item or a table cell,
+  the caret leaves that item or cell for the start of the next one.
+- (Round 4.) Whether keyboard focus is in the editor when the picker closes
+  has not been run in a browser. E2 calls `body.focus()` before it types.
 - **If O-ADM03-2 is "No" or unanswered at gate 2:** an image the library marks
   decorative, with no alt text, is inserted as `alt: ""`, `decorative: false`.
   It now stays in the editor, and the save refuses the item until the image is
@@ -918,4 +930,178 @@ is unchanged.
 as a head, CI's unit-test step fails and the end-to-end step does not run. I
 pushed, amended and rebased nothing.
 
-Status: BACK TO ARCHITECT
+## 17. Addendum, 11 November 2026: plan round 4 built
+
+The status at the end of section 16 was BACK TO ARCHITECT. The architect
+answered in plan round 4 (`0cb72af`), the reviewer passed it (`dee41db`, four
+Minors) and gate 1 approved it (`85f1cda`, conditions 17 to 27 for the
+developer). This section is the build of round 4. The file's one status line
+is now at the end of this section.
+
+Nothing above this section is rewritten, with two exceptions the gate allows:
+section 9 (the pull request's behaviour text) is brought up to date in place
+(condition 25), and section 10, "For ADM-22", gains two bullets (condition 23).
+
+### Commits
+
+`48f256f` (T22, red) stands as it was. On top of `85f1cda`:
+
+| | SHA | Subject | Files |
+| --- | --- | --- | --- |
+| A (tests) | `10ef86d` | ADM-03: Test the caret after the Image button, with and without a following image | `studio/test/richText.test.tsx`, `studio/e2e/rich-text.spec.ts` |
+| B (fix) | `40ad04a` | ADM-03: Put the caret after an image inserted with the Image button | `studio/src/content/RichTextEditor.tsx` |
+| C (record) | this commit | | `docs/changes/ADM-03/implementation.md` |
+
+Nothing was pushed, amended, rebased or squashed (conditions 17 and 26).
+`48f256f` and `10ef86d` are red heads and must not be pushed as heads; the
+integrator pushes a head that contains `40ad04a`.
+
+### Commit A: what the tests are
+
+- **T16**, `an image inserted while a paste is being checked is kept`: only the
+  expected document changed, to paragraph "Start", the image, paragraph
+  "Pasted", and its comments now say it takes the caret rule (plan 3.1 (3),
+  rule 1). Its name and other assertions are unchanged.
+- **T22** is not edited.
+- **T23**, `inserting a library image before another image leaves neither
+  selected`: document "Intro." then the stored image; caret at the end of
+  "Intro."; pick "Diagram"; type "Next." at the selection. It asserts both
+  images are there, the selection after the pick is a text selection, and the
+  content is exactly "Intro.", Diagram, the stored image, "Next.".
+- **T24** (Minor 4, its own test), `inserting a library image into an empty
+  field keeps it when typing follows`: an empty document; pick "Diagram"; type
+  at the selection. It asserts the image is there and the content is exactly
+  the image, then the paragraph "After the image.".
+- No other test is edited.
+- **E2** (`rich-text.spec.ts`): the `Control+End` press is removed and the
+  comment above it corrected. `body.focus()` stays. No wait, retry or other
+  step is added, and no assertion changed.
+
+### Red, at `10ef86d` (the editor unchanged since `1177ac7`)
+
+```
+$ npx tsc -b; echo $?
+0
+$ npx vitest run test/richText.test.tsx; echo $?
+ Test Files  1 failed (1)
+      Tests  4 failed | 19 passed (23)
+1
+$ npm test; echo $?
+ Test Files  1 failed | 10 passed (11)
+      Tests  4 failed | 79 passed (83)
+1
+$ npx tsc -p <scratch>/tsconfig.e2e.adm03.json --noEmit; echo $?
+0
+```
+
+These are the counts of condition 18. The four failures, each an assertion
+about the editor:
+
+| Id | Test | Message |
+| --- | --- | --- |
+| T16 | an image inserted while a paste is being checked is kept | `AssertionError: expected [ { type: 'paragraph', …(1) }, …(3) ] to deeply equal [ { type: 'paragraph', …(1) }, …(2) ]` (the empty paragraph is still last) |
+| T22 | typing straight after inserting a library image keeps the image | `AssertionError: expected [] to deeply equal [ Array(1) ]` |
+| T23 | inserting a library image before another image leaves neither selected | `AssertionError: expected [ Array(1) ] to deeply equal [ …(2) ]` (Diagram is lost) |
+| T24 | inserting a library image into an empty field keeps it when typing follows | `AssertionError: expected [] to deeply equal [ Array(1) ]` |
+
+The other 19 tests pass, as before.
+
+### Commit B: the fix
+
+`studio/src/content/RichTextEditor.tsx` only. I checked the drafted patch
+against plan 3.1 (8) before using it, and it is that rule:
+
+- `caretAfterSelectedImage(view)` is called in `insertImage` after the insert
+  chain has run. If the selection is a node selection on an image, it sets the
+  selection to `Selection.findFrom(doc.resolve(selection.to), 1, true)`, the
+  first text position after the image. Only the selection moves; the document
+  is not changed and no request is made.
+- It runs after the insert is dispatched because the paragraph the editor adds
+  after a last image does not exist before then.
+- When the insert already leaves a caret, it does nothing.
+- **Condition 20:** the comment above `filteredPaste` no longer says "(the
+  Image button leaves its new image selected)"; it says "(an image the person
+  selects while the check is out)". Comment only.
+- **Condition 21:** a comment at the `after !== null` test says that
+  StarterKit's `TrailingNode` adds a paragraph after a last image, so a text
+  position always exists and the null case is not expected to happen; if it
+  ever did, the image would stay selected, as it was before this fix. T24, the
+  empty document, is the case that would show it: there the image is the only
+  node until the trailing paragraph is added, and T24 passes.
+
+### Green, at `40ad04a`
+
+```
+$ npx vitest run test/richText.test.tsx; echo $?
+ Test Files  1 passed (1)
+      Tests  23 passed (23)
+0
+$ npm test; echo $?
+ Test Files  11 passed (11)
+      Tests  83 passed (83)
+0
+$ npx tsc -b; echo $?
+0
+$ VITE_PUBLIC_SITE_URL=https://website.ci.invalid npm run build; echo $?
+✓ built in 842ms
+Preview design: /website-design/d1ebe4132f8cfa8e/ matches website/design/ byte for byte.
+0
+$ git -C /home/user/dh-change-adm03 diff --exit-code -- studio/package-lock.json studio/package.json; echo $?
+0
+$ git -C /home/user/dh-change-adm03 status --short; echo $?
+0
+$ npx tsc -p <scratch>/tsconfig.e2e.adm03.json --noEmit; echo $?
+0
+```
+
+These are the counts of condition 19. T23 gave the planned order, and T24 was
+red before the fix, so the stop rule (condition 27) did not apply. No port was
+used and nothing wrote to any database.
+
+### Which evidence is which (condition 24)
+
+- **Deterministic proof of this defect and its fix:** T22, T23 and T24. Red at
+  `10ef86d` (T22 since `48f256f`), green at `40ad04a`, every run.
+- **The one end-to-end red:** CI run `42970225620` (job `130356739362`), E2
+  failing at the image count on `7aece22`. It was seen once and cannot be
+  reproduced on demand.
+- **What a green E2 shows, and does not:** that the path works in Chromium
+  once keyboard focus is in the editor. It does not show that staff can pick
+  an image and type with no click, because E2 calls `body.focus()`.
+- **No CI red exists for E2's new form.** `10ef86d` fails CI's unit-test step,
+  so the end-to-end step would not run on it (condition 30).
+- **NOT RUN:** E2 in its new form, in a browser. Covered by CI `studio` on the
+  pushed head that contains `40ad04a`.
+
+### Sentences above that the fix made untrue (condition 25)
+
+- **Section 9, item 4** is corrected in place: "the Image button leaves its new
+  image selected" is removed. An image inserted while a check is out now takes
+  the caret rule, and the answer fills the line after it (T16). Item 10 is new,
+  in the words of condition 22.
+- **Section 6**, "the selection is a node selection on the image … no `Enter`
+  is needed, and `Control+End` is needed": superseded. After `40ad04a` the
+  selection after the Image button is a caret, `Control+End` is not needed, and
+  E2 no longer presses it.
+- **Section 12**, the note that E2 "focuses the editor before `Control+End`":
+  superseded in its second half; the focus call stays.
+- **Section R**, the results table's T16 row ("Start", image, "Pasted", empty
+  paragraph), the words "the Image button leaves its new image selected" in
+  the findings table and in the rule, and **section 14**'s T16 bullet with the
+  empty paragraph: superseded. T16's document is now "Start", image, "Pasted",
+  by rule 1. Rule 3 is tested by T17 and T18.
+- **Section 16**, "the fix … is not committed", "the branch head is red on
+  purpose" and its status line: superseded by this section.
+- **Section 10, "For ADM-22"** gains the two bullets of condition 23, in place.
+
+### Coverage, added by round 4
+
+| Item | Source | Status | Evidence |
+| --- | --- | --- | --- |
+| Typing straight after the Image button keeps the image | Audit ADM-03, bullet 3; plan 3.1 (8); section 16 | Done locally; E2's new form NOT RUN in a browser | T22 red at `48f256f`; T22, T23, T24 red at `10ef86d` (`4 failed | 19 passed (23)`), green at `40ad04a` (`23 passed (23)`). End-to-end red: CI run `42970225620`. E2 without `Control+End`: CI `studio` on the next pushed head |
+| An image picked while a paste is being checked is kept, and the answer fills the line after it | Plan 3.1 (3) rule 1, round 4 | Done | T16 red at `10ef86d` on the new document, green at `40ad04a` |
+| The empty-document case; the "no text position" branch | `plan-review.md` Round 4, Minors 3 and 4; conditions 18 and 21 | Done | T24; the code comment |
+| Where the caret goes in a list or table; keyboard focus after the picker closes | `plan-review.md` Round 4, Minors 1 and 2 | Moved to ADM-22 | Section 10, the two round-4 bullets |
+| `tsc -b`, `npm test` and `npm run build` pass | Plan 5.3; CI `studio` | Done | This section, at `40ad04a`: exit 0, `83 passed (83)`, build exit 0 with the preview design check |
+
+Status: READY FOR TEST
