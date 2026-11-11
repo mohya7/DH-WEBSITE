@@ -63,6 +63,38 @@ describe("page head", () => {
     expect(national.shareImageId).toBeNull();
   });
 
+  // ADM-10: a page that falls back to the default share image uses the settings alt for it.
+  function withDefaultShareImage(alt: string | null) {
+    const content = snapshotContent();
+    const media = content.media[0];
+    content.settings.defaultShareImageId = media.id;
+    content.settings.defaultShareImageAltOverride = alt;
+    return { site: siteOf(content), media };
+  }
+
+  it("uses the settings alt with the default share image", () => {
+    const { site: withDefault, media } = withDefaultShareImage("Digital Hub logo");
+    const national = withDefault.routes.find((route) => route.path === "/cases/national-portal")!.item;
+    expect(national.shareImageId).toBeNull();
+    const head = pageHead(withDefault, national, "case-study", national.path!, origin);
+    expect(head.image).toBe(origin + media.path);
+    expect(head.imageAlt).toBe("Digital Hub logo");
+  });
+
+  it("keeps a page's own alt, and the title for a page's own image", () => {
+    const { site: withDefault } = withDefaultShareImage("Digital Hub logo");
+    const about = withDefault.routes.find((route) => route.path === "/about")!.item;
+    expect(about.shareImageId).not.toBeNull();
+    expect(pageHead(withDefault, { ...about, shareImageAltOverride: "Our team at work" }, "page", "/about", origin).imageAlt).toBe("Our team at work");
+    expect(pageHead(withDefault, { ...about, shareImageAltOverride: null }, "page", "/about", origin).imageAlt).toBe(documentTitle(about));
+
+    const { site: noAlt, media } = withDefaultShareImage(null);
+    const national = noAlt.routes.find((route) => route.path === "/cases/national-portal")!.item;
+    const head = pageHead(noAlt, national, "case-study", national.path!, origin);
+    expect(head.image).toBe(origin + media.path);
+    expect(head.imageAlt).toBe(documentTitle(national));
+  });
+
   it("accepts a same-origin canonical and refuses the others, naming the page", () => {
     expect(canonicalUrl(origin, "/about", "/legal")).toBe("https://digitalhub.com.eg/legal");
     expect(canonicalUrl(origin, "/about", "/about/index")).toBe("https://digitalhub.com.eg/about");
