@@ -264,4 +264,125 @@ https://claude.ai/code/session_01XbYNgkELy87ojZ7Td24A65
   schedule ADM-02b.
 - The slot 2 integrator must be named for the deployment note.
 
-Verdict: BLOCKED ON OWNER
+Round 1 result: BLOCKED ON OWNER (O-ADM02-1). The file's single verdict line is at
+the end, after the latest round.
+
+# Round 2
+
+Technical lead, gate 2 round 2, 11 November 2026. Draft pull request #54
+(`change/ADM-02` into `rebuild/dotnet-platform`, head `4857eff`; `gh api .../pulls/54`:
+`draft=true state=open`). Round 1 is above and still stands, except where this
+round changes it.
+
+## Owner decision O-ADM02-1
+
+- **The owner's words, as relayed by the coordinator:** "yes both" (Mohamed
+  Elbadry, 11 November 2026, project chat), answering whether to push ADM-02's
+  failing tests first. I have not seen the chat myself. The quote and its source
+  come from the coordinator's message.
+- **How I read it:** only as "Yes" to O-ADM02-1.
+- **"Both" is unexplained.** The relayed question is a single one. I do not read
+  "both" as an answer to O-ADM02-2, as acceptance of B1 to B7, or as scheduling
+  ADM-02b.
+- **Before the merge,** the coordinator records in the pull request body what the
+  second question was, in the owner's words.
+
+## What I verified myself
+
+| Check | Command or source | Result |
+| --- | --- | --- |
+| Runs and jobs exist, and are on the right commits | `gh api repos/mohya7/DH-WEBSITE/actions/runs/<id>` and `/jobs` | Red run `43012090027`: `CI`, head `7c93e52`, `pull_request`. Job `api` `130493970283` ended `failure`. The run itself is `cancelled`, because job `studio` `130493970270` was cancelled; that is consistent with `cancel-in-progress` when the full branch was pushed. Green run `43012635577`: head `4857eff`, `success`. `api` `130495931919`, `website` `130495931416`, `studio` `130495931890`, `website-browser` `130495931861` and `section-compare` `130496269071` all `success`; screenshot parity `skipped` (optional, label-gated). `Security` `43012635671` and `Workflow lint` `43012635605` are `success` on `4857eff` |
+| The red is the red commit | red log, `grep "HEAD is now"` | `422960b Merge 7c93e52… into b9c5f6f…`: the pull request merge ref of commit 1 alone, on the base that then held #52 and #53 (Studio files only) |
+| Red counts | red log, `grep "Total tests\|Passed:\|Failed:"` | `Total tests: 519`, `Passed: 498`, `Failed: 21`. 519 is the base's 494 plus 25 new cases (K1 lands in commit 2) |
+| The 21 failing names | red log, every `Failed DigitalHub…` line, counted | R1 (2), R2 (2), R3, R4 (3: pages, case-studies, blog-posts), R5, R6, R7, F1, F2 (5: reference-not-a-uuid, reference-empty, reference-32-digits, image-not-a-uuid, related-not-a-uuid), F4 (2: reference, image), F5a, W1. That is exactly the 21 of plan 5.4, and nothing else failed |
+| Each failure is the planned red | red log, the `Error Message` of each | R1, R2, R3, R4: `Created {…}` (201 where 409 or 400 was expected). R3 shows `/…-q/ → /…-p/` created. R5: `OK {… "status":"published" …}`. R6: `Assert.Single() Failure: The collection contained 2 items`. R7: `No fromPath error for /adm02-…-i/: {}`. F1: `not-a-uuid … website refuses, API accepts` and the upper-case line. F2 and F4: `publish: OK {… "status":"published" …}` from `AssertSavedButNotPublishedAsync`. F5a: `Assert.False() Failure` (`Ok` was true). Each matches the "Red at base" column of plan 5.1 |
+| W1's lines | red log, `grep "website check:"` | Exactly three (each printed twice, by xUnit and by the console): `pages/adm02-2ce1c459-bad: section 1 (case_cards) does not match sections/case_cards.json: /items/0/reference/id must match format "uuid"`; `Media 266D428D-97C5-4CBC-ABED-3B214E987189 is used by published content but is not in the media list.`; `Two redirects start at /adm02-2ce1c459-x/.` These are the three lines of plan 5.1. No other line from this run appeared, so condition 6 is not triggered |
+| Guards passed at the red | red log, `grep "Passed …"` | F3 `A_draft_with_an_unchosen_reference_or_image_still_saves` (image, reference), F5b `A_draft_row_or_working_copy_with_an_unchosen_id_still_imports`, W2 `The_website_check_fails_on_a_bad_file`, and L5 `The_api_rule_is_the_website_builds_rule` all passed |
+| Green counts | green log | `HEAD is now at ef47c94 Merge 4857eff… into b9c5f6f…`. `Total tests: 520`, `Passed: 520`, 0 `Failed`. 520 = 494 + 26 |
+| All 26 new cases green | green log, `Passed DigitalHub…` for the ADM-02 classes, counted | R1 (2), R2 (2), R3, R4 (3), R5, R6, R7, K1, F1, F2 (5), F3 (2), F4 (2), F5a, F5b, W1, W2: 26. W1 printed no `website check:` line |
+| The CI step ran as written | green log | `Download action repository 'actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020'`, then `Run npm ci`, `added 114 packages`. W1 found `website/node_modules` |
+| The merge changes nothing of ADM-02 | `git diff --quiet a34947a 4857eff -- api website .github` | Exit 0: the product, test and workflow files are byte-identical to the commit the tester tested. `git diff --name-only b9c5f6f 4857eff` gives the 17 files of plan section 4 and the six `docs/changes/ADM-02/` records, nothing else |
+| B-4 and B-5 on the new commits | `git log -1 --format=%B 5c33a7b 4857eff` | Both have `ADM-02:` subjects and both trailers. The base was merged in, with no rebase and no force-push |
+
+So gate 1's red-first requirement and the G3 rule ("committed and shown failing
+before the fix") are both met. F1 was red locally, and all 21 cases, the 20
+database cases included, were red in CI on the tests-only commit before any fix
+was pushed. The tester's local evidence stays valid, because the tested product
+files did not change.
+
+## Round 1 items, closed or still open
+
+| Round 1 item | Status |
+| --- | --- |
+| O-ADM02-1 answered | Closed: "Yes" (see above, and the "both" caveat) |
+| CI red at `7c93e52`, exactly 21, with assertions; F3, F5b, W2 pass; W1's three lines | Closed (table above) |
+| CI green on the final head, every job, with run ids | Closed for `4857eff`. See open item 1 for the head that will carry this file |
+| The developer adds the run ids to `implementation.md` | **Waived.** This was my procedural request, not an engineering standard or owner rule. The ids and the evidence are recorded here and go into the pull request body, so a third copy adds no assurance. `implementation.md` is unchanged since `a34947a` |
+| F-1 and F-2 go to ADM-07 | Unchanged. The coordinator hands them to the ADM-07 architect |
+| O-ADM02-2 | Still PENDING and not asked. It blocks only the G3-1 exit gate. I advise asking it before the merge, because of B4 |
+
+## Definition of Done, round 2
+
+| Box | Round 2 |
+| --- | --- |
+| Requirement and acceptance criteria stated and met | Yes. Database proof: run `43012635577`, job `130495931919` |
+| Tests exist; every security fix has a regression test | Yes. Red in `43012090027` / `130493970283`, green in `43012635577`. Changed-line coverage is not gated yet (GAP-18) |
+| PR checks green on the final head (run ids quoted) | Yes for `4857eff`. **Open** for the docs-only commit that will add this file (open item 1) |
+| Reviewed by someone other than the author | **Open:** the owner's review at merge |
+| Deployment note | **Open:** name the slot 2 integrator, who re-runs the suites after the merge |
+| `docs/deferred-items.md` for any exception | Not needed: O-ADM02-1 is "Yes", so no exception is taken |
+| Every other box | As in round 1: Yes |
+
+## Pull request description, values to fill
+
+Use round 1's draft, with these values:
+
+- **Red:** "Red commit `7c93e52` (tests only): CI run 43012090027, job `api`
+  130493970283, `Total tests: 519, Passed: 498, Failed: 21`. The 21: R1 (2),
+  R2 (2), R3, R4 (3), R5, R6, R7, F1, F2 (5), F4 (2), F5a, W1, each failing as the
+  plan predicted. W1's three lines: the `case_cards` uuid format, the upper-case
+  media id not in the media list, and `Two redirects start at /adm02-…-x/`. F3,
+  F5b and W2 passed."
+- **Green:** "Final head `4857eff`: CI run 43012635577. `api` 130495931919
+  (`Total tests: 520, Passed: 520`), `website` 130495931416, `studio` 130495931890,
+  `website-browser` 130495931861, `section-compare` 130496269071, all green;
+  screenshot parity skipped (optional). Security 43012635671 and Workflow lint
+  43012635605 green."
+- **Owner decisions:** "O-ADM02-1: "yes both" (Mohamed Elbadry, 11 November 2026,
+  project chat)", followed by what "both" covers, in the owner's words, or "the
+  second question is not recorded".
+- **O-ADM02-2:** PENDING, the G3-1 exit gate only.
+- **B1 to B7:** listed as in round 1, for the owner to accept at merge.
+- **DoD:** tick "PR checks are green on the final head" only once open item 1 is
+  green.
+
+## Open items before the merge (not gate 2 conditions)
+
+1. The coordinator commits this file, together with round 1's earlier commit
+   `5c33a7b`, as a docs-only commit. CI must be green again on that new head, and
+   the integrator quotes its run id. Docs-only, but it is the head that merges.
+2. Fill the pull request body (above), mark #54 ready for review, and ask the owner
+   to confirm the merge. The owner's confirmation is the acceptance of B1 to B7,
+   B4 especially. This approval is not.
+3. Record what "both" in the owner's answer covers.
+4. The integrator merges #54 alone in slot 2 and re-runs the suites after it.
+   ADM-07 is cut only after this merge.
+5. Hand F-1 and F-2 to the ADM-07 architect. Schedule ADM-02b. Ask O-ADM02-2.
+6. The tester's detached worktree `/home/user/dh-test-adm02` is still present. Its
+   owner removes it.
+
+## Decision, round 2
+
+**Approved.** The CI evidence gate 1 and round 1 required is real, and I checked it
+against the job logs and the GitHub API:
+
+- red on the tests-only commit for exactly the 21 planned cases, each for the
+  planned reason;
+- the guards passing at the red;
+- all 520 green on `4857eff`;
+- every `ci.yml` job, plus Security and Workflow lint, green.
+
+The merge from the base changed no ADM-02 file. The change now goes to the owner
+for merge confirmation, with the open items above.
+
+Verdict: APPROVED
