@@ -5,9 +5,11 @@ import { TableCell } from "@tiptap/extension-table-cell";
 import { TableHeader } from "@tiptap/extension-table-header";
 import { TableRow } from "@tiptap/extension-table-row";
 import { EditorContent, useEditor, type JSONContent } from "@tiptap/react";
+import { Fragment, Slice } from "@tiptap/pm/model";
+import type { EditorView } from "@tiptap/pm/view";
 import StarterKit from "@tiptap/starter-kit";
 import { Button, Modal, Space } from "antd";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { jsonInit, request } from "../api/http";
 import { referenceCollections } from "./model";
 import { MediaPicker, rememberMedia, type MediaChoice } from "./MediaPicker";
@@ -33,7 +35,65 @@ const StudioImage = Image.extend({
       src: { default: null, rendered: false },
     };
   },
+  // The editor renders an image as img[mediaid] with no src, so its own HTML
+  // must parse back into a node when it is copied or cut and pasted. Whether
+  // a pasted media id is kept is decided in filteredPaste, not here.
+  parseHTML() {
+    return [{ tag: "img[mediaid]" }, { tag: 'img[src]:not([src^="data:"])' }];
+  },
+  // Typing ![alt](url) stays text: an image enters only with a media id.
+  addInputRules() {
+    return [];
+  },
 }).configure({ inline: false, allowBase64: false });
+
+const imageNotice = "This paste included an image. Use the image button so you can add alt text.";
+const uncheckedNotice = "The paste could not be checked, so nothing was added. Paste again.";
+const dropNotice = "The dropped content included an image, so it was not added. Use the image button for images.";
+
+/*
+ * The media ids this Studio session got from the API, in lower case. A pasted
+ * image keeps its media id only if the id is here; any other id is sent to
+ * the paste filter as null, so the image is dropped.
+ *
+ * An id enters in three places only: from the document an editor is created
+ * with, from a document set through `value`, and from the picker (insertImage).
+ * It is shared by every rich-text field open in the tab, so an image can be
+ * copied from one field to another. An id is never removed.
+ *
+ * This is safe only because every host passes `value` from the API or from
+ * this editor's own onChange. A host that feeds `value` from anything else
+ * (the clipboard, browser storage, an address) must not use this editor
+ * unchanged: it would make ids of its own choosing known.
+ *
+ * It is not MediaPicker's map of paths, which holds every image the picker
+ * has listed.
+ */
+const knownMediaIds = new Set<string>();
+
+function noteMediaIds(node: JSONContent) {
+  if (node.type === "image" && typeof node.attrs?.mediaId === "string") knownMediaIds.add(node.attrs.mediaId.toLowerCase());
+  node.content?.forEach(noteMediaIds);
+}
+
+function withoutUnknownMediaIds(node: JSONContent): JSONContent {
+  if (node.type === "image") {
+    const mediaId: unknown = node.attrs?.mediaId;
+    if (typeof mediaId === "string" && knownMediaIds.has(mediaId.toLowerCase())) return node;
+    return { ...node, attrs: { ...node.attrs, mediaId: null } };
+  }
+  if (node.content === undefined) return node;
+  return { ...node, content: node.content.map(withoutUnknownMediaIds) };
+}
+
+function hasImage(slice: Slice): boolean {
+  let found = false;
+  slice.content.descendants((node) => {
+    if (node.type.name === "image") found = true;
+    return !found;
+  });
+  return found;
+}
 
 function parseDocument(value: string): JSONContent {
   if (value.trim().length === 0) return { type: "doc", content: [{ type: "paragraph" }] };
@@ -92,6 +152,23 @@ export function RichTextEditor({
   const [picker, setPicker] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // False once the editor has been removed: TipTap destroys its view a moment later.
+  const mounted = useRef(true);
+  // Raised each time the document is replaced from outside, through `value`.
+  const replaced = useRef(0);
+  const [initial] = useState(() => {
+    const first = parseDocument(value);
+    noteMediaIds(first);
+    return first;
+  });
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ heading: { levels: [2, 3, 4] }, link: false }),
@@ -102,24 +179,30 @@ export function RichTextEditor({
       TableHeader,
       TableCell,
     ],
-    content: parseDocument(value),
+    content: initial,
     editorProps: {
       attributes: { "data-field": fieldPath, class: "min-h-40", role: "textbox", "aria-multiline": "true", "aria-label": label },
-      handlePaste(_view, event) {
+      handlePaste(view, event, slice) {
         const files = Array.from(event.clipboardData?.files ?? []);
         if (files.some((file) => file.type.startsWith("image/"))) {
-          setNotice("This paste included an image. Use the image button so you can add alt text.");
+          setNotice(imageNotice);
           return true;
         }
-        return false;
+        // A paste with no image is left to ProseMirror. One that carries an
+        // image is not inserted here: the server filter answers first.
+        if (!hasImage(slice)) return false;
+        void filteredPaste(view, slice, setNotice, () => mounted.current, () => replaced.current);
+        return true;
+      },
+      handleDrop(_view, _event, slice, moved) {
+        // A move inside the editor, or a drop with no image, is left to ProseMirror.
+        if (moved || !hasImage(slice)) return false;
+        setNotice(dropNotice);
+        return true;
       },
     },
+    // Reports the document and nothing else: no request, and the document is never replaced from here.
     onUpdate: ({ editor: current }) => {
-      const raw = JSON.stringify(current.getJSON());
-      if (raw.includes('"type":"image"') && raw.includes('"src"')) {
-        void filterPaste(raw, current, onChange, setNotice);
-        return;
-      }
       onChange(cleanDocument(current.getJSON()));
     },
   });
@@ -127,11 +210,15 @@ export function RichTextEditor({
   useEffect(() => {
     if (editor === null) return;
     if (cleanDocument(editor.getJSON()) === value) return;
-    editor.commands.setContent(parseDocument(value), { emitUpdate: false });
+    const next = parseDocument(value);
+    noteMediaIds(next);
+    replaced.current += 1;
+    editor.commands.setContent(next, { emitUpdate: false });
   }, [editor, value]);
 
   function insertImage(choice: MediaChoice) {
     rememberMedia(choice.id, choice.path);
+    knownMediaIds.add(choice.id.toLowerCase());
     editor
       ?.chain()
       .focus()
@@ -179,24 +266,54 @@ export function RichTextEditor({
   );
 }
 
-async function filterPaste(
-  raw: string,
-  editor: NonNullable<ReturnType<typeof useEditor>>,
-  onChange: (value: string) => void,
+/*
+ * A paste that carries an image. The pasted slice, never the document, goes to
+ * the server's paste filter, and the answer is inserted at the caret of that
+ * moment. Nothing is inserted before the answer, and nothing already in the
+ * editor is replaced by it, so what was typed meanwhile stays.
+ */
+async function filteredPaste(
+  view: EditorView,
+  slice: Slice,
   setNotice: (value: string) => void,
+  isMounted: () => boolean,
+  replacedCount: () => number,
 ) {
-  const result = await request("/api/v1/rich-text/paste", jsonInit("POST", { document: raw }));
-  if (!result.ok || result.body === null) {
-    setNotice("This paste included an image. Use the image button so you can add alt text.");
+  const replacedBefore = replacedCount();
+  // cleanNode leaves an image with mediaId, alt and decorative only, so no address is sent.
+  const pasted = ((slice.content.toJSON() ?? []) as JSONContent[]).map(cleanNode).map(withoutUnknownMediaIds);
+
+  let filtered: { document: string; imagesDropped: boolean } | null = null;
+  try {
+    const result = await request("/api/v1/rich-text/paste", jsonInit("POST", { document: JSON.stringify(pasted) }));
+    if (result.ok && result.body !== null) filtered = result.body as { document: string; imagesDropped: boolean };
+  } catch {
+    filtered = null;
+  }
+
+  // The editor has been removed: there is nothing to add to, and nobody to tell.
+  if (!isMounted() || view.isDestroyed) return;
+  // The document was replaced from outside while the filter was out (another
+  // item was opened in this editor): the paste belongs to the old document.
+  if (replacedCount() !== replacedBefore || filtered === null) {
+    setNotice(uncheckedNotice);
     return;
   }
 
-  const filtered = result.body as { document: string; imagesDropped: boolean };
-  editor.commands.setContent(parseDocument(filtered.document), { emitUpdate: false });
-  onChange(cleanDocument(editor.getJSON()));
-  if (filtered.imagesDropped) {
-    setNotice("This paste included an image. Use the image button so you can add alt text.");
+  try {
+    const content = (JSON.parse(filtered.document) as JSONContent).content ?? [];
+    const fragment = Fragment.fromJSON(view.state.schema, content);
+    // Open at the ends as the pasted slice was, so pasted text joins the
+    // sentence it lands in, as an ordinary paste does.
+    const widest = Slice.maxOpen(fragment);
+    const piece = new Slice(fragment, Math.min(slice.openStart, widest.openStart), Math.min(slice.openEnd, widest.openEnd));
+    if (fragment.size > 0) view.dispatch(view.state.tr.replaceSelection(piece).scrollIntoView());
+  } catch {
+    setNotice(uncheckedNotice);
+    return;
   }
+
+  if (filtered.imagesDropped) setNotice(imageNotice);
 }
 
 function LinkDialog({
