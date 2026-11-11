@@ -750,4 +750,172 @@ read by the tester and the tech lead.
   end-to-end test changed in round 2, so there was no end-to-end red to show
   for it; the end-to-end red is the one on `0975b00` (run `42956506481`).
 
-Status: READY FOR TEST
+## 16. Addendum, 11 November 2026: E2 failed in CI on `7aece22`; cause found; the fix needs the architect
+
+Nothing above this section is changed, except that the status line at the end
+of the file is now BACK TO ARCHITECT.
+
+### The CI failure, as the coordinator relayed it
+
+I did not read CI and could not see the trace.
+
+- Head `7aece22`: records only on top of `aef22b5`, where the same job passed.
+- `ci.yml` run `42970225620`, job `130356739362`, "Studio — typecheck, build,
+  end-to-end": `1 failed, 29 passed`.
+- E2 (`rich-text.spec.ts:162`) failed at line 194,
+  `await expect(image).toHaveCount(1)`: expected 1, received 0, after 19 polls
+  over 15 s. The paste-request assertion at line 193 had passed.
+- So after the image was picked and "After the image." was typed, the image was
+  not in the editor, and no request had gone to the paste filter.
+
+### The cause: confirmed in the product, likely for this run
+
+**Confirmed by running it (jsdom, the real editor and picker):**
+
+- When the Image button inserts an image at the end of a text block, the
+  editor's selection afterwards is a node selection on the new image
+  (`selection.toJSON().type` is `"node"`). TipTap's `insertContent` puts the
+  selection at the end of what it inserted, searching backwards, and the only
+  thing there is the image; the empty paragraph after a last image is added
+  only after that.
+- A key pressed with that selection replaces the image. `prosemirror-view`
+  handles a key press over a selection that is not a caret with
+  `tr.insertText(text)`, which replaces the selection.
+- The new test T22 does this: type "Intro.", pick "Diagram", then send
+  "After the image." to the editor as a pressed key arrives, with no caret move
+  in between. Against the editor as it is, the image is gone:
+  `AssertionError: expected [] to deeply equal [ Array(1) ]`.
+- When the image is inserted with the caret at the start of a non-empty
+  paragraph, the selection afterwards is a caret in that paragraph, and typing
+  keeps the image. So the defect needs the caret at the end of text, which is
+  where it is after typing, the usual case.
+
+**So this is a defect in ADM-03's own subject, not only a test timing
+problem.** The audit says "Inserting a library image removes it at once". After
+`eff1880` the image stays when it is inserted, but the next key pressed removes
+it unless the person first moves the caret. Section 6 of this record noted the
+node selection and concluded only that E2 needs `Control+End`. That was the
+wrong conclusion to stop at.
+
+**Likely, not proved, for the CI run.** E2 calls `body.focus()` and presses
+`Control+End` before it types, so it passes only when that key press moves the
+selection off the image before the first character arrives. The failure fits
+the key press not taking effect that once: the image was inserted (the picker
+closed, which only `insertImage` does), the keys reached the editor (otherwise
+the image would still be there), no paste request was sent, and the image was
+gone. I know of no other path in this editor that removes a just-inserted image
+without a paste request. What made `Control+End` miss I could not see without
+the trace; one candidate is that TipTap's `focus()` in `insertImage` focuses
+the view on a later animation frame and re-applies the editor's selection to
+the page then. I would put the confidence that this is the cause of the run at
+about three in four; that the product defect exists is certain.
+
+### The fix is written and works, and it is not committed, because it moves T16
+
+The coordinator asked for the caret to end in a text position straight after
+the inserted image, with the image not selected, in `RichTextEditor.tsx` only,
+"keeping every existing test green".
+
+The fix I wrote (kept outside the repository, at
+`/tmp/claude-0/-home-user/a2e5e522-d1b3-56cb-8c85-c4d5ca889de1/scratchpad/adm03-insertImage-caret.patch`):
+after `insertImage` has run its insert, if the selection is a node selection on
+an image, the caret is set to the first text position after it
+(`Selection.findFrom(doc.resolve(selection.to), 1, true)`). It has to run after
+the insert is dispatched: the paragraph after a last image does not exist
+before then, and a first attempt inside the same chain found no text position
+and left the image selected.
+
+With it applied:
+
+```
+$ npx tsc -b; echo $?
+0
+$ npx vitest run test/richText.test.tsx
+ Test Files  1 failed (1)
+      Tests  1 failed | 20 passed (21)
+```
+
+T22 passes. The one failure is **T16**, on the exact-order assertion added in
+`eb696cc` at plan round 3's request:
+
+```
+AssertionError: expected [ { type: 'paragraph', …(1) }, …(2) ] to deeply equal [ { type: 'paragraph', …(1) }, …(3) ]
+-   {
+-     "type": "paragraph",
+-   },
+```
+
+- T16 pastes, holds the answer, picks an image, releases. Before the fix the
+  image is selected, so the answer goes after the selection (rule 3 of plan
+  3.1 (3)) and the editor's empty paragraph stays last: "Start", image,
+  "Pasted", empty paragraph.
+- With the fix the caret is already in that empty paragraph, so the answer
+  goes in at the caret (rule 1) and fills it: "Start", image, "Pasted". That is
+  the order plan round 3 gives in words, and nothing is lost. But it is not the
+  document T16 asserts, and T16 would no longer exercise rule 3 at all (T17 and
+  T18 still do).
+
+**Why I stopped.** I may not change an existing assertion to make a fix pass,
+and the instruction was to keep every existing test green. And plan 3.1 (3),
+round 3, gives as a reason for its rule "the Image button, which leaves its new
+image selected": the fix makes that sentence untrue, and changes `insertImage`,
+which plan section 4 lists as unchanged. Those are the architect's to settle.
+
+**What the architect needs to decide:**
+
+1. Whether `insertImage` puts the caret in the text position after the new
+   image (the coordinator's wording, and what the patch does), and that this is
+   in ADM-03's scope.
+2. T16's expected document: "Start", image, "Pasted", with no empty paragraph
+   after it; and whether T16 stays as a test of the caret rule or is reworded.
+3. The sentence in plan 3.1 (3) about the Image button, and the same words in
+   section 9 item 4 of this record and in the pull request body.
+4. An edge the patch leaves: if the node straight after the new image is
+   another image, the caret goes to the next text position beyond it, not
+   between the two images.
+
+### The end-to-end spec: not changed, with the reason
+
+- With the fix, picking and then typing is the real path, and E2 would be a
+  stricter test without `Control+End`. I recommend removing that key press once
+  the fix is in.
+- I did not change the spec now. No fix is committed, so E2 without
+  `Control+End` would simply fail. And I cannot run a browser here: whether the
+  keys reach the editor without `body.focus()` after antd's modal closes is
+  unknown, so `body.focus()` should stay until a CI run shows otherwise.
+- No wait, retry or weaker assertion was added anywhere.
+
+### Commit and runs
+
+| SHA | Subject | Files |
+| --- | --- | --- |
+| `48f256f` (red) | ADM-03: Test that typing straight after the Image button keeps the image | `studio/test/richText.test.tsx` |
+
+At `48f256f`, with the editor unchanged since `1177ac7`:
+
+```
+$ npx tsc -b; echo $?
+0
+$ npx vitest run test/richText.test.tsx; echo $?
+ Test Files  1 failed (1)
+      Tests  1 failed | 20 passed (21)
+1
+$ npm test; echo $?
+ Test Files  1 failed | 10 passed (11)
+      Tests  1 failed | 80 passed (81)
+1
+$ VITE_PUBLIC_SITE_URL=https://website.ci.invalid npm run build; echo $?
+Preview design: /website-design/d1ebe4132f8cfa8e/ matches website/design/ byte for byte.
+0
+$ git -C /home/user/dh-change-adm03 diff --exit-code -- studio/package-lock.json studio/package.json; echo $?
+0
+```
+
+Only T22 fails. The scratch type check of the e2e files gave exit 0; the spec
+is unchanged.
+
+**The branch head is red on purpose and is not pushed.** If `48f256f` is pushed
+as a head, CI's unit-test step fails and the end-to-end step does not run. I
+pushed, amended and rebased nothing.
+
+Status: BACK TO ARCHITECT
