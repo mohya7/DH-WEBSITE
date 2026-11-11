@@ -620,4 +620,276 @@ the counts below are the ones that apply.
 The owner should also be told plainly, when the pull request is presented, that
 a first delivery approval was given and withdrawn, and why.
 
+Result for plan round 4: approved, with conditions 17 to 30. Superseded by the
+section below, which holds the file's only verdict.
+
+## Gate 1 again: plan round 6
+
+Technical lead, 11 November 2026. Plan: `plan.md` round 6 (`364b098`). Review:
+`plan-review.md` Round 6 (`0da755c`), `Verdict: APPROVED`, one Minor. Round 5
+(`aaa3892`) was sent back by the reviewer (`ebf8426`, one Major) and never
+reached this gate; I read it and its review as history. Trigger:
+`test-report.md` Round 3 (`33d18d8`), `Verdict: CHANGES NEEDED`, finding 1
+(Major).
+
+Read: `test-report.md` Round 3 in full; `git diff 33d18d8 HEAD --
+docs/changes/ADM-03/plan.md` in full (rounds 5 and 6 together);
+`plan-review.md` Rounds 5 and 6 in full; `RichTextEditor.tsx` at the head
+(the helper, `insertImage`, `filteredPaste`); `rich-text.spec.ts:196-216`.
+
+### What I checked myself
+
+```
+$ git fetch origin; git rev-parse --short origin/change/ADM-03 origin/rebuild/dotnet-platform
+0da755c   (the local head; everything is pushed)      77296ba   (base unchanged)
+$ grep -n "caretAfterSelectedImage\|view.dispatch\|setContent\|onCreate" studio/src/content/RichTextEditor.tsx
+106:function caretAfterSelectedImage(view: EditorView) {
+113:  if (after !== null) view.dispatch(tr.setSelection(after).scrollIntoView());
+246:    editor.commands.setContent(next, { emitUpdate: false });
+260:    if (editor !== null) caretAfterSelectedImage(editor.view);
+359:      view.dispatch(transaction.scrollIntoView());
+$ npm test                                   (at 0da755c)
+ Test Files  11 passed (11)
+      Tests  83 passed (83)
+```
+
+- **The tester's finding, reproduced by me.** On an export of the head with one
+  probe test added in the session scratchpad (removed afterwards; nothing in
+  the repository changed): mount a field holding a library image, mount an
+  empty field, paste the first field's image into the second, press one key.
+  ```
+  × GATE probe: paste into empty field then key
+  AssertionError: after key: expected +0 to be 1
+        Tests  1 failed | 23 passed (24)
+  ```
+  The image is there after the paste and gone after the key. That is the
+  tester's P4 and the plan's T27.
+- **The fix site is as the plan says.** `filteredPaste` has exactly one
+  `view.dispatch` (line 359), reached by all three insert rules. The helper is
+  called today only from `insertImage` (line 260). There is no `onCreate`.
+- **CI on the code head `2e3f510`.** Run `42972617296`: attempt 1, Studio job
+  `130364362542`, `success`, as the tester quotes. The run now shows
+  **attempt 2, `cancelled`** (Studio job `130366811296`, 06:34:37 to 06:36:30
+  UTC; API job `130366810931` also cancelled). So there is one green Studio run
+  on that code, not two. A cancelled attempt counts for nothing. CI on
+  `0da755c` was still running when I looked.
+- **Pull request #52:** still a draft; its body is still the commit-1 text.
+
+### Where this change stands, said plainly
+
+This is the third defect of one family that got past a gate: an image left
+selected by this change's own code, deleted by the next key. First the Image
+button (found by CI, by luck), now the paste path (found by the tester, by
+asking the right question), and the load case (found by the architect's sweep).
+Gate 1 round 4 approved a fix for one path without asking for the sweep that
+round 5 then did. That was my omission as much as the architect's.
+
+Under `docs/changes/README.md`, Loops, a third rejection stops the pipeline and
+goes to the owner. The count today:
+
+- Plan sent back by the reviewer: twice (rounds 1 and 5).
+- Delivery failed: twice (gate 2 withdrawn after run `42970225620`; test report
+  round 3).
+
+**One more rejection of either kind stops ADM-03 and takes it to the owner.**
+Condition 46 says what that means for the next round.
+
+### Decision
+
+Approved, with conditions 31 to 46.
+
+### Why I accept round 6
+
+- **It is ADM-03's own promise.** Plan 3.1 (4) says a library image survives
+  copy or cut and paste, and the audit's Fix 2 is "Keep image nodes with a
+  valid `mediaId`". One key later that was untrue, in a function this change
+  wrote. In scope (B-8), and not something to defer.
+- **The fix is the smallest that can be right.** One call to an existing,
+  unchanged helper after the one dispatch in `filteredPaste`. It only sets a
+  selection, and only when the selection is a node selection on an image. No
+  request, no document change, nothing new reaches `knownMediaIds`.
+- **Round 5's load-time calls were rightly refused, and round 6 rightly drops
+  them.** The reviewer showed that a selection-only dispatch at creation makes
+  `TrailingNode` append a paragraph, which calls `onChange` and makes an item
+  dirty on open (`ItemEditorPage.tsx:80`): Save enabled, Publish disabled, the
+  unsaved-changes prompt, before the person has done anything. That would be a
+  new defect on every such item, worse than the one it fixes. T30 now pins
+  "opening changes nothing" on the three documents that would have shown it.
+- **This time there is a sweep.** Plan 5.6 lists every place the file changes
+  the editor's state and says for each whether an image can be left selected.
+  That is the question rounds 1 to 4 never asked.
+- **Tests first, each ending in a key.** T6 and T14 gain a key press, which is
+  exactly what they lacked. T25 to T29 and T32 cover the end of the document,
+  cut and paste, the empty field, two images, the late answer and redo. E2
+  gains a pasted library image followed by real typing in a browser.
+- **Security.** Unchanged: T13 and the known-id rule are not touched. E2's
+  second paste uses an id the session already picked.
+
+### What is left behind, and must be shown to the owner
+
+The load case goes to ADM-22: a rich-text field whose first node is an image
+opens with that image selected, and if focus reaches the editor without a
+click in the text (Tab, or a toolbar button), the first key replaces the image.
+I accept the move, for the reviewer's reasons and these:
+
+- it is ProseMirror's start selection, not a selection this change makes;
+- before ADM-03 that image was deleted on any keystroke anyway, so nothing
+  that works today stops working;
+- the only fix on the table created a worse defect, and a correct one needs a
+  design for documents that do not end in a paragraph and for an image alone.
+
+But ADM-22 is in the Minors batch, 14 to 18 December, and this is a way to lose
+an image by typing, in a change whose title says images are no longer lost. It
+is not a waived standard, so no D-NNN entry is claimed. It is a known limit the
+owner must read in plain words before merging, not only as a line in a
+hand-over note. Condition 38. Whether Chromium behaves as jsdom does here is
+NOT RUN by anyone.
+
+### Reviewer's Minor (round 6)
+
+1. **T29 and T32's red rests on the architect's probes alone.** Accepted, and
+   made a condition (33): the record quotes the observed failing message for
+   each of the eight, and a predicted-red test that passes stops the work.
+
+### Conditions for the developer, round 6
+
+31. **Nothing is pushed until the fix is in.** The tests-only commit is a red
+    head. The developer pushes nothing (condition 1). The integrator pushes
+    only a head that contains commit 2, by merge only if the base moves, never
+    a force push.
+32. **Commit 1, tests only.** Subject as plan 5.6. Files:
+    `studio/test/richText.test.tsx` and `studio/e2e/rich-text.spec.ts`, nothing
+    else.
+    - T6 and T14: lines are added after their existing assertions; none is
+      removed or changed (P-6).
+    - T25 to T32 as plan 5.6's table, with those names. Every one but T30
+      asserts the selection type before the key and presses the key with
+      `typeAtSelection`, with no caret move first. T30 presses no key.
+    - No other test is edited. The fake filter is not edited.
+    - E2: the one step of plan 5.6 (a second paste of the picked library
+      image; two images; two paste requests; type with no key before it; still
+      two; two after the reload). No wait, retry, `Control+End` or extra focus
+      call is added.
+33. **Observed red, not predicted red (the reviewer's Minor).** Quote at
+    commit 1: `npx tsc -b` exit 0; `npx vitest run test/richText.test.tsx`
+    exit 1 with `8 failed | 23 passed (31)`, the failures being T6, T14, T25,
+    T26, T27, T28, T29 and T32; `npm test` exit 1 with
+    `8 failed | 83 passed (91)`; the scratch type check of the e2e files
+    exit 0. For each of the eight, the assertion message as printed, and
+    whether it failed at the selection-type assertion or at the image count
+    after the key. Each must be an assertion about the editor.
+34. **Stop rule.** If T29 or T32 (or any of the eight) passes on commit 1, if
+    T30 or T31 fails, or if any of the 21 existing tests changes result: stop
+    and write BACK TO ARCHITECT with the output. Do not change an assertion, a
+    name or the count to fit.
+35. **T30 must be shown able to fail.** A guard that has never been red proves
+    nothing. Outside the repository (session scratchpad, not committed), run
+    T30 against a copy of the editor with round 5's `onCreate` call added, and
+    quote the failure: `onChange` called and `can().undo()` true for image,
+    "Mid", image and for image with a list. If T30 passes against that copy,
+    it is not testing the rule: stop and report.
+36. **Commit 2, the fix.** Subject as plan 5.6. File:
+    `studio/src/content/RichTextEditor.tsx` only.
+    - One call, `caretAfterSelectedImage(view)`, straight after
+      `filteredPaste`'s `view.dispatch`, with a comment saying why.
+    - The helper's body is unchanged. Its header comment, which today says
+      "After the Image button", is reworded to cover the paste too. Comment
+      only.
+    - No `onCreate`, no call in or after the `value` effect, no other change.
+    - Quote: `npx vitest run test/richText.test.tsx` `31 passed (31)`;
+      `npm test` `91 passed (91)`, 11 files; `npx tsc -b` exit 0; the build
+      exit 0 with the preview design check; `git diff --exit-code` on the
+      Studio lockfile and `package.json` exit 0; `git status --short` empty;
+      and `grep -n caretAfterSelectedImage` showing the definition and exactly
+      two call sites.
+37. **The owner's words for the paste caret.** `implementation.md` section 9
+    gains plan 5.6's sentence as written: "After a paste that ends in an image,
+    the image is not left selected, so typing straight away keeps it. The caret
+    is at the next place text can go after the image: the line after it, or the
+    start of the text, list item or table cell that follows."
+38. **A "Known limit" paragraph for the owner,** in `implementation.md` section
+    9 and for the pull request body, separate from the "For ADM-22" list: "A
+    rich-text field that begins with an image opens with that image selected.
+    If you reach the editor with the Tab key or press a toolbar button before
+    clicking in the text, the first key you type replaces the image. Clicking
+    in the text first avoids it. This is not fixed here; it is recorded for
+    ADM-22. It has not been tried in a real browser." The two "For ADM-22"
+    entries of plan 5.6 go into section 10 as written.
+39. **The sweep goes into the record with observed results.** `implementation.md`
+    reproduces plan 5.6's sweep table and, for each row marked "Yes", names the
+    test that now holds it and its red and green result.
+40. **Sentences made untrue are marked.** In a dated section, not by rewriting
+    above it (section 9, the pull request text, is updated in place):
+    - every statement that a pasted or copied library image "is kept" before
+      this commit is marked as true only until the next key, with T6 and T14's
+      old form named as the reason it was not seen;
+    - the coverage table gains "A pasted or moved library image is kept when
+      typing follows" (T6, T14, T25 to T29, T31, T32, E2), "Opening an item
+      changes nothing" (T30) and the load case as moved to ADM-22.
+41. **Commit 3, the record.** `implementation.md` only, ending
+    `Status: READY FOR TEST`. All three commits: `ADM-03:` prefix, a body
+    saying why, the trailer, exact paths staged (B-4, B-5). Nothing is amended,
+    rebased or squashed.
+42. **If E2's new step fails in CI after the fix,** the developer reports it
+    with the log and changes nothing in the spec. A failure there is either a
+    real defect or a plan error, and both go back.
+
+### What the tester redoes (round 4 of the test report)
+
+43. A full round on the new head (`studio/src` changes):
+    - red on a checkout of commit 1 and green on commit 2, with the counts of
+      conditions 33 and 36;
+    - probes P1 to P10 again, the architect's L2 and U1, and the reviewer's
+      list-item and table-cell paste rows;
+    - **the sweep, independently:** for every way an image can come to be
+      selected in this editor, including ways not in plan 5.6's table, what the
+      next key does. Anything found that the table lacks is a finding;
+    - **opening changes nothing:** the reviewer's round 5 load probes at the
+      new head (`onChange` calls 0, no undo step, document as stored), and that
+      a filtered paste causes no `onChange` call or undo step beyond the paste
+      itself;
+    - M1 confirmed unchanged, and recorded as the known limit, not as a pass;
+    - the security probes S1 to S3, L4, D1 and J2 again;
+    - which evidence is deterministic (T25 to T29, T32 and the probes) and what
+      a green E2 does and does not show.
+
+### What gate 2 will require
+
+44. Gate 2 starts from nothing on the new head. It will require, besides the
+    usual checks:
+    - both reds reproduced by me on exports of the commits, and T30's failure
+      against the round 5 design (condition 35) reproduced or read;
+    - **the Studio job green three times in a row on the final code head.**
+      The rule of condition 29 now applies to the head that contains commit 2.
+      Three completed `success` attempts of the Studio job on one commit whose
+      `studio/` tree is the final one, run and job ids and attempt numbers
+      quoted. A `cancelled` attempt does not count and does not break the row;
+      a `failure` does, and sends the change back with the trace. Nothing is
+      pushed while an attempt is running, because a push cancels it
+      (`ci.yml`, `concurrency`): that is what happened to attempt 2 on
+      `2e3f510`. Records-only commits pushed afterwards need CI green once on
+      the final head (B-3); the three runs stand for the identical `studio/`
+      tree, shown by `git diff --quiet`.
+45. **The pull request body is rewritten, not patched,** by the integrator from
+    `implementation.md` sections 9, 10 and 11 before gate 2 reads it: every
+    behaviour item, the two caret sentences (conditions 22 and 37), the "Known
+    limit" paragraph (condition 38), "For ADM-22", "For ADM-05", run
+    `42970225620` as a red, O-ADM03-1 and O-ADM03-2 as they stand, and a plain
+    sentence that a first delivery approval was given and withdrawn. This has
+    been open since the tester's round 1.
+46. **The loop limit.** Two plan rejections and two delivery failures are on
+    the record. If the tester's round 4 or gate 2 fails again, or the plan is
+    sent back again, the pipeline stops and the change goes to the owner with
+    the history, as `docs/changes/README.md` says. No role re-labels a failure
+    to stay under the limit.
+
+### Owner decisions, as of round 6
+
+| Id | Question | Status | Blocks |
+| --- | --- | --- | --- |
+| O-ADM03-1 | Push the end-to-end red test alone first? | Not asked for ADM-03; no owner answer for ADM-03. The integrator pushed `0975b00` alone on its own notice | Nothing now |
+| O-ADM03-2 | Insert an image the library marks decorative as decorative? | Asked by card, recommendation "Yes". Unanswered | Nothing here: not built; "For ADM-22" |
+| Behaviour changes and the known limit | Shown, not decided (conditions 22, 37, 38) | For the owner's merge confirmation | The merge |
+| G3-1 exit-gate date | The owner's open question about 16 November | Not this change's decision. ADM-03 has now used its slot-2 day and more | Nothing in this plan |
+
 Verdict: APPROVED
