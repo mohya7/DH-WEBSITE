@@ -13,6 +13,7 @@ if [ -z "${RUNNER_TEMP:-}" ]; then
 fi
 export SEMGREP_SEND_METRICS=off
 
+# Each rule gets 30 seconds per file; a Timeout still fails the gate. gate.test.mjs pins the value.
 set +e
 semgrep scan \
   --metrics=off \
@@ -20,6 +21,7 @@ semgrep scan \
   --quiet \
   --json \
   --output "$RUNNER_TEMP/semgrep.json" \
+  --timeout 30 \
   --config p/javascript \
   --config p/typescript \
   --config p/csharp \
