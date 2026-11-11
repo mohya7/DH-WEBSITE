@@ -339,4 +339,81 @@ None of these changes the design, the tests' red state or the commit order.
 Round 2 result: APPROVED (no Blocker, no Major, four Minors to carry into the
 plan approval as conditions or a wording pass).
 
+## Round 3
+
+Reviewer: plan-reviewer, 11 November 2026. Plan: `docs/changes/ADM-03/plan.md`,
+round 3, commit `213cdb8`. Reviewed: `git diff 877b2b5 213cdb8 --
+docs/changes/ADM-03/plan.md` only, and its fit with the code at the branch head
+(`6fcf2ef`; red test `c4d93b9`, fix `1177ac7`, order assertions `eb696cc`).
+Read-only; one local run of the render tests. No browser, SQL Server or port.
+
+### What round 3 changes
+
+- 3.1 (3): where a late paste answer goes. A caret takes it at the caret. The
+  selection the paste was made over, with the document unchanged, is replaced.
+  Any other selection is kept and the content goes straight after it.
+- 3.1 (3): a paste that is added clears this change's own two notices.
+- "Nothing is lost" is replaced, in 3.1 (3), section 9 and the risk table, by a
+  statement of what is kept and what a paste replaces.
+
+### Assessment
+
+- **The rule is right, and it corrects a contradiction I passed in round 2.**
+  Round 2 said both "`replaceSelection` at the selection of that moment" and
+  "Nothing is lost". My probes then used only carets, so I did not see that
+  they disagree once something is selected after the paste. The tester did.
+- **It keeps content when it cannot tell.** Rule 2 needs both `doc.eq` and
+  `selection.eq` against the state kept at paste time. Anything else falls to
+  rule 3, which replaces nothing. That is the fail-safe direction (P-5).
+- **"After the selection" is a reasoned choice.** It is the nearest
+  non-replacing place to the caret rule and keeps reading order. The rejected
+  options (before the selection, collapse to head) are named with the reason.
+- **The code matches the plan.** `RichTextEditor.tsx:328-339`:
+  `state.selection.empty || untouched` gives `replaceSelection(piece)`;
+  otherwise `replaceRange(to, to, piece)` and the caret is set to the end of
+  what was added. It is one transaction, so one undo step. The mounted and
+  replaced-document guards from round 2 still run first (`:313-319`).
+- **The notices.** `clearNotAddedNotice` (`:94-96`) clears only the two notices
+  this change added and leaves the image notice, as section 4 says. When a
+  paste both adds content and drops an image, the image notice is set, which is
+  the more useful one.
+- **Tests.** `npx vitest run test/richText.test.tsx` at the head:
+  `Tests  20 passed (20)`, exit 0. T16 to T18 assert the full document order
+  the plan now fixes (image then "Pasted"; "Pasted" between image and "After";
+  "Pasted" after "After"), so the place cannot drift silently. T19 guards the
+  paste over a selection. I did not re-run the red state at `c4d93b9`; the
+  commit and `test-report.md` round 2 record it.
+- **Security.** Nothing changes: the same request, the same known-id rule, no
+  new route or input. Not passing the server's answer back through the
+  known-id rule is sound: the API is the boundary (S-1) and `ImageNode`
+  rebuilds every image it returns.
+- **Scope and owner.** Still one module and the same files. The changed
+  landing place and the cleared notices are in section 9's list for the owner.
+  O-ADM03-1 and O-ADM03-2 are untouched by this round.
+
+### Findings (round 3)
+
+**1. Minor. Sections 5.1 to 5.3 and 11: the plan's test tables stop at T15.**
+- T16 to T21 exist only in `implementation.md` section R, and the two new
+  coverage rows read "Planned" for tests that are committed and green. The plan
+  says this is deliberate. A reader of the plan alone cannot see what each new
+  test asserts. A one-line pointer in 5.1 to section R is enough.
+
+**2. Minor. Section 3.1 (3): "A paste that is added clears" is slightly wider
+in the code.**
+- For a paste with no image the notice is cleared in `handlePaste` before
+  ProseMirror inserts (`:201-204`), so it clears even if that paste adds
+  nothing. It is harmless. Either word the plan as "a paste that goes ahead",
+  or leave it and note it.
+
+**3. Minor. Section 3.1 (3), rule 3: only node, text and whole-document
+selections are tested.**
+- A cell selection in a table also takes rule 3. By construction nothing is
+  replaced, since the insert is at `selection.to`. Where the content lands
+  there is untested. Add it to the "For ADM-22" table note; no change here.
+
+None needs a code change or holds the delivery.
+
+Round 3 result: APPROVED (no Blocker, no Major, three Minors).
+
 Verdict: APPROVED
