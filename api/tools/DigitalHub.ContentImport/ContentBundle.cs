@@ -384,7 +384,10 @@ static class ContentBundle
                     .Where(section => section.PageId == id || section.ServiceId == id || section.PartnerId == id || section.CaseStudyId == id)
                     .ToListAsync(cancellationToken);
                 var draft = ContentFields.FromRecord(table.Collection!, record, sections);
-                Report(problems, table.Name, id, await store.CheckDocumentAsync(table.Collection!, id, draft, cancellationToken));
+                /* Strict where the website builds the row: published items and ended
+                   vacancies (BuildContentStore). A draft holds what the Studio saved (ADM-02). */
+                var built = record.Status is ContentStatus.Published or ContentStatus.Ended;
+                Report(problems, table.Name, id, await store.CheckDocumentAsync(table.Collection!, id, draft, publishing: built, cancellationToken));
             }
         }
 
@@ -407,7 +410,8 @@ static class ContentBundle
                 continue;
             }
 
-            Report(problems, "working-copies", copy.Id, await store.CheckDocumentAsync(collection, ownerId.Value, draft, cancellationToken));
+            // A working copy is a draft, even of a published item: it is not built until it is published.
+            Report(problems, "working-copies", copy.Id, await store.CheckDocumentAsync(collection, ownerId.Value, draft, publishing: false, cancellationToken));
         }
 
         foreach (var row in bundle.Tables["revisions"])

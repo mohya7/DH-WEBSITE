@@ -308,7 +308,7 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas, 
         var draft = DocumentOf(collection, loaded);
         var errors = new Dictionary<string, List<string>>();
         var warnings = new Dictionary<string, List<string>>();
-        foreach (var pair in await CheckAsync(collection, id, draft, cancellationToken))
+        foreach (var pair in await CheckAsync(collection, id, draft, publishing: true, cancellationToken))
             errors[pair.Key] = pair.Value;
         await PublishChecks.AddAsync(db, collection, id, draft, errors, warnings, cancellationToken);
         if (errors.Count > 0)
@@ -364,7 +364,7 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas, 
             return ContentOutcome.Fail(StatusCodes.Status409Conflict, "not_published", "This item is not published.");
 
         var draft = DocumentOf(collection, loaded);
-        var errors = await CheckAsync(collection, id, draft, cancellationToken);
+        var errors = await CheckAsync(collection, id, draft, publishing: false, cancellationToken);
         if (errors.Count > 0)
             return Validation(errors);
 
@@ -447,7 +447,7 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas, 
         if (draft is null)
             return Validation("snapshot", "This revision cannot be read.");
 
-        var errors = await CheckAsync(collection, id, draft, cancellationToken, requireMedia: false);
+        var errors = await CheckAsync(collection, id, draft, publishing: false, cancellationToken, requireMedia: false);
         if (errors.Count > 0)
             return Validation(errors);
 
@@ -593,7 +593,7 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas, 
         record.UpdatedAt = record.CreatedAt;
         var draft = ContentFields.FromRecord(collection, record, []);
         ContentFields.ApplyWrite(draft, write);
-        var errors = await CheckAsync(collection, record.Id, draft, cancellationToken);
+        var errors = await CheckAsync(collection, record.Id, draft, publishing: false, cancellationToken);
         if (errors.Count > 0)
             return Validation(errors);
 
@@ -631,7 +631,7 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas, 
         if (draft.Sections.Any(section => section.Type.Length == 0))
             return Validation("sectionIds", "List every section of this item once.");
 
-        var errors = await CheckAsync(collection, id, draft, cancellationToken);
+        var errors = await CheckAsync(collection, id, draft, publishing: false, cancellationToken);
         if (errors.Count > 0)
             return Validation(errors);
 
@@ -675,15 +675,23 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas, 
     /// <summary>
     /// The checks a save and a publish apply to one document, for a caller that
     /// writes the rows itself: the content bundle import. The same checks, not a copy.
+    /// The caller says whether the document is published (ADM-02): only then are
+    /// schema formats asserted, as at publish.
     /// </summary>
-    public Task<Dictionary<string, List<string>>> CheckDocumentAsync(string collection, Guid id, DraftDocument draft, CancellationToken cancellationToken) =>
-        CheckAsync(collection, id, draft, cancellationToken);
+    public Task<Dictionary<string, List<string>>> CheckDocumentAsync(string collection, Guid id, DraftDocument draft, bool publishing, CancellationToken cancellationToken) =>
+        CheckAsync(collection, id, draft, publishing: publishing, cancellationToken);
 
-    private async Task<Dictionary<string, List<string>>> CheckAsync(string collection, Guid id, DraftDocument draft, CancellationToken cancellationToken, bool requireMedia = true)
+    /// <summary>
+    /// The checks on one document. publishing asserts the schema formats the website
+    /// build asserts (ADM-02); a save, restore or unpublish checks them as annotations,
+    /// so an unfinished draft still saves. It has no default: every caller decides.
+    /// </summary>
+    private async Task<Dictionary<string, List<string>>> CheckAsync(string collection, Guid id, DraftDocument draft, bool publishing, CancellationToken cancellationToken, bool requireMedia = true)
     {
         var errors = new Dictionary<string, List<string>>();
         ContentFields.Validate(collection, draft, errors);
-        foreach (var message in collectionSchemas.Validate(collection, JsonSerializer.Serialize(draft.Fields, ContentJson.Options)))
+        var fieldsJson = JsonSerializer.Serialize(draft.Fields, ContentJson.Options);
+        foreach (var message in publishing ? collectionSchemas.Validate(collection, fieldsJson) : collectionSchemas.ValidateDraft(collection, fieldsJson))
             Add(errors, "fields", message);
         if (draft.Fields.TryGetValue("body", out var body) && body.ValueKind == JsonValueKind.String)
         {
@@ -705,7 +713,7 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas, 
                 var json = section.Fields.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null
                     ? "{}"
                     : section.Fields.GetRawText();
-                foreach (var message in schemas.Validate(section.Type, json))
+                foreach (var message in publishing ? schemas.Validate(section.Type, json) : schemas.ValidateDraft(section.Type, json))
                     Add(errors, key, message);
                 if (section.Fields.ValueKind == JsonValueKind.Object)
                 {

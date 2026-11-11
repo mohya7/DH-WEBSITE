@@ -52,6 +52,7 @@ public sealed class SchemaFormatTests : IClassFixture<ApiFactory>
         var validate = File.ReadAllLines(Find("website", "src", "content", "validate.ts"));
         var formats = validate.Where(line => line.Contains("addFormat(", StringComparison.Ordinal)).Select(line => line.Trim()).ToList();
         Assert.Equal([WebsiteUuidLine], formats);
+        Assert.Equal(WebsiteUuidRegex, SchemaFormats.WebsiteUuidSource);
 
         // (b) The schemas use no other format.
         var used = new SortedSet<string>(StringComparer.Ordinal);
