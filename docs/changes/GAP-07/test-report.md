@@ -613,3 +613,30 @@ recorded, as follow-ups.
 | Other rows | Unchanged | Range-diff all `=`; `.github` diff byte-identical to round 2's |
 
 Verdict: APPROVED
+
+## Round 4: Semgrep after the time-limit fix (Done when 5 of semgrep-timeout)
+
+Date: 11 November 2026. Head `277a636`, which merges base `3e1fc47`
+(`rebuild/dotnet-platform` after #50, semgrep-timeout) into GAP-07. The merged
+`run-semgrep.sh` carries `--timeout 30`.
+
+Before #50, this pull request's Semgrep job failed on a per-rule Timeout on
+`.github/security/gate.test.mjs` (job 128779169900).
+
+The job "Semgrep (ERROR fails, WARNING reported)" was run three times on
+`277a636`, in Security run 42930747579:
+
+| Attempt | Job | Scan step | Result |
+|---|---|---|---|
+| 1 | 130228758510 | 38 s | success |
+| 2 | 130231638344 | 35 s | success |
+| 3 | 130246509916 | 44 s | success |
+
+A success means `gate.mjs semgrep` accepted the report, so no Timeout error
+was present (a Timeout still fails the gate). Every other Security job and the
+CI run 42930747621 were green on attempt 1.
+
+Local, on `277a636`: `node --test .github/security/gate.test.mjs` gives 86
+tests, 86 pass, 0 fail.
+
+Verdict: APPROVED (Done when 5 met).
