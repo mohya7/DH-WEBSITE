@@ -245,4 +245,197 @@ No Blocker or Major.
 
 Two Minors; the CI red and green and the base merge are open for gate 2.
 
+Round 1 result: PASS. Superseded by Round 2 below, which holds the file's only verdict.
+
+## Round 2
+
+- **Commit tested:** `5d108fe` (ADM-06b: Merge rebuild/dotnet-platform (with #49
+  and #50) into the change branch). New since round 1: `d907336` (round 1 report),
+  `c15a886` (red), `9ac4d7e` (fix), `ef6fb38` (e2e timeouts), `721e6e8` (records),
+  `5d108fe` (merge of `1f53484`).
+- **Where:** a fresh detached worktree, `/home/user/dh-test-adm06b-r2`
+  (`git -C /home/user/dh-change-adm06b worktree add --detach /home/user/dh-test-adm06b-r2 5d108fe`),
+  removed afterwards. Nothing committed, pushed or edited apart from this file. A
+  temporary probe test was created and deleted (`git status --short` empty). No
+  database, no port, no process started.
+
+### 1. Base and merge
+
+```
+$ git merge-base --is-ancestor 1f53484 HEAD; echo $?
+0
+$ git merge-base --is-ancestor 3e1fc47 HEAD; echo $?
+0
+$ git show 5d108fe -s --format=%P
+721e6e87acf679ed1f32589e9bc6fcc8a2fece3e 1f5348467866a340b34079b54419aee97155288c
+$ git diff --stat 721e6e8 5d108fe -- studio
+(no output)
+$ git diff --name-only 721e6e8 5d108fe   vs   git diff --name-only f171f7a 1f53484
+identical lists (diff exit 0): the merge brings exactly the base's files
+$ git diff --name-only f171f7a 721e6e8 | grep -Fxf <base files>
+(no output, exit 1): no file changed on both sides
+$ git diff --name-only 1f53484 5d108fe | grep -vE "^(studio/|docs/changes/ADM-06b/)"
+(no output, exit 1): the head differs from the base only in this change's files
+```
+
+The merge brought nothing under `studio/` and no file that ADM-06b changes.
+Conditions 2 and 16 (both `--is-ancestor` checks 0) are met at `5d108fe`.
+
+### 2. Setup
+
+```
+$ cd studio && npm ci                                        -> exit 0, "found 0 vulnerabilities"
+$ git diff --exit-code -- package-lock.json package.json     -> 0
+$ git diff --exit-code f171f7a HEAD -- package-lock.json package.json  -> 0
+```
+
+### 3. Red at `c15a886`
+
+```
+$ npx tsc -b; echo $?
+0
+$ npx vitest run test/listPaging.test.tsx test/previewData.test.ts test/paging.test.ts
+ FAIL ... failed and inconsistent page loads > inbox keeps the pager on the page shown when page 2 fails to load
+ FAIL ... > audit log keeps the pager on the page shown when page 2 fails to load
+ FAIL ... > redirects keeps the pager on the page shown when page 2 fails to load
+ FAIL ... > media library keeps the pager on the page shown when page 2 fails to load
+ FAIL ... > media picker keeps the pager on the page shown when page 2 fails to load
+AssertionError: expected '2' to be '1' // Object.is equality
+ FAIL ... > after a failed page load, Mark handled reloads the page shown
+AssertionError: expected '2' to be '1' // Object.is equality
+ FAIL ... > inbox jumps to the last page at most once when pages come back empty with rows promised
+ FAIL ... > redirects jumps to the last page at most once when pages come back empty with rows promised
+ FAIL ... > media library jumps to the last page at most once when pages come back empty with rows promised
+AssertionError: expected 10 to be less than or equal to 2
+ Test Files  1 failed | 2 passed (3)
+      Tests  9 failed | 25 passed (34)
+$ npm test
+ Test Files  1 failed | 9 passed (10)
+      Tests  9 failed | 50 passed (59)
+```
+
+Exactly the nine new tests fail, each on the defect from round 1 (active pager
+item "2" instead of "1"; more than two list requests). The 50 earlier tests pass.
+
+### 4. Green at the head, `5d108fe`
+
+```
+$ npx tsc -b; echo $?
+0
+$ npm test; echo $?
+ Test Files  10 passed (10)
+      Tests  60 passed (60)
+0
+$ npx vitest run test/listPaging.test.tsx test/previewData.test.ts test/paging.test.ts
+ Test Files  3 passed (3)
+      Tests  35 passed (35)
+$ npx vitest run test/listPaging.test.tsx | grep -ciE "warning|not wrapped in act|unhandled"
+0
+$ VITE_PUBLIC_SITE_URL=https://website.ci.invalid npm run build; echo $?
+✓ built in 1.02s
+Preview design: /website-design/d1ebe4132f8cfa8e/ matches website/design/ byte for byte.
+0
+$ npm audit --audit-level=high      -> found 0 vulnerabilities
+$ grep -rnE "ResizeObserver|motion" src; echo $?
+1
+$ git status --short
+(empty)
+```
+
+60 = 50 + the nine new render tests + one new helper test (`afterEmptyPage`, U4,
+added in `9ac4d7e` with the helper; like U1 to U3 it tests a new helper, and the
+behaviour it guards is shown red by the three "at most once" tests in `c15a886`).
+
+### 5. Round 1 findings, re-run
+
+The round 1 probes, run again at `5d108fe` (temporary file, deleted afterwards):
+
+```
+PROBE-a active= 1 row001 shown= true                                   (was: active= 2)
+PROBE-b 50 pager= false / 51 pager= true 1–50 of 51                    (unchanged, correct)
+PROBE-c pager= false error= none                                       (unchanged, correct)
+PROBE-d 051 shown= false 110 shown= true                               (unchanged, correct)
+PROBE-e requests= 2 error= Contact requests could not be loaded. active= 1   (was: 61 requests)
+PROBE-f requests= 1 error= none pager= true                            (new, see observation)
+```
+
+- **Finding 1 (pager moves before the page arrives): fixed.** `goTo`,
+  `submitSearch`, `filter`, `afterUpload` and the picker's opening no longer call
+  `setCurrent`; only `load` does, after a successful response. All five screens
+  are covered by the new `it.each` test, and Mark handled by its own test.
+- **Finding 2 (unbounded jump to the last page): fixed.** `afterEmptyPage` in
+  `src/ui/paging.ts` allows one jump, and only to a page lower than the one asked;
+  otherwise the screen shows its load error (P-5). Probe e: two requests, then the
+  error, pager still on 1.
+- **Observation, not a finding (probe f):** a page 1 that comes back empty with
+  `total > 0` is shown as an empty list with a pager and no error
+  (`afterEmptyPage` returns "show" for page 1). This only happens with an API whose
+  `total` and `items` disagree, which today's API cannot produce (round 1,
+  Finding 2), and it does not loop. Left to the developer's judgement.
+
+### 6. E2E change, `ef6fb38`
+
+`git show ef6fb38 -- studio/e2e` adds a `stepTimeout = 15_000` constant and passes
+it to the three `pageTwo(...).click()` calls and the two `page.waitForResponse`
+calls. No `expect`, locator, value, count or colour changed; nothing removed. 15 s
+equals the config's `expect` timeout (`playwright.config.ts:12`) and is below the
+90 s test timeout (`:11`), so a missing pager now fails at its own line and the
+`finally` cleanup still runs. It only shortens waits; it weakens no assertion.
+
+- **E1, E2: NOT RUN locally** (no SQL Server, no `dotnet`). Covered by CI job
+  `studio`, "Studio — typecheck, build, end-to-end", on PR #51.
+
+### 7. CI, as read at the time of this round
+
+- `58caf70`: "Studio — typecheck, build, end-to-end" `completed / failure`. Per the
+  developer (`ef6fb38` message, run 42932462397), E2's failure was reported as the
+  cleanup's closed-context error after the 90 s timeout, not at the pager locator.
+  Whether that red satisfies condition 6 ("E1 and E2 named at the pager locator")
+  is for gate 2; I did not read the run log.
+- `5d108fe`: Semgrep, both gitleaks scans, both npm audits, NuGet audit,
+  actionlint, website jobs: `success`. "Studio — typecheck, build, end-to-end",
+  "API — Release build, migrations, integration tests" and "Section comparison":
+  `in_progress`. The green with E1 and E2 is still to be recorded (condition 7
+  Semgrep is green on this head).
+
+### Findings
+
+None. Round 1 Findings 1 and 2 are fixed and verified.
+
+### Open items for gate 2 (not findings against the developer)
+
+- The `studio` CI result on `5d108fe`, E1 and E2 included.
+- Whether the `58caf70` red (E2 reported at the cleanup error) meets condition 6.
+- PR body: "For ADM-08" (condition 4), "Behaviour changes for the owner"
+  (condition 15), and the first line changed from "Do not merge before #49" now
+  that #49 is in the head (plan 3.5).
+
+### Coverage table (round 2)
+
+| Item | Source | Status | Evidence |
+| --- | --- | --- | --- |
+| Fix: paging controls on the audit screen | Audit ADM-06, Fix 2 | Verified (unit); e2e NOT RUN | S5, S6 and the failed-load test green at `5d108fe`; E2 in CI `studio` on `5d108fe` |
+| Fix: paging controls on the inbox screen | Audit ADM-06, Fix 2 | Verified (unit); e2e NOT RUN | S1 to S4, failed-load, Mark handled, at-most-once tests green; probes a to f; E1 in CI |
+| Fix: paging controls on the media library | Audit ADM-06, Fix 2 | Verified (unit); no e2e by plan | S9, S10, failed-load, at-most-once green |
+| Media picker reaches images past the newest 24 | Audit ADM-06, bullet 3 | Verified (unit) | S11, S12, failed-load green |
+| Picker box shows the applied search on reopening | Plan 3.1 (4), S12 | Verified | Round 1 section 2; S12 green at `5d108fe` |
+| Studio reaches enquiries, audit entries, redirects past the 50th | Audit ADM-06, bullets 2, 3, 5 | Verified (unit); e2e NOT RUN | S1, S5, S7 green; E1, E2 in CI |
+| Preview loader never repeats items | Audit ADM-06, bullet 4 | Verified | P1 to P3 green at `5d108fe` (red shown in round 1) |
+| Pager follows the navy look | `phase-b-studio.md` 480, 501 | Code verified; assertions NOT RUN | `theme.ts` unchanged since round 1; E1/E2 `toHaveCSS` in CI |
+| Round 1 Finding 1: pager moves only when the page arrives | Round 1 | Fixed, verified | 6 tests red at `c15a886` (`expected '2' to be '1'`), green at head; probe a |
+| Round 1 Finding 2: jump to the last page at most once | Round 1 | Fixed, verified | 3 tests red at `c15a886` (`expected 10 to be less than or equal to 2`), green at head; U4; probe e |
+| Red at `c15a886` is exactly the nine new tests | Coordinator round 2 | Verified | Section 3: `9 failed | 50 passed (59)` |
+| E2E change adds only timeouts | Coordinator round 2 | Verified | Section 6 |
+| Merge `5d108fe` brings nothing that conflicts | Coordinator round 2 | Verified | Section 1 |
+| Final head contains `1f53484` (#49) and `3e1fc47` (#50) | Conditions 2, 16 | Verified | Both `--is-ancestor` exit 0 |
+| `tsc -b` and `npm run build` pass | Plan 5.3; condition 13 | Verified | Section 4 |
+| Lockfile unchanged | B-7 | Verified | Section 2 |
+| Scope (conditions 8, 13) and shims test-only (14) | Gate 1 | Verified | Head differs from base only in `studio/` and `docs/changes/ADM-06b/`; no shim in `src` |
+| npm audit (studio) | Tester checklist | Verified | 0 vulnerabilities |
+| Semgrep, gitleaks, dotnet audit | `security.yml` | NOT RUN locally (tools absent) | CI `success` on `5d108fe` |
+| Regression tests shown failing before the fix | G3 checklist | Verified locally; E1/E2 CI red for gate 2 | Round 1 section 2; this round section 3; `58caf70` `studio` `failure` (section 7) |
+| CI green with E1 and E2 | Plan 5.4 | Open | `studio` on `5d108fe` in progress |
+| Collection list and overview past 100 | Plan 3.4 | Moved to ADM-08 | `implementation.md` section 6; PR body pending |
+| ADM-06 closed | ADM-06a 3.3 | Open | Needs this change merged |
+
 Verdict: PASS
