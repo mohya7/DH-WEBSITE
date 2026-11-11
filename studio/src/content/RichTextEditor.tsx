@@ -6,10 +6,11 @@ import { TableHeader } from "@tiptap/extension-table-header";
 import { TableRow } from "@tiptap/extension-table-row";
 import { EditorContent, useEditor, type JSONContent } from "@tiptap/react";
 import { Fragment, Slice } from "@tiptap/pm/model";
+import { Selection } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import StarterKit from "@tiptap/starter-kit";
 import { Button, Modal, Space } from "antd";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { jsonInit, request } from "../api/http";
 import { referenceCollections } from "./model";
 import { MediaPicker, rememberMedia, type MediaChoice } from "./MediaPicker";
@@ -84,6 +85,14 @@ function withoutUnknownMediaIds(node: JSONContent): JSONContent {
   }
   if (node.content === undefined) return node;
   return { ...node, content: node.content.map(withoutUnknownMediaIds) };
+}
+
+type SetNotice = Dispatch<SetStateAction<string | null>>;
+
+// A paste was added, so the notices that say a paste or a drop was not added
+// no longer hold. Only those two: the image notice stays, as before.
+function clearNotAddedNotice(setNotice: SetNotice) {
+  setNotice((current) => (current === uncheckedNotice || current === dropNotice ? null : current));
 }
 
 function hasImage(slice: Slice): boolean {
@@ -190,7 +199,10 @@ export function RichTextEditor({
         }
         // A paste with no image is left to ProseMirror. One that carries an
         // image is not inserted here: the server filter answers first.
-        if (!hasImage(slice)) return false;
+        if (!hasImage(slice)) {
+          clearNotAddedNotice(setNotice);
+          return false;
+        }
         void filteredPaste(view, slice, setNotice, () => mounted.current, () => replaced.current);
         return true;
       },
@@ -268,18 +280,24 @@ export function RichTextEditor({
 
 /*
  * A paste that carries an image. The pasted slice, never the document, goes to
- * the server's paste filter, and the answer is inserted at the caret of that
- * moment. Nothing is inserted before the answer, and nothing already in the
- * editor is replaced by it, so what was typed meanwhile stays.
+ * the server's paste filter, and the answer is inserted when it arrives.
+ * Nothing is inserted before the answer, so what was typed meanwhile stays.
+ *
+ * The answer replaces only what the person had selected when they pasted, and
+ * only if that selection and the document are still as they were; a paste
+ * does that. With a caret it is inserted at the caret. With any other
+ * selection, one made after the paste (the Image button leaves its new image
+ * selected), it is inserted after the selection and replaces nothing.
  */
 async function filteredPaste(
   view: EditorView,
   slice: Slice,
-  setNotice: (value: string) => void,
+  setNotice: SetNotice,
   isMounted: () => boolean,
   replacedCount: () => number,
 ) {
   const replacedBefore = replacedCount();
+  const pastedInto = view.state;
   // cleanNode leaves an image with mediaId, alt and decorative only, so no address is sent.
   const pasted = ((slice.content.toJSON() ?? []) as JSONContent[]).map(cleanNode).map(withoutUnknownMediaIds);
 
@@ -307,7 +325,21 @@ async function filteredPaste(
     // sentence it lands in, as an ordinary paste does.
     const widest = Slice.maxOpen(fragment);
     const piece = new Slice(fragment, Math.min(slice.openStart, widest.openStart), Math.min(slice.openEnd, widest.openEnd));
-    if (fragment.size > 0) view.dispatch(view.state.tr.replaceSelection(piece).scrollIntoView());
+    if (fragment.size > 0) {
+      const { state } = view;
+      const untouched = state.doc.eq(pastedInto.doc) && state.selection.eq(pastedInto.selection);
+      const transaction = state.tr;
+      if (state.selection.empty || untouched) {
+        transaction.replaceSelection(piece);
+      } else {
+        const after = state.selection.to;
+        transaction.replaceRange(after, after, piece);
+        // The caret goes to the end of what was added, as after a paste.
+        transaction.setSelection(Selection.near(transaction.doc.resolve(transaction.mapping.map(after, 1)), -1));
+      }
+      view.dispatch(transaction.scrollIntoView());
+      if (!filtered.imagesDropped) clearNotAddedNotice(setNotice);
+    }
   } catch {
     setNotice(uncheckedNotice);
     return;
