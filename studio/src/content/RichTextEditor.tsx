@@ -96,12 +96,15 @@ function clearNotAddedNotice(setNotice: SetNotice) {
 }
 
 /*
- * After the Image button. insertContent leaves the new image selected when it
- * is put at the end of a text block, and a selected image is replaced by the
- * next key pressed or the next paste. So the caret is moved to the first text
- * position after the image: the paragraph that follows it, which the editor
- * adds when the image is the last node. This runs after the insert has been
- * dispatched, because that paragraph does not exist before then.
+ * After the Image button, and after a checked paste. Both can leave an image
+ * selected: insertContent when the image is put at the end of a text block,
+ * and a paste when the image it ends in is the last thing in the document. A
+ * selected image is replaced by the next key pressed or the next paste. So
+ * the caret is moved to the first text position after the image: the
+ * paragraph that follows it, which the editor adds when the image is the last
+ * node. This runs after the insert has been dispatched, because that
+ * paragraph does not exist before then. It is not called when a document is
+ * loaded or replaced: opening an item must change nothing.
  */
 function caretAfterSelectedImage(view: EditorView) {
   const { selection, doc, tr } = view.state;
@@ -357,6 +360,10 @@ async function filteredPaste(
         transaction.setSelection(Selection.near(transaction.doc.resolve(transaction.mapping.map(after, 1)), -1));
       }
       view.dispatch(transaction.scrollIntoView());
+      // Whichever rule inserted it: when what was added ends in an image and
+      // nothing follows it, the selection is left on that image, and the next
+      // key would replace it.
+      caretAfterSelectedImage(view);
       if (!filtered.imagesDropped) clearNotAddedNotice(setNotice);
     }
   } catch {
