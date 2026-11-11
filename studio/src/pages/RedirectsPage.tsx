@@ -1,7 +1,9 @@
 import { Button, Form, Input, Modal, Table, Typography, message } from "antd";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { jsonInit, request } from "../api/http";
+import { tablePager } from "../ui/ListPager";
 import { PageHeader } from "../ui/PageHeader";
+import { lastPage, latestOnly, withPage } from "../ui/paging";
 
 type RedirectRow = {
   id: string;
@@ -14,8 +16,15 @@ type RedirectRow = {
 
 type Page = { items: RedirectRow[]; total: number };
 
+const pageSize = 50;
+
 export function RedirectsPage() {
+  // What is in the search box, and the search last submitted. Every list
+  // request uses the submitted one.
   const [search, setSearch] = useState("");
+  const [applied, setApplied] = useState("");
+  const [current, setCurrent] = useState(1);
+  const requests = useRef(latestOnly());
   const [page, setPage] = useState<Page>({ items: [], total: 0 });
   const [open, setOpen] = useState(false);
   const [fromPath, setFromPath] = useState("");
@@ -23,19 +32,39 @@ export function RedirectsPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void load();
+    void load("", 1);
   }, []);
 
-  async function load(term = search) {
-    const params = new URLSearchParams({ pageSize: "50" });
+  async function load(term: string, pageNumber: number) {
+    const ticket = requests.current.start();
+    const params = new URLSearchParams();
     if (term.trim()) params.set("search", term.trim());
-    const result = await request(`/api/v1/redirects?${params}`);
+    const result = await request(`/api/v1/redirects?${withPage(params, pageNumber, pageSize)}`);
+    if (!requests.current.isLatest(ticket)) return;
     if (!result.ok || result.body === null) {
       setError(result.problem?.title ?? "Redirects could not be loaded.");
       return;
     }
+    const body = result.body as Page;
+    // Past the last page after a delete: show the new last page instead.
+    if (body.items.length === 0 && pageNumber > 1 && body.total > 0) {
+      await load(term, lastPage(body.total, pageSize));
+      return;
+    }
     setError(null);
-    setPage(result.body as Page);
+    setCurrent(pageNumber);
+    setPage(body);
+  }
+
+  function goTo(pageNumber: number) {
+    setCurrent(pageNumber);
+    void load(applied, pageNumber);
+  }
+
+  function submitSearch(term: string) {
+    setApplied(term);
+    setCurrent(1);
+    void load(term, 1);
   }
 
   async function create() {
@@ -48,7 +77,7 @@ export function RedirectsPage() {
     setFromPath("");
     setToPath("");
     message.success("Redirect created.");
-    await load();
+    await load(applied, current);
   }
 
   async function remove(id: string) {
@@ -57,7 +86,7 @@ export function RedirectsPage() {
       setError(result.problem?.title ?? "The redirect was not deleted.");
       return;
     }
-    await load();
+    await load(applied, current);
   }
 
   return (
@@ -66,12 +95,12 @@ export function RedirectsPage() {
         title="Redirects"
         extra={<Button type="primary" onClick={() => setOpen(true)}>Add redirect</Button>}
       />
-      <Input.Search className="mb-4 max-w-md" value={search} onChange={(event) => setSearch(event.target.value)} onSearch={(value) => void load(value)} allowClear placeholder="Search paths" />
+      <Input.Search className="mb-4 max-w-md" value={search} onChange={(event) => setSearch(event.target.value)} onSearch={(value) => submitSearch(value)} allowClear placeholder="Search paths" />
       {error !== null ? <Typography.Paragraph type="danger">{error}</Typography.Paragraph> : null}
       <Table
         rowKey="id"
         dataSource={page.items}
-        pagination={false}
+        pagination={tablePager(current, pageSize, page.total, goTo)}
         columns={[
           { title: "From", dataIndex: "fromPath" },
           { title: "To", dataIndex: "toPath" },

@@ -1,6 +1,8 @@
 import { Button, Checkbox, Form, Input, Modal, Upload, Typography, type UploadFile } from "antd";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { request } from "../api/http";
+import { ListPager } from "../ui/ListPager";
+import { latestOnly, withPage } from "../ui/paging";
 
 export type MediaChoice = {
   id: string;
@@ -21,6 +23,8 @@ type MediaPage = {
   total: number;
 };
 
+const pageSize = 24;
+
 const paths = new Map<string, string>();
 
 export function rememberMedia(id: string, path: string) {
@@ -40,15 +44,23 @@ export function MediaPicker({
   onClose: () => void;
   onSelect: (choice: MediaChoice) => void;
 }) {
+  // What is in the search box, and the search last submitted. Every list
+  // request uses the submitted one.
   const [search, setSearch] = useState("");
+  const [applied, setApplied] = useState("");
+  const [current, setCurrent] = useState(1);
+  const [total, setTotal] = useState(0);
+  const requests = useRef(latestOnly());
   const [items, setItems] = useState<MediaRow[]>([]);
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [alt, setAlt] = useState("");
   const [decorative, setDecorative] = useState(false);
 
-  async function load(term: string) {
-    const result = await request(`/api/v1/media?pageSize=24&search=${encodeURIComponent(term)}`);
+  async function load(term: string, pageNumber: number) {
+    const ticket = requests.current.start();
+    const result = await request(`/api/v1/media?${withPage(new URLSearchParams({ search: term }), pageNumber, pageSize)}`);
+    if (!requests.current.isLatest(ticket)) return;
     if (!result.ok || result.body === null) {
       setMessage(result.problem?.title ?? "The library could not be loaded.");
       return;
@@ -56,7 +68,20 @@ export function MediaPicker({
 
     const page = result.body as MediaPage;
     for (const item of page.items) rememberMedia(item.id, item.path);
+    setCurrent(pageNumber);
+    setTotal(page.total);
     setItems(page.items);
+  }
+
+  function goTo(pageNumber: number) {
+    setCurrent(pageNumber);
+    void load(applied, pageNumber);
+  }
+
+  function submitSearch(term: string) {
+    setApplied(term);
+    setCurrent(1);
+    void load(term, 1);
   }
 
   async function upload() {
@@ -92,7 +117,11 @@ export function MediaPicker({
       footer={null}
       width={720}
       afterOpenChange={(visible) => {
-        if (visible) void load(search);
+        // Each opening starts on page 1 with the current search.
+        if (visible) {
+          setCurrent(1);
+          void load(applied, 1);
+        }
       }}
     >
       <div className="mb-3 flex gap-2">
@@ -100,7 +129,7 @@ export function MediaPicker({
           placeholder="Search alt text, caption, or file name"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          onSearch={(value) => void load(value)}
+          onSearch={(value) => submitSearch(value)}
           allowClear
         />
       </div>
@@ -118,6 +147,7 @@ export function MediaPicker({
           </button>
         ))}
       </div>
+      <ListPager label="Image picker pages" current={current} pageSize={pageSize} total={total} onChange={goTo} size="small" />
       <Typography.Title level={5}>Upload</Typography.Title>
       <Form layout="vertical">
         <Form.Item label="File">
