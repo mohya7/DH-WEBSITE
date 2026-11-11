@@ -54,6 +54,18 @@ vi.mock("../src/api/http", () => ({
   }),
 }));
 
+/*
+ * antd's static message renders into a React root of its own, outside the one
+ * render() makes, so cleanup() cannot unmount it. It redraws on every animation
+ * frame for 3 seconds, and a redraw that lands as the file ends runs after
+ * jsdom is gone ("window is not defined"). The toast is replaced by a spy.
+ */
+const toast = vi.hoisted(() => ({ success: vi.fn() }));
+vi.mock("antd", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("antd")>();
+  return { ...actual, message: { ...actual.message, success: toast.success } };
+});
+
 vi.mock("../src/auth/AuthProvider", () => ({
   useAuth: () => ({ user: { role: "admin" }, ready: true }),
 }));
@@ -148,10 +160,13 @@ function pageItem(title: string) {
 
 beforeEach(() => {
   api.calls.length = 0;
+  toast.success.mockClear();
 });
 
 afterEach(() => {
   cleanup();
+  // Nothing rendered outside render()'s own root may outlive a test.
+  expect(document.body.innerHTML).toBe("");
 });
 
 describe("contact inbox paging", () => {
@@ -240,6 +255,7 @@ describe("contact inbox paging", () => {
 
     await waitFor(() => expect(listQueries("/api/v1/contact-requests").length).toBeGreaterThan(before));
     expect(lastListQuery("/api/v1/contact-requests").get("page")).toBe("2");
+    expect(toast.success).toHaveBeenCalledWith("Marked handled.");
   });
 });
 
@@ -560,6 +576,7 @@ describe("failed and inconsistent page loads", () => {
 
     await waitFor(() => expect(listQueries("/api/v1/contact-requests").length).toBeGreaterThan(before));
     expect(lastListQuery("/api/v1/contact-requests").get("page")).toBe("1");
+    expect(toast.success).toHaveBeenCalledWith("Marked handled.");
   });
 
   it.each(screens.filter((target) => ["inbox", "redirects", "media library"].includes(target.name)))(
