@@ -17,6 +17,12 @@ const surfacesRaised = "rgb(17, 31, 50)"; // surfaces.raised #111F32
 const accentStudio = "rgb(31, 158, 233)"; // accent.studio #1F9EE9
 const textPrimary = "rgb(244, 248, 252)"; // text.primary #F4F8FC
 
+/*
+ * Well under the 90 s test timeout, so a missing pager or response fails at its
+ * own line and the finally block below still has time to delete the redirects.
+ */
+const stepTimeout = 15_000;
+
 function pageTwo(pager: Locator) {
   return pager.locator(".ant-pagination").getByTitle("2", { exact: true });
 }
@@ -71,7 +77,7 @@ test("ADM-06 inbox: the 51st enquiry is on page 2 and opens", async ({ page, req
   // The pager's label must not match the sidebar's "Studio" locator.
   await expect(page.getByRole("navigation", { name: "Studio" })).toHaveCount(1);
   const pager = page.getByRole("navigation", { name: "Inbox pages", exact: true });
-  await pageTwo(pager).click();
+  await pageTwo(pager).click({ timeout: stepTimeout });
   await expect(page.getByRole("heading", { name: marker, exact: true })).toBeVisible();
 
   const { other, active } = await expectNavyBackgrounds(page, pager);
@@ -115,14 +121,14 @@ test("ADM-06 audit log and redirects: the 51st row is on page 2", async ({ page,
     await expect(page.getByRole("heading", { name: "Audit log", exact: true })).toBeVisible();
     await page.getByPlaceholder("Action").fill("create_redirect");
     const filtered = page.waitForResponse((entry) =>
-      /\/api\/v1\/audit\?/.test(entry.url()) && entry.url().includes("action=create_redirect"));
+      /\/api\/v1\/audit\?/.test(entry.url()) && entry.url().includes("action=create_redirect"), { timeout: stepTimeout });
     await page.getByRole("button", { name: "Filter", exact: true }).click();
     await filtered;
     const auditRows = page.locator(".ant-table-tbody tr.ant-table-row");
     await expect(auditRows).toHaveCount(50);
     await expect(page.getByRole("cell", { name: markerId, exact: true })).toHaveCount(0);
     const auditPager = page.locator(".ant-table-wrapper");
-    await pageTwo(auditPager).click();
+    await pageTwo(auditPager).click({ timeout: stepTimeout });
     await expect(page.getByRole("cell", { name: markerId, exact: true })).toBeVisible();
     await expectNavyBackgrounds(page, auditPager);
     await test.info().attach("audit log page 2", { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
@@ -131,14 +137,14 @@ test("ADM-06 audit log and redirects: the 51st row is on page 2", async ({ page,
     await openArea(page, "Redirects");
     await expect(page.getByRole("heading", { name: "Redirects", exact: true })).toBeVisible();
     const searched = page.waitForResponse((entry) =>
-      /\/api\/v1\/redirects\?/.test(entry.url()) && entry.url().includes(`search=e2e-paging-${stamp}`));
+      /\/api\/v1\/redirects\?/.test(entry.url()) && entry.url().includes(`search=e2e-paging-${stamp}`), { timeout: stepTimeout });
     await page.getByPlaceholder("Search paths").fill(`e2e-paging-${stamp}`);
     await page.getByPlaceholder("Search paths").press("Enter");
     await searched;
     const redirectRows = page.locator(".ant-table-tbody tr.ant-table-row");
     await expect(redirectRows).toHaveCount(50);
     await expect(page.getByRole("cell", { name: markerPath, exact: true })).toHaveCount(0);
-    await pageTwo(page.locator(".ant-table-wrapper")).click();
+    await pageTwo(page.locator(".ant-table-wrapper")).click({ timeout: stepTimeout });
     await expect(page.getByRole("cell", { name: markerPath, exact: true })).toBeVisible();
     await test.info().attach("redirects page 2", { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
   } finally {
