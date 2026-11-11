@@ -117,8 +117,10 @@ export function MediaPicker({
       footer={null}
       width={720}
       afterOpenChange={(visible) => {
-        // Each opening starts on page 1 with the current search.
+        // Each opening starts on page 1 with the applied search, and the box
+        // shows that search, so the box and the images agree.
         if (visible) {
+          setSearch(applied);
           setCurrent(1);
           void load(applied, 1);
         }
