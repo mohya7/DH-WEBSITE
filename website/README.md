@@ -170,6 +170,19 @@ npm run compare:sections
 `browser-tests/pages.spec.ts` checks the build without an id. Both specs read
 `out/index.html` to tell the two builds apart.
 
+CI runs the whole browser suite in the job "Website — browser tests, default and
+consent builds": the default snapshot build, then the consent build, with the
+Playwright suite against each. Because Playwright exits 0 when tests skip,
+`tools/browser-suite/check-report.mjs` reads both JSON reports against
+`tools/browser-suite/expected.json` (the 29 tests, and exactly which skip in
+which build). A test that is missing, or skips when it should run, fails the job
+at once. A failed test is a warning until the job's `BROWSER_TESTS_BLOCKING_FROM`
+date (UTC) and fails the job from that date; the checker refuses a date later
+than 2026-11-23, wherever it is set. Before the tests, the job runs
+`tools/browser-suite/run-canary.mjs`, which checks that the checker still
+rejects the committed bad reports in `tools/browser-suite/canary/`. A new browser
+test raises `minimumTests` in `expected.json` in the same pull request.
+
 `test/blocks/` renders every section of the snapshot through `packages/blocks`
 with the website's adapters (4.6), and the rich-text renderer (4.3).
 

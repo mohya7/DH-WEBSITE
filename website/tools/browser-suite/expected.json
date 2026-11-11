@@ -1,0 +1,7 @@
+{
+  "minimumTests": 29,
+  "builds": {
+    "default": { "skippedFiles": ["consent.spec.ts"], "skippedTests": [] },
+    "consent": { "skippedFiles": [], "skippedTests": [{ "file": "pages.spec.ts", "title": "nothing from Tag Manager loads when the container id is empty" }] }
+  }
+}

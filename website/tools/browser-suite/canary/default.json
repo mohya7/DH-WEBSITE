@@ -1,0 +1,821 @@
+{
+  "suites": [
+    {
+      "title": "consent.spec.ts",
+      "file": "consent.spec.ts",
+      "line": 0,
+      "column": 0,
+      "specs": [
+        {
+          "title": "before consent and after Reject all: no Google request, no gtm.js, no event, only the denied defaults",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "expectedStatus": "skipped",
+              "projectName": "",
+              "status": "skipped",
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "needs a build with a container id (SNAPSHOT_SETTINGS_FIXTURE=consent)"
+                }
+              ],
+              "results": [
+                {
+                  "status": "skipped",
+                  "retry": 0,
+                  "duration": 0
+                }
+              ]
+            }
+          ],
+          "file": "consent.spec.ts",
+          "line": 71,
+          "column": 1
+        },
+        {
+          "title": "Accept all: at the gtm.js request the data layer is defaults, update, then the gtm.js event",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "expectedStatus": "skipped",
+              "projectName": "",
+              "status": "skipped",
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "needs a build with a container id (SNAPSHOT_SETTINGS_FIXTURE=consent)"
+                }
+              ],
+              "results": [
+                {
+                  "status": "skipped",
+                  "retry": 0,
+                  "duration": 0
+                }
+              ]
+            }
+          ],
+          "file": "consent.spec.ts",
+          "line": 93,
+          "column": 3
+        },
+        {
+          "title": "Analytics only: at the gtm.js request the data layer is defaults, update, then the gtm.js event",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "expectedStatus": "skipped",
+              "projectName": "",
+              "status": "skipped",
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "needs a build with a container id (SNAPSHOT_SETTINGS_FIXTURE=consent)"
+                }
+              ],
+              "results": [
+                {
+                  "status": "skipped",
+                  "retry": 0,
+                  "duration": 0
+                }
+              ]
+            }
+          ],
+          "file": "consent.spec.ts",
+          "line": 93,
+          "column": 3
+        },
+        {
+          "title": "a saved granted choice loads Tag Manager on later visits in the same order, without the banner",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "expectedStatus": "skipped",
+              "projectName": "",
+              "status": "skipped",
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "needs a build with a container id (SNAPSHOT_SETTINGS_FIXTURE=consent)"
+                }
+              ],
+              "results": [
+                {
+                  "status": "skipped",
+                  "retry": 0,
+                  "duration": 0
+                }
+              ]
+            }
+          ],
+          "file": "consent.spec.ts",
+          "line": 104,
+          "column": 1
+        },
+        {
+          "title": "revoking pushes the update to denied and stops events; later pages do not load Tag Manager",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "expectedStatus": "skipped",
+              "projectName": "",
+              "status": "skipped",
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "needs a build with a container id (SNAPSHOT_SETTINGS_FIXTURE=consent)"
+                }
+              ],
+              "results": [
+                {
+                  "status": "skipped",
+                  "retry": 0,
+                  "duration": 0
+                }
+              ]
+            }
+          ],
+          "file": "consent.spec.ts",
+          "line": 113,
+          "column": 1
+        },
+        {
+          "title": "a cookie with a value that does not decode is no choice: the banner asks again and Cookie settings works",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "expectedStatus": "skipped",
+              "projectName": "",
+              "status": "skipped",
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "needs a build with a container id (SNAPSHOT_SETTINGS_FIXTURE=consent)"
+                }
+              ],
+              "results": [
+                {
+                  "status": "skipped",
+                  "retry": 0,
+                  "duration": 0
+                }
+              ]
+            }
+          ],
+          "file": "consent.spec.ts",
+          "line": 140,
+          "column": 3
+        },
+        {
+          "title": "a cookie with no version is no choice: the banner asks again and Cookie settings works",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "expectedStatus": "skipped",
+              "projectName": "",
+              "status": "skipped",
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "needs a build with a container id (SNAPSHOT_SETTINGS_FIXTURE=consent)"
+                }
+              ],
+              "results": [
+                {
+                  "status": "skipped",
+                  "retry": 0,
+                  "duration": 0
+                }
+              ]
+            }
+          ],
+          "file": "consent.spec.ts",
+          "line": 140,
+          "column": 3
+        },
+        {
+          "title": "a cookie with another version is no choice: the banner asks again and Cookie settings works",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "expectedStatus": "skipped",
+              "projectName": "",
+              "status": "skipped",
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "needs a build with a container id (SNAPSHOT_SETTINGS_FIXTURE=consent)"
+                }
+              ],
+              "results": [
+                {
+                  "status": "skipped",
+                  "retry": 0,
+                  "duration": 0
+                }
+              ]
+            }
+          ],
+          "file": "consent.spec.ts",
+          "line": 140,
+          "column": 3
+        },
+        {
+          "title": "a cookie with a duplicate key is no choice: the banner asks again and Cookie settings works",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "expectedStatus": "skipped",
+              "projectName": "",
+              "status": "skipped",
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "needs a build with a container id (SNAPSHOT_SETTINGS_FIXTURE=consent)"
+                }
+              ],
+              "results": [
+                {
+                  "status": "skipped",
+                  "retry": 0,
+                  "duration": 0
+                }
+              ]
+            }
+          ],
+          "file": "consent.spec.ts",
+          "line": 140,
+          "column": 3
+        },
+        {
+          "title": "a cookie with an unknown key is no choice: the banner asks again and Cookie settings works",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "expectedStatus": "skipped",
+              "projectName": "",
+              "status": "skipped",
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "needs a build with a container id (SNAPSHOT_SETTINGS_FIXTURE=consent)"
+                }
+              ],
+              "results": [
+                {
+                  "status": "skipped",
+                  "retry": 0,
+                  "duration": 0
+                }
+              ]
+            }
+          ],
+          "file": "consent.spec.ts",
+          "line": 140,
+          "column": 3
+        },
+        {
+          "title": "a cookie with marketing without analytics is no choice: the banner asks again and Cookie settings works",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "expectedStatus": "skipped",
+              "projectName": "",
+              "status": "skipped",
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "needs a build with a container id (SNAPSHOT_SETTINGS_FIXTURE=consent)"
+                }
+              ],
+              "results": [
+                {
+                  "status": "skipped",
+                  "retry": 0,
+                  "duration": 0
+                }
+              ]
+            }
+          ],
+          "file": "consent.spec.ts",
+          "line": 140,
+          "column": 3
+        },
+        {
+          "title": "a cookie with garbage is no choice: the banner asks again and Cookie settings works",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "expectedStatus": "skipped",
+              "projectName": "",
+              "status": "skipped",
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "needs a build with a container id (SNAPSHOT_SETTINGS_FIXTURE=consent)"
+                }
+              ],
+              "results": [
+                {
+                  "status": "skipped",
+                  "retry": 0,
+                  "duration": 0
+                }
+              ]
+            }
+          ],
+          "file": "consent.spec.ts",
+          "line": 140,
+          "column": 3
+        },
+        {
+          "title": "Cookie settings shows the saved choice pressed and focused, and focus returns to it after a choice",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "expectedStatus": "skipped",
+              "projectName": "",
+              "status": "skipped",
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "needs a build with a container id (SNAPSHOT_SETTINGS_FIXTURE=consent)"
+                }
+              ],
+              "results": [
+                {
+                  "status": "skipped",
+                  "retry": 0,
+                  "duration": 0
+                }
+              ]
+            }
+          ],
+          "file": "consent.spec.ts",
+          "line": 158,
+          "column": 1
+        },
+        {
+          "title": "at 1280px the open banner fits, takes no focus, ignores Escape, and never covers Cookie settings",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "expectedStatus": "skipped",
+              "projectName": "",
+              "status": "skipped",
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "needs a build with a container id (SNAPSHOT_SETTINGS_FIXTURE=consent)"
+                }
+              ],
+              "results": [
+                {
+                  "status": "skipped",
+                  "retry": 0,
+                  "duration": 0
+                }
+              ]
+            }
+          ],
+          "file": "consent.spec.ts",
+          "line": 178,
+          "column": 3
+        },
+        {
+          "title": "at 768px the open banner fits, takes no focus, ignores Escape, and never covers Cookie settings",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "expectedStatus": "skipped",
+              "projectName": "",
+              "status": "skipped",
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "needs a build with a container id (SNAPSHOT_SETTINGS_FIXTURE=consent)"
+                }
+              ],
+              "results": [
+                {
+                  "status": "skipped",
+                  "retry": 0,
+                  "duration": 0
+                }
+              ]
+            }
+          ],
+          "file": "consent.spec.ts",
+          "line": 178,
+          "column": 3
+        },
+        {
+          "title": "at 390px the open banner fits, takes no focus, ignores Escape, and never covers Cookie settings",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "expectedStatus": "skipped",
+              "projectName": "",
+              "status": "skipped",
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "needs a build with a container id (SNAPSHOT_SETTINGS_FIXTURE=consent)"
+                }
+              ],
+              "results": [
+                {
+                  "status": "skipped",
+                  "retry": 0,
+                  "duration": 0
+                }
+              ]
+            }
+          ],
+          "file": "consent.spec.ts",
+          "line": 178,
+          "column": 3
+        },
+        {
+          "title": "at 320px the open banner fits, takes no focus, ignores Escape, and never covers Cookie settings",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "expectedStatus": "skipped",
+              "projectName": "",
+              "status": "skipped",
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "needs a build with a container id (SNAPSHOT_SETTINGS_FIXTURE=consent)"
+                }
+              ],
+              "results": [
+                {
+                  "status": "skipped",
+                  "retry": 0,
+                  "duration": 0
+                }
+              ]
+            }
+          ],
+          "file": "consent.spec.ts",
+          "line": 178,
+          "column": 3
+        },
+        {
+          "title": "cta_clicked fires for a.nav-cta on / only after consent",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "expectedStatus": "skipped",
+              "projectName": "",
+              "status": "skipped",
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "needs a build with a container id (SNAPSHOT_SETTINGS_FIXTURE=consent)"
+                }
+              ],
+              "results": [
+                {
+                  "status": "skipped",
+                  "retry": 0,
+                  "duration": 0
+                }
+              ]
+            }
+          ],
+          "file": "consent.spec.ts",
+          "line": 214,
+          "column": 3
+        },
+        {
+          "title": "cta_clicked fires for a.mn-cta on / only after consent",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "expectedStatus": "skipped",
+              "projectName": "",
+              "status": "skipped",
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "needs a build with a container id (SNAPSHOT_SETTINGS_FIXTURE=consent)"
+                }
+              ],
+              "results": [
+                {
+                  "status": "skipped",
+                  "retry": 0,
+                  "duration": 0
+                }
+              ]
+            }
+          ],
+          "file": "consent.spec.ts",
+          "line": 214,
+          "column": 3
+        },
+        {
+          "title": "cta_clicked fires for .hub-cta a on /cases only after consent",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "expectedStatus": "skipped",
+              "projectName": "",
+              "status": "skipped",
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "needs a build with a container id (SNAPSHOT_SETTINGS_FIXTURE=consent)"
+                }
+              ],
+              "results": [
+                {
+                  "status": "skipped",
+                  "retry": 0,
+                  "duration": 0
+                }
+              ]
+            }
+          ],
+          "file": "consent.spec.ts",
+          "line": 214,
+          "column": 3
+        },
+        {
+          "title": "cta_clicked fires for .svc-cta-row a on /services/data-analytics only after consent",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "expectedStatus": "skipped",
+              "projectName": "",
+              "status": "skipped",
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "needs a build with a container id (SNAPSHOT_SETTINGS_FIXTURE=consent)"
+                }
+              ],
+              "results": [
+                {
+                  "status": "skipped",
+                  "retry": 0,
+                  "duration": 0
+                }
+              ]
+            }
+          ],
+          "file": "consent.spec.ts",
+          "line": 214,
+          "column": 3
+        },
+        {
+          "title": "cta_clicked fires for .cs-cta a on /cases/ministry-planning only after consent",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "expectedStatus": "skipped",
+              "projectName": "",
+              "status": "skipped",
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "needs a build with a container id (SNAPSHOT_SETTINGS_FIXTURE=consent)"
+                }
+              ],
+              "results": [
+                {
+                  "status": "skipped",
+                  "retry": 0,
+                  "duration": 0
+                }
+              ]
+            }
+          ],
+          "file": "consent.spec.ts",
+          "line": 214,
+          "column": 3
+        },
+        {
+          "title": "cta_clicked fires for .about-hero__cta a on /about only after consent",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "expectedStatus": "skipped",
+              "projectName": "",
+              "status": "skipped",
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "needs a build with a container id (SNAPSHOT_SETTINGS_FIXTURE=consent)"
+                }
+              ],
+              "results": [
+                {
+                  "status": "skipped",
+                  "retry": 0,
+                  "duration": 0
+                }
+              ]
+            }
+          ],
+          "file": "consent.spec.ts",
+          "line": 214,
+          "column": 3
+        },
+        {
+          "title": "after Reject all a contact form submission pushes no event",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "expectedStatus": "skipped",
+              "projectName": "",
+              "status": "skipped",
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "needs a build with a container id (SNAPSHOT_SETTINGS_FIXTURE=consent)"
+                }
+              ],
+              "results": [
+                {
+                  "status": "skipped",
+                  "retry": 0,
+                  "duration": 0
+                }
+              ]
+            }
+          ],
+          "file": "consent.spec.ts",
+          "line": 228,
+          "column": 1
+        },
+        {
+          "title": "a submitted name and email never appear in the data layer",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "expectedStatus": "skipped",
+              "projectName": "",
+              "status": "skipped",
+              "annotations": [
+                {
+                  "type": "skip",
+                  "description": "needs a build with a container id (SNAPSHOT_SETTINGS_FIXTURE=consent)"
+                }
+              ],
+              "results": [
+                {
+                  "status": "skipped",
+                  "retry": 0,
+                  "duration": 0
+                }
+              ]
+            }
+          ],
+          "file": "consent.spec.ts",
+          "line": 244,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "pages.spec.ts",
+      "file": "pages.spec.ts",
+      "line": 0,
+      "column": 0,
+      "specs": [
+        {
+          "title": "the skipped home intro moves the logo and its classes persist after load",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "expectedStatus": "passed",
+              "projectName": "",
+              "status": "expected",
+              "annotations": [],
+              "results": [
+                {
+                  "status": "passed",
+                  "retry": 0,
+                  "duration": 1193
+                }
+              ]
+            }
+          ],
+          "file": "pages.spec.ts",
+          "line": 7,
+          "column": 1
+        },
+        {
+          "title": "the fallback logo is served and the service navigation script runs",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "expectedStatus": "passed",
+              "projectName": "",
+              "status": "expected",
+              "annotations": [],
+              "results": [
+                {
+                  "status": "passed",
+                  "retry": 0,
+                  "duration": 1476
+                }
+              ]
+            }
+          ],
+          "file": "pages.spec.ts",
+          "line": 20,
+          "column": 1
+        },
+        {
+          "title": "contact validates, posts once to the relative API, and renders configured messages",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "expectedStatus": "passed",
+              "projectName": "",
+              "status": "expected",
+              "annotations": [],
+              "results": [
+                {
+                  "status": "passed",
+                  "retry": 0,
+                  "duration": 3103
+                }
+              ]
+            }
+          ],
+          "file": "pages.spec.ts",
+          "line": 42,
+          "column": 1
+        },
+        {
+          "title": "nothing from Tag Manager loads when the container id is empty",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "expectedStatus": "passed",
+              "projectName": "",
+              "status": "expected",
+              "annotations": [],
+              "results": [
+                {
+                  "status": "passed",
+                  "retry": 0,
+                  "duration": 1290
+                }
+              ]
+            }
+          ],
+          "file": "pages.spec.ts",
+          "line": 61,
+          "column": 1
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-11-01T15:46:54.093Z",
+    "duration": 10296.533,
+    "expected": 4,
+    "skipped": 25,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}
