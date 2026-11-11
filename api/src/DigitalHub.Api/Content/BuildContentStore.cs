@@ -35,7 +35,7 @@ public sealed class BuildContentStore(ContentDbContext db)
     /* The error pages are ordinary page records under reserved slugs. They are
        handed over separately because they are not routable content: the build
        renders them at /404 and /500, not at /error-404. */
-    private static readonly Dictionary<string, string> ErrorSlugs = new(StringComparer.Ordinal)
+    internal static readonly Dictionary<string, string> ErrorSlugs = new(StringComparer.Ordinal)
     {
         ["404"] = "error-404",
         ["500"] = "error-500",

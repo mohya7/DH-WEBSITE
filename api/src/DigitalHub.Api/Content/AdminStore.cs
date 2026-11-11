@@ -113,17 +113,22 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
             .OrderBy(redirect => redirect.FromPath)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(redirect => new
-            {
-                redirect.Id,
-                redirect.FromPath,
-                redirect.ToPath,
-                redirect.StatusCode,
-                redirect.Source,
-                redirect.CreatedAt,
-            })
             .ToListAsync(cancellationToken);
-        return ContentOutcome.Ok(new PageResult<object>(rows.Cast<object>().ToList(), page, pageSize, total));
+
+        // Whether a page answers at each target, so the Studio can flag redirects left
+        // pointing at nothing by an unpublish or a delete (ADM-07).
+        var live = await RedirectTargets.LivePathsAsync(db, cancellationToken);
+        var items = rows.Select(redirect => (object)new
+        {
+            redirect.Id,
+            redirect.FromPath,
+            redirect.ToPath,
+            redirect.StatusCode,
+            redirect.Source,
+            redirect.CreatedAt,
+            TargetLive = RedirectTargets.Resolves(redirect.ToPath, live),
+        }).ToList();
+        return ContentOutcome.Ok(new PageResult<object>(items, page, pageSize, total));
     }
 
     public async Task<ContentOutcome> CreateRedirectAsync(RedirectCreateRequest request, string? userId, CancellationToken cancellationToken)
@@ -162,6 +167,10 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         db.Redirects.Add(created);
         Audit(userId, "create_redirect", "redirect", created.Id.ToString(), created.FromPath + " -> " + created.ToPath);
         await db.SaveChangesAsync(cancellationToken);
+
+        // Still created when no page answers at the target (the audit's fix warns, and a
+        // chain to another redirect's source collapses, Phase B 4.5), but said so (ADM-07).
+        var live = await RedirectTargets.LivePathsAsync(db, cancellationToken);
         return ContentOutcome.Ok(new
         {
             created.Id,
@@ -170,6 +179,7 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
             created.StatusCode,
             created.Source,
             created.CreatedAt,
+            TargetLive = RedirectTargets.Resolves(created.ToPath, live),
         }, StatusCodes.Status201Created);
     }
 
