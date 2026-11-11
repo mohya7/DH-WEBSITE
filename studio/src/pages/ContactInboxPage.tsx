@@ -1,8 +1,10 @@
 import { Button, Drawer, Input, Space, Typography, message } from "antd";
 import { PageHeader } from "../ui/PageHeader";
 import { StatusChip } from "../ui/StatusChip";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { jsonInit, request } from "../api/http";
+import { ListPager } from "../ui/ListPager";
+import { afterEmptyPage, latestOnly, withPage } from "../ui/paging";
 
 type ContactRow = {
   id: string;
@@ -23,26 +25,59 @@ type ContactDetail = ContactRow & {
 
 type Page = { items: ContactRow[]; total: number };
 
+const pageSize = 50;
+
 export function ContactInboxPage() {
+  // What is in the search box, and the search last submitted. Every list
+  // request uses the submitted one, so the pager's total matches the rows.
   const [search, setSearch] = useState("");
+  const [applied, setApplied] = useState("");
+  const [current, setCurrent] = useState(1);
+  const requests = useRef(latestOnly());
   const [page, setPage] = useState<Page>({ items: [], total: 0 });
   const [selected, setSelected] = useState<ContactDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void load();
+    void load("", 1);
   }, []);
 
-  async function load(term = search) {
-    const params = new URLSearchParams({ pageSize: "50" });
+  async function load(term: string, pageNumber: number, jumped = false) {
+    const ticket = requests.current.start();
+    const params = new URLSearchParams();
     if (term.trim()) params.set("search", term.trim());
-    const result = await request(`/api/v1/contact-requests?${params}`);
+    const result = await request(`/api/v1/contact-requests?${withPage(params, pageNumber, pageSize)}`);
+    if (!requests.current.isLatest(ticket)) return;
     if (!result.ok || result.body === null) {
       setError(result.problem?.title ?? "Contact requests could not be loaded.");
       return;
     }
+    const body = result.body as Page;
+    // Past the last page after a change: show the new last page instead,
+    // once. A list that promises rows it does not give is a load error.
+    const step = body.items.length === 0 ? afterEmptyPage(pageNumber, body.total, pageSize, jumped) : "show";
+    if (step === "fail") {
+      setError("Contact requests could not be loaded.");
+      return;
+    }
+    if (step !== "show") {
+      await load(term, step, true);
+      return;
+    }
     setError(null);
-    setPage(result.body as Page);
+    setCurrent(pageNumber);
+    setPage(body);
+  }
+
+  // The pager moves when the page arrives (load), so after a failure it still
+  // shows the page whose rows are on screen.
+  function goTo(pageNumber: number) {
+    void load(applied, pageNumber);
+  }
+
+  function submitSearch(term: string) {
+    setApplied(term);
+    void load(term, 1);
   }
 
   async function open(id: string) {
@@ -63,7 +98,7 @@ export function ContactInboxPage() {
     }
     setSelected(result.body as ContactDetail);
     message.success("Marked handled.");
-    await load();
+    await load(applied, current);
   }
 
   const incoming = page.items.filter((item) => item.status === "new").length;
@@ -82,7 +117,7 @@ export function ContactInboxPage() {
         placeholder="Search name, organization, email..."
         value={search}
         onChange={(event) => setSearch(event.target.value)}
-        onSearch={() => void load()}
+        onSearch={(value) => submitSearch(value)}
         allowClear
       />
       {error !== null ? <Typography.Paragraph type="danger">{error}</Typography.Paragraph> : null}
@@ -98,6 +133,7 @@ export function ContactInboxPage() {
           </header>
         </article>
       ))}
+      <ListPager label="Inbox pages" current={current} pageSize={pageSize} total={page.total} onChange={goTo} />
       <Drawer title={selected?.name} open={selected !== null} onClose={() => setSelected(null)} size={480}>
         {selected !== null ? (
           <Space orientation="vertical" className="w-full">

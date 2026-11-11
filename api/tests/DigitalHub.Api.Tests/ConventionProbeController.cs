@@ -30,11 +30,11 @@ public sealed class ConventionProbeController : ControllerBase
 
     [AllowAnonymous]
     [HttpGet("notes")]
-    public ActionResult<PageResult<NoteResponse>> List([FromQuery] PageQuery query)
+    public ActionResult<PageResult<NoteResponse>> List([FromQuery] PageQuery page)
     {
         var all = _notes.List();
-        var items = all.Skip((query.Page - 1) * query.PageSize).Take(query.PageSize).ToArray();
-        return Ok(new PageResult<NoteResponse>(items, query.Page, query.PageSize, all.Count));
+        var items = all.Skip((page.Page - 1) * page.PageSize).Take(page.PageSize).ToArray();
+        return Ok(new PageResult<NoteResponse>(items, page.Page, page.PageSize, all.Count));
     }
 
     [AllowAnonymous]
