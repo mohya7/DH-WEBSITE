@@ -274,4 +274,124 @@ covers.**
   - `validate.ts:61,71`, `web-config.ts:118,127,148`, and
     `ContentBundle.cs:217-232`.
 
-Verdict: CHANGES NEEDED
+Round 1 result: CHANGES NEEDED (two Majors, five Minors). The file's single
+verdict line is at the end, after the latest round.
+
+## Round 2
+
+Reviewer: plan-reviewer, 11 November 2026. Plan reviewed: `docs/changes/ADM-02/plan.md`
+at `46d9bbc`, round 2 (revision log, section 12). I re-read sections 2.3, 3.1 to 3.6
+and 4 to 11 in full and checked the new claims against the code at `77296ba`, with
+read-only commands (`sed`, `grep`). No test was run: SQL Server is not available,
+and nothing in round 2 changes what can run locally.
+
+### Round 1 findings
+
+| # | Round 1 finding | Answer in round 2 | Status |
+| --- | --- | --- | --- |
+| 1 | Major: the bundle import would be strict on drafts | `CheckDocumentAsync` takes `publishing`. `ContentBundle.CheckAsync` passes `record.Status == Published` for collection rows and `false` for working copies. `ContentBundle.cs` is in scope. F5a and F5b are added, and B6 is reworded | **Closed.** There is only one caller of `CheckDocumentAsync`: `ContentBundle.cs:387,410` (`grep` over `api/`). F5a follows the existing theme test (`ContentBundleTests.cs:130-146`): the `Edit` helper recomputes checksums and counts (`:807-815`), so the only reason the import can fail is the new check. The `Report` format (`ContentBundle.cs:477`) gives `pages <id>: sections[0]: …`, as F5a expects. F5b passes at the base and turns red if drafts were checked strictly. See finding 1 below on `Ended` |
+| 2 | Major: upper-case ids | Option (a). The API pattern is the website's pattern without `/i`, asserted at publish and on published import rows. F1 (c) and (d) are changed, F4 is reframed, W1 gains an upper-case `mediaId`, C4 and C5 are added, B7 is added, and the residual risk is in section 10 | **Closed.** Being stricter than the website cannot break a build. The Studio never sends upper case: references come from API lists, `RichText.cs:326` writes `ToString("D")`, and the importer writes `ToString("D")` (`SectionFields.cs:890,911`). C4's id exists in the snapshot in lower case (`grep -c` gives 1). `createSite` is exported (`site.ts:44`). W1's media line names the id rather than the item, so W1 now also counts lines that contain an id the test sent. That rule is needed, and it is right |
+| 3 | Minor: the old-site importer | The risk row is corrected. The importer is out of scope, with reasons | **Closed.** I checked the two pass-through spots (`SectionFields.cs:272`, `:753`). The reasons are sound: CI cannot reach the source, and the build still checks the content |
+| 4 | Minor: the slug check at save | B4 says "saving or publishing". Section 7 and 3.1 explain the effect. O-ADM02-2 (b) adds a read-only SQL query | **Closed.** The query's table names (`pages`, `case_studies`, `blog_posts`, …, `ContentModelBuilder.cs:25-29`) and the lower-case `status` values (`:219,224-227`) are right |
+| 5 | Minor: F2's media fixture | Every media value is written in full | **Closed** |
+| 6 | Minor: `check:content` overclaimed | The wording is corrected, the pass line names what it does not check, and the full mode is rejected in 3.6 | **Closed** |
+| 7 | Minor: test markers | 5.1 now states the marker rule. F5 runs inside `InTransactionAsync`, which rolls back | **Closed.** The F5 tests use the file's fixed seed ids, which is safe inside the rolled-back transaction |
+
+### Is leaving rich-text ids out (ADM-02b) a sound boundary?
+
+Yes, for this change. My reasons:
+
+- The audit's ADM-02 text names the schema `format` and the redirects. It does not
+  name rich-text ids, so ADM-02's "Done when" is met without them.
+- Neither Studio path produces an upper-case rich-text id: paste writes `"D"`
+  (`RichText.cs:326`), and insert uses library ids. Only a hand-made API call can.
+- For `mediaId` the failure is loud, because the build stops (`validate.ts:128-134`
+  walks the JSON inside strings). The silent case, an upper-case `relatedItems` id,
+  is stated in section 10.
+- `RichText.Validate` runs at save (`RichText.cs:402,598`), so tightening it reopens
+  the save-or-publish question for a second validator. That is a design question of
+  its own, not a one-line change.
+- The destination is named, the coverage table carries it, and section 9 shows it to
+  the owner and offers to fold it in before gate 1.
+- `RichText.cs` is not in #52's files (all of them are under `studio/` and
+  `docs/changes/ADM-03/`), so the open pull request does not force this boundary.
+  It holds on the merits.
+
+The B-8 argument ("a different module") is the weakest of the plan's reasons, since
+`RichText.cs` sits beside the schema sets in `Content/`. The other reasons carry the
+decision. ADM-02b has to be scheduled by the coordinator, or it becomes a loose end.
+That is a coordination step, not a plan defect.
+
+### Counts
+
+- R1 to R7: 2 + 2 + 1 + 3 + 1 + 1 + 1 = 11.
+- F1, F2 (5), F4 (2), F5a: 1 + 5 + 2 + 1 = 9.
+- W1: 1.
+
+That is 21 in all. 20 of them need SQL Server: F5a does too, because
+`InTransactionAsync` opens the test catalog. Only F1 can be seen locally.
+
+I walked each new red against the code:
+
+- **F4 at the base.** `PublishChecks.cs:241` and `MediaUsage.cs:131` use
+  `Guid.TryParse`, which ignores case, so both upper-case ids resolve and the item
+  publishes with 200.
+- **F5a at the base.** The import runs the annotating options, so `Ok` is true.
+- **F1 (c) at the base.** The API returns no error for `not-a-uuid` or for upper
+  case.
+
+F3 (2), F5b and W2 pass at the base. The expected DB-free green set (the 173 baseline
+names plus F1, K1 and W2) is still right: F5a and F5b need the database.
+
+### Findings, most severe first
+
+**1. Minor. Section 3.2, "`Ended` (a vacancy that has finished) is not `Published`,
+is not built, and is checked as a draft": ended vacancies are built.**
+- **Evidence:**
+  - `BuildContentStore.cs:175-177`: for `vacancies`, the build content holds
+    `Published` **or** `Ended` rows, with `status: "ended"` (`:188`).
+  - The website routes every item that has a `publishedAt` (`routes.ts:63-69`).
+    `site.ts:37` only takes ended items out of the listing.
+- **Effect today:** none. Vacancies have no sections (`BuildContentStore.cs:160`,
+  `_ => []`), and F1 (b) pins the collection schemas to no `format`, so the strict
+  and lenient checks give the same answer for an ended vacancy. The rule is still
+  stated the wrong way round.
+- **What would satisfy me:**
+  - Correct the sentence.
+  - Use `Status is Published or Ended` for `publishing`, which matches what the
+    build reads and fails closed (P-5). Or say plainly why `Published` alone is
+    enough.
+- O-ADM02-2 (b) and `OccupiesLivePathAsync` also leave out ended vacancies. That gap
+  existed before this change and is not ADM-02's; mention it only if you change the
+  rule.
+
+**2. Minor. Section 3.2, "`ContentStore.CheckDocumentAsync` (680) gets the same
+`bool publishing` argument": the plan does not say the argument is required.**
+- 3.2 argues that `Validate` should be the strict name, so that "a new caller fails
+  closed (P-5)". The same reasoning applies here. If `publishing` has a default, a
+  new caller that forgets it gets the lenient check without noticing.
+- **What would satisfy me:** state that `publishing` has no default on
+  `CheckDocumentAsync`, and on `CheckAsync` if the existing `requireMedia` default
+  makes that awkward. The developer can confirm it in `implementation.md`. This
+  does not block approval.
+
+### Checked and found sound in round 2
+
+- **Nothing new slipped into scope.**
+  - The only additions are `ContentBundle.cs` and two facts in
+    `ContentBundleTests.cs`, both listed with "Nothing else" and "No existing test
+    changes".
+  - There is still no Studio file, no file in #52 or #44, no migration and no new
+    package.
+  - Commit 3 adds one assertion to F1. That strengthens a test and loosens nothing.
+- **B7, the 3.6 rows and section 7.**
+  - B7 is shown to the owner like B1 to B6.
+  - The two new rejected alternatives are real choices, with reasons ("match the
+    website exactly", "make the website's lookups case-insensitive").
+  - Section 7 now names every class of existing row and what each now does,
+    including the bundle round trip.
+- **Owner decisions.** O-ADM02-1 and O-ADM02-2 stay PENDING. O-ADM02-1's "no"
+  branch still goes to BLOCKED ON OWNER with no discretion for any role. ADM-02b is
+  offered to the owner, not assumed.
+
+Verdict: APPROVED
