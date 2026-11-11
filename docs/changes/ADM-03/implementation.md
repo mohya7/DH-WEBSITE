@@ -4,12 +4,225 @@ Developer, 11 November 2026. Plan: `docs/changes/ADM-03/plan.md`, round 2
 (`877b2b5`). Gate 1: `plan-approval.md` (`d071811`), `Verdict: APPROVED` with
 conditions 1 to 16. Worktree `/home/user/dh-change-adm03`, branch
 `change/ADM-03`, cut from `origin/rebuild/dotnet-platform` at `77296ba`.
-Nothing is pushed, and I pushed nothing (condition 1).
+I pushed nothing in any round (condition 1). The integrator pushed `0975b00`
+alone as draft pull request #52, and later `59d3c65` (section R).
 
-**Result:** commits 1 to 3 are made, in the plan's order. The render tests were
-red before the fix (`12 failed | 2 passed (14)`) and are green after it
-(`14 passed (14)`). E1 and E2 are NOT RUN locally. Commits 4 and 5 are not
+**Result, round 2: the tester's round-1 rework is done (section R).**
+`test-report.md` round 1 (`f72dc56`) approved `59d3c65` with four Minors.
+Findings 1 and 2 are fixed, failing tests first (`c4d93b9`, then `1177ac7`).
+Finding 3 is this record, brought up to date. Finding 4 (the pull request body)
+is the integrator's. Sections 1 to 13 are the round-1 record, corrected where
+section R says so.
+
+**Result, round 1:** commits 1 to 3 are made, in the plan's order. The render
+tests were red before the fix (`12 failed | 2 passed (14)`) and are green after
+it (`14 passed (14)`). E1 and E2 cannot run locally; they were red in CI on
+`0975b00` alone and green on `59d3c65` (section R). Commits 4 and 5 are not
 made: O-ADM03-2 has no owner answer.
+
+## R. Round 2: rework after the test report (round 1, four Minors)
+
+This developer session was cut off a second time, by a usage limit, after
+`59d3c65` and before it reported. The commits were intact. The rework below was
+made after the coordinator relayed the test report.
+
+### Each finding, and how it is answered
+
+| Finding | Answer | Red | Fix |
+| --- | --- | --- | --- |
+| 1 (Minor). A selection made while a paste is being checked is replaced when the answer arrives; the records say "Nothing is lost" | The answer replaces a selection only when it is the one the paste was made over and the document has not changed since, which is what any paste does. With a caret it is inserted at the caret, as before. With any other selection (one made after the paste; the Image button leaves its new image selected) it is inserted after the selection and replaces nothing. The records are corrected (below) | `c4d93b9`: T16 (image inserted meanwhile), T17 (stored image selected meanwhile), T18 (whole document selected meanwhile). T19 is a guard for the kept behaviour | `1177ac7` |
+| 2 (Minor). The "nothing was added" notice stays after a later paste that did add something; the same for the drop notice | A paste that is added clears those two notices, and only those: a checked paste whose answer is inserted and drops no image, and a paste with no image, which ProseMirror inserts. The image notice is not touched; it stays sticky, for ADM-22 | `c4d93b9`: T20 (after a failed check), T21 (after a refused drop) | `1177ac7` |
+| 3 (Minor). `implementation.md` is out of date on three points | This round's edits: who pushed and the CI red and green runs (below; header; sections 4, 6, 8, 13); the coverage rows for E1 and E2; every "Nothing is lost" (below; section 9) | | This commit |
+| 4 (Minor). The pull request body lacks condition 14's three sections | Not mine: the integrator writes the pull request body. Sections 9, 10 and 11 of this record are the text for "Behaviour changes for the owner", "For ADM-22" and "For ADM-05", and are up to date with this round | | Integrator |
+
+### The insert rule, and why it is a developer's fix and not a new design
+
+Plan 3.1 (3) says two things that the tester showed cannot both hold: insert
+with `replaceSelection` "at the selection of that moment", and "Nothing is
+lost". They agree for a caret. They disagree when something is selected after
+the paste was made. The tester left the choice to "the developer or the
+architect", and the coordinator asked for the answer to be inserted "without
+replacing content the user did not have selected at paste time", following the
+plan's intent, or else BACK TO ARCHITECT.
+
+I took the plan's stated intent as the rule and changed only the case where
+the two sentences disagree:
+
+- **A caret when the answer arrives:** `replaceSelection`, exactly as the plan
+  says and as before. Nothing is replaced.
+- **The same selection as at paste time, in an unchanged document**
+  (`state.doc.eq(...)` and `state.selection.eq(...)` against the state the
+  paste was made in): `replaceSelection`. The person pasted over that
+  selection, and a paste replaces it, as a paste with no image does at once.
+- **Any other selection:** `replaceRange(to, to, piece)` at the selection's
+  end, then the caret at the end of what was added. Nothing is replaced. The
+  open depths are the same `piece` as before, so pasted text still joins a
+  sentence.
+
+Results, read from the last `onChange` document in each test:
+
+| Test | Before the answer | After the answer |
+| --- | --- | --- |
+| T16 | "Start", the picked image (selected) | "Start", image, "Pasted", empty paragraph |
+| T17 | "Before", stored image (selected), "After" | "Before", image, "Pasted", "After" |
+| T18 | whole document selected | "Before", image, "After", "Pasted" |
+| T19 (guard) | whole document selected, then pasted over | "Pasted" only |
+
+**For the tech lead and the architect:** the one choice I made that the plan
+does not state is where the content goes when a later selection exists: after
+it. It is the nearest thing to "at the caret" that replaces nothing. If that is
+read as a design decision, it is the architect's to confirm or change; the
+tests T16 to T18 assert only that nothing is replaced and that the pasted text
+is there, not where it lands.
+
+### "Nothing is lost", corrected
+
+The phrase is in plan 3.1 (3), plan section 9 and this record's section 9,
+item 4. I cannot change the plan. What is true after `1177ac7`, and what
+section 9 item 4 now says:
+
+- **Kept:** everything in the editor when the answer arrives. Text typed while
+  the check was out (T1, T5), an image inserted meanwhile (T16), and anything
+  selected meanwhile (T17, T18) are not replaced by the answer.
+- **Replaced, as any paste does:** what the person had selected when they
+  pasted, if it is still selected and the document is unchanged (T19).
+- **Not added, with a notice:** the pasted content itself, when the check
+  fails or the document was replaced while it was out (T8, T15). The clipboard
+  still holds it.
+- **Not added, with no notice:** the pasted content, when the field was closed
+  before the answer (T9; the tester's observation (b)). There is nobody to
+  tell.
+- **Dropped, with the image notice:** pasted images with no known media id.
+  That is the filter doing its job, not a loss.
+- **Two pastes answered in the other order** are inserted in answer order.
+  Both are added.
+
+### CI evidence on draft pull request #52
+
+I did not read CI myself and I did not push. This is as the coordinator relayed
+it and as the tester recorded it from the REST API in `test-report.md`, round 1,
+section 3.
+
+- **Who pushed.** The integrator pushed `0975b00` alone as draft pull request
+  #52, on its own notice to the owner (section 8, O-ADM03-1). After that run
+  ended, the integrator pushed `59d3c65`. The tester saw the remote branch move
+  to `59d3c65` at 04:08 UTC on 11 November 2026, after the red run had ended at
+  04:08:00.
+- **Red, on `0975b00` alone (plan 5.4, condition 13).** Run `42956506481`, job
+  `130312770458`, "Studio — typecheck, build, end-to-end": conclusion
+  `failure`, not cancelled. `2 failed`, `28 passed`. E1 fails at
+  `rich-text.spec.ts:140` and E2 at `rich-text.spec.ts:193`, both at the empty
+  paste-request assertion, the first assertion after the typing:
+  ```
+    1) e2e/rich-text.spec.ts:88:1 › …
+      Error: paste requests sent while typing
+      > 140 |   expect(pastes.map((sent) => sent.postData()), "paste requests sent while typing").toEqual([]);
+    2) e2e/rich-text.spec.ts:162:1 › …
+      Error: paste requests sent while inserting and typing
+      > 193 |   expect(pastes.map((sent) => sent.postData()), "paste requests sent while inserting and typing").toEqual([]);
+    2 failed
+    28 passed (4.5m)
+  ```
+  They are the only failures.
+- **Green, on `59d3c65`.** Run `42957284006`, job `130315262853`, same job
+  name: `success`. `30 passed (4.7m)`, E1 and E2 among them; unit tests
+  `74 passed (74)`.
+- **So in Chromium, against the real API,** the synthetic paste reaches
+  ProseMirror, the caret after `Control+End` is in a paragraph, and the real
+  paste route answers 200. Those were the plan's open risks (section 6).
+- **This round's commits are not pushed.** CI on `c4d93b9` and `1177ac7` is NOT
+  RUN. E1 and E2 are not changed by this round; whether they still pass with
+  `1177ac7` is covered by CI `studio` on the next pushed head. E2's paste is
+  made with a caret, which takes the unchanged `replaceSelection` path.
+
+### Commits this round
+
+| SHA | Subject | Files |
+| --- | --- | --- |
+| `c4d93b9` (red) | ADM-03: Test that a paste check never replaces a later selection or leaves a stale notice | `studio/test/richText.test.tsx` |
+| `1177ac7` (fix) | ADM-03: Insert a checked paste without replacing a later selection, and clear its stale notices | `studio/src/content/RichTextEditor.tsx` |
+| this commit | The record | `docs/changes/ADM-03/implementation.md` |
+
+Made on top of `f72dc56` (the test report). Nothing was amended, rebased or
+pushed.
+
+### What changed in the code
+
+`studio/src/content/RichTextEditor.tsx` only:
+
+- `filteredPaste` keeps the editor state the paste was made in
+  (`pastedInto = view.state`) and applies the rule above when the answer
+  arrives. `Selection` is imported from `@tiptap/pm/state`; `@tiptap/pm` is
+  already a direct dependency.
+- `clearNotAddedNotice(setNotice)` sets the notice to `null` only when it is
+  the "could not be checked" notice or the drop notice. It is called when a
+  checked paste is inserted and no image was dropped, and in `handlePaste` when
+  the paste holds no image and is left to ProseMirror.
+- `setNotice` is passed to `filteredPaste` as React's state setter type, so it
+  can read the current notice.
+
+`studio/test/richText.test.tsx`: T16 to T21 added; the helper `paste` gains a
+`keepSelection` argument and the helpers `selectImage` and `selectAll` are
+added. The fourteen earlier tests are unchanged.
+
+### Red, at `c4d93b9`
+
+```
+$ npx tsc -b; echo $?
+0
+$ npx vitest run test/richText.test.tsx; echo $?
+ Test Files  1 failed (1)
+      Tests  5 failed | 15 passed (20)
+1
+$ npm test; echo $?
+ ❯ test/richText.test.tsx (20 tests | 5 failed)
+ Test Files  1 failed | 10 passed (11)
+      Tests  5 failed | 75 passed (80)
+1
+```
+
+Only the new tests fail. The fourteen earlier tests and the guard T19 pass.
+
+| Id | Test | Message |
+| --- | --- | --- |
+| T16 | an image inserted while a paste is being checked is kept | `AssertionError: expected [] to deeply equal [ Array(1) ]` |
+| T17 | an image selected while a paste is being checked is kept | `AssertionError: expected [] to deeply equal [ Array(1) ]` |
+| T18 | a document selected while a paste is being checked is kept | `AssertionError: expected [] to deeply equal [ Array(1) ]` |
+| T20 | a paste that is added clears the notice that nothing was added | `AssertionError: expected 'The paste could not be checked, so no…' to be null` |
+| T21 | a paste that is added clears the notice that a drop was refused | `AssertionError: expected 'The dropped content included an image…' to be null` |
+
+T19 (`a paste over a selection replaces that selection`) passes before and
+after: it holds the behaviour the fix must keep.
+
+### Green, at `1177ac7`
+
+```
+$ npx vitest run test/richText.test.tsx; echo $?
+ Test Files  1 passed (1)
+      Tests  20 passed (20)
+0
+$ npm test; echo $?
+ Test Files  11 passed (11)
+      Tests  80 passed (80)
+0
+$ npx tsc -b; echo $?
+0
+$ VITE_PUBLIC_SITE_URL=https://website.ci.invalid npm run build; echo $?
+✓ built in 1.30s
+Preview design: /website-design/d1ebe4132f8cfa8e/ matches website/design/ byte for byte.
+0
+$ git -C /home/user/dh-change-adm03 diff --exit-code -- studio/package-lock.json studio/package.json; echo $?
+0
+$ git -C /home/user/dh-change-adm03 status --short; echo $?
+0
+```
+
+The scratch type check of the e2e files (section 4) gave exit 0 again. No port
+was used and nothing wrote to any database.
+
+### Behaviour changes for the owner, added this round
+
+Section 9 carries them: item 4 is rewritten, and item 9 is new.
 
 ## 1. The session was restarted part-way
 
@@ -46,7 +259,7 @@ paths and carries the attribution trailer.
 | --- | --- |
 | 1. `onUpdate` only reports | `onUpdate` calls `onChange(cleanDocument(current.getJSON()))` and nothing else. The `raw.includes('"src"')` test and the call to the filter are gone. |
 | 2. The filter runs for a paste | `handlePaste(view, event, slice)`. Image files on the clipboard: unchanged. No image node in the slice (`hasImage`): `false`. Otherwise `true`, and `filteredPaste` sends the slice only, as a bare list: `slice.content.toJSON().map(cleanNode).map(withoutUnknownMediaIds)`, through `request` and `jsonInit` (A-12). |
-| 3. The answer is inserted, never set | `filteredPaste` replaces `filterPaste`. After the answer: if the editor is gone (`mounted` ref false, or `view.isDestroyed`), nothing. If the `replaced` counter moved, or the request failed, threw, or gave no body: the notice "The paste could not be checked, so nothing was added. Paste again." and nothing inserted. Otherwise one transaction, `view.state.tr.replaceSelection(piece)`, where `piece` is a `Slice` over `Fragment.fromJSON(schema, content)` with the pasted slice's open depths capped by `Slice.maxOpen(fragment)`. An empty fragment inserts nothing. A fragment that cannot be built gives the same "could not be checked" notice. `imagesDropped` shows the existing image notice. `setContent` is no longer called from the paste path. |
+| 3. The answer is inserted, never set | `filteredPaste` replaces `filterPaste`. After the answer: if the editor is gone (`mounted` ref false, or `view.isDestroyed`), nothing. If the `replaced` counter moved, or the request failed, threw, or gave no body: the notice "The paste could not be checked, so nothing was added. Paste again." and nothing inserted. Otherwise one transaction, `view.state.tr.replaceSelection(piece)`, where `piece` is a `Slice` over `Fragment.fromJSON(schema, content)` with the pasted slice's open depths capped by `Slice.maxOpen(fragment)`. An empty fragment inserts nothing. A fragment that cannot be built gives the same "could not be checked" notice. `imagesDropped` shows the existing image notice. `setContent` is no longer called from the paste path. **Round 2 (`1177ac7`):** a selection made after the paste is not replaced; the answer goes in after it (section R). |
 | 4. Only a library image survives a paste | `StudioImage.parseHTML()` returns `img[mediaid]`, then the parent's `img[src]:not([src^="data:"])`. The module-level set `knownMediaIds` (lower case) is filled in three places only: the document the editor is created with, a document the `value` effect sets, and `insertImage`. `withoutUnknownMediaIds` sets `mediaId` to `null` on every image node, at any depth, whose id is not in the set, before the slice is sent. |
 | 5. An outside drop with an image is refused | `handleDrop(_view, _event, slice, moved)`: `false` when `moved` or when the slice has no image; otherwise the notice "The dropped content included an image, so it was not added. Use the image button for images." and `true`. |
 | 6. The Markdown image pattern stays text | `StudioImage.addInputRules()` returns `[]`. |
@@ -80,6 +293,8 @@ paths and carries the attribution trailer.
 
 - Fourteen tests in `describe("ADM-03 rich text images")`, named as the plan's
   table names them; a comment above each gives its id. T3 is not written.
+  **Round 2 (`c4d93b9`):** T16 to T21 are added, twenty tests in all
+  (section R).
 - Setup as the plan lists it: jsdom, the `VITE_PUBLIC_SITE_URL` stub, the
   `matchMedia`, `ResizeObserver`, `getClientRects`, `getBoundingClientRect` and
   `elementFromPoint` stubs (in this file only; they assert nothing), the mocked
@@ -245,8 +460,8 @@ Run at `da940bb` content and again at `eff1880`: exit 0 both times.
 
 | Check | Why not | Covered by |
 | --- | --- | --- |
-| E1 and E2, red on commit 1 | No SQL Server and no API in this container; the harness needs `DigitalHubContent_E2e`. Nothing is pushed, so CI has not run | CI `studio` ("Studio — typecheck, build, end-to-end") on `0975b00` pushed alone (plan 5.4, condition 13). The integrator's step |
-| E1 and E2, green; the rest of the Studio end-to-end suite | Same | CI `studio` on the final head |
+| E1 and E2, red on commit 1 | No SQL Server and no API in this container; the harness needs `DigitalHubContent_E2e` | CI `studio` ("Studio — typecheck, build, end-to-end") on `0975b00` pushed alone by the integrator: run `42956506481`, `failure`, E1 and E2 the only failures (section R) |
+| E1 and E2, green; the rest of the Studio end-to-end suite | Same | CI `studio` on `59d3c65`: run `42957284006`, `30 passed` (section R). On the round-2 head: the next pushed head |
 | API tests (`dotnet test tests/DigitalHub.Api.Tests -c Release`) | No `api/` file changes; the database-backed tests need SQL Server | CI `api` |
 | Website tests, browser tests, `section-compare`, `security.yml`, `workflow-lint.yml` | No file of theirs changes | Their CI jobs on the final head |
 | The optional re-run of server runs A to F (plan 5.3) | Optional; `RichText.cs` is untouched and the plan's 2.3 (b) holds the output | CI `studio`, E2, against the real route |
@@ -292,11 +507,11 @@ back.
 throwaway test that is not committed: after `insertImage` at the end of a
 document, the document is paragraph, image, empty paragraph, and the selection
 is a node selection on the image. So the trailing paragraph is there, no
-`Enter` is needed, and `Control+End` is needed. In a browser this is NOT RUN.
+`Enter` is needed, and `Control+End` is needed.
 
-**Not run in a browser at all:** whether the synthetic `ClipboardEvent` reaches
-ProseMirror in Chromium (plan section 10). If E2 fails at "Pasted line" after
-the fix, that is reported with the CI log and no assertion is weakened
+**In a browser (round 2):** E2 passed in CI on `59d3c65` (section R), so in
+Chromium the caret lands in the paragraph and the synthetic `ClipboardEvent`
+reaches ProseMirror (plan section 10). No assertion was weakened
 (condition 15).
 
 ## 7. Security
@@ -337,6 +552,9 @@ the fix, that is reported with the CI log and no assertion is weakened
   project thread), given for ADM-06b. The integrator has told the owner in the
   thread that it will push the failing browser test first, as before. That
   notice is the integrator's, not an owner answer. I pushed nothing.
+  **Round 2:** the integrator then pushed `0975b00` alone as draft pull request
+  #52: pushed on the integrator's notice to the owner, following the ADM-06a
+  and ADM-06b precedent; no owner answer for ADM-03.
 - **O-ADM03-2 (insert an image the library marks decorative as decorative).**
   Asked by card with a recommendation of "Yes". Unanswered. So T3, the S11
   expectation in `listPaging.test.tsx`, `MediaPicker.tsx` and the `decorative`
@@ -356,9 +574,15 @@ its text is kept and only its image is removed.**
 3. Two new notices: "The paste could not be checked, so nothing was added.
    Paste again." and "The dropped content included an image, so it was not
    added. Use the image button for images."
-4. Content pasted with an image lands at the caret when the check returns, so
-   it can follow text typed in that moment. Two such pastes made one straight
-   after the other can land in the other order. Nothing is lost.
+4. Content pasted with an image is added when the check returns, not at once.
+   It lands at the caret, so it can follow text typed in that moment. If
+   something was selected after the paste was made (the Image button leaves its
+   new image selected), it lands after that selection and replaces nothing.
+   Two such pastes made one straight after the other can land in the other
+   order. What is in the editor is kept; only what was selected when the paste
+   was made is replaced, as any paste does. The pasted content itself is not
+   added if the check fails (item 3's notice), if another item is opened
+   meanwhile (item 5), or if the field is closed meanwhile (no notice).
 5. If another item is opened in the same editor while a paste is being checked,
    that paste is not added, and the "could not be checked" notice shows.
 6. A library image copied in another browser tab, or in another Studio, is
@@ -370,6 +594,9 @@ its text is kept and only its image is removed.**
    makes a copy.
 8. A paste of table cells that hold an image is added as a table at the caret,
    not merged into the selected cells.
+9. (Round 2.) The two new notices of item 3 go away when a later paste is
+   added. The older notice, "This paste included an image. Use the image
+   button so you can add alt text.", still stays until the editor is reloaded.
 
 ## 10. For ADM-22
 
@@ -377,7 +604,9 @@ Found here and left alone (plan section 4):
 
 - The editor shows an image as its alt text, not as a picture: `src` is
   `rendered: false`, and a stored node has no path.
-- A notice, once shown, stays until the editor is reloaded.
+- The image notice, once shown, stays until the editor is reloaded. (Round 2:
+  the two notices this change adds are cleared by a later paste that is added;
+  nothing else clears them.)
 - StarterKit lets the editor make marks and nodes the server refuses on save
   (for example strike and underline); only image-carrying pastes are filtered.
 - A paste of table cells that hold an image goes through the filter and is
@@ -417,6 +646,15 @@ Nothing in the plan's Scope, design or test list was changed. For review:
   `studio/src/api/http.ts` can throw as well as return `ok: false`.
 - The red run was made on the working tree just before commit 2, not on a
   checkout of `da940bb`; the test files are identical (section 4).
+- **Round 2.** Plan 3.1 (3) says the answer is inserted with
+  `replaceSelection` "at the selection of that moment". After `1177ac7` that
+  holds for a caret and for the selection the paste was made over. For a
+  selection made later, the answer is inserted after it (section R, with the
+  reason and the note for the architect). The plan's "Nothing is lost" is
+  stated exactly in section R.
+- **Round 2.** A later paste that is added clears this change's two notices.
+  The plan lists "a notice, once shown, stays" as left for ADM-22; that is now
+  true of the image notice only.
 
 ## 13. Coverage table
 
@@ -425,21 +663,25 @@ Nothing in the plan's Scope, design or test list was changed. For review:
 | Fix: filter only real paste events, in `handlePaste` | Audit ADM-03, Fix 1 | Done | `eff1880`; T4 (one request, a list, the slice only), T7 (no request without an image), T1 and T2 (no request when typing or inserting), red at `da940bb`, green at `eff1880` |
 | Fix: keep image nodes with a valid `mediaId` | Audit ADM-03, Fix 2 | Done | `eff1880`; T1, T2, T6, T14 red then green |
 | Fix: never replace the document from `onUpdate` | Audit ADM-03, Fix 3 | Done | `eff1880`: `onUpdate` only calls `onChange`; T1, T5 red then green |
-| Inserting a library image keeps it | Audit ADM-03, bullet 3 | Done locally; browser NOT RUN | T2 red then green. E2: CI `studio` |
-| Typing after an existing image keeps every character | Audit ADM-03, bullet 3 | Done locally; browser NOT RUN | T1 ("After Edited.") red then green. E1: CI `studio` |
-| A stored library image survives editing, saving and a reload | Audit ADM-03, title; FR-S-06 | NOT RUN locally | E1 (`0975b00`), type-checked; CI `studio` |
-| A pasted web image is still dropped, with its notice | `docs/phase-b-studio.md` 7.7, 6.9 | Done locally; browser NOT RUN | T4 red then green. E2: CI `studio` |
-| The paste filter is still the server's | `docs/phase-b-studio.md` 7.7 | Done; real route NOT RUN | `filteredPaste` posts to `/api/v1/rich-text/paste`; no `api/` file changed. E2 against the real route: CI `studio` |
+| Inserting a library image keeps it | Audit ADM-03, bullet 3 | Done; in a browser in CI | T2 red then green. E2 red on `0975b00`, green on `59d3c65` (section R) |
+| Typing after an existing image keeps every character | Audit ADM-03, bullet 3 | Done; in a browser in CI | T1 ("After Edited.") red then green. E1 red on `0975b00`, green on `59d3c65` (section R) |
+| A stored library image survives editing, saving and a reload | Audit ADM-03, title; FR-S-06 | Done in CI; NOT RUN locally (no SQL Server) | E1: CI run `42957284006` on `59d3c65` (section R) |
+| A pasted web image is still dropped, with its notice | `docs/phase-b-studio.md` 7.7, 6.9 | Done; in a browser in CI | T4 red then green. E2 green on `59d3c65` (section R) |
+| The paste filter is still the server's | `docs/phase-b-studio.md` 7.7 | Done; real route in CI | `filteredPaste` posts to `/api/v1/rich-text/paste`; no `api/` file changed. E2 against the real route, answer 200: CI run `42957284006` |
 | No image without a media id enters by drop or by typing | Found here (plan 2.3 c) | Done | T11, T12 red then green |
 | A pasted media id the session did not get from the API is dropped; no pasted address is sent or rendered | `plan-review.md` Round 1, finding 1; P-4 | Done | T13, pasted twice (condition 6), red then green |
 | A paste answer never lands in a replaced document | `plan-review.md` Round 1, finding 5 | Done | T15 red then green; T9 for an unmounted editor |
+| What is typed, inserted or selected while a paste is checked is kept | Plan 3.1 (3); `test-report.md` round 1, finding 1 | Done (round 2) | T5; T16, T17, T18 red at `c4d93b9`, green at `1177ac7`; T19 guards the paste-time selection |
+| The "not added" notices do not outlive a paste that is added | `test-report.md` round 1, finding 2 | Done (round 2) | T20, T21 red at `c4d93b9`, green at `1177ac7` |
+| The record says who pushed, the CI runs, and what can be lost | `test-report.md` round 1, finding 3 | Done (round 2) | Section R |
+| The pull request body has condition 14's three sections | `test-report.md` round 1, finding 4; condition 14 | Not mine: the integrator's step | Sections 9, 10, 11 are the text |
 | Library check on the error-page save | `plan-review.md` Round 1, finding 1 | Moved to ADM-05 | Section 11 |
 | Paste of table cells with an image; image copied in another tab | `plan-review.md` Round 1, findings 1 and 5 | Moved to ADM-22 | Section 10 |
 | A decorative library image is inserted as decorative | Found here (plan 2.3 c) | Not built: O-ADM03-2 is unanswered. Moves to ADM-22 if "No" or unanswered at gate 2 | Section 8; section 10, last bullet |
 | The editor shows the picture, not only its alt text | Found here (plan 2.3 a) | Moved to ADM-22 | Section 10 |
 | A notice clears; marks the server refuses | Found here (plan 4) | Moved to ADM-22 | Section 10 |
-| Regression tests committed and shown failing before the fix | G3 checklist; refinement plan Track G3 | Done for the render tests. E1 and E2 red: NOT RUN | `0975b00` and `da940bb` precede `eff1880`; `12 failed | 2 passed (14)` at `da940bb` (section 4). E1 and E2 red needs commit 1 pushed alone: CI `studio`, the integrator's step (section 8, O-ADM03-1) |
-| Studio end-to-end test for rich-text images | G3 exit gate | Written, type-checked; NOT RUN | `0975b00`; scratch `tsc` exit 0; CI `studio` |
-| `tsc -b`, `npm test` and `npm run build` pass | Plan 5.3; CI `studio` | Done | Section 4: exit 0, `74 passed (74)`, build exit 0 with the preview design check |
+| Regression tests committed and shown failing before the fix | G3 checklist; refinement plan Track G3 | Done | `0975b00` and `da940bb` precede `eff1880`; `12 failed | 2 passed (14)` at `da940bb` (section 4). E1 and E2 red in CI on `0975b00` alone, run `42956506481` (section R). Round 2: `c4d93b9` precedes `1177ac7`, `5 failed | 15 passed (20)` |
+| Studio end-to-end test for rich-text images | G3 exit gate | Done in CI; NOT RUN locally (no SQL Server) | Red on `0975b00`, green on `59d3c65` (section R). On the round-2 head: NOT RUN until it is pushed; CI `studio` |
+| `tsc -b`, `npm test` and `npm run build` pass | Plan 5.3; CI `studio` | Done | Section R, at `1177ac7`: exit 0, `80 passed (80)`, build exit 0 with the preview design check |
 
 Status: READY FOR TEST
