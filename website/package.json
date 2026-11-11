@@ -16,6 +16,7 @@
     "check:csp": "tsx scripts/check-csp.ts",
     "strip:runtime": "tsx scripts/strip-runtime.ts",
     "check:output": "tsx scripts/check-output.ts",
+    "check:content": "tsx scripts/check-content.ts",
     "design:check": "tsx scripts/design-sources.ts",
     "design:port": "tsx scripts/design-sources.ts --write",
     "typecheck": "tsc --noEmit",
