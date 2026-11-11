@@ -242,6 +242,10 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         var errors = ValidateSettings(request);
         if (request.Version is null or < 0)
             Add(errors, "version", "Version is required.");
+        // An id that is not in the library would fail the foreign key as a 500 (ADM-10, G-1).
+        if (request.DefaultShareImageIdSent && request.DefaultShareImageId is { } shareImageId
+            && !await db.Media.AnyAsync(asset => asset.Id == shareImageId, cancellationToken))
+            Add(errors, "defaultShareImageId", "Choose an image from the media library.");
         if (errors.Count > 0)
             return Validation(errors);
 
@@ -281,8 +285,11 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         settings.Country = TrimOrNull(request.Country);
         settings.DefaultMetaTitle = TrimOrNull(request.DefaultMetaTitle);
         settings.DefaultMetaDescription = TrimOrNull(request.DefaultMetaDescription);
-        settings.DefaultShareImageId = request.DefaultShareImageId;
-        settings.DefaultShareImageAltOverride = TrimOrNull(request.DefaultShareImageAltOverride);
+        // ADM-10: a body that leaves either field out keeps the stored value; null clears.
+        if (request.DefaultShareImageIdSent)
+            settings.DefaultShareImageId = request.DefaultShareImageId;
+        if (request.DefaultShareImageAltOverrideSent)
+            settings.DefaultShareImageAltOverride = TrimOrNull(request.DefaultShareImageAltOverride);
         settings.OrganizationName = TrimOrNull(request.OrganizationName);
         settings.LegalName = TrimOrNull(request.LegalName);
         settings.AnalyticsContainerId = TrimOrNull(request.AnalyticsContainerId);
@@ -823,6 +830,7 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         LimitText(errors, "cookieRejectLabel", request.CookieRejectLabel, 80);
         LimitText(errors, "cookieAnalyticsLabel", request.CookieAnalyticsLabel, 80);
         LimitText(errors, "cookieSettingsLabel", request.CookieSettingsLabel, 80);
+        LimitText(errors, "defaultShareImageAltOverride", request.DefaultShareImageAltOverride, 300);
         return errors;
     }
 
@@ -1165,8 +1173,28 @@ public sealed class SiteSettingsUpdate
     public string? Country { get; set; }
     public string? DefaultMetaTitle { get; set; }
     public string? DefaultMetaDescription { get; set; }
-    public Guid? DefaultShareImageId { get; set; }
-    public string? DefaultShareImageAltOverride { get; set; }
+    private Guid? _defaultShareImageId;
+    private string? _defaultShareImageAltOverride;
+
+    public Guid? DefaultShareImageId
+    {
+        get => _defaultShareImageId;
+        set { _defaultShareImageId = value; DefaultShareImageIdSent = true; }
+    }
+
+    public string? DefaultShareImageAltOverride
+    {
+        get => _defaultShareImageAltOverride;
+        set { _defaultShareImageAltOverride = value; DefaultShareImageAltOverrideSent = true; }
+    }
+
+    /// <summary>False when the body had no defaultShareImageId: the save keeps the stored one (ADM-10).</summary>
+    /// <remarks>Internal, so System.Text.Json and the bundle import's reflection over the public properties never see it.</remarks>
+    internal bool DefaultShareImageIdSent { get; private set; }
+
+    /// <summary>False when the body had no defaultShareImageAltOverride: the save keeps the stored one (ADM-10).</summary>
+    internal bool DefaultShareImageAltOverrideSent { get; private set; }
+
     public string? OrganizationName { get; set; }
     public string? LegalName { get; set; }
     public string? AnalyticsContainerId { get; set; }
