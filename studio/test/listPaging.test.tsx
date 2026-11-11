@@ -152,6 +152,8 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  // Nothing rendered outside render()'s own root may outlive a test.
+  expect(document.body.innerHTML).toBe("");
 });
 
 describe("contact inbox paging", () => {
