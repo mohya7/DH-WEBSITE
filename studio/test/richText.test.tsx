@@ -207,6 +207,18 @@ function mount(initial: string, other?: string) {
         dom().editor.commands.selectAll();
       });
     },
+    // A caret at the end of the first text node that reads `text`, with no focus call.
+    async caretAtEndOf(text: string) {
+      await act(async () => {
+        let end = -1;
+        dom().editor.state.doc.descendants((node: { isText: boolean; text?: string; nodeSize: number }, position: number) => {
+          if (end < 0 && node.isText && node.text === text) end = position + node.nodeSize;
+        });
+        dom().editor.commands.setTextSelection(end);
+      });
+    },
+    // "text" for a caret or a text range, "node" when a node such as an image is selected.
+    selectionType: () => dom().editor.state.selection.toJSON().type as string,
     images: () => (dom().editor.getJSON().content as Node[]).filter((node) => node.type === "image"),
     text: () => dom().editor.getText() as string,
     notice: () => view.container.querySelector("p.mt-2")?.textContent ?? null,
@@ -325,6 +337,12 @@ describe("ADM-03 rich text images", () => {
 
     expect(editor.images().map((node) => node.attrs?.mediaId)).toEqual([storedId, storedId]);
     expect(editor.notice()).toBeNull();
+
+    // Plan round 6: the pasted image is not left selected, so the next key keeps it.
+    expect(editor.selectionType()).toBe("text");
+    await editor.typeAtSelection("X");
+    expect(editor.images().map((node) => node.attrs?.mediaId)).toEqual([storedId, storedId]);
+    expect(editor.lastDocument().content.at(-1)).toEqual(paragraph("X"));
   });
 
   // T7. A guard: it passes before the fix too.
@@ -470,6 +488,11 @@ describe("ADM-03 rich text images", () => {
     await second.paste(copied);
     await settle();
 
+    expect(second.images().map((node) => node.attrs?.mediaId)).toEqual([otherFieldId]);
+
+    // Plan round 6: the pasted image is not left selected, so the next key keeps it.
+    expect(second.selectionType()).toBe("text");
+    await second.typeAtSelection("X");
     expect(second.images().map((node) => node.attrs?.mediaId)).toEqual([otherFieldId]);
   });
 
@@ -658,5 +681,191 @@ describe("ADM-03 rich text images", () => {
 
     expect(editor.images().map((node) => node.attrs?.mediaId)).toEqual([diagramId]);
     expect(editor.lastDocument().content).toEqual([image(diagramId, "Diagram"), paragraph("After the image.")]);
+  });
+
+  /*
+   * T25 to T32: plan round 6 (5.6), after the test report's round 3. A pasted
+   * image that ends up last in the document must not be left selected: a
+   * selected image is replaced by the next key. Each test but T30 checks the
+   * selection and then presses one key where the paste left the selection,
+   * with no caret move in between.
+   */
+
+  const longDocument = documentOf(paragraph("Top"), image(storedId, "Chart"), paragraph("Middle"), paragraph("Bottom"));
+  const imageHtml = (editor: Mounted) => (editor.dom().querySelector("img") as HTMLImageElement).outerHTML;
+
+  // T25.
+  it("text and a library image pasted at the end are kept when typing follows", async () => {
+    const editor = mount(longDocument);
+    await settle();
+
+    await editor.paste(`<p>Pasted</p>${imageHtml(editor)}`);
+    await settle();
+
+    expect(editor.selectionType()).toBe("text");
+    await editor.typeAtSelection("X");
+    expect(editor.images().map((node) => node.attrs?.mediaId)).toEqual([storedId, storedId]);
+    expect(editor.lastDocument().content.slice(-3)).toEqual([paragraph("BottomPasted"), image(storedId, "Chart"), paragraph("X")]);
+  });
+
+  // T26.
+  it("an image cut and pasted at the end is kept when typing follows, and undo takes back only the typing", async () => {
+    const editor = mount(longDocument);
+    await settle();
+    const cut = imageHtml(editor);
+
+    await editor.selectImage();
+    await act(async () => {
+      editor.dom().editor.commands.deleteSelection();
+    });
+    expect(editor.images()).toHaveLength(0);
+    await editor.paste(cut);
+    await settle();
+
+    expect(editor.selectionType()).toBe("text");
+    await editor.typeAtSelection("X");
+    expect(editor.images().map((node) => node.attrs?.mediaId)).toEqual([storedId]);
+    expect(editor.lastDocument().content).toEqual([
+      paragraph("Top"),
+      paragraph("Middle"),
+      paragraph("Bottom"),
+      image(storedId, "Chart"),
+      paragraph("X"),
+    ]);
+
+    await act(async () => {
+      editor.dom().editor.commands.undo();
+    });
+    expect(editor.images().map((node) => node.attrs?.mediaId)).toEqual([storedId]);
+    expect(editor.text()).not.toContain("X");
+    expect(api.pastes).toHaveLength(1);
+  });
+
+  // T27. Another field holds the image first, so its id is known, as in T14.
+  it("a library image pasted into an empty field is kept when typing follows", async () => {
+    const holder = mount(stored);
+    await settle();
+    const editor = mount("");
+    await settle();
+
+    await editor.paste(imageHtml(holder));
+    await settle();
+
+    expect(editor.selectionType()).toBe("text");
+    await editor.typeAtSelection("X");
+    expect(editor.lastDocument().content).toEqual([image(storedId, "Chart"), paragraph("X")]);
+  });
+
+  // T28.
+  it("two library images pasted at the end are both kept when typing follows", async () => {
+    const editor = mount(stored);
+    await settle();
+
+    const copied = imageHtml(editor);
+    await editor.paste(copied + copied);
+    await settle();
+
+    expect(editor.selectionType()).toBe("text");
+    await editor.typeAtSelection("X");
+    expect(editor.images().map((node) => node.attrs?.mediaId)).toEqual([storedId, storedId, storedId]);
+    expect(editor.lastDocument().content.at(-1)).toEqual(paragraph("X"));
+  });
+
+  // T29. The answer arrives after the whole document was selected, so it is inserted after the selection.
+  it("a late paste answer that ends in an image keeps it when typing follows", async () => {
+    api.held = [];
+    const editor = mount(stored);
+    await settle();
+
+    await editor.paste(`<p>Pasted</p>${imageHtml(editor)}`);
+    await editor.selectAll();
+    await release();
+
+    expect(editor.selectionType()).toBe("text");
+    await editor.typeAtSelection("X");
+    expect(editor.images().map((node) => node.attrs?.mediaId)).toEqual([storedId, storedId]);
+    expect(editor.lastDocument().content.slice(-3)).toEqual([paragraph("Pasted"), image(storedId, "Chart"), paragraph("X")]);
+  });
+
+  // T30. A guard: it passes before the fix too. Nothing in this change may run when a document is loaded or replaced.
+  it("opening a document changes nothing", async () => {
+    const withoutSrc = (node: Node): Node => {
+      const next: Node = { ...node };
+      if (node.type === "image" && node.attrs !== undefined) {
+        const { src: _src, ...attrs } = node.attrs;
+        next.attrs = attrs;
+      }
+      if (node.content !== undefined) next.content = node.content.map(withoutSrc);
+      return next;
+    };
+    const twoImages = documentOf(image(storedId, "Chart"), paragraph("Mid"), image(storedId, "Chart"));
+    const imageAlone = documentOf(image(storedId, "Chart"));
+    const imageAndList = documentOf(image(storedId, "Chart"), {
+      type: "bulletList",
+      content: [{ type: "listItem", content: [paragraph("one")] }],
+    });
+
+    for (const document of [twoImages, imageAlone, imageAndList]) {
+      const editor = mount(document, twoImages);
+      await settle();
+
+      expect(editor.seen).toEqual([]);
+      expect(editor.dom().editor.can().undo()).toBe(false);
+      expect(withoutSrc(editor.dom().editor.getJSON() as Node)).toEqual(JSON.parse(document));
+
+      // The host replaces the value from outside, as opening another item does.
+      await act(async () => {
+        fireEvent.click(editor.view.getByText("open another item"));
+      });
+      await settle();
+      expect(editor.seen).toEqual([]);
+
+      editor.view.unmount();
+    }
+  });
+
+  // T31. A guard: it passes before the fix too. With text after it, a pasted image already leaves a caret.
+  it("a library image pasted before following text leaves a caret", async () => {
+    const editor = mount(longDocument);
+    await settle();
+
+    await editor.caretAtEndOf("Middle");
+    await editor.paste(imageHtml(editor), true);
+    await settle();
+
+    expect(editor.selectionType()).toBe("text");
+    await editor.typeAtSelection("X");
+    expect(editor.images().map((node) => node.attrs?.mediaId)).toEqual([storedId, storedId]);
+    expect(editor.text()).toContain("XBottom");
+  });
+
+  // T32. Another field holds the image first, so its id is known, as in T14.
+  it("redoing a pasted image does not leave it selected", async () => {
+    const holder = mount(stored);
+    await settle();
+    const editor = mount(documentOf(paragraph("Top")));
+    await settle();
+
+    await editor.paste(imageHtml(holder));
+    await settle();
+    expect(editor.images()).toHaveLength(1);
+
+    const tiptap = editor.dom().editor;
+    for (let steps = 0; steps < 10 && editor.images().length > 0; steps += 1) {
+      await act(async () => {
+        tiptap.commands.undo();
+      });
+    }
+    expect(editor.images()).toHaveLength(0);
+    for (let steps = 0; steps < 10 && editor.images().length === 0; steps += 1) {
+      await act(async () => {
+        tiptap.commands.redo();
+      });
+    }
+    expect(editor.images()).toHaveLength(1);
+
+    expect(editor.selectionType()).toBe("text");
+    await editor.typeAtSelection("X");
+    expect(editor.images().map((node) => node.attrs?.mediaId)).toEqual([storedId]);
   });
 });

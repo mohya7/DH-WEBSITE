@@ -213,13 +213,27 @@ test("ADM-03 rich text: an inserted image stays, and a pasted web image is filte
   const sent = (pastes[0].postDataJSON() as { document: string }).document;
   expect(sent).not.toContain('"src"');
 
+  // A second paste: the library image picked above, as the editor's own HTML
+  // for it. It is kept, and typing straight after it, with no key before,
+  // keeps it too: a pasted image is not left selected.
+  await body.evaluate((element, html) => {
+    const data = new DataTransfer();
+    data.setData("text/html", html);
+    element.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+  }, `<img mediaid="${mediaId}" alt="${alt}" decorative="false">`);
+  await expect(image).toHaveCount(2);
+  expect(pastes, "paste requests after two pastes").toHaveLength(2);
+  await page.keyboard.type("Typed after the paste.");
+  await expect(image).toHaveCount(2);
+  await expect(body).toContainText("Typed after the paste.");
+
   await page.getByRole("button", { name: "Save content" }).click();
   await expect(page.getByText("Saved.")).toBeVisible();
 
   await page.reload();
   await expect(page.locator("[data-field='title'] input")).toHaveValue(title);
   await page.locator("article.section-card").getByRole("button", { name: "Edit", exact: true }).click();
-  await expect(image).toHaveCount(1);
+  await expect(image).toHaveCount(2);
   await expect(body).toContainText("Intro.");
   await expect(body).toContainText("After the image.");
   await expect(body).toContainText("Pasted line");
