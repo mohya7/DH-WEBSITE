@@ -639,4 +639,339 @@ there is no Blocker or Major. Round 1's findings 1 to 3 are closed. Open: round
 1 finding 4 and round 2 findings 5 and 6, all Minor, all records, all for the
 integrator and gate 2.
 
-Verdict: APPROVED
+Round 2 result: APPROVED (no Blocker, no Major). Lapsed: see round 3.
+
+## Round 3
+
+Tester and security engineer, 11 November 2026. A full round, as condition 28
+of `plan-approval.md` ("Gate 1 again: plan round 4") asks, because `studio/src`
+changed. My round 2 approval lapsed when E2 failed in CI on `7aece22`.
+
+- **Commit tested:** `2e3f510` (`2e3f5109f465…`), the pushed head of
+  `change/ADM-03`. New since round 2's head `aef22b5`, outside records:
+  `48f256f` (T22, red), `10ef86d` (tests: T16's new document, T23, T24, E2
+  without `Control+End`), `40ad04a` (fix, `RichTextEditor.tsx` only), `2e3f510`
+  (`implementation.md` section 17). The remote head was still `2e3f510` when I
+  finished.
+- **Where:** a fresh detached worktree, `/home/user/dh-test-adm03`, removed at
+  the end. No commit, push, rebase or amend; no port; no database; no source,
+  test, lockfile or workflow changed. This section is the only thing written.
+- **Read:** `plan.md` round 4, `plan-review.md` Round 4, `plan-approval.md`
+  "Gate 1 again: plan round 4" (conditions 17 to 30), `implementation.md`
+  sections 16 and 17.
+- **What I missed in rounds 1 and 2.** Round 1's probe log already showed a
+  pasted image carrying the editor's selected-node class, and round 2 wrote
+  that a paste straight after the Image button replaces the new image, as
+  "one thing to know, not a finding". I never asked what the next key does to
+  a selected image. Gate 1 says the same of itself. This round asks it for
+  every way an image comes to be selected, and that is where finding 1 below
+  comes from.
+
+### 1. Red, then green
+
+Setup: `npm ci` exit 0, `found 0 vulnerabilities`;
+`git diff --exit-code -- studio/package-lock.json studio/package.json` exit 0.
+
+**Red, on a checkout of `48f256f`** (T22 alone):
+
+```
+$ npx tsc -b; echo $?
+0
+$ npx vitest run test/richText.test.tsx; echo $?
+     × typing straight after inserting a library image keeps the image
+AssertionError: expected [] to deeply equal [ Array(1) ]
+      Tests  1 failed | 20 passed (21)
+1
+$ npm test
+      Tests  1 failed | 80 passed (81)
+```
+
+**Red, on a checkout of `10ef86d`** (commit A; the editor is still `1177ac7`'s):
+
+```
+$ npx tsc -b; echo $?
+0
+$ npx vitest run test/richText.test.tsx; echo $?
+ Test Files  1 failed (1)
+      Tests  4 failed | 19 passed (23)
+1
+$ npm test
+ Test Files  1 failed | 10 passed (11)
+      Tests  4 failed | 79 passed (83)
+```
+
+| Id | Test | Message, as printed |
+| --- | --- | --- |
+| T16 | an image inserted while a paste is being checked is kept | `AssertionError: expected [ { type: 'paragraph', …(1) }, …(3) ] to deeply equal [ { type: 'paragraph', …(1) }, …(2) ]` |
+| T22 | typing straight after inserting a library image keeps the image | `AssertionError: expected [] to deeply equal [ Array(1) ]` |
+| T23 | inserting a library image before another image leaves neither selected | `AssertionError: expected [ Array(1) ] to deeply equal [ …(2) ]` |
+| T24 | inserting a library image into an empty field keeps it when typing follows | `AssertionError: expected [] to deeply equal [ Array(1) ]` |
+
+Each is an assertion about the editor; no "is not a function" or "is not
+defined" line in either red run. These are the counts of condition 18.
+Against `aef22b5`, the test file's diff adds the `typeAtSelection` helper, T22,
+T23 and T24, and changes one thing in an existing test: T16's expected
+document and its comment. No other test is edited.
+
+**Green, on a checkout of `40ad04a`, and again on `2e3f510`** (same result on
+both):
+
+```
+$ npx vitest run test/richText.test.tsx; echo $?
+ Test Files  1 passed (1)
+      Tests  23 passed (23)
+0
+$ npm test; echo $?
+ Test Files  11 passed (11)
+      Tests  83 passed (83)
+0
+$ npx tsc -b; echo $?
+0
+$ VITE_PUBLIC_SITE_URL=https://website.ci.invalid npm run build; echo $?
+✓ built in 815ms            (883ms on 2e3f510)
+Preview design: /website-design/d1ebe4132f8cfa8e/ matches website/design/ byte for byte.
+0
+$ git status --short            (prints nothing)
+$ git diff --exit-code -- studio/package-lock.json studio/package.json; echo $?
+0
+$ npm audit --audit-level=high
+found 0 vulnerabilities
+```
+
+The 23 tests also pass with the fake swapped for the real
+`RichText.FilterPaste` (scratch console, rebuilt from this commit's
+`RichText.cs`).
+
+### 2. Scope
+
+| Commit | Files |
+| --- | --- |
+| `48f256f` | `studio/test/richText.test.tsx` |
+| `10ef86d` | `studio/test/richText.test.tsx`, `studio/e2e/rich-text.spec.ts` |
+| `40ad04a` | `studio/src/content/RichTextEditor.tsx` |
+| `2e3f510` | `docs/changes/ADM-03/implementation.md` |
+
+- Outside `docs/changes/ADM-03/`, the whole branch (`77296ba..2e3f510`) still
+  changes four files only: the editor, the render test, its fake, the e2e spec.
+- `git diff --quiet 77296ba 2e3f510 --` over `studio/package.json`,
+  `studio/package-lock.json`, `studio/src/content/MediaPicker.tsx`, `api`,
+  `website`, `packages`, `.github`, `studio/tsconfig*.json`,
+  `studio/vitest.config.ts`, `studio/playwright.config.ts`,
+  `studio/e2e/env.ts`, `studio/e2e/helpers.ts`: exit 0.
+- The fix is 22 added lines: `NodeSelection` imported, `caretAfterSelectedImage`,
+  one call after the insert in `insertImage`, and the reworded comment above
+  `filteredPaste` (condition 20). The comment of condition 21 is there. The
+  known-id set, `withoutUnknownMediaIds`, `handlePaste`, `handleDrop`, the
+  `value` effect and the request are untouched.
+- E2's diff: the `Control+End` press removed, the comment corrected,
+  `body.focus()` kept, nothing added (condition 18).
+- Records (conditions 22 to 26), read in `implementation.md`: section 9 item
+  10 has condition 22's words; section 10 has the two round-4 bullets; section
+  17 says which evidence is which, marks the superseded sentences, adds the
+  coverage row, and ends `Status: READY FOR TEST`.
+
+### 3. The Image button: the reviewer's thirteen probes, and eight of mine
+
+Against the real editor at `2e3f510`, in jsdom. Each: place the caret, click
+"Image", choose "Diagram", then one key, "X", put in as a pressed key is
+(`handleTextInput`, else `tr.insertText` over the selection; the same way T22
+does it). 21 of 21: the selection after the pick is a text selection, never a
+node selection, and the new image is there after the key. No paste request.
+
+| # | Caret before the pick | Document after the pick and "X" | Same as the reviewer's "After" |
+| --- | --- | --- | --- |
+| 1 | End of the only paragraph | "Intro.", image, "X" | Yes |
+| 2 | Empty document | image, "X" | Yes |
+| 3 | End of a heading, a paragraph follows | "Head", image, "XTail" | Yes |
+| 4 | Start of text | image, "XIntro." | Yes |
+| 5 | Middle of text | "Int", image, "Xro." | Yes |
+| 6 | A range selected | range replaced by the image; "I", image, "Xo." | Yes |
+| 7 | End of a list item, another follows | item 1: "one", image; item 2: "Xtwo" | Yes |
+| 8 | End of the last list item | item 2: "two", image; then "XTail" | Yes |
+| 9 | End of a table cell | cell 1: "c1", image; cell 2: "Xc2" | Yes |
+| 10 | End of a blockquote | quote: "quote", image; then "XTail" | Yes |
+| 11 | End of text, a stored image follows | "Intro.", Diagram, Chart, "X" | Yes |
+| 12 | A stored image selected | stored image replaced by Diagram; "XAfter" | Yes |
+| 13 | Inside a code block | block split around the image; "X here" | Yes |
+| 14 | End of text; a rule, then text, follow | "Intro.", image, rule, "XTail" | mine |
+| 15 | End of text; a table follows | "Intro.", image, table with "Xc1" | mine |
+| 16 | End of the only cell of a last table | cell: "c1", image; then "X" | mine |
+| 17 | End of text; two stored images follow | caret beyond all three; "X" last | mine |
+| 18 | End of text; a code block follows | "Intro.", image, code "Xcode" | mine |
+| 19 | An empty paragraph between two paragraphs | "A", image, "XB" | mine |
+| 20 | Never focused (the selection the editor starts with) | image first, then "XBefore" | mine |
+| 21 | The whole document selected | document replaced by the image, then "X" | mine |
+
+`Validate` accepts the document in every case but 14, where it refuses my own
+fixture's rule ("horizontalRule" is not allowed; ADM-22's subject, not this
+fix). Cases 12 and 21 replace what was selected when the button was pressed,
+as before this change and as the reviewer recorded.
+
+**My own cases that changed (condition 28):**
+
+| Probe | Round 2 | Now |
+| --- | --- | --- |
+| F1. Image button while a paste answer is out | "Start", image, "Pasted", empty paragraph; image selected before the answer | "Start", image, "Pasted"; a caret before the answer (rule 1, T16's new document) |
+| L5 / J3. The same, with a key before and after the answer, then undo and redo | | "Start", image, "kPasted!". Undo steps back to "Start"; redo returns the exact document; `Validate` accepts it |
+| J1. Two images picked in a row, then keys | not run | "Intro.", Diagram, Listed, "Tail": both kept. Undo, redo exact |
+| J2. A paste straight after the Image button | replaced the new image | Plain text: image kept, text in the line after it. Text with a web image: kept. A crafted image, twice: dropped, nothing sent. A copied library image: kept, **but see finding 1** |
+| J4. Image button, then the document is replaced; picker closed with no choice | not run | The key goes into the new document; closing the picker changes nothing and calls `onChange` zero times |
+| J5. `StrictMode` | not run | One image per pick; kept after the key |
+
+### 4. Security probes again (the file changed)
+
+All re-run at `2e3f510` against the real filter; all pass, with the same
+results as rounds 1 and 2.
+
+| Probe | Result |
+| --- | --- |
+| S1. Nine crafted `img[mediaid][src]` variants, each twice, then a drop, a paste, a close and reopen, two more pastes | 21 requests; none has the foreign id in any form, `evil.example`, `javascript` or `"src"`. No image node, no `img` element, no `onChange` value with the id. Paste, drop and remount do not seed the set |
+| S2. A known id with the page's address and alt | Kept with the page's alt text; no address sent, stored or rendered. The plan's stated worst case |
+| S3. An id the picker only listed | Sent as `null`, dropped |
+| L4. Crafted paste with a later selection, over a selection, after a remount; eight undos and redos; the document replaced while the answer is out, and replaced and put back | 5 requests, clean. Only the stored image in the editor. Nothing inserted into a replaced document |
+| D1. Outside drop: nested image, known id, crafted, `data:` only, text only, a real drop event | Refused with the notice where there is an image node; document unchanged; no request |
+| J2 (new). Crafted paste straight after the Image button, twice | Dropped; nothing foreign sent or kept |
+| U1, U2, E1, N1, M1, R1 to R8, L1 to L3, L6, F2 | Unchanged from rounds 1 and 2 |
+
+Probe runs: `Tests  1 failed | 73 passed (74)` over five files, then 9 and 10
+passed in two follow-up files. The one failure is my probe J2 expecting five
+images and finding four; it is not a wrong assertion this time. It is finding 1.
+
+### 5. CI, and what it does and does not show
+
+- **The end-to-end red:** run `42970225620`, job `130356739362`, on `7aece22`:
+  `failure` (read again now). E2 at `rich-text.spec.ts:194`, image count 0.
+  Seen once; `7aece22` has the same editor as `aef22b5`, where the same job
+  passed. It cannot be made to fail on demand.
+- **On `2e3f510`:** run `42972617296`, job `130364362542`, "Studio —
+  typecheck, build, end-to-end": `completed`, `success`, 06:28:05 to 06:33:35
+  UTC.
+  ```
+   Test Files  11 passed (11)
+        Tests  83 passed (83)
+    ✓   8 e2e/rich-text.spec.ts:88:1 › ADM-03 rich text: typing after a stored image keeps the image and the text (6.6s)
+    ✓   9 e2e/rich-text.spec.ts:162:1 › ADM-03 rich text: an inserted image stays, and a pasted web image is filtered (12.7s)
+    30 passed (3.6m)
+  ```
+  Every other check run on `2e3f510` is `success` (API, Website, website
+  browser tests, section comparison, both npm audits, NuGet audit, Semgrep,
+  both gitleaks scans, security gate self-test, actionlint); CodeQL and
+  screenshot parity `skipped`.
+- **What this green run shows:** in Chromium, against the real API, once
+  `body.focus()` has put keyboard focus in the editor, keys typed straight
+  after the pick, with no `Control+End`, leave the image and land after it;
+  the synthetic paste and the real route still work; save and reload keep it.
+  Once.
+- **What it does not show:**
+  - That the intermittent failure is gone. The old code passed this job twice
+    and failed once. One green run is the same evidence that let it through.
+    Gate 2's three runs in a row (condition 29) are still needed.
+  - That staff can pick an image and type with no click: where focus is when
+    the picker closes is not exercised (E2 calls `body.focus()`).
+  - Anything about a pasted library image and the next key (finding 1). E2
+    pastes a web image, which is dropped, and types nothing after the paste.
+- **The deterministic proof of the round 4 fix** is T22, T23 and T24, red on
+  `10ef86d` and green on `40ad04a` here, and the 21 probes of section 3. There
+  is no CI red for E2's new form, and none can exist: commit A fails the
+  unit-test step first (condition 30). I agree that is recorded, not waived.
+- **A real browser locally:** NOT RUN. No Chromium is installed, and
+  `npx playwright install chromium-headless-shell` into the scratchpad failed
+  ("Download failure, code=1"). Covered only by CI job `studio`.
+
+### Findings, round 3
+
+**1. Major. A library image that is pasted at the end of the document is left
+selected, and the next key deletes it. Cutting an image and pasting it lower
+down, then typing, loses the image.**
+
+This is the defect plan round 4 fixes for the Image button, on the paste path,
+which round 4 did not touch. It is in this change's own function
+(`filteredPaste`), and it is there at `aef22b5` too (same three results), so
+rounds 1 and 2 should have found it.
+
+- Steps (probe P10; real editor, real filter): document "Top", stored library
+  image, "Middle", "Bottom". Select the image and cut it. Put the caret at the
+  end of "Bottom". Paste what was cut. Press one key, "X".
+- Expected (plan 3.1 (4): "A library image survives a copy or cut and paste";
+  audit Fix 2, "Keep image nodes with a valid `mediaId`"; the audit's title):
+  "Top", "Middle", "Bottom", the image, "X".
+- Actual: after the paste the document is "Top", "Middle", "Bottom", image,
+  empty paragraph, and the selection is a **node selection on the pasted
+  image**. After the key: "Top", "Middle", "Bottom", "X". **0 images.** One
+  paste request, answered normally; no notice.
+- The same with a copy instead of a cut:
+  - P1, image alone, caret at the end of the last paragraph: 2 images after
+    the paste, selection `node`; 1 after the key.
+  - P4, image alone into an empty field (the image known from another field,
+    as in T14): 1 image after the paste; 0 after the key.
+  - P5, text then image: "BottomPasted", image; the image is gone after the
+    key.
+  - P9, two images: the second is gone after the key.
+- Where it does not happen: when text follows the paste point (P2, P3, P6: a
+  caret, both images kept), when the pasted content ends in text (P7), and on
+  the late-answer path, rule 3 (P8). So it is the same condition as the Image
+  button's: the image ends up last, the editor adds the empty paragraph after
+  the selection was chosen, and the selection stays on the image.
+- Why: `filteredPaste` dispatches `tr.replaceSelection(piece)` and leaves the
+  selection ProseMirror picks, which for a trailing image is the image itself.
+  `caretAfterSelectedImage` is called only from `insertImage`.
+- T6 and T14 ("pasting a copied library image keeps it", "…copied from another
+  rich-text field…") pass because they stop at the paste. Neither presses a
+  key, exactly as E2 once pressed `Control+End`.
+- Why Major: a library image in rich text is deleted by ordinary typing, with
+  nothing to warn the person (the editor draws an image as its alt text), on a
+  path this change created and names as working. Gate 1 judged the same
+  mechanism after the Image button to be inside ADM-03 and to fail its
+  acceptance. This path is less common than insert-then-type, which is why it
+  is not a Blocker. One undo brings the image back when the paste and the key
+  are more than half a second apart; when they are closer, the first undo
+  removes the paste as well.
+- Not for me to fix. It needs a red test first that pastes a library image at
+  the end of a field and then presses a key (and the cut-and-paste move), and
+  it changes what T6 and T14 should go on to assert, so the architect should
+  see it.
+
+**2. Minor, carried. The pull request body is still the commit-1 draft text.**
+`gh api …/pulls/52 --jq .body` has only "What and why" and the sentence that
+the draft "holds only the plan records and the end-to-end red test for now".
+No "Behaviour changes for the owner", "For ADM-22" or "For ADM-05"; no caret
+item in condition 22's words; run `42970225620` not quoted. The integrator's,
+due before gate 2 (conditions 14 and 29; round 1 finding 4).
+
+**3. Observation. Keyboard focus after the picker closes is still unknown.**
+Not run in a browser by anyone (plan round 4, "For ADM-22"; my local attempt
+failed, section 5). If focus returns to the "Image" button, typing after a
+pick does nothing until the person clicks in the editor. That would be a
+usability gap for ADM-22, not a lost image.
+
+Rounds 1 and 2: findings 1 to 3 of round 1 stay closed (F1, F2, L1 to L6
+re-run). Round 2's findings 5 and 6 are closed by the records at `3a1baa0`
+and by this round being on the pushed head.
+
+### Coverage, round 3
+
+| Item | Source | Status | Evidence |
+| --- | --- | --- | --- |
+| Typing straight after the Image button keeps the image | Audit ADM-03, bullet 3; plan 3.1 (8) | Verified | T22 red at `48f256f`; T16, T22, T23, T24 red at `10ef86d`, green at `40ad04a` and `2e3f510` (section 1); 21 probes (section 3) |
+| The caret after the Image button, in every position | `plan-review.md` Round 4, the thirteen probes | Verified | Section 3, rows 1 to 13 match the reviewer's table; rows 14 to 21 |
+| An image inserted while a paste is checked is kept; the answer fills the line after it | Plan 3.1 (3) rule 1; T16 | Verified | T16; probes F1, J3 |
+| A selection made meanwhile is kept; a paste over a selection replaces it | Plan 3.1 (3) rules 2 and 3 | Verified | T17, T18, T19; probes L1 to L3 re-run |
+| **A pasted library image is kept when typing follows** | Plan 3.1 (4); audit Fix 2 | **Failed** | Finding 1: probes P1, P4, P5, P9, P10; the same at `aef22b5` |
+| A crafted media id is dropped and never sent; the set is not seeded by paste, drop or remount | Plan section 6; conditions 5, 9 | Verified | T13; probes S1, S2, S3, L4, D1, J2 |
+| Notices: this change's two are cleared by a paste that is added | Round 1 finding 2 | Verified | T20, T21; probes F2, L6 re-run |
+| A paste answer never lands in a replaced document | T15 | Verified | T15; probes L4, J4 |
+| The second host; nested images; Markdown pattern; undo and redo | Rounds 1 and 2 | Verified again | Probes E1, N1, M1, U1, U2, J1, J3 |
+| E2 without `Control+End` | Plan round 4; condition 18 | Verified in CI once; NOT RUN locally | Run `42972617296`, job `130364362542`; what it shows and does not: section 5 |
+| The intermittent E2 failure is gone | Condition 29 | Not shown by one run | Gate 2's three runs in a row |
+| `tsc -b`, `npm test`, build, lockfile | Conditions 18, 19 | Verified | Section 1 |
+| Scope: `40ad04a` touches only `RichTextEditor.tsx`; no package, config, API or workflow change | Conditions 11, 19 | Verified | Section 2 |
+| Records for round 4 (conditions 20 to 26) | `plan-approval.md` | Verified | Section 2 |
+| Pull request body | Conditions 14, 29 | Open, integrator | Finding 2 |
+| Keyboard focus after the picker closes | Plan round 4, "For ADM-22" | NOT RUN in a browser | Finding 3 |
+
+Round 4's fix does what the plan says, every planned check passes, and the
+security probes are clean. The verdict is for finding 1: this change still
+deletes a library image on the next key, by the paste path instead of the
+button.
+
+Verdict: CHANGES NEEDED
