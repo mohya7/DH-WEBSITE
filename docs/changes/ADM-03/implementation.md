@@ -605,6 +605,16 @@ its text is kept and only its image is removed.**
     line. Otherwise it is the start of the text that follows (the next
     paragraph, list item or table cell), so typing joins the front of that
     text. If another image follows directly, the caret is after that one.
+11. (Round 6.) After a paste that ends in an image, the image is not left
+    selected, so typing straight away keeps it. The caret is at the next place
+    text can go after the image: the line after it, or the start of the text,
+    list item or table cell that follows.
+
+**Known limit (round 6).** A rich-text field that begins with an image opens
+with that image selected. If you reach the editor with the Tab key or press a
+toolbar button before clicking in the text, the first key you type replaces the
+image. Clicking in the text first avoids it. This is not fixed here; it is
+recorded for ADM-22. It has not been tried in a real browser.
 
 ## 10. For ADM-22
 
@@ -628,6 +638,19 @@ Found here and left alone (plan section 4):
   the caret leaves that item or cell for the start of the next one.
 - (Round 4.) Whether keyboard focus is in the editor when the picker closes
   has not been run in a browser. E2 calls `body.focus()` before it types.
+- (Round 6.) A document whose rich text starts with an image opens with that
+  image selected (ProseMirror's start selection). If focus reaches the editor
+  without a click in the text (Tab, or a toolbar button), the first key
+  replaces the image. A click in the text moves the caret and avoids it.
+  ADM-03 does not fix this: moving the caret at load made the editor add its
+  trailing paragraph, which called `onChange` and marked the item as edited
+  on open, and it could not help a document that is only an image. A fix must
+  keep the rule T30 pins: opening calls `onChange` zero times and adds no
+  undo step.
+- (Round 6.) Dragging an image to move it leaves it selected, as a click does;
+  a key pressed then replaces it. That is the editor's normal behaviour for a
+  selection the person made, and ADM-03 leaves it. A visible mark on a
+  selected image would belong with showing the picture in the editor.
 - **If O-ADM03-2 is "No" or unanswered at gate 2:** an image the library marks
   decorative, with no alt text, is inserted as `alt: ""`, `decorative: false`.
   It now stays in the editor, and the save refuses the item until the image is
@@ -1103,5 +1126,252 @@ used and nothing wrote to any database.
 | The empty-document case; the "no text position" branch | `plan-review.md` Round 4, Minors 3 and 4; conditions 18 and 21 | Done | T24; the code comment |
 | Where the caret goes in a list or table; keyboard focus after the picker closes | `plan-review.md` Round 4, Minors 1 and 2 | Moved to ADM-22 | Section 10, the two round-4 bullets |
 | `tsc -b`, `npm test` and `npm run build` pass | Plan 5.3; CI `studio` | Done | This section, at `40ad04a`: exit 0, `83 passed (83)`, build exit 0 with the preview design check |
+
+## 18. Addendum, 11 November 2026: plan round 6 built
+
+`test-report.md` round 3 (`33d18d8`) ended CHANGES NEEDED: a library image
+pasted so that it ends the document is left selected, and the next key deletes
+it (finding 1, Major). Plan round 5 was sent back by the reviewer; plan round 6
+(`364b098`) was passed (`0da755c`, one Minor) and approved at gate 1
+(`9edaec8`, conditions 31 to 42 for the developer). This section is the build
+of round 6.
+
+Nothing above this section is rewritten, except: section 9 (the pull request's
+behaviour text) gains item 11 and the "Known limit" paragraph in place
+(conditions 37, 38, 40), and section 10, "For ADM-22", gains the two entries of
+plan 5.6 as written (condition 38).
+
+### Commits
+
+On top of `9edaec8`:
+
+| | SHA | Subject | Files |
+| --- | --- | --- | --- |
+| 1 (tests) | `a2a0852` | ADM-03: Test that a pasted image is not left selected, and that opening changes nothing | `studio/test/richText.test.tsx`, `studio/e2e/rich-text.spec.ts` |
+| 2 (fix) | `93ab48f` | ADM-03: Do not leave a pasted image selected | `studio/src/content/RichTextEditor.tsx` |
+| 3 (record) | this commit | | `docs/changes/ADM-03/implementation.md` |
+
+I pushed nothing. Nothing was amended, rebased or squashed (conditions 31, 41).
+`a2a0852` is a red head and must not be pushed as a head; the integrator pushes
+a head that contains `93ab48f`.
+
+### Commit 1: what the tests are (condition 32)
+
+- **T6 and T14:** lines added after their existing assertions; none removed or
+  changed (`git diff` of the test file at `a2a0852` has no removed line). Each
+  now checks that the selection is a text selection, presses "X" at the
+  selection, and checks the images again; T6 also checks that the last
+  paragraph is "X".
+- **T25 to T32,** named as plan 5.6's table names them. Each but T30 asserts
+  the selection type before the key and presses the key with `typeAtSelection`,
+  with no caret move first. T30 presses no key and asserts nothing about the
+  selection.
+- Three small helpers were added to the test file's `mount`: `caretAtEndOf`,
+  `selectionType`, and (in the T25 block) `imageHtml`. No other test and no
+  existing helper is edited. The fake filter is not edited.
+- **E2:** the one step of plan 5.6, after the existing paste assertions and
+  before "Save content": a second synthetic paste of
+  `<img mediaid="<id>" alt="<alt>" decorative="false">`; `img[mediaid]`
+  `toHaveCount(2)`; the paste-request list has length 2;
+  `page.keyboard.type("Typed after the paste.")` with no key before it; the
+  count is still 2 and the text is there. After the reload the count is 2. No
+  wait, retry, `Control+End` or extra focus call is added.
+
+### Red, observed at `a2a0852` (condition 33)
+
+The editor is unchanged since `40ad04a`.
+
+```
+$ npx tsc -b; echo $?
+0
+$ npx vitest run test/richText.test.tsx; echo $?
+ Test Files  1 failed (1)
+      Tests  8 failed | 23 passed (31)
+1
+$ npm test; echo $?
+ Test Files  1 failed | 10 passed (11)
+      Tests  8 failed | 83 passed (91)
+1
+$ npx tsc -p <scratch>/tsconfig.e2e.adm03.json --noEmit; echo $?
+0
+```
+
+These are the counts the plan predicted, now observed. The eight failures, as
+printed. Every one fails at the selection-type assertion, before the key is
+pressed, so none reached its image count:
+
+| Id | Test | Message | Failed at |
+| --- | --- | --- | --- |
+| T6 | pasting a copied library image keeps it | `AssertionError: expected 'node' to be 'text' // Object.is equality` | selection type (the new lines; its old assertions passed) |
+| T14 | a library image copied from another rich-text field on the page is kept | `AssertionError: expected 'node' to be 'text' // Object.is equality` | selection type (the new lines; its old assertion passed) |
+| T25 | text and a library image pasted at the end are kept when typing follows | `AssertionError: expected 'node' to be 'text' // Object.is equality` | selection type |
+| T26 | an image cut and pasted at the end is kept when typing follows, and undo takes back only the typing | `AssertionError: expected 'node' to be 'text' // Object.is equality` | selection type |
+| T27 | a library image pasted into an empty field is kept when typing follows | `AssertionError: expected 'node' to be 'text' // Object.is equality` | selection type |
+| T28 | two library images pasted at the end are both kept when typing follows | `AssertionError: expected 'node' to be 'text' // Object.is equality` | selection type |
+| T29 | a late paste answer that ends in an image keeps it when typing follows | `AssertionError: expected 'node' to be 'text' // Object.is equality` | selection type |
+| T32 | redoing a pasted image does not leave it selected | `AssertionError: expected 'node' to be 'text' // Object.is equality` | selection type |
+
+- T29 and T32, whose red rested on the architect's probes alone (the reviewer's
+  Minor), are red when run.
+- The guards T30 and T31 pass, and the 21 other existing tests pass, so the
+  stop rule (condition 34) did not apply.
+- Because each test asserts the selection before the key, as the plan orders
+  it, these runs do not themselves show the image being deleted by the key.
+  That the key deletes a node-selected image is shown by T22's red at
+  `48f256f` (section 16) and by the tester's probes P4, P5, P9 and P10.
+
+### T30 can fail (condition 35)
+
+T30 is a guard, so I ran it outside the repository against a copy of the editor
+at `a2a0852` with round 5's load-time call added
+(`onCreate: ({ editor: created }) => caretAfterSelectedImage(created.view)`).
+The files are in
+`/tmp/claude-0/-home-user/a2e5e522-d1b3-56cb-8c85-c4d5ca889de1/scratchpad/adm03/t30/`
+(`Editor.asis.tsx`, `Editor.round5.tsx`, `t30.test.tsx`, a copy of the
+committed test file with only its import paths changed) and are not committed.
+
+```
+=== EDITOR=Editor.asis.tsx      -t "opening a document changes nothing"
+      Tests  1 passed | 30 skipped (31)
+=== EDITOR=Editor.round5.tsx
+     × opening a document changes nothing
+AssertionError: expected [ Array(1) ] to deeply equal []
++   "{\"type\":\"doc\",\"content\":[{\"type\":\"image\",…},{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"Mid\"}]},{\"type\":\"image\",…},{\"type\":\"paragraph\"}]}",
+      Tests  1 failed | 30 skipped (31)
+```
+
+T30 stops at its first failing assertion, the `onChange` list for image, "Mid",
+image, where `onChange` was called once with a document that has gained a
+trailing paragraph. To see every value the condition names, a scratch-only
+test in the same folder (`values.test.tsx`) printed them for all three
+documents:
+
+```
+=== Editor.asis.tsx
+image, Mid, image: onChange calls 0, canUndo false, selection node | image alone: onChange calls 0, canUndo false, selection node | image, list: onChange calls 0, canUndo false, selection node
+=== Editor.round5.tsx
+image, Mid, image: onChange calls 1, canUndo true, selection text | image alone: onChange calls 0, canUndo false, selection node | image, list: onChange calls 1, canUndo true, selection text
+```
+
+So against round 5's design `onChange` is called and `can().undo()` is true for
+image, "Mid", image and for image with a list, and T30 fails on it. For an
+image alone round 5's call did nothing, as the reviewer said. The "asis" row
+also shows the known limit: every one of these documents opens with a node
+selection.
+
+### Commit 2: the fix (condition 36)
+
+`studio/src/content/RichTextEditor.tsx` only:
+
+- One call, `caretAfterSelectedImage(view)`, straight after `filteredPaste`'s
+  one `view.dispatch`, with a comment saying why. It runs whichever of the
+  three insert rules ran.
+- The helper's body is unchanged. Its header comment, which said "After the
+  Image button", now covers the paste too and says it is not called when a
+  document is loaded or replaced. Comment only.
+- No `onCreate`, no call in or after the `value` effect, no other change.
+
+```
+$ grep -n "caretAfterSelectedImage\|onCreate" src/content/RichTextEditor.tsx
+109:function caretAfterSelectedImage(view: EditorView) {
+263:    if (editor !== null) caretAfterSelectedImage(editor.view);
+366:      caretAfterSelectedImage(view);
+```
+
+The definition and exactly two call sites: `insertImage` and `filteredPaste`.
+
+### Green, at `93ab48f`
+
+```
+$ npx vitest run test/richText.test.tsx; echo $?
+ Test Files  1 passed (1)
+      Tests  31 passed (31)
+0
+$ npm test; echo $?
+ Test Files  11 passed (11)
+      Tests  91 passed (91)
+0
+$ npx tsc -b; echo $?
+0
+$ VITE_PUBLIC_SITE_URL=https://website.ci.invalid npm run build; echo $?
+✓ built in 1.46s
+Preview design: /website-design/d1ebe4132f8cfa8e/ matches website/design/ byte for byte.
+0
+$ git -C /home/user/dh-change-adm03 diff --exit-code -- studio/package-lock.json studio/package.json; echo $?
+0
+$ git -C /home/user/dh-change-adm03 status --short; echo $?
+0
+$ npx tsc -p <scratch>/tsconfig.e2e.adm03.json --noEmit; echo $?
+0
+```
+
+No port was used and nothing wrote to any database.
+
+### NOT RUN
+
+- **E2 with its new step, red or green.** No SQL Server here. Its red cannot
+  run in CI either: on `a2a0852` the `studio` job stops at the unit tests. T25
+  to T29 and T32 are the red. Its green: CI `studio` on the pushed head that
+  contains `93ab48f`. If the new step fails there, I report it with the log and
+  change nothing in the spec (condition 42).
+- **The known limit in a real browser.** Nobody has run it; jsdom shows the
+  node selection at load (above).
+
+### The sweep, with observed results (condition 39)
+
+Every place this file changes the editor's state, from plan 5.6, and what now
+holds each row marked "Yes".
+
+| Place | Can leave an image selected? | Answer | Held by, observed |
+| --- | --- | --- | --- |
+| `insertImage` (`insertContent`) | Yes | Plan item 8, round 4 | T22, T23, T24: red at `10ef86d`, green at `40ad04a`, and green at `93ab48f` |
+| `filteredPaste`, rules 1 and 2 (`replaceSelection`) | Yes | Plan item 9 | Rule 1: T6, T14, T25, T26, T27, T28, red at `a2a0852` (`expected 'node' to be 'text'`), green at `93ab48f`. Rule 2 (a paste over a selection) with an image at the end has no test of its own; it goes through the same single dispatch and the same call |
+| `filteredPaste`, rule 3 (`replaceRange`, then `Selection.near`) | Yes | Plan item 9 | T29: red at `a2a0852`, green at `93ab48f` |
+| Editor creation (`content: initial`) | Yes: ProseMirror's start selection | Not touched. Moved to ADM-22; the "Known limit" in section 9 | Not fixed. Observed: a node selection at load for all three T30 documents. T30 holds that opening changes nothing: passes at `a2a0852` and `93ab48f`, fails against round 5's design |
+| The `value` effect (`setContent`) | Not seen | Not touched | T30's last step: no `onChange` call after the host replaces the value |
+| Transactions the editor appends itself (`TrailingNode`) | Not by themselves; a selection-only dispatch on load triggers the append | This change dispatches nothing on load | T30 |
+| `handlePaste` returning `false` (no image in the slice) | No | None | T7 |
+| `handleDrop` returning `false` for a move inside the editor | ProseMirror selects the node the person dragged | Left: the person's own drag. In "For ADM-22" | Not tested here |
+| Undo and redo | Redo restored the node selection | Plan item 9 | T32: red at `a2a0852`, green at `93ab48f`. T26 holds that one undo takes back only the typed key |
+| The toolbar buttons, `LinkDialog`, `onUpdate`, the helper itself | No | None | |
+
+T31 is the guard for the case that already left a caret (an image pasted
+before following text): passes at both commits.
+
+### Sentences above that were true only until the next key (condition 40)
+
+Before `93ab48f`, a pasted, copied or moved library image was kept by the paste
+and deleted by the next key when it ended the document. It was not seen because
+T6 and T14, in their old form, stopped at the image count after the paste and
+pressed no key. These statements are marked accordingly:
+
+- **Section 3,** plan item 4, "Only a library image survives a paste", and the
+  commit message of `eff1880`, "a library image survives copy and paste".
+- **Section 4,** the red-then-green rows for T6 and T14 at `da940bb` and
+  `eff1880`: true of the paste itself.
+- **Section 13,** the rows "Fix: keep image nodes with a valid `mediaId`"
+  (T6, T14) and "A pasted media id the session did not get from the API is
+  dropped" are unaffected in what they assert, but "Done" for a copied image
+  held only until the next key.
+- **Section R,** "Kept: everything in the editor when the answer arrives":
+  true when the answer arrives; the pasted image itself could then be lost to
+  the next key.
+- **Section 17,** "Which evidence is which": T22 to T24 proved the Image
+  button's path only. The same defect on the paste path was open.
+- **The tester's round 2 and gate 2's first approval** read those rows as done;
+  see `test-report.md` round 3.
+
+Section 9 is updated in place: item 11 is the plan's sentence for the paste
+caret, and the "Known limit" paragraph is in condition 38's words.
+
+### Coverage, added by round 6
+
+| Item | Source | Status | Evidence |
+| --- | --- | --- | --- |
+| A pasted or moved library image is kept when typing follows | Plan 3.1 (9); audit ADM-03, Fix 2; `test-report.md` round 3, finding 1 | Done locally; E2's new step NOT RUN | T6, T14, T25, T26, T27, T28, T29, T32 red at `a2a0852` (`8 failed | 23 passed (31)`), green at `93ab48f` (`31 passed (31)`). T31 guards the case with text after the image. E2's second paste and typing: CI `studio` on the next pushed head |
+| Opening an item changes nothing | Plan 3.1 (9), round 6; `plan-review.md` Round 5, finding 1 | Done | T30: passes at `a2a0852` and `93ab48f`; fails against a copy with round 5's `onCreate` call (above) |
+| A field that begins with an image opens with it selected | Plan 5.6, probe M1 | Moved to ADM-22; a known limit for the owner | Section 9, "Known limit"; section 10, the first round-6 entry. Not run in a browser |
+| A dragged image stays selected | Plan 5.6, the sweep | Moved to ADM-22 | Section 10, the second round-6 entry |
+| `tsc -b`, `npm test` and `npm run build` pass | Plan 5.3; CI `studio` | Done | This section, at `93ab48f`: exit 0, `91 passed (91)`, build exit 0 with the preview design check |
 
 Status: READY FOR TEST
