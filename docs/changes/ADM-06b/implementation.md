@@ -1,19 +1,121 @@
 # ADM-06b: implementation
 
-Developer, 11 November 2026. Plan: `docs/changes/ADM-06b/plan.md`, round 2.
-Gate 1: `plan-approval.md`, `Verdict: APPROVED` with conditions 1 to 10.
-Worktree `/home/user/dh-change-adm06b`, branch `change/ADM-06b`, cut from
-`f171f7a`, not tracking. Nothing pushed.
+Developer, 11 November 2026. Plan: `docs/changes/ADM-06b/plan.md`, round 3.
+Gate 1: `plan-approval.md`, "Gate 1 again: plan round 3", `Verdict: APPROVED`
+with conditions 1 to 16. Worktree `/home/user/dh-change-adm06b`, branch
+`change/ADM-06b`, cut from `f171f7a`, not tracking. `58caf70` was pushed alone
+by the orchestrator as draft PR #51 (remote head `58caf70`, checked with
+`git ls-remote`); I pushed nothing in this round.
 
-**Result: the plan cannot be followed as written at one point (section 1).
-`tsc -b` fails on the new `test/paging.test.ts`, and the only fixes are a
-`tsconfig.node.json` change (out of scope, condition 8) or a change to the
-planned test file. Under condition 10 I stop and send the change back.** Every
-other step of the plan is done: the three commits in the plan's order, local red,
-and local green for all unit tests, the app type check, the Vite build and the
-preview design check.
+**Result: round 3 is done. Commit 4a (red) and 4b (fix) are made as condition 11
+asks; `tsc -b`, the build, and every Studio unit test pass at 4b.** Section 0 is
+this round. Sections 1 to 7 are the round-2 record, updated where round 3 changes
+them. Section 1 is kept as the record of the stop that round 3 answered.
 
-## 1. Why this goes back to the architect
+## 0. Round 3 (rework after BACK TO ARCHITECT)
+
+### Each point, and how it is answered
+
+| Point | Where it comes from | Answer |
+| --- | --- | --- |
+| `tsc -b` fails with TS6307 on `test/paging.test.ts` | Section 1 of this file; plan 12 round 3, option (a); condition 13 | `933b3b9` adds `"src/ui/paging.ts"` to `include` in `studio/tsconfig.node.json`. No other line of that file, `tsconfig.json` or `tsconfig.app.json` changed (diff below). `tsc -b` exit 0 at 4a and 4b |
+| Split commit 4 into red then fix | Review round 3 Minor 2; condition 11 | 4a `933b3b9`: `tsconfig.node.json` and the S12 assertions only. 4b `161b5b5`: `studio/src/content/MediaPicker.tsx` only |
+| S12: an unsubmitted term must not survive reopening | Plan 3.1 (4) and 5.1 S12, round 3 | S12 types "Image 02" into the box without submitting, closes, reopens, and asserts the request has `page=1` and `search=` (empty), and the box shows "". Red at 4a on the box only; green at 4b |
+| Picker box reset on opening | Plan 3.1 (4), 4 (`MediaPicker.tsx`) | `afterOpenChange(true)` now calls `setSearch(applied)` before loading page 1 with `applied`. Two lines changed (one statement, one comment line) |
+| Shims stay test-only | Condition 14 | `grep -rnE "ResizeObserver\|motion" studio/src` finds nothing (exit 1). Both live in `studio/test/listPaging.test.tsx` only, unchanged since `f1b4215` |
+| Commits 1 to 3 keep their SHAs; no rebase, amend or force push | Conditions 12 and the prompt | `58caf70`, `f1b4215`, `8c4ab16`, `cbff1f1`, `73b8777` unchanged; 4a and 4b are new commits on top. Nothing pushed by me |
+| Picker change shown to the owner | Review round 3 Minor 1; condition 15 | "Behaviour changes for the owner" below. The PR body needs the same note when the orchestrator writes it |
+| `itemActiveBg` reason; "For ADM-08" section | Conditions 3 and 4 | Unchanged: section 5 and section 6. The PR body still needs section 6 |
+| Merge order and base | Conditions 2, 7, 16 | Open. The head does not yet contain `3e1fc47` or #49 (`git merge-base --is-ancestor 3e1fc47 HEAD` gives 1 now). To be brought in with `git merge` only, after the CI red on `58caf70` (condition 12) and again after #49 merges. Gate 2 quotes both checks |
+
+### Behaviour changes for the owner
+
+The image picker now reopens with the last submitted search; text typed but not
+submitted before closing is cleared.
+
+This is not yet the owner's acceptance (condition 15). If the owner objects, the
+change goes back to the architect, and "opening counts as a submit" is the ready
+alternative.
+
+### Commit 4a (red): `933b3b9`
+
+`ADM-06b: Type-check the paging helpers and test the picker search reset`.
+Files: `studio/tsconfig.node.json`, `studio/test/listPaging.test.tsx`.
+
+```
+$ git diff f171f7a -- studio/tsconfig.node.json
+@@ -14,6 +14,6 @@
+     "composite": true,
+     "types": ["node", "vite/client"]
+   },
+-  "include": ["vite.config.ts", "vitest.config.ts", "vite/**/*.ts", "scripts/**/*.ts", "test/**/*.ts", "e2e/env.ts", "src/content/siteUrl.ts", "src/content/model.ts", "../website/src/design/folder.ts", "../website/src/design/lock.ts"],
++  "include": ["vite.config.ts", "vitest.config.ts", "vite/**/*.ts", "scripts/**/*.ts", "test/**/*.ts", "e2e/env.ts", "src/content/siteUrl.ts", "src/content/model.ts", "src/ui/paging.ts", "../website/src/design/folder.ts", "../website/src/design/lock.ts"],
+   "exclude": ["test/previewData.test.ts"]
+ }
+```
+
+Run at 4a (working tree equal to `933b3b9`):
+
+```
+$ git -C /home/user/dh-change-adm06b diff --exit-code -- studio/package-lock.json studio/package.json; echo $?
+0
+$ cd /home/user/dh-change-adm06b/studio && npx tsc -b; echo $?
+0
+$ npx vitest run test/listPaging.test.tsx; echo $?
+     × picker opens on page 1 1275ms
+ FAIL  test/listPaging.test.tsx > media picker paging > picker opens on page 1
+AssertionError: expected 'Image 02' to be '' // Object.is equality
+- Expected
++ Received
++ Image 02
+ ❯ test/listPaging.test.tsx:427:109
+ Test Files  1 failed (1)
+      Tests  1 failed | 11 passed (12)
+1
+```
+
+S12 is the only failure, and it fails on the search box still showing the typed
+term. The request assertions before it (`page=1`, `search=` empty) already pass,
+because `8c4ab16` built the request side; only the box reset was missing.
+
+### Commit 4b (fix): `161b5b5`
+
+`ADM-06b: Reset the picker search box to the applied search on opening`.
+File: `studio/src/content/MediaPicker.tsx` only.
+
+Run at 4b:
+
+```
+$ npx vitest run test/listPaging.test.tsx test/previewData.test.ts test/paging.test.ts; echo $?
+ Test Files  3 passed (3)
+      Tests  25 passed (25)
+0
+$ npm test; echo $?
+ Test Files  10 passed (10)
+      Tests  50 passed (50)
+0
+$ npx tsc -b; echo $?
+0
+$ VITE_PUBLIC_SITE_URL=https://website.ci.invalid npm run build; echo $?
+(!) Some chunks are larger than 500 kB after minification. ...   (existing warning, not new)
+✓ built in 1.56s
+Preview design: /website-design/d1ebe4132f8cfa8e/ matches website/design/ byte for byte.
+0
+$ git -C /home/user/dh-change-adm06b diff --exit-code -- studio/package-lock.json studio/package.json; echo $?
+0
+$ git -C /home/user/dh-change-adm06b status --short     (after committing 4b)
+(empty)
+```
+
+The `listPaging.test.tsx` log has no React `act` warning and no unhandled error
+(`grep -ciE "warning|not wrapped in act|unhandled"`: 0).
+
+- **E1, E2: NOT RUN locally.** No SQL Server and no `dotnet` in this container.
+  Covered by CI job `studio` ("Studio — typecheck, build, end-to-end"): red on
+  `58caf70` (PR #51, run pending when this round started), green on a final head
+  that contains #49. No port was used and no process was started.
+
+## 1. Why round 2 went back to the architect (answered in round 3, section 0)
 
 ### What happened
 
@@ -96,10 +198,11 @@ Answered. The coordinator relayed it on 11 November 2026: the owner tapped
 paging fix, push the failing browser test first too?" (Mohamed Elbadry,
 11 November 2026, project thread).
 
-I pushed nothing. The coordinator said the orchestrator will push the e2e commit
-alone after the tester and gate 2. Conditions 2 and 6 (draft pull request whose
-first line is "Do not merge before #49 (ADM-06a).", wait for the `studio` check
-run on `58caf70` to conclude `failure`) apply to that push.
+I pushed nothing. The orchestrator has since pushed `58caf70` alone as draft
+PR #51; its CI red run was pending at the start of round 3. Conditions 2, 6 and
+12 (draft pull request whose first line is "Do not merge before #49 (ADM-06a).",
+nothing more pushed until the `studio` check run on `58caf70` concludes
+`failure` with E1 and E2 named at the pager locator) apply.
 
 ## 3. Commits
 
@@ -108,7 +211,11 @@ run on `58caf70` to conclude `failure`) apply to that push.
 | 1 | `58caf70` | ADM-06b: Test that Studio lists reach rows past page 1 end to end | `studio/e2e/paging.spec.ts` |
 | 2 | `f1b4215` | ADM-06b: Test the Studio paging controls and the preview loader | `studio/test/listPaging.test.tsx`, `studio/test/support/pagedApi.ts`, `studio/test/paging.test.ts`, `studio/test/previewData.test.ts` |
 | 3 | `8c4ab16` | ADM-06b: Add paging controls to the audit, inbox, redirects and media screens | the nine `src` files in section 5 |
-| 4 | this file | ADM-06b: Record the implementation and send it back to the architect | `docs/changes/ADM-06b/implementation.md` |
+| 4 | `cbff1f1` | ADM-06b: Record the implementation and send it back to the architect | `docs/changes/ADM-06b/implementation.md` |
+| - | `73b8777` | ADM-06b: Plan round 3 after the developer's stop | plan, review, approval (architect and leads) |
+| 4a | `933b3b9` | ADM-06b: Type-check the paging helpers and test the picker search reset | `studio/tsconfig.node.json`, `studio/test/listPaging.test.tsx` |
+| 4b | `161b5b5` | ADM-06b: Reset the picker search box to the applied search on opening | `studio/src/content/MediaPicker.tsx` |
+| 5 | this file | ADM-06b: Record round 3 of the implementation | `docs/changes/ADM-06b/implementation.md` |
 
 Each subject has the `ADM-06b:` prefix, each body says why, each ends with the
 attribution trailer. Paths were staged one by one. Base `f171f7a`; ADM-06a (#49)
@@ -306,7 +413,9 @@ $ git status --short
 (empty)
 ```
 
-Exactly the files in plan section 4. No `package*.json`, `tsconfig*.json`,
+Exactly the files in plan section 4. Round 3 adds `studio/tsconfig.node.json`
+(one `include` entry, condition 13) and touches `MediaPicker.tsx` and
+`listPaging.test.tsx` again (section 0). No `package*.json`, other `tsconfig*.json`,
 `vitest.config.ts`, `playwright.config.ts`, `e2e/env.ts`, `e2e/helpers.ts`,
 workflow or `api/` file changed.
 
@@ -321,17 +430,20 @@ workflow or `api/` file changed.
 | `studio/src/pages/AuditPage.tsx` | change | typed filters and `applied` filters; Filter applies them and loads page 1; `pagination={tablePager(...)}`; `pageSize=50`; `latestOnly`. Filters and columns unchanged |
 | `studio/src/pages/RedirectsPage.tsx` | change | as the audit log, with an applied search; Create and Delete reload the current page, clamped |
 | `studio/src/pages/MediaLibraryPage.tsx` | change | applied search; `total` kept; `withPage(..., 48)` (the `search` parameter is still always sent, as before); `ListPager` under the grid; Save and Delete reload the current page, clamped; the Upload dialog's close or select loads page 1 |
-| `studio/src/content/MediaPicker.tsx` | change | applied search; `total` kept; `withPage(..., 24)`; `ListPager size="small"` between the grid and "Upload"; each opening (`afterOpenChange`) loads page 1 with the applied search; `rememberMedia` still records every loaded item |
+| `studio/src/content/MediaPicker.tsx` | change | applied search; `total` kept; `withPage(..., 24)`; `ListPager size="small"` between the grid and "Upload"; each opening (`afterOpenChange`) resets the box to the applied search (round 3, `161b5b5`) and loads page 1 with it; `rememberMedia` still records every loaded item |
+| `studio/tsconfig.node.json` | change (round 3, condition 13) | `"src/ui/paging.ts"` added to `include`; nothing else |
 | `studio/src/preview/previewData.ts` | change | `published` only: keeps the first occurrence of each id; throws the existing message when a non-empty page adds no new id; stops on unique rows >= total or an empty page |
 | `studio/test/support/pagedApi.ts` | create | `pagedBody(rows, path)`; throws for `page < 1` or `> 10000`, `pageSize < 1` or `> 100` |
 | `studio/test/paging.test.ts` | create | U1 to U3 |
-| `studio/test/listPaging.test.tsx` | create | S1 to S12, with the shims in section 1 |
+| `studio/test/listPaging.test.tsx` | create | S1 to S12, with the shims in section 1; round 3 adds the S12 box assertions (`933b3b9`) |
 | `studio/test/previewData.test.ts` | change | new block "published lists across pages", P1 to P3; existing block unchanged |
 | `studio/e2e/paging.spec.ts` | create | E1, E2 (below) |
 
 A note for the reviewer on the picker: before this change, reopening it loaded
 with whatever was typed in its search box; now it uses the last submitted search
-(plan 3.1 (4), "every list request uses the applied values").
+(plan 3.1 (4), "every list request uses the applied values"), and since round 3
+the box is reset to that search on opening. See "Behaviour changes for the
+owner" in section 0.
 
 ### The `Pagination` override (condition 3)
 
@@ -391,7 +503,8 @@ in a collection). The same section goes in the pull request body.
 | Fix: paging controls on the audit screen | Audit ADM-06, Fix 2; moved from ADM-06a | Done locally; e2e NOT RUN | `8c4ab16`; S5, S6 red at `f1b4215`, green at `8c4ab16`; E2 in CI `studio` |
 | Fix: paging controls on the inbox screen | Audit ADM-06, Fix 2; moved from ADM-06a | Done locally; e2e NOT RUN | `8c4ab16`; S1 to S4 red, then green; E1 in CI `studio` |
 | Fix: paging controls on the media library | Audit ADM-06, Fix 2; moved from ADM-06a | Done (unit); no end-to-end, by plan | S9, S10 red, then green; ADM-06a's `Media_list_returns_page_two`; media e2e belongs to ADM-16 |
-| Media picker reaches images past the newest 24 | Audit ADM-06, bullet 3 | Done (unit); no end-to-end, by plan | S11, S12 red, then green |
+| Media picker reaches images past the newest 24 | Audit ADM-06, bullet 3 | Done (unit); no end-to-end, by plan | S11, S12 red at `f1b4215`, green at `8c4ab16` and `161b5b5` |
+| Picker box shows the applied search on reopening | Plan 3.1 (4) and 5.1 S12, round 3 | Done (unit) | S12 red at `933b3b9` (`expected 'Image 02' to be ''`), green at `161b5b5`; owner note in section 0 (condition 15) |
 | Studio reaches enquiries past the 50th | Audit ADM-06, bullets 3 and 5 | Done locally; e2e NOT RUN | S1 green; E1 in CI `studio` |
 | Studio reaches audit entries past the 50th | Audit ADM-06, bullet 3 | Done locally; e2e NOT RUN | S5 green; E2 in CI `studio` |
 | Studio reaches media past the newest 48 | Audit ADM-06, bullet 3 | Done (unit) | S9 to S12 green |
@@ -400,10 +513,12 @@ in a collection). The same section goes in the pull request body.
 | Pager follows the navy look | `docs/phase-b-studio.md` lines 480, 501 | Done in code; assertions NOT RUN | `theme.ts` six tokens (section 5); E1, E2 `toHaveCSS` in CI `studio` |
 | Collection list past 100 | Audit ADM-06, bullet 2 | Moved to ADM-08 | Section 6 of this file; PR body |
 | Overview counts past 100 | Found in plan 2.3 | Moved to ADM-08 | Section 6 of this file; PR body |
-| Merge order: final head contains #49 | Plan 3.5 | Open | Not merged in; checked at gate 2 with `git merge-base --is-ancestor` |
-| Studio end-to-end test past page 1 | ADM-06a 3.3, 5.5 | Written; NOT RUN | `58caf70`; type-checked (exit 0); CI `studio` |
+| Merge order: final head contains #49 and `3e1fc47` | Plan 3.5; conditions 2, 12, 16 | Open | Not merged in (`--is-ancestor 3e1fc47 HEAD` gives 1 at `161b5b5`); `git merge` after the CI red on `58caf70` and after #49 merges; quoted at gate 2 |
+| Studio end-to-end test past page 1 | ADM-06a 3.3, 5.5 | Written; NOT RUN locally | `58caf70`, pushed alone as draft PR #51; type-checked (exit 0); CI `studio` red run pending |
 | Regression tests shown failing before the fix | G3 checklist | Done locally for S1 to S12, P2, P3; E1, E2 red NOT RUN | Section 4; E1/E2 red in CI on `58caf70` alone (O-ADM06B-1 "Yes") |
-| `tsc -b` and `npm run build` pass | Plan 5.3 | **Failing** | TS6307, section 1 |
+| `tsc -b` and `npm run build` pass | Plan 5.3; condition 13 | Done | Failed at `8c4ab16` (TS6307, section 1); exit 0 at `933b3b9` and `161b5b5` (section 0) |
+| Shims test-only | Condition 14 | Done | No match for `ResizeObserver` or `motion` in `studio/src` (section 0) |
+| Picker change shown to the owner | Condition 15 | Done here; PR body open | Section 0; the PR body needs the same note |
 | ADM-06 closed | ADM-06a 3.3 | Open | Needs #49 and this change merged |
 
-Status: BACK TO ARCHITECT
+Status: READY FOR TEST
