@@ -2,13 +2,15 @@
 
 Change id: `ADM-07`. Branch: `change/ADM-07`, worktree `/home/user/dh-change-adm07`,
 cut from `origin/rebuild/dotnet-platform` at `6262f48` (ADM-02 merged as #54).
-Architect, round 1, 11 November 2026.
+Architect, round 2, 11 November 2026. Round 1 (`4b66664`) came back CHANGES
+NEEDED (`plan-review.md` Round 1 at `df3af90`: one Major, five Minors). Section 12
+answers each one. The owner has answered O-ADM07-1 and O-ADM07-2 (section 9), so
+F-2 is now in scope without conditions.
 
 **One change: a redirect must land on a page, and two redirects must never share
 an address.** It closes the last part of ADM-07 (targets that do not exist), as
 ADM-02's plan handed it over (ADM-02 `plan.md` 3.4 and section 4, "Out of scope").
-It also takes the two Minors that ADM-02's gate 2 sent here (F-1, F-2). F-2 waits on
-owner decision O-ADM07-2.
+It also takes the two Minors that ADM-02's gate 2 sent here (F-1, F-2).
 
 ## 1. Item
 
@@ -44,7 +46,8 @@ owner decision O-ADM07-2.
   - **F-2 (Minor):** `OccupiesLivePathAsync` counts only Published vacancies, while
     the build also publishes Ended ones at `/careers/<slug>`. Gate 2: "Whether a
     redirect from a closed role's page is wanted is a behaviour question. The ADM-07
-    plan must ask the owner, not assume an answer." That is O-ADM07-2.
+    plan must ask the owner, not assume an answer." The owner answered O-ADM07-2:
+    "Yes, refuse it" (section 9).
 - **Track:** G3, batch G3-1, slot 2. The refinement plan's batch row
   (`refinement-plan-2026-10-28.md`, Track G3) names "ADM-02 and ADM-07 redirect and
   schema checks". Its exit gate: "A clean website build from
@@ -93,11 +96,18 @@ answers at the target. The 201 body (166-173) and the list rows
 (`ListRedirectsAsync`, 101-127) hold `id, fromPath, toPath, statusCode, source,
 createdAt` only.
 
-Existing tests rely on this. `AdminApiTests.Redirect_refuses_loops_collapses_chains_and_blocks_live_paths`
-(`AdminApiTests.cs:232-285`) creates `/old-a-<s> → /old-b-<s>` and expects 201, and
-`/old-b-<s>` is not a page. `RedirectAddressTests` R1 and `ListPagingTests` create
-redirects to `/`. The audit's fix says "warns", not "refuses", and these tests must
-not be weakened (P-6). So the API must keep creating such a redirect (section 3.1).
+**Why the API keeps creating such a redirect** (round 2, review finding 6):
+
+- **The audit has decided it.** Its fix is "a target check that **warns** in the
+  Studio and reports in the build", not one that refuses.
+- **The design requires it.** Phase B 4.5 ("Chains collapse") and 8.3 ("The same
+  chain and loop rules as 4.5") accept a redirect whose target is another
+  redirect's source, and collapse it. A "target must be a page" rule would refuse
+  exactly that case before it could collapse.
+- **The existing tests follow from that.** `AdminApiTests.Redirect_refuses_loops_collapses_chains_and_blocks_live_paths`
+  (`AdminApiTests.cs:232-285`) expects 201 for `/old-a-<s> → /old-b-<s>` and for
+  the chain `/old-c-<s> → /old-a-<s>`, and neither target is a page. They stay
+  unchanged because the behaviour they pin stays, not to avoid an owner decision.
 
 **Website.** `renderWebConfig` (`website/src/iis/web-config.ts:142-160`) checks only
 the characters and the duplicate key. `scripts/check-output.ts` compares
@@ -289,6 +299,13 @@ Used in two places in `AdminStore`:
   `Redirect <from> -> <to>: no page in the build answers at <to>.`
   - The address is the key (`toPath.replace(/\/+$/, "") || "/"`, the
     `web-config.ts` expression). The file is `htmlFileFor(key)`.
+  - **The file is looked up in the walked file list, ordinally** (round 2, review
+    finding 5). The function builds the list as `checkOutput` does
+    (`walk(outDir)` made relative with `/` separators, into a `Set`,
+    `check-output.ts:105-106`) and tests `set.has(file)`. It never calls
+    `fs.existsSync`, which finds `About.html` for `/About` on the
+    case-insensitive file systems of Windows and macOS. So W3 gives the same
+    answer on the owner's Windows machine as on `ubuntu-24.04`.
   - `404.html` and `500.html` (`errorFiles`) never count.
   - The rule is the API's, applied to what the build actually wrote.
 - `main()` prints either `Redirect targets: all <n> resolve to a page.` or
@@ -321,7 +338,8 @@ check:
    `EXEC @result = sp_getapplock @Resource = N'digitalhub:redirects', @LockMode = N'Exclusive', @LockOwner = N'Transaction', @LockTimeout = 5000;`
 3. If `@result < 0` (timeout, deadlock or error), return
    `503 redirect_busy`, "Another redirect is being saved. Try again." The
-   transaction rolls back when disposed.
+   transaction rolls back when disposed. T10 (5.1) proves this branch, the 503
+   rather than a 500, that nothing is inserted, and the resource name.
 4. The duplicate, live-path and loop checks, the insert, the audit row and
    `SaveChangesAsync` run as now. Then `tx.CommitAsync`. Every early return
    disposes the transaction, which rolls back and releases the lock.
@@ -346,35 +364,30 @@ question.
 - The bundle import (`ContentBundle.cs`) runs offline in its own transaction and
   re-checks every row (`CheckRedirectAsync`).
 
-### 3.4 F-2: ended vacancies, after O-ADM07-2
+### 3.4 F-2: ended vacancies (O-ADM07-2: "Yes, refuse it")
 
-- **If the owner answers A (recommended):** `OccupiesLivePathAsync`'s vacancy query
-  becomes `item.Status == published || item.Status == ContentStatus.Ended`, the same
-  predicate as `BuildContentStore.cs:176`. That is one line. The import check
-  (`CheckRedirectAsync`) calls the same function, so a bundle row from an ended
-  vacancy's address is refused too. Staff who want a closed role's address to go
-  elsewhere delete the ended vacancy first (allowed, 2.5), then add the redirect.
-- **If B:** no code change. A guard test records that it is allowed on purpose
-  (5.1, T9-B), and `OccupiesLivePathAsync`'s summary says so. A target at an ended
-  vacancy still counts as a page either way (3.1), because the build writes it.
-- **Until answered:** F-2's test and code are left out of the commits in 5.2, and
-  the rest proceeds. If gate 1 comes with no answer, F-2 becomes a D-NNN question
-  (section 9).
-- The ADM-02 gate-2 note stands: O-ADM02-2 query (b) should read
-  `status IN ('published', 'ended')` for `vacancies`. That is the coordinator's,
-  not this change's.
+- `OccupiesLivePathAsync`'s vacancy query becomes
+  `item.Status == published || item.Status == ContentStatus.Ended`, the same
+  predicate as `BuildContentStore.cs:176`. That is one line.
+- The import check (`CheckRedirectAsync`) calls the same function, so a bundle row
+  from an ended vacancy's address is refused too.
+- Staff who want a closed role's address to go elsewhere delete the ended vacancy
+  first (allowed, 2.5), then add the redirect.
+- A target at an ended vacancy counts as a page (3.1), because the build writes it.
+- O-ADM02-2's query (b) no longer needs widening: the owner's read-only check found
+  no redirects at all in `DigitalHubContent_Studio` (section 7).
 
 ### 3.5 Alternatives rejected
 
 | Alternative | Why not |
 | --- | --- |
-| Refuse a redirect to a target that does not exist (400) | The audit says "warns". It would break `AdminApiTests.Redirect_refuses_loops_collapses_chains_and_blocks_live_paths`, which expects 201 for `/old-a → /old-b`, and changing that test is weakening it (P-6). It also blocks a legitimate order of work: redirect first, publish the page later. And it cannot see targets that go missing after an unpublish |
+| Refuse a redirect to a target that does not exist (400) | The audit's fix says "warns", so the audit has already decided. Phase B 4.5 and 8.3 accept a redirect to another redirect's source and collapse it, which such a rule would refuse first. It would also block a legitimate order of work (redirect first, publish the page later), and it cannot see targets that go missing after an unpublish. As a consequence, `AdminApiTests.Redirect_refuses_loops_collapses_chains_and_blocks_live_paths` keeps its 201s unchanged (2.2) |
 | A two-step create: refuse with 409 unless the client sends `confirm: true` | A new request field and a second round trip for a warning. The marker in the list is persistent anyway |
 | Fail the website build on a missing target | One unpublish would stop every build, which is the ADM-02 defect class. The audit says "reports in the build". Shown to the owner as B3, who can ask for a failure instead |
 | Put the target report in `check-content.ts` | It deliberately runs no route table (its header). `check-output.ts` checks the files the build actually wrote, which is what Phase C 10.7 asks |
 | Count `.html` spellings (`/about.html`) as pages | IIS would serve the file, but the website links only clean addresses, and the API would need a second rule. Warning on it costs nothing, and the fix is to type the clean address |
 | Case-insensitive target comparison | Website routes are lower-case only (`cleanPath`). A warning on `/About` is the right nudge, and it errs toward warning |
-| Reuse `OccupiesLivePathAsync` for targets | It counts the error pages' `/error-404` and `/error-500` as live, and, until O-ADM07-2, not ended vacancies. Changing it for targets would change from-path behaviour as a side effect |
+| Reuse `OccupiesLivePathAsync` for targets | It counts the error pages' `/error-404` and `/error-500` as live, which the build does not serve. Changing that for targets would change from-path behaviour as a side effect |
 | F-1 with a serializable transaction | Two creators both take range-shared locks and then both try to insert, so one becomes a deadlock victim (1205), which needs its own retry and mapping. It also does not cover the loop pair, which has two keys |
 | F-1 with a per-address `sp_getapplock` | Does not serialise the loop check across keys, and needs a hashed resource name (the 300-character limit against the lock's 255). One fixed name is simpler |
 | F-1 with a stored key column and a unique index | A schema migration (prefer none). It would fail on any existing `/x` and `/x/` pair until O-ADM02-2's clean-up is done. ADM-02 3.6 rejected storing the key |
@@ -389,7 +402,7 @@ question.
 | --- | --- |
 | `api/src/DigitalHub.Api/Content/RedirectTargets.cs` | `StaticPaths`, `LivePathsAsync`, `Resolves` (3.1) |
 | `api/tests/DigitalHub.Api.Tests/RedirectTargetTests.cs` | T1 to T6 and T9 (database) |
-| `api/tests/DigitalHub.Api.Tests/RedirectConcurrencyTests.cs` | T7 and T8 (database), with its own `ApiFactory` subclass and command interceptor (5.1) |
+| `api/tests/DigitalHub.Api.Tests/RedirectConcurrencyTests.cs` | T7, T8 and T10 (database), with its own `ApiFactory` subclass and command interceptor (5.1) |
 | `api/tests/DigitalHub.Api.Tests/RedirectTargetRuleTests.cs` | K2 (DB-free) |
 | `website/test/redirect-targets.test.ts` | W1 to W4 |
 | `studio/test/redirects.test.tsx` | S1 to S3 |
@@ -399,7 +412,7 @@ question.
 
 | File | What changes |
 | --- | --- |
-| `api/src/DigitalHub.Api/Content/AdminStore.cs` | `CreateRedirectAsync`: the transaction and lock (3.3) and `targetLive` in the 201 body (3.1). `ListRedirectsAsync`: `targetLive` per row. `OccupiesLivePathAsync`: the vacancy predicate, **only if O-ADM07-2 is A** (3.4). Nothing else |
+| `api/src/DigitalHub.Api/Content/AdminStore.cs` | `CreateRedirectAsync`: the transaction and lock (3.3) and `targetLive` in the 201 body (3.1). `ListRedirectsAsync`: `targetLive` per row. `OccupiesLivePathAsync`: the vacancy predicate (3.4). Nothing else |
 | `api/src/DigitalHub.Api/Content/ContentStore.cs` | `DeleteAsync` line 250 and `RetargetAsync` lines 1064-1071: `ToPath` by spellings (3.2). Nothing else |
 | `api/src/DigitalHub.Api/Content/BuildContentStore.cs` | `ErrorSlugs` from `private` to `internal`. No behaviour change |
 | `studio/src/pages/RedirectsPage.tsx` | The `targetLive` field, the "No page" marker, the create warning (3.1) |
@@ -423,9 +436,9 @@ No lockfile, `package.json`, `*.csproj` or workflow changes.
 - **The rename and manual-create loop race** (3.3): section 10.
 - **IIS-level proof that each redirect answers 200**: Phase D (a deploy target).
   The build report is the check this change adds.
-- **O-ADM02-2's clean-up queries** and the G3-1 exit-gate build: the coordinator's.
-  After this change, the Studio list itself shows which redirects point at no page,
-  so that part of the list needs no SQL.
+- **The G3-1 exit-gate build:** the coordinator's. O-ADM02-2's read-only check has
+  already run (section 7). After this change, the Studio list itself shows which
+  redirects point at no page.
 - **ADM-01a** (build status in the Studio). The build report is printed in the build
   log. ADM-01a decides how a build run's output reaches the Studio.
 - **No migration** (section 7).
@@ -437,8 +450,8 @@ No lockfile, `package.json`, `*.csproj` or workflow changes.
 **Marker rule (as ADM-02).** Each test makes
 `m = "adm07-" + Guid.NewGuid().ToString("N")[..8]`. Every path, slug and title it
 creates starts with `m`. In the tables, `/m-x` means `/<m>-x`. Database tests are
-`[Collection("SqlServer")]` with `IClassFixture<ApiFactory>` (T7 and T8 use their
-own factory). They log in as the admin and delete what they create in `finally`:
+`[Collection("SqlServer")]` with `IClassFixture<ApiFactory>` (T7, T8 and T10 use
+their own factory). They log in as the admin and delete what they create in `finally`:
 redirects through `DELETE /api/v1/redirects/{id}`, items unpublished (when
 published) and then deleted, as `Adm02Run` does. Reusing `Adm02Run` is allowed. It
 is `internal` to the test project, and no change to it is planned.
@@ -453,8 +466,7 @@ is `internal` to the test project, and no change to it is planned.
 | T4 | `Unpublishing_a_page_flags_the_redirects_that_point_at_it` | Publish `<m>-p`. POST `/m-in → /<m>-p` (`targetLive` `true`). Unpublish `<m>-p`. The list row now has `targetLive` `false` | No property | As asserted |
 | T5 | `Deleting_an_item_removes_redirects_to_its_address_with_a_trailing_slash` | Publish `<m>-p`. POST `/m-in → /<m>-p/` (201). Unpublish, then delete `<m>-p` (204). `GET /api/v1/redirects?search=<m>-in`: total 0. The audit log has a `delete_redirect` row for it | Total 1: the redirect survives, pointing at nothing | As asserted |
 | T6 | `A_rename_retargets_redirects_to_the_old_address_with_a_trailing_slash` | Publish `<m>-p`. POST `/m-in → /<m>-p/`. Rename to `<m>-q` and publish. The `/m-in` row's `toPath` is `/<m>-q`. Exactly one row has key `/<m>-p`, and it points at `/<m>-q` | `/m-in`'s `toPath` stays `/<m>-p/`, a chain through `/<m>-p → /<m>-q` | As asserted |
-| T9-A | `A_redirect_cannot_take_over_an_ended_vacancy` [Theory: `""`, `"/"`] (**only if O-ADM07-2 is A**) | End vacancy `<m>-v`. POST `/careers/<m>-v` + suffix `→ /careers`: `400 redirect_live_path`. And `AdminStore.CheckRedirectAsync` on a row inserted through `ContentDbContext` from `/careers/<m>-v` returns a `fromPath` error | 201, and no import error | As asserted |
-| T9-B | `A_redirect_may_start_at_an_ended_vacancy` (**only if O-ADM07-2 is B**) | The same POST is 201 | Passes (guard) | Passes |
+| T9 | `A_redirect_cannot_take_over_an_ended_vacancy` [Theory: `""`, `"/"`] | End vacancy `<m>-v`. POST `/careers/<m>-v` + suffix `→ /careers`: `400 redirect_live_path`. And `AdminStore.CheckRedirectAsync` on a row inserted through `ContentDbContext` from `/careers/<m>-v` returns a `fromPath` error | 201, and no import error | As asserted |
 
 T1 to T4 are red on a missing field. That is an honest red: the API today gives
 staff nothing to warn with. The assertion message must print the response body, so
@@ -465,21 +477,49 @@ the CI log shows the absence.
 The class has its own factory, `GatedApiFactory : ApiFactory`. Its
 `ConfigureWebHost` calls `base.ConfigureWebHost` and then
 `ConfigureTestServices(s => s.ConfigureDbContext<ContentDbContext>(o => o.AddInterceptors(Gate)))`.
-`Gate` is a `DbCommandInterceptor`. While it is armed with a marker, it holds every
-reader command whose text reads the redirects table **and** carries a parameter
-whose value starts with that marker. It holds them until two have arrived, or for
-at most 2 seconds, then releases them all and disarms. The developer confirms the
-exact command text from the EF log before relying on the match, and the test fails
-(it does not skip) if the gate saw fewer than one command.
+`Gate` is a `DbCommandInterceptor`.
+
+**The gate's rules** (round 2, review finding 2):
+
+- **Match.** While it is armed with a marker, the gate holds every reader command
+  whose text reads the redirects table **and** has a parameter whose value
+  **contains** the marker.
+  - "Contains", not "starts with": the paths are `/<m>…`, so every value starts
+    with `/`.
+  - EF Core 10 may send `spellings.Contains(redirect.FromPath)` as one scalar
+    parameter per element, or as a single JSON-array parameter
+    (`["/adm07-…","/adm07-…/"]`). "Contains" matches both.
+  - The developer confirms the exact command text and parameter shape from the EF
+    log before relying on the match. The test fails (it does not skip) if the
+    gate saw no command.
+- **Release.** The gate holds the matched commands until two have arrived, or for
+  at most **2 seconds**. Then it releases them all and disarms.
+- **Warm-up before arming.** Before the gate is armed, the test logs in and does one
+  create and one delete of a throwaway redirect through the same factory. That
+  compiles the login, the six `OccupiesLivePathAsync` queries, the resolve query
+  and the insert. Without it, on a cold factory the two requests can arrive more
+  than 2 s apart. The first would then insert alone, the second would get 409, and
+  T7 would be green at the red commit.
+- **The cap must stay under the lock timeout.** At green, the second request waits
+  in `sp_getapplock` while the gate holds the first. So the gate's cap (2 s) must
+  stay well under the lock timeout (5 s, 3.3), or T7 turns into a 503. A comment
+  in the test says so, next to both numbers.
 
 | # | Test | Asserts | Red at base | Green |
 | --- | --- | --- | --- | --- |
-| T7 | `Two_creates_of_one_address_at_once_give_one_redirect` [Theory: (`/m`, `/m/`), (`/m/`, `/m`), (`/m`, `/m`)] | Arm the gate. Send both POSTs (`toPath` `/`) at once (`Task.WhenAll`). Exactly one is 201. The other is `409 redirect_exists`. Neither is 5xx. One row has key `/m` | The gate makes both duplicate checks run before either insert. Mixed spellings: two 201s. The same spelling: one 201 and one 500 (`DbUpdateException` on `IX_redirects_from_path`) | The second request waits in `sp_getapplock`, so the gate releases the first alone after 2 s. The second then sees the row: 409 |
-| T8 | `Many_creates_of_one_address_at_once_give_one_redirect` | No gate. Five rounds, each with its own marker. Each round sends 8 POSTs at once, alternating `/m-r` and `/m-r/`. Per round: exactly one 201, seven `409 redirect_exists`, no 5xx | Likely red (more than one 201, or a 500), but timing-dependent. T7 is the deterministic red | Passes on every run: the lock serialises the creates |
+| T7 | `Two_creates_of_one_address_at_once_give_one_redirect` [Theory: (`/m`, `/m/`), (`/m/`, `/m`), (`/m`, `/m`)] | Warm up, then arm the gate. Send both POSTs (`toPath` `/`) at once (`Task.WhenAll`). Exactly one is 201. The other is `409 redirect_exists`. Neither is 5xx. One row has key `/m` | The gate makes both duplicate checks run before either insert. Mixed spellings: two 201s. The same spelling: one 201 and one 500 (`DbUpdateException` on `IX_redirects_from_path`) | The second request waits in `sp_getapplock`, so the gate releases the first alone after 2 s. The second then sees the row: 409 |
+| T8 | `Many_creates_of_one_address_at_once_give_one_redirect` | No gate. The same warm-up before round 1 (review finding 3). Five rounds, each with its own marker. Each round sends 8 POSTs at once, alternating `/m-r` and `/m-r/`. Per round: exactly one 201, seven `409 redirect_exists`, no 5xx. The test writes each round's slowest request time to the test output | Likely red (more than one 201, or a 500), but timing-dependent. T7 is the deterministic red | Passes on every run: the lock serialises the creates |
+| T10 | `A_create_that_cannot_get_the_lock_in_time_is_refused_as_busy` (round 2, review finding 1) | Open a separate `SqlConnection` with the test connection string (the factory's, rewritten to `DigitalHubContent_Test`). `BEGIN TRAN`, then `EXEC sp_getapplock @Resource = N'digitalhub:redirects', @LockMode = N'Exclusive', @LockOwner = N'Transaction'`, and assert its result is `>= 0`. POST `/m-busy → /`: `503`, code `redirect_busy`. `GET /api/v1/redirects?search=<m>-busy`: total 0. Roll back the holder in `finally`. The same POST is then 201 | 201 at once: no lock is taken. The test fails at the 503 assertion | As asserted, after about 5 s (the lock timeout) |
 
 T8 is the gate-2 wording ("N parallel creates of one address give exactly one
 201"). T7 is what makes the red certain. If T8 happens to pass at the red commit,
 that is reported as it is, not hidden. T7 must still be red.
+
+T10 proves the `@result < 0` branch: the 503 rather than a 500, the rollback (no
+row), and the resource name, because the holder uses the documented name and the
+create must wait on it. The holder's connection takes the lock in the test
+catalog only, and it is released in `finally` by rollback and by closing the
+connection.
 
 **`RedirectTargetRuleTests.cs` (DB-free).**
 
@@ -499,7 +539,7 @@ the file typechecks at the base, and its red is an assertion, not a compile erro
 | --- | --- | --- |
 | W1 | `reports a redirect whose target has no page` | `out/` with `index.html` and `about.html`. Redirects `/a → /about` and `/b → /missing` give exactly `["Redirect /b -> /missing: no page in the build answers at /missing."]` |
 | W2 | `a trailing slash, the home page and the fixed pages resolve` | `/c → /about/`, `/d → /`, `/e → /privacy-careers` (with `privacy-careers.html`) give `[]` |
-| W3 | `error pages, html spellings, upper case and media do not count` | With `404.html`, `500.html`, `about.html` and `media/x.webp` present: targets `/404`, `/500`, `/about.html`, `/About` and `/media/x.webp` each give one line |
+| W3 | `error pages, html spellings, upper case and media do not count` | With `404.html`, `500.html`, `about.html` and `media/x.webp` present: targets `/404`, `/500`, `/about.html`, `/About` and `/media/x.webp` each give one line. `/About` gives its line on every file system, because the lookup is in the walked list, not `fs.existsSync` (3.1) |
 | W4 | `no redirects, no lines` | `redirectTargetReport(out, [])` is `[]`. The committed snapshot has 0 redirects (`web.config: 0 redirect(s)` in ADM-02's build), so the CI `website` build prints `Redirect targets: all 0 resolve to a page.` |
 
 All four are red at the base: "check-output.ts exports redirectTargetReport"
@@ -507,11 +547,22 @@ fails.
 
 **`studio/test/redirects.test.tsx` (vitest, the `listPaging.test.tsx` mock pattern).**
 
+The toasts are spies, never rendered (round 2, review finding 4). antd's static
+`message.*` renders into a React root of its own, which outlives `cleanup()`
+(`docs/changes/ADM-06b-flake/plan.md`; the comment at `listPaging.test.tsx:57-62`).
+So the file does what `listPaging.test.tsx:63-67` does, for both calls:
+
+- `vi.hoisted(() => ({ success: vi.fn(), warning: vi.fn() }))`, and `vi.mock("antd", …)`
+  replaces `message.success` and `message.warning` with them;
+- `beforeEach` clears both spies;
+- `afterEach` runs `cleanup()` and asserts `document.body.innerHTML` is `""`, as
+  `listPaging.test.tsx:165-169` does.
+
 | # | Test | Asserts | Red at base |
 | --- | --- | --- | --- |
-| S1 | `warns when a created redirect points at no page` | POST answers 201 with `toPath: "/nowhere"`, `targetLive: false`. The page shows "Redirect created, but no published page answers at /nowhere." and not "Redirect created." | Shows "Redirect created." |
-| S2 | `marks rows whose target has no page` | A list with one row `targetLive: false` and one `true`. "No page" appears once, in the first row | No marker |
-| S3 | `a redirect to a page is created quietly` | 201 with `targetLive: true` shows "Redirect created." and no marker | Passes (guard) |
+| S1 | `warns when a created redirect points at no page` | POST answers 201 with `toPath: "/nowhere"`, `targetLive: false`. `message.warning` was called once, with "Redirect created, but no published page answers at /nowhere. Visitors who follow it see the 404 page." `message.success` was not called | `message.success("Redirect created.")` is called, and `message.warning` is not |
+| S2 | `marks rows whose target has no page` | A list with one row `targetLive: false` and one `true`. "No page" appears once, in the first row (this marker is rendered inside `render()`'s root, so it is asserted as text) | No marker |
+| S3 | `a redirect to a page is created quietly` | 201 with `targetLive: true`: `message.success` was called once with "Redirect created.", `message.warning` was not called, and there is no marker | Passes (guard) |
 
 **`studio/e2e/redirects.spec.ts` (Playwright, `DigitalHubContent_E2e`).**
 
@@ -532,8 +583,8 @@ so they show no marker), and `studio/e2e/paging.spec.ts`.
 ### 5.2 Commit order (B-6, P-4)
 
 1. `ADM-07: Test that redirects land on a page and never share an address`
-   - API: `RedirectTargetTests.cs` (T1 to T6; T9 only if O-ADM07-2 is answered by
-     then) and `RedirectConcurrencyTests.cs` (T7, T8).
+   - API: `RedirectTargetTests.cs` (T1 to T6, T9) and `RedirectConcurrencyTests.cs`
+     (T7, T8, T10).
    - Website: `redirect-targets.test.ts` (W1 to W4).
    - Studio: `e2e/redirects.spec.ts` (E1).
    - **Not** the Studio unit tests (commit 2). CI job `studio` runs unit tests
@@ -542,7 +593,8 @@ so they show no marker), and `studio/e2e/paging.spec.ts`.
 2. `ADM-07: Test the Studio's redirect warning`
    - `studio/test/redirects.test.tsx` (S1 to S3). Red locally after `npm ci` (5.3).
      If O-ADM07-1 is Yes, it is pushed only after commit 1's CI run has finished
-     jobs `api`, `website` and `studio` (5.4).
+     jobs `api`, `website` and `studio` (5.4). O-ADM07-1 is "Yes, red tests first"
+     (section 9).
 3. `ADM-07: Compare redirect targets by address on delete and rename`
    - `ContentStore.cs` (3.2). Makes T5 and T6 green.
 4. `ADM-07: Tell staff when a redirect points at no page`
@@ -552,12 +604,9 @@ so they show no marker), and `studio/e2e/paging.spec.ts`.
 5. `ADM-07: Report redirects with no page in the build`
    - `check-output.ts`. Makes W1 to W4 green.
 6. `ADM-07: Make a redirect's checks and insert one unit`
-   - `AdminStore.CreateRedirectAsync` (3.3). Makes T7 and T8 green.
-7. **Only if O-ADM07-2 is A:** `ADM-07: Treat an ended vacancy's page as live for redirects`
-   - `OccupiesLivePathAsync` (3.4). Makes T9-A green. If the answer arrives after
-     commit 1 was pushed, T9-A goes in its own test commit first, shown red in CI,
-     then this commit.
-   - If B: T9-B and the summary line go in one commit, which needs no red.
+   - `AdminStore.CreateRedirectAsync` (3.3). Makes T7, T8 and T10 green.
+7. `ADM-07: Treat an ended vacancy's page as live for redirects`
+   - `OccupiesLivePathAsync` (3.4). Makes T9 green.
 
 Each fix commit can be reverted on its own.
 
@@ -583,7 +632,7 @@ cd ../website && npx vitest run test/redirect-targets.test.ts && npm run typeche
 
 - Expected: build 0 errors. W1 to W4 fail at "check-output.ts exports
   redirectTargetReport", quoted as run. Typecheck passes.
-- T1 to T9 and E1 need SQL Server. Locally they fail at the connection or the
+- T1 to T10 and E1 need SQL Server. Locally they fail at the connection or the
   login, which is not the red. NOT RUN here; CI jobs `api` and `studio` (5.4).
 
 **After commit 2 (red):**
@@ -616,10 +665,11 @@ cd studio && npx vitest run test/redirects.test.tsx && npx tsc -b
 
 ### 5.4 CI evidence on the pull request
 
-- **Red, at commit 1** (waits on O-ADM07-1):
-  - Job `api`: T1, T2 (2), T3 (6), T4, T5, T6, T7 (3) fail, and T8 probably fails.
-    T9-A (2) is included if it is in commit 1. Quote each assertion. T7's messages
-    must show two 201s, or a 201 and a 500. Every other test passes.
+- **Red, at commit 1** (O-ADM07-1 is "Yes, red tests first"):
+  - Job `api`: T1, T2 (2), T3 (6), T4, T5, T6, T7 (3), T9 (2) and T10 fail, and T8
+    probably fails. Quote each assertion. T7's messages must show two 201s, or a
+    201 and a 500. T10's must show 201 where 503 was expected. Every other test
+    passes.
   - Job `website`: "Tests" fails with W1 to W4 and nothing else.
   - Job `studio`: unit tests pass (S1 to S3 are not in commit 1). In the end-to-end
     suite, E1 fails at step 3 and every other test passes.
@@ -632,6 +682,10 @@ cd studio && npx vitest run test/redirects.test.tsx && npx tsc -b
   - `ci.yml`: `api` (quote the TRX total: the base's 520 plus the new cases),
     `website`, `studio` (unit and end-to-end), `section-compare`, `website-browser`;
   - `security.yml`; `workflow-lint.yml`.
+- **Quote T8's timings** from the green `api` log: each round's slowest request
+  (review finding 3). Any `redirect_busy` in T8 at green is a failure to report,
+  not to retry away.
+- **Quote T10's duration** at green: about 5 s, the lock timeout.
 - **Watch:** `studio/e2e/paging.spec.ts` creates 51 redirects to `/`. Each create now
   takes the lock, one after another. They were already sequential in the test, so
   its time should not change. Quote its duration before and after.
@@ -641,11 +695,11 @@ cd studio && npx vitest run test/redirects.test.tsx && npx tsc -b
 | Item | How it is met |
 | --- | --- |
 | The finding, its evidence and its fix come from the audit | Section 1 quotes ADM-07. 2.2 reproduces bullet 3 on the website side. The fix is the audit's: "a target check that warns in the Studio and reports in the build" (3.1). F-1 and F-2 come from ADM-02's test report, routed by its gate 2 |
-| The regression test is committed and shown failing before the fix | Commits 1 and 2 come before any fix. W1 to W4 and S1, S2 are red locally. T1 to T9 and E1 are red in CI only if O-ADM07-1 is Yes. If it is No, this row is not met, and the delivery is BLOCKED ON OWNER until the owner accepts NOT RUN red in words (a D-NNN entry). No role may waive it (P-7) |
+| The regression test is committed and shown failing before the fix | Commits 1 and 2 come before any fix. W1 to W4 and S1, S2 are red locally. T1 to T10 and E1 are red in CI on commit 1, which O-ADM07-1 ("Yes, red tests first") allows to be pushed first |
 | The end-to-end suite gets a test for each Major | E1 covers all three ADM-07 bullets |
-| A Minor that is not fixed becomes a D-NNN entry | F-1 is fixed. F-2 is fixed or kept on purpose by O-ADM07-2. If O-ADM07-2 has no answer at gate 1, F-2 becomes a D-NNN question (section 9) |
+| A Minor that is not fixed becomes a D-NNN entry | Both are fixed: F-1 (3.3) and F-2 (3.4, as O-ADM07-2 decided). No D-NNN entry is needed |
 | G3-1 exit gate: "each blocker reproduced before its fix and passing after it" | ADM-07 is a Major in a Blocker batch. Reproduced in 2.2 and by the CI red (5.4). Passing in 5.3 and 5.4 |
-| G3-1 exit gate: "A clean website build from `DigitalHubContent_Studio` with no patched content" | Not met by this change alone. With this change, that build prints the redirect-target report. Any "no page" lines are fixed in the Studio under O-ADM02-2 ("List them, I pick fixes in Studio") |
+| G3-1 exit gate: "A clean website build from `DigitalHubContent_Studio` with no patched content" | Not met by this change alone (it also needs ADM-05 and the rest of the batch). The owner's read-only check found 0 redirects there and the build content passed `check:content` (section 7), so this change's report should read `all 0 resolve to a page` on that build |
 
 ## 6. Security impact
 
@@ -654,8 +708,8 @@ cd studio && npx vitest run test/redirects.test.tsx && npx tsc -b
 - **Data exposed:** `targetLive` says whether a published page answers at a path.
   Only Studio users see it, and they can already list all content. The build
   content endpoint is unchanged.
-- **Input validation:** unchanged. Nothing accepted today is refused, except F-2's
-  ended-vacancy case if O-ADM07-2 is A, and nothing refused today is accepted.
+- **Input validation:** unchanged, except that a redirect from an ended vacancy's
+  address is now refused (F-2, B6). Nothing refused today is accepted.
 - **Availability:**
   - The lock serialises redirect creates. A create waits at most 5 s for the lock
     and then gets `503 redirect_busy` (B5).
@@ -669,7 +723,9 @@ cd studio && npx vitest run test/redirects.test.tsx && npx tsc -b
 - **Logins and secrets:** none. E1 uses the end-to-end admin, as the other specs do.
 - **Dependencies:** none. No lockfile, package or workflow change.
 - **Test-only code:** the T7 interceptor is registered only in the test project's
-  `GatedApiFactory`. Nothing in `api/src` knows about it.
+  `GatedApiFactory`. Nothing in `api/src` knows about it. T10's holder connection
+  uses the test connection string, so it reaches `DigitalHubContent_Test` only, and
+  it releases the lock by rollback in `finally`.
 
 ## 7. Migrations
 
@@ -686,12 +742,16 @@ None. No entity, column, index or constraint changes, and no row is rewritten.
   works, through the chain `/s → /new`, but it chains instead of landing, which
   design 4.5 forbids. Staff fix either in the Studio by deleting the redirect and
   adding it again with the new target.
-- **Redirects from an ended vacancy's address** (if O-ADM07-2 is A). They still
-  build and still take the page over. New ones are refused. The O-ADM02-2 query (b),
-  widened as in 3.4, lists them.
+- **Redirects from an ended vacancy's address.** They would still build and still
+  take the page over. New ones are refused.
 
-None of this needs a migration. That some such rows exist in
-`DigitalHubContent_Studio` is likely but not verified: there is no SQL Server here.
+None of this needs a migration. **And there are no such rows to fix.** The
+coordinator reports the owner's read-only check of `DigitalHubContent_Studio` (on
+the owner's machine, for O-ADM02-2): it found 0 redirects, and the build content
+passed `check:content`. I have not seen that output myself; it is as the
+coordinator relayed it on 11 November 2026. Other catalogs (`DigitalHubContent_E2e`
+is reset before each run; `DigitalHubContent_Test` holds only test rows) need
+nothing either.
 
 ## 8. Rollback
 
@@ -706,58 +766,31 @@ None of this needs a migration. That some such rows exist in
 
 ## 9. Owner decisions needed
 
-- **O-ADM07-1. Status: PENDING.** Red test first for this change.
-  - **Question:** "May the developer push ADM-07's first commit (tests only: the
-    redirect-target, delete and rename, concurrency and end-to-end tests) to
-    `change/ADM-07` and open the pull request before the fix commits are pushed, so
-    that CI's `api`, `website` and `studio` jobs show them failing first? CI would
-    be red on that pull request until the rest is pushed."
-  - **Answers to offer:** "Yes, push the red tests first" (recommended), or "No, push
-    only when finished".
-  - **Not assumed from earlier changes.** The owner answered this per change:
-    ADM-06b ("Yes, red test first like #49", Mohamed Elbadry, 11 November 2026, as
-    quoted in the ADM-03 plan) and ADM-02 ("yes both", Mohamed Elbadry, 11 November
-    2026, project chat, as relayed in ADM-02 `delivery-approval.md` round 2). Those
-    words cover those changes, not this one.
-  - **Why it is asked:** the G3 rule requires the regression test "shown failing
-    before the fix". T1 to T9 and E1 need SQL Server, which this container lacks,
-    and CI runs only on a pull request.
-  - **What does not wait:** development, the commits in order, the local evidence
-    (5.3), the review, testing and both gates.
-  - **If "No":** the red for those tests is NOT RUN. The delivery is then BLOCKED ON
-    OWNER until the owner accepts that in words, as a D-NNN entry in
-    `docs/deferred-items.md` (which does not exist yet). The entry has the rule
-    waived, the reason, the owner's words and date, the follow-up owner and an
-    expiry.
+- **O-ADM07-1. Status: ANSWERED.** Red test first for this change.
+  - **Card, as relayed by the coordinator:** "For ADM-07, push the failing tests
+    first, as with ADM-02?"
+  - **The owner's answer:** "Yes, red tests first" (Mohamed Elbadry, 11 November
+    2026, project thread; tapped on the card). I have not seen the thread myself.
+    The words and their source come from the coordinator's message.
+  - **What it allows:** the developer pushes commit 1 (tests only) to
+    `change/ADM-07` and opens the pull request before the fix commits, so CI's
+    `api`, `website` and `studio` jobs show the red (5.4). Commit 2 is pushed only
+    after commit 1's run has finished those jobs.
+  - **Read narrowly:** it covers this change's red-first push only. It is not an
+    answer to anything else.
 
-- **O-ADM07-2. Status: PENDING.** F-2, a redirect from a closed role's page.
-  - **Question:** "When a vacancy has ended, its page stays on the website at
-    `/careers/<slug>` with 'This position is no longer open'. Today staff can add a
-    redirect from that address, and the page then answers with a redirect instead.
-    Should the Studio refuse that, as it does for every other page on the website?"
-  - **Answers to offer:**
-    - **A. "Refuse it, like any live page. To send a closed role's address
-      elsewhere, delete the ended vacancy first, then add the redirect"**
-      (recommended).
-    - **B. "Allow it: staff may redirect a closed role's page while the vacancy
-      stays ended."**
-  - **Why A is recommended:**
-    - It is one rule: a page the build writes cannot be taken over by a redirect.
-      The build writes ended vacancies (`BuildContentStore.cs:176`), and the
-      website gives them a designed "no longer open" page.
-    - It keeps the import check and the create check the same (3.4).
-    - There is a clear path for the other wish: an ended vacancy can be deleted
-      (2.5), and its delete removes redirects to it.
-  - **What B costs:** the page staff see as "Ended" in the Studio no longer appears
-    on the website, and nothing in the Studio says so. If the vacancy is later
-    reopened, its publish is refused ("That address is the source of a redirect.")
-    until the redirect is deleted.
-  - **What does not wait:** everything except commit 7 and T9.
-  - **If there is no answer by gate 1:** gate 1 may approve without commit 7, and
-    F-2 goes to `docs/deferred-items.md` as a D-NNN entry. That needs the owner's
-    words to accept the deferral. Proposed expiry: **18 December 2026**, the
-    refinement plan's date for the Minors. Until then, a redirect can still take
-    over an ended vacancy's page, as today.
+- **O-ADM07-2. Status: ANSWERED.** F-2, a redirect from a closed role's page.
+  - **Card, as relayed by the coordinator:** "Should a redirect be refused from an
+    ended vacancy's page?"
+  - **The owner's answer:** "Yes, refuse it" (Mohamed Elbadry, 11 November 2026,
+    project thread; tapped on the card). As above, relayed by the coordinator.
+  - **How it is read:** round 1's option A. A redirect from an ended vacancy's
+    address is refused like any live page (3.4, B6, T9). F-2 is in scope, so no
+    D-NNN entry is needed.
+  - **What staff do instead,** to send a closed role's address elsewhere: delete
+    the ended vacancy (allowed, 2.5), then add the redirect. This is the plan's
+    reading of the design, not part of the owner's words. It goes in the pull
+    request body so the owner sees it at merge.
 
 - **Behaviour changes, for the owner to see.** They go in the pull request body too.
   They are the fix itself, so they are not asked as separate decisions. Say so
@@ -777,14 +810,18 @@ None of this needs a migration. That some such rows exist in
   - **B5:** Redirect creates run one at a time. Two at once for one address give one
     201 and one `409 redirect_exists`; today they can give two 201s, or a 500. A
     create that waits more than 5 seconds for another one gets
-    `503 redirect_busy`, "Another redirect is being saved. Try again."
-  - **B6 (only if O-ADM07-2 is A):** A redirect from an ended vacancy's address, with
+    `503 redirect_busy`, "Another redirect is being saved. Try again." (T10)
+  - **B6 (decided by O-ADM07-2, "Yes, refuse it"):** A redirect from an ended vacancy's address, with
     or without a trailing slash, is refused: `400 redirect_live_path`. So is such a
     row in a bundle import.
 
 - **Already decided, not asked again:** ADM-02's B1 to B7 (accepted at merge of #54).
   O-ADM02-2: "List them, I pick fixes in Studio" (as relayed to this architect by
-  the coordinator). This change's list marker is one way to do that.
+  the coordinator). Its read-only check has since found 0 redirects in
+  `DigitalHubContent_Studio`, and that build content passed `check:content`, as the
+  coordinator relayed. So this change has no existing rows to fix (section 7).
+
+- **No owner decision is open for this change.**
 
 ## 10. Risks
 
@@ -792,14 +829,20 @@ None of this needs a migration. That some such rows exist in
 | --- | --- | --- |
 | The API's idea of a page and the build's drift apart | A false "No page", or a missed one | Both use the build's items: the API reads the same statuses as `BuildContentStore`, and the website reads `out/`. K2 locks the fixed pages and the error pages. T3 and W2/W3 pin the edge cases on both sides |
 | A new fixed page is added to the website (another `src/app/<name>/page.tsx`) | The API calls it "No page" | K2 fails when `staticFiles` changes without `RedirectTargets.StaticPaths` |
-| T7's interceptor matches the wrong command, or none | The red is not real, or the test hangs | The developer confirms the command text from the EF log. The gate releases after 2 s at most. T7 fails if the gate saw no command. T7's red messages must show two 201s, or a 201 and a 500 |
+| T7's interceptor matches the wrong command, or none | The red is not real, or the test hangs | The match is "a parameter whose value contains the marker", which fits both EF 10 parameter shapes. The developer confirms the command text from the EF log. The gate releases after 2 s at most. T7 fails if the gate saw no command. T7's red messages must show two 201s, or a 201 and a 500 |
+| A cold factory spreads T7's two requests more than 2 s apart | T7 is green at the red commit | The warm-up before arming (5.1) |
+| The gate cap and the lock timeout are changed apart | T7 turns into a 503 at green | Both numbers sit side by side in a test comment: the cap (2 s) must stay well under the lock timeout (5 s) |
+| A cold start under the lock gives T8 a `redirect_busy` | A 503 that is not a defect | The same warm-up before round 1. T8's slowest request per round is quoted (5.4) |
+| The busy branch maps to 500, inserts a row, or waits on a different lock name | A broken B5 nobody sees | T10 holds the documented lock from a separate connection and asserts 503 `redirect_busy` and no row |
+| Studio tests render a real antd toast | The ADM-06b-flake failure returns ("window is not defined" after the file ends) | S1 and S3 assert on spies for `message.success` and `message.warning`, and the file's `afterEach` asserts an empty body |
+| The build report's file lookup follows the file system's case rules | W3 passes on Linux and fails on Windows | The lookup is in the walked file list, ordinally (3.1) |
 | T8 is green at the red commit | The ungated proof looks weaker | Stated in 5.1. T7 is the deterministic red, and T8 is reported as it ran |
-| The lock is held too long, or leaks | Creates fail with 503 | Transaction-owned: released on commit, rollback or connection close. 5 s timeout. `paging.spec.ts` (51 sequential creates) and T8 (8 at once) show it under load |
+| The lock is held too long, or leaks | Creates fail with 503 | Transaction-owned: released on commit, rollback or connection close. 5 s timeout. T10 shows the timeout path and that the next create succeeds once the holder rolls back. `paging.spec.ts` (51 sequential creates) and T8 (8 at once) show it under load |
 | `sp_getapplock` is not allowed for `dh_content_app` | Every create fails | CI `api` runs as `dh_content_app` (2.4); every redirect test would fail there |
 | A rename races a manual create into a loop through different keys | A loop the build writes | Not fixed (3.3). Needs two people at the same instant. Visible in the list. If the owner wants it closed, `RetargetAsync` can take the same lock in a follow-up |
 | `OccupiesLivePathAsync` calls `/error-404` and `/error-500` live | A redirect from those unused addresses is refused | Harmless: it only refuses more. Out of scope (section 4) |
 | The Studio warning is easy to dismiss | Staff ignore it | The marker stays in the list. The build report repeats it |
-| Existing redirects to `/s/` of renamed items get marked "No page" | Staff see more warnings after the merge | 7 explains it. It is correct: they chain instead of landing. Fix in the Studio (O-ADM02-2) |
+| Existing redirects to `/s/` of renamed items get marked "No page" | Staff see more warnings after the merge | 7 explains it. It is correct: they chain instead of landing. The owner's check found no redirects in `DigitalHubContent_Studio`, so none exist today |
 | The red unit test hides E1 in CI | No end-to-end red evidence | 5.2 puts the Studio unit tests in commit 2, pushed after commit 1's CI has finished |
 
 ## 11. Coverage table
@@ -811,14 +854,16 @@ None of this needs a migration. That some such rows exist in
 | Path normalisation | Audit ADM-07, Fix | Closed by ADM-02 (#54) | |
 | A target with no page is detected by the API, by the build's own rule | Audit ADM-07, bullet 3 | Planned | |
 | The Studio warns: on create, and per row in the list | Audit ADM-07, Fix ("warns in the Studio") | Planned | |
-| The build reports redirects with no page | Audit ADM-07, Fix ("reports in the build"); Phase C 10.7; BA 530 | Planned | |
+| The build reports redirects with no page | Audit ADM-07, Fix ("reports in the build") | Planned | |
+| Phase C 10.7 "Every redirect in the table resolves to a page returning 200"; BA 530 "checks every redirect lands on a live page" | Phase C; business analysis | Partly: reported, not enforced (B3). The IIS-level check is Phase D | |
 | API and website agree on the fixed and error pages (drift guard) | Found here (3.1) | Planned | |
 | `ToPath` compared by address in `DeleteAsync` | ADM-02 plan 2.2 and 4, handed over | Planned | |
 | `ToPath` compared by address in `RetargetAsync` | ADM-02 plan 2.2 and 4, handed over | Planned | |
 | End-to-end test for the Major | G3 checklist; ADM-02 plan 3.4 | Planned | |
 | F-1: check and insert are one unit; concurrent creates of one address give exactly one 201 | ADM-02 test report F-1; delivery approval | Planned | |
-| F-2: ended vacancy's page and redirects | ADM-02 test report F-2; delivery approval | Planned (waits on O-ADM07-2; D-NNN if unanswered at gate 1) | |
-| Regression tests committed and shown failing before the fix | G3 checklist; refinement plan Track G3 | Planned (the CI red waits on O-ADM07-1) | |
+| F-1: a create that cannot get the lock in time is `503 redirect_busy`, with no row (B5) | Review round 1 finding 1 | Planned | |
+| F-2: a redirect from an ended vacancy's address is refused, at create and at import | ADM-02 test report F-2; delivery approval; O-ADM07-2 "Yes, refuse it" | Planned | |
+| Regression tests committed and shown failing before the fix | G3 checklist; refinement plan Track G3; O-ADM07-1 "Yes, red tests first" | Planned | |
 | No regression in the DB-free baseline (175 at `6262f48`, 176 with `npm ci`) | P-8 | Planned | |
 | Warning at unpublish | Considered here | Out of scope (ADM-14, ADM-20) | |
 | Readable refusal messages in the Redirects modal | Found here (2.2) | Out of scope (ADM-14) | |
@@ -826,19 +871,61 @@ None of this needs a migration. That some such rows exist in
 
 ## 12. Revision log
 
-- **Round 1 (11 November 2026):** first version. There is no `plan-review.md`,
-  `plan-approval.md` or `implementation.md` for ADM-07 yet, so there are no points
-  to answer.
+- **Round 1 (11 November 2026, `4b66664`):** first version. There was no
+  `plan-review.md`, `plan-approval.md` or `implementation.md` for ADM-07 yet.
+- **Round 2 (11 November 2026).** Answers `plan-review.md` Round 1 (`df3af90`,
+  CHANGES NEEDED), point by point:
+  1. **Major, no test for `503 redirect_busy`.** Added T10,
+     `A_create_that_cannot_get_the_lock_in_time_is_refused_as_busy`, in
+     `RedirectConcurrencyTests.cs`, in commit 1. A separate `SqlConnection` holds
+     `sp_getapplock` on `N'digitalhub:redirects'` in an open transaction. The POST
+     must give `503 redirect_busy` and leave no row. After rollback, the same POST is
+     201. It is red at base (201 at once), so it also proves the resource name.
+     Added to 3.3, 4, 5.2 (commit 6 makes it green), 5.4's red list, B5, section 10
+     and the coverage table.
+  2. **Minor, T7's gate.** The match is now "a parameter whose value **contains**
+     the marker", which covers EF Core 10's scalar and JSON-array parameter shapes.
+     The developer still confirms the text from the EF log. Added a warm-up (one
+     create and delete through the same factory) before arming. Wrote down the
+     coupling: the gate's 2 s cap must stay well under the 5 s lock timeout, with
+     both numbers side by side in a test comment. All in 5.1, with risk rows in 10.
+  3. **Minor, T8 cold start.** The same warm-up before round 1. T8 writes each
+     round's slowest request time, and 5.4 quotes it. A `redirect_busy` in T8 at
+     green is reported as a failure.
+  4. **Minor, Studio toasts.** S1 and S3 now assert on spies for both
+     `message.success` and `message.warning` (call and text), mocked as
+     `listPaging.test.tsx:63-67` does. The file keeps the empty-body `afterEach`
+     (`listPaging.test.tsx:165-169`). S2's marker is inside `render()`'s root, so it
+     is still asserted as text.
+  5. **Minor, ordinal file lookup.** `redirectTargetReport` looks files up in the
+     walked file list (`walk(outDir)` into a `Set`, as `checkOutput` builds
+     `fileSet` at `check-output.ts:105-106`), never with `fs.existsSync`. 3.1 and W3
+     say so.
+  6. **Minor, the 201 rationale and 10.7.** 2.2 and the 3.5 row now rest on the
+     audit's "warns" and on Phase B 4.5 and 8.3 (chains to another redirect's
+     source are accepted and collapsed). The `AdminApiTests` 201s are named as a
+     consequence, not a reason. The P-6 claim is removed. The coverage table now
+     has a separate row: Phase C 10.7 and BA 530 are "Partly: reported, not
+     enforced (B3). The IIS-level check is Phase D".
+  - **Owner answers recorded** (section 9), as relayed by the coordinator:
+    O-ADM07-1 "Yes, red tests first" and O-ADM07-2 "Yes, refuse it" (Mohamed
+    Elbadry, 11 November 2026, project thread). So F-2 is in scope without
+    conditions: T9 (formerly T9-A) is in commit 1, commit 7 is unconditional,
+    T9-B and the D-NNN fallback are removed, and B6 is no longer conditional.
+  - **O-ADM02-2 context recorded** (sections 7, 9, 5.5): the owner's read-only
+    check found 0 redirects in `DigitalHubContent_Studio`, and that build content
+    passed `check:content`. So there are no existing rows to fix, and 3.4's note
+    about widening query (b) is withdrawn.
 
 ## Owner decisions, in brief
 
-Section 9 has the full wording. Both are PENDING. No answer is assumed.
+Section 9 has the full wording. Both questions are answered, as relayed by the
+coordinator. No owner decision is open.
 
-- **O-ADM07-1:** push the test-only commit first, so CI shows the red. Recommended:
-  "Yes, push the red tests first."
-- **O-ADM07-2 (F-2):** refuse a redirect from an ended vacancy's page? Recommended:
-  "A. Refuse it, like any live page." If there is no answer by gate 1, F-2 becomes
-  a D-NNN entry with expiry 18 December 2026, which needs the owner's words.
-- **B1 to B6:** behaviour changes for the owner to see at merge. B3 (the build
-  reports a missing target, it does not fail) is the one to object to before gate 1
-  if a failing build is wanted.
+- **O-ADM07-1:** "Yes, red tests first" (Mohamed Elbadry, 11 November 2026, project
+  thread). Commit 1 (tests only) is pushed first, so CI shows the red.
+- **O-ADM07-2:** "Yes, refuse it" (same date and place). A redirect from an ended
+  vacancy's page is refused. F-2 is fixed here, and no D-NNN entry is needed.
+- **B1 to B6:** behaviour changes for the owner to see at merge. B3 is the one to
+  object to before gate 1 if a failing build is wanted: the build reports a
+  missing target, and does not fail.
