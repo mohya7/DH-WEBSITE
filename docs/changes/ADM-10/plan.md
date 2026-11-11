@@ -1,15 +1,16 @@
 # ADM-10: plan
 
 Change id: `ADM-10`. Branch: `change/ADM-10`, worktree `/home/user/dh-change-adm10`.
-Cut from `origin/rebuild/dotnet-platform` at `6262f48`. Architect, round 1,
-11 November 2026.
+Architect, round 2, 11 November 2026. Round 1 (`3436530`) came back CHANGES NEEDED
+(`plan-review.md` Round 1 at `cf14094`: two Majors, four Minors). Section 12 answers
+each one. The main changes: E1 uploads two different images it makes itself, and the
+Studio unit tests move to their own commit, so E1's red shows in CI.
 
-**Planned against `32f0414`.** While this plan was being written, the coordinator
-reported that PR #55 (ADM-07) merged into `rebuild/dotnet-platform` as `32f0414`
-("merge now", 11 November, as relayed by the coordinator). I confirmed it with
-`git fetch`: `6262f48..32f0414  rebuild/dotnet-platform`. The coordinator will merge
-`32f0414` into `change/ADM-10` before development starts. Every line number below is
-at `32f0414` unless it says otherwise.
+**Base: `32f0414`.** PR #55 (ADM-07) merged into `rebuild/dotnet-platform` as
+`32f0414`, as the coordinator relayed. `change/ADM-10` already contains it: the
+round 1 plan commit `3436530` has parent `32f0414` (`git log --oneline -4`:
+`cf14094`, `3436530`, `32f0414`, `6262f48`). The precondition in 2.7 is met. Every
+line number below is at `32f0414`.
 
 **Files this plan's process requires that do not exist here:**
 
@@ -158,11 +159,15 @@ Once the form can send an id, these two cases become reachable:
   does not touch `UpdateSettingsAsync`, `ValidateSettings` or `SiteSettingsUpdate`.
 - #55 is merged (`32f0414`), so no open pull request overlaps any more. ADM-10 does
   change `AdminStore.cs`. **Development starts only on a branch that already
-  contains `32f0414`**, which the coordinator has said will be merged into
-  `change/ADM-10` first.
-- The only other open pull request is #44 (GAP-07). It changes only
-  `.github/security/*`, `.github/workflows/security.yml` and `docs/changes/GAP-07/*`
-  (`gh api repos/.../pulls/44/files`). It shares no file with ADM-10.
+  contains `32f0414`.** `change/ADM-10` does (`git branch --contains 32f0414` lists
+  it), so this is met. If the base moves again before development, the developer
+  merges the new base first.
+- The only other open pull request is #44 (GAP-07). I checked this twice, in
+  round 1 and again in round 2, with
+  `gh api "repos/mohya7/DH-WEBSITE/pulls?state=open"`, which returns only
+  `44 change/GAP-07`. It changes only `.github/security/*`,
+  `.github/workflows/security.yml` and `docs/changes/GAP-07/*`
+  (`gh api repos/mohya7/DH-WEBSITE/pulls/44/files`). It shares no file with ADM-10.
 
 ### 2.8 What I could run here
 
@@ -255,9 +260,19 @@ block called "Default share image", built the same way as the item editor's
     `GET /api/v1/media/{id}` when the value changes. If the image is not found, it
     shows "The chosen image is no longer in the library." If nothing is chosen, it
     shows "No image chosen. Pages without their own share image have none.";
-  - "Choose image" (or "Change image"), which opens the existing `MediaPicker`. The
-    choice sets the id and closes the picker;
+  - "Choose image" (or "Change image"), which calls an `onChoose` prop. That opens
+    the existing `MediaPicker`;
   - "Clear", which sets the value to `null`.
+- **Where the picker renders:** `<MediaPicker>` is a sibling of the settings `<Form>`,
+  not inside it or inside `ShareImageField`. This is the item editor's layout too
+  (`ItemEditorPage.tsx:396`, outside its fields). `SettingsPage` owns the `picker`
+  state. `onSelect` calls `form.setFieldValue("defaultShareImageId", choice.id)` and
+  closes the picker, and the registered `Form.Item` passes the new value to
+  `ShareImageField`. So the picker's own `<Form>` (`MediaPicker.tsx:153`) is not
+  nested in the settings form, and the settings form's disabled context does not
+  reach it. That does not matter for editors, because they cannot open it: the
+  button that opens it is inside the disabled form (S4). Nesting was considered and
+  rejected for this reason.
 - `<Form.Item label="Default share image alt text" name="defaultShareImageAltOverride">`
   holds an `Input` with `maxLength={300}`. Its `extra` text depends on O-ADM10-2
   (3.3). Unlike the item editor, choosing an image does **not** copy the library alt
@@ -281,7 +296,7 @@ return { image: asset.path, imageAlt: own || fallback || documentTitle(item) };
 
 - The settings alt applies only when the page uses the default image. A page's own
   alt still wins. A page with its own image and no alt still gets its title.
-- `snapshot/content.json` has both settings fields `null` (checked with grep), so
+- `website/fixtures/snapshot/content.json` has both settings fields `null` (checked with grep), so
   the snapshot build, the design check and the section comparison produce the same
   output.
 - If O-ADM10-2 is (b), this part moves to ADM-10b. The form then has no alt input,
@@ -322,20 +337,48 @@ return { image: asset.path, imageAlt: own || fallback || documentTitle(item) };
 
 ## 5. Test plan
 
-### 5.1 Tests written first (commit 1, tests only)
+### 5.1 Tests written first (commits 1 and 2, tests only)
+
+Commit 1 holds T1 to T5, E1, and W1 and W2 if (a). Commit 2 holds S1 to S4. 5.2
+says why.
 
 **Studio, `studio/test/settingsShareImage.test.tsx`** (vitest, jsdom). The mocks
 follow `listPaging.test.tsx`: `request` mocked, `message.success` replaced by a
 `vi.hoisted` spy (no real toasts), `useAuth` mocked from a hoisted `role` variable,
-`NoMotion`, and `matchMedia` and `ResizeObserver` stubs. The settings GET answers
-`{ version: 4, email: "a@digitalhub.test", defaultShareImageId: "m-001",
-defaultShareImageAltOverride: "Digital Hub logo", ... }`. `GET /api/v1/media/m-001`
-answers an image row. `/api/v1/media?` answers a page of two images.
+`NoMotion`, and `matchMedia` and `ResizeObserver` stubs. The file also keeps
+`listPaging.test.tsx`'s file-level `afterEach` **verbatim**
+(`listPaging.test.tsx:166-170`, the same in `redirects.test.tsx:109-113`), so that
+nothing rendered outside `render()`'s root, such as a toast or the picker's Modal
+portal, outlives a test:
+
+```ts
+afterEach(() => {
+  cleanup();
+  // Nothing rendered outside render()'s own root may outlive a test.
+  expect(document.body.innerHTML).toBe("");
+});
+```
+
+The handler answers:
+
+- `GET /api/v1/settings` with `{ version: 4, email: "a@digitalhub.test",
+  defaultShareImageId: "m-001", defaultShareImageAltOverride: "Digital Hub logo", ... }`;
+- `GET /api/v1/media/m-001` and `GET /api/v1/media/m-002` each with
+  `{ image: { id, path, alt, ... }, usages: [] }`. **Both are mocked**, because the
+  field reads the chosen image whenever its value changes (3.2), and S2 changes it
+  to `m-002`;
+- `GET /api/v1/media?...` with a page of two images, `m-001` "Image 001" and `m-002`
+  "Image 002";
+- `PUT /api/v1/settings` by recording the parsed body and answering 200 with it, at
+  `version: 5`.
+
+Any other path throws, as in `listPaging.test.tsx`, so an unplanned request fails
+the test.
 
 | Id | Name | Asserts | Red today because |
 | --- | --- | --- | --- |
 | S1 | `a save sends the stored default share image and its alt back` | After load, click "Save". The PUT body has `defaultShareImageId: "m-001"`, `defaultShareImageAltOverride: "Digital Hub logo"` and `version: 4`. The `message.success` spy is called with "Settings saved." | The body has neither key (2.2) |
-| S2 | `choosing an image in the picker saves its id` | Click "Change image", then the tile for "Image 002" in the dialog. Save. The PUT body has `defaultShareImageId: "m-002"`, and the alt is unchanged | There is no "Change image" button |
+| S2 | `choosing an image in the picker saves its id` | Click "Change image", then the tile for "Image 002" in the dialog. The dialog closes and `GET /api/v1/media/m-002` was requested. Save. The PUT body has `defaultShareImageId: "m-002"`, and the alt is unchanged | There is no "Change image" button |
 | S3 | `Clear saves an explicit null` | Click "Clear", then Save. The body **has** the key `defaultShareImageId` with value `null` (`"defaultShareImageId" in body`), and "No image chosen" is shown | There is no "Clear" |
 | S4 | `an editor sees the share image but cannot change it` | With `role = "editor"`: "Change image" and "Clear" are disabled, the alt input is disabled, and there is no Save button | The buttons do not exist |
 
@@ -346,6 +389,24 @@ If O-ADM10-2 is (b), S1 does not assert the alt key and S2 does not check the al
 `MediaAsset` row through the `ContentDbContext` (as `SetVersionAsync` does in
 `SettingsVersionTests.cs:86-91`), then runs the version-based saves through the
 HTTP API as the admin.
+
+**Cleanup.** The settings row is shared by every test in collection `SqlServer`
+(`CookieSettingsTests`, `Section5Tests`, `SettingsVersionTests`, `AdminApiTests`).
+After 3.1, the two tests that drop the id from their body
+(`CookieSettingsTests.cs:104`, `Section5Tests.cs:228`) would keep whatever id is
+left, and `MediaUsage.cs:45` would then stop that media row from being deleted. So
+every T test ends in a `finally` that:
+
+1. sets `DefaultShareImageId` and `DefaultShareImageAltOverride` to `null` with
+   `db.SiteSettings.ExecuteUpdateAsync(...)`, as `SetVersionAsync` writes the row;
+2. deletes the media row it seeded.
+
+The `finally` writes the database directly rather than through the API. That way
+it does not depend on the code under test or on the current version, and it also
+runs when an assertion has failed. The leftover row is then the same as before
+the test, apart from `version` and the fields the test saved. The other tests
+already handle those: they read the version first, and `ClearSettingsAsync` resets
+the row where needed.
 
 | Id | Name | Asserts | Today |
 | --- | --- | --- | --- |
@@ -370,39 +431,77 @@ reset by the harness, **CI job `studio`**; `workers: 1`):
 
 - **E1** `ADM-10 settings: the default share image survives a save, and can be changed
   and cleared`.
-  - Setup through the API, as `redirects.spec.ts` does: sign in as admin, read and
-    keep the current settings, and upload `e2e/fixtures/pixel.png` twice with alt
-    `adm10-<stamp>-a` and `-b`.
-  - In the UI: sign in, open "Site settings", "Choose image", search the stamp, pick
-    `-a`, Save. Reload: the thumbnail is shown. Change "Email" only, Save, reload:
-    GET `/api/v1/settings` still has `-a`'s id.
-  - Then "Change image" to `-b`, Save; then "Clear", Save. GET shows `null`.
-  - `finally`: restore the kept settings with a full PUT at the current version
-    (which also releases the images), then delete both uploads.
-  - **Red today:** there is no "Choose image" on the screen.
+  - **Two images of its own, with different pixels.** An upload whose processed
+    hash matches an existing row returns that row with `duplicate: true` and stores
+    nothing (`MediaLibrary.cs:82-84`; the hash is SHA-256 of the encoded WebP). So
+    E1 does **not** use `e2e/fixtures/pixel.png`, which `studio.spec.ts:7, 81` also
+    uploads.
+    - E1 makes two 16 by 16 PNGs in the browser: `page.evaluate` draws a canvas
+      filled with one colour and returns `toDataURL("image/png")`, which the test
+      turns into a `Buffer`.
+    - The colours are far apart, image `-a` a red and image `-b` a blue. Each also
+      gets one corner pixel derived from the run stamp, so no other spec or earlier
+      run has the same image.
+    - No binary fixture is committed.
+  - **Setup through the API**, as `redirects.spec.ts` does:
+    - Sign in as admin, then read and keep the full current settings.
+    - `POST /api/v1/media` (multipart: `file`, `alt` = `adm10-<stamp>-a` or `-b`,
+      `decorative` = `false`) for each image.
+    - **Assert both responses have `duplicate: false`** and different ids, and
+      record only those two ids as "created by E1".
+  - **In the UI:**
+    - Sign in, open "Site settings", click "Choose image", search `adm10-<stamp>-a`,
+      pick it, and Save. Reload: the thumbnail is shown.
+    - Change only the email field, found with
+      `getByLabel("Email", { exact: true })`, because "Careers email" also matches
+      "Email" as a substring. Save and reload. `GET /api/v1/settings` still has
+      `-a`'s id.
+    - Click "Change image", pick `-b`, and Save. The GET shows `-b`'s id.
+    - Click "Clear" and Save. The GET shows `null`.
+  - **`finally`:**
+    - Restore the kept settings with a full PUT, at the version read just before.
+      Every key is sent, so the original share image comes back too, and E1's
+      images are released.
+    - Then `DELETE /api/v1/media/{id}`, **only for the ids E1 recorded as created**
+      with `duplicate: false`. If an upload came back as a duplicate, the test has
+      already failed at the assertion, and that id is not recorded, so another
+      spec's image is never deleted.
+  - **Red at commit 1:** there is no "Choose image" button on the screen.
 
 ### 5.2 Commits and the red
 
-1. Commit 1: S1 to S4, T1 to T5, E1, and W1 and W2 if (a). **No source change.**
-2. Commit 2: `AdminStore.cs` (3.1).
-3. Commit 3: `SettingsPage.tsx` (3.2).
-4. Commit 4, only if (a): `head.ts` (3.3).
-5. Commit 5: `implementation.md`.
+The split follows ADM-07 (`docs/changes/ADM-07/implementation.md`, the commit
+table and "Red, after commit 1" and "Red, after commit 2"). In job `studio`, "Unit
+tests" (`npm test`, `ci.yml:237`) runs before "End-to-end suite" (`ci.yml:271`). If
+the Studio unit tests were red in the same commit as E1, the job would stop before
+E1 ran. So they go in separate commits, and the CI job is not changed (P-6).
 
-- **Local red at commit 1** (the developer, with the npm ci that the developer
-  role runs):
-  - `cd studio && npx vitest run test/settingsShareImage.test.tsx`: S1 to S4 fail.
-  - `cd website && npx vitest run test/seo.test.tsx`: W1 fails, and W2 and every
-    existing case pass.
-- **CI red at commit 1** (needs O-ADM10-1 "Yes"):
-  - Job `api`: T1, T3, T4 and T5 fail; T2 and every existing test pass.
-  - Job `studio`: S1 to S4 fail at "Unit tests", which stops the job before
-    end-to-end. **E1's red is therefore shown locally,** if a local E2e database is
-    available to the developer, **or not at all.** If not, `implementation.md`
-    writes E1's red as NOT RUN, with the reason and the reproduction: the locator
-    `getByRole("button", { name: "Choose image" })` is absent at commit 1, which a
-    tester can check by reading the code. I do not plan to reorder or loosen the CI
-    job to show it (P-6).
+1. **Commit 1, tests only:** T1 to T5, E1, and W1 and W2 if (a). No source change.
+   The Studio unit tests are not in it.
+2. **Commit 2, tests only:** S1 to S4 (`studio/test/settingsShareImage.test.tsx`).
+3. Commit 3: `AdminStore.cs` (3.1).
+4. Commit 4: `SettingsPage.tsx` (3.2).
+5. Commit 5, only if (a): `head.ts` (3.3).
+6. Commit 6: `implementation.md`.
+
+- **Local red:**
+  - At commit 1: `cd website && npx vitest run test/seo.test.tsx`. W1 fails; W2
+    and every existing case pass. `cd api && dotnet build DigitalHub.slnx -c Release`
+    passes, because the new tests compile against the base API.
+    `cd studio && npx tsc -b` passes: `e2e/` specs other than `env.ts` are outside
+    `tsconfig.node.json`'s `include`, as ADM-07 recorded.
+  - At commit 2: `cd studio && npx vitest run test/settingsShareImage.test.tsx`. S1
+    to S4 fail.
+- **CI red at commit 1**, for each job (needs O-ADM10-1 "Yes"):
+  - Job `api`: T1, T3, T4 and T5 fail. T2 and every existing test pass.
+  - Job `website`: "Tests" fails on W1 only (if (a)). If (b), the job is green.
+  - Job `studio`: "Unit tests" are green, because S1 to S4 are not in commit 1.
+    "End-to-end suite" fails on E1 only, at the "Choose image" locator. Every other
+    spec passes.
+- **Pushing:** if O-ADM10-1 is "Yes", commit 1 is pushed alone, and commit 2 only
+  after commit 1's run has finished jobs `api`, `website` and `studio`. The
+  coordinator quotes the run and job ids and each failing assertion. S1 to S4's red
+  is shown locally at commit 2. It needs no database.
 - **Green:** each later commit turns its own tests green. At the head, every suite
   in 5.3 passes.
 
@@ -444,7 +543,7 @@ that needs SQL Server and cannot run locally is NOT RUN with the reason, and CI 
 | Rule | How this change meets it |
 | --- | --- |
 | "The finding, its evidence and its fix come from `docs/quality/admin-audit-2026-10-28.md`" | Section 1 quotes it. G-1 and G-2 were found here and are fixed on the same code path. They are flagged as not from the audit |
-| "The regression test is committed and shown failing before the fix" | Commit 1 has only tests. S1 to S4 and W1 are red locally. T1, T3, T4 and T5 are red in CI only if O-ADM10-1 is Yes. E1: see 5.2 |
+| "The regression test is committed and shown failing before the fix" | Commits 1 and 2 hold only tests, before any fix. W1 is red locally at commit 1 and S1 to S4 at commit 2. If O-ADM10-1 is Yes, CI at commit 1 shows T1, T3, T4 and T5 red in job `api`, W1 red in job `website`, and E1 red in job `studio` while that job's unit tests are green (5.2). If O-ADM10-1 is No, the database reds cannot be shown, and the row is not met: delivery is BLOCKED ON OWNER until the owner accepts that in words (P-7) |
 | "The end-to-end suite gets a test for each Major" | E1 (the audit lists ADM-10 under Major) |
 | "A Minor that is not fixed becomes a D-NNN entry" | Not a Minor. Nothing is left unfixed, except the website alt part if O-ADM10-2 is (b), which then becomes ADM-10b, not a D-NNN entry |
 | G3-1 exit gate: "A clean website build from `DigitalHubContent_Studio` ... each blocker reproduced before its fix and passing after it" | Reproduced by S1, T1 and E1, which pass after. The clean Studio build is the batch's gate, not this change's alone |
@@ -475,7 +574,7 @@ reverted Studio clears the share image again, as it does today.
 
 ## 9. Owner decisions needed
 
-- **O-ADM10-1. Status: OPEN.** "For ADM-10, may the developer push the test-only
+- **O-ADM10-1. Status: PENDING** (on a card with the owner, as the coordinator relayed; not answered). "For ADM-10, may the developer push the test-only
   commit first, so CI shows the database tests failing before the fix, as with ADM-02
   and ADM-07?"
   - **Recommendation:** Yes. T1, T3, T4 and T5 need SQL Server, which only CI job `api`
@@ -483,10 +582,12 @@ reverted Studio clears the share image again, as it does today.
   - The owner said yes for ADM-02 and ADM-07. ADM-07's answer, "Yes, red tests first"
     (relayed by the coordinator, 11 November 2026), covered that change only. This
     one asks again.
-  - **Until it is answered:** build and run commit 1 locally, record the local red,
-    and push nothing.
+  - **Until it is answered:** build commits 1 and 2 and run them locally, record the
+    local reds, and push nothing. That includes the finished branch: opening the pull
+    request at the fixed head would make the CI red impossible to show, and that is
+    the "No" answer, which only the owner may choose.
 
-- **O-ADM10-2. Status: OPEN.** "The website ignores the default share image's alt
+- **O-ADM10-2. Status: PENDING** (on a card with the owner, as the coordinator relayed; not answered). "The website ignores the default share image's alt
   override today: pages that fall back to the default image use their own title as
   the image's alt text. Should ADM-10 (a) add the alt field to Settings and make the
   website use it for pages that fall back to the default image, or (b) leave the alt
@@ -520,7 +621,10 @@ reverted Studio clears the share image again, as it does today.
 | A new public property breaks the import's reflection (2.5) | The bundle import throws | Design: the flags are `internal`. `ContentBundleTests` run in 5.3 |
 | antd drops a `Form.Item` value that is `null` from `onFinish` | Clear does not reach the API | S3 asserts the key is present. If antd omits it, the developer stops and reports, since the plan cannot be followed as written |
 | E1 changes the singleton settings row for later e2e tests | Later tests see other settings | `finally` restores the full row. `workers: 1`. `appearance.spec.ts` (reads labels) runs in 5.3 |
-| E1's red cannot be shown in CI (5.2) | One red-first piece is shown only locally or by reading the code | Stated, not hidden. Recorded NOT RUN with the reason. Not worked around by changing the CI job (P-6) |
+| E1's red is hidden behind a red unit-test step in job `studio` | E1's red is never shown | The commit split (5.2): S1 to S4 come after commit 1, so commit 1's unit tests are green and E1 runs. No CI job change (P-6) |
+| E1's two uploads come back as one asset, or match another spec's image | "Change image" to `-b` is impossible, or `finally` deletes another spec's image | E1 makes two images with different pixels and a stamp pixel, asserts `duplicate: false` on both, and deletes only the ids it recorded as created (5.1) |
+| The image is deleted between the new exists check and `SaveChangesAsync` | The foreign key refuses the write: `DbUpdateException`, a 500. The transaction rolls back, so nothing is half saved | Accepted, not fixed. It needs two admins acting within milliseconds: one deleting the very image the other is saving. The delete itself is refused while the settings row uses the image (`MediaUsage.cs:45`), so this can only happen in that window. A retry gets the 400 from the exists check. Catching the foreign-key error would add a second code path that no test reaches reliably |
+| A T test leaves the settings row pointing at its seeded image | Later tests that drop the id keep it, and the media row cannot be deleted | Each T test's `finally` nulls both fields and deletes its media row directly in the database (5.1) |
 | Website alt change shifts output for the real site | `og:image:alt` differs from today on fallback pages | Only after an admin sets it. W1 and W2. The snapshot build and design check are unchanged |
 | A base change after `32f0414` touches `AdminStore.cs` | Merge conflict | Development starts after the coordinator merges the new base. Only #44 is open, and it has no shared files (2.7) |
 
@@ -536,14 +640,53 @@ reverted Studio clears the share image again, as it does today.
 | An unknown media id is refused with 400, not 500 | Found here (G-1) | Planned | |
 | An alt over 300 characters is refused with 400, not 500 | Found here (G-2) | Planned | |
 | The saved image reaches the build content | FR-S-17; G3-1 exit gate | Planned | |
-| Regression tests committed and shown failing before the fix | G3 checklist; refinement plan Track G3 | Planned (the CI red waits on O-ADM10-1; E1, see 5.2) | |
+| Regression tests committed and shown failing before the fix | G3 checklist; refinement plan Track G3 | Planned (the CI red waits on O-ADM10-1; split in 5.2) | |
 | End-to-end test for this Major | G3 checklist | Planned | |
 | Editors can see but not change the share image | Settled design (roles); `SettingsPage.tsx:73` | Planned | |
 | FR-S-17 settings moves from "Partly" to "Works" | Audit requirement table, line 43 | Planned | |
 
 ## 12. Revision log
 
-- **Round 1 (this plan).** First version. There was no earlier `plan-review.md`,
+- **Round 1 (`3436530`).** First version. There was no earlier `plan-review.md`,
   `plan-approval.md` or `implementation.md` in `docs/changes/ADM-10/`. In the same
   round, the coordinator reported mid-task that #55 had merged as `32f0414`. The plan
   was moved onto that commit (header, 2.1, 2.7).
+
+- **Round 2 (this plan).** It answers `plan-review.md` Round 1 (`cf14094`, CHANGES
+  NEEDED), finding by finding:
+  1. **Major, E1 uploads one asset twice.** Agreed: `MediaLibrary.cs:82-84` returns
+     the existing row with `duplicate: true`. E1 now draws two 16 by 16 PNGs with
+     different colours and a stamp pixel in the browser, and does not use
+     `pixel.png`. It asserts `duplicate: false` and different ids for both uploads.
+     It deletes only the ids it recorded as created (5.1, E1). There is a new risk
+     row.
+  2. **Major, E1's red "cannot be shown in CI".** Agreed, the claim was wrong. The
+     commits are now split as ADM-07 split them: commit 1 has T1 to T5, E1, and W1
+     and W2; commit 2 has S1 to S4; the fixes come after. 5.2 states the expected CI
+     red at commit 1 for each job: `api` T1, T3, T4, T5; `website` W1 only; `studio`
+     unit tests green and E1 red at "Choose image". The push order is stated too.
+     The 5.4 checklist row, the risk row and the coverage row are updated. The CI
+     job is not changed.
+  3. **Minor, the empty-body `afterEach` and S2's media mock.** The `afterEach` from
+     `listPaging.test.tsx:166-170` is quoted and is to be kept verbatim. The handler
+     now answers `GET /api/v1/media/m-002`, S2 asserts that request, and any
+     unplanned path throws (5.1).
+  4. **Minor, API tests leave the share image set.** Each T test ends in a `finally`
+     that nulls both fields with `ExecuteUpdateAsync` and deletes its seeded media
+     row, directly in the database, so it runs after a failed assertion too (5.1,
+     "Cleanup"). There is a new risk row.
+  5. **Minor, where `MediaPicker` renders.** It is a sibling of the settings
+     `<Form>`, as in `ItemEditorPage.tsx:396`. `onSelect` calls
+     `form.setFieldValue`. Nesting was considered and rejected (3.2).
+  6. **Minor, factual slips.**
+     - Header: the branch already contains `32f0414`. `3436530`'s parent is
+       `32f0414`, so the 2.7 precondition is met (header, 2.7).
+     - 3.3: the path is now `website/fixtures/snapshot/content.json`.
+     - E1: it uses `getByLabel("Email", { exact: true })`.
+     - The delete-before-save race now has its own risk row. The 500 is accepted
+       and the reason is given.
+     - The reviewer's "not checked" point: the open pull request list was re-run,
+       and #44 is still the only one (2.7).
+  - **Owner questions:** O-ADM10-1 and O-ADM10-2 are on cards with the owner and
+    unanswered, as the coordinator relayed. Both are marked PENDING. Nothing is
+    assumed for either.
