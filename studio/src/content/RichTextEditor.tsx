@@ -6,7 +6,7 @@ import { TableHeader } from "@tiptap/extension-table-header";
 import { TableRow } from "@tiptap/extension-table-row";
 import { EditorContent, useEditor, type JSONContent } from "@tiptap/react";
 import { Fragment, Slice } from "@tiptap/pm/model";
-import { Selection } from "@tiptap/pm/state";
+import { NodeSelection, Selection } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import StarterKit from "@tiptap/starter-kit";
 import { Button, Modal, Space } from "antd";
@@ -93,6 +93,24 @@ type SetNotice = Dispatch<SetStateAction<string | null>>;
 // no longer hold. Only those two: the image notice stays, as before.
 function clearNotAddedNotice(setNotice: SetNotice) {
   setNotice((current) => (current === uncheckedNotice || current === dropNotice ? null : current));
+}
+
+/*
+ * After the Image button. insertContent leaves the new image selected when it
+ * is put at the end of a text block, and a selected image is replaced by the
+ * next key pressed or the next paste. So the caret is moved to the first text
+ * position after the image: the paragraph that follows it, which the editor
+ * adds when the image is the last node. This runs after the insert has been
+ * dispatched, because that paragraph does not exist before then.
+ */
+function caretAfterSelectedImage(view: EditorView) {
+  const { selection, doc, tr } = view.state;
+  if (!(selection instanceof NodeSelection) || selection.node.type.name !== "image") return;
+  const after = Selection.findFrom(doc.resolve(selection.to), 1, true);
+  // StarterKit's TrailingNode adds a paragraph after a last image, so a text
+  // position always exists and the null case is not expected to happen. If it
+  // ever did, the image would stay selected, as it was before this fix.
+  if (after !== null) view.dispatch(tr.setSelection(after).scrollIntoView());
 }
 
 function hasImage(slice: Slice): boolean {
@@ -239,6 +257,7 @@ export function RichTextEditor({
         attrs: { mediaId: choice.id, alt: choice.alt, decorative: false, src: choice.path },
       })
       .run();
+    if (editor !== null) caretAfterSelectedImage(editor.view);
     setPicker(false);
   }
 
@@ -286,8 +305,8 @@ export function RichTextEditor({
  * The answer replaces only what the person had selected when they pasted, and
  * only if that selection and the document are still as they were; a paste
  * does that. With a caret it is inserted at the caret. With any other
- * selection, one made after the paste (the Image button leaves its new image
- * selected), it is inserted after the selection and replaces nothing.
+ * selection, one made after the paste (an image the person selects while the
+ * check is out), it is inserted after the selection and replaces nothing.
  */
 async function filteredPaste(
   view: EditorView,
