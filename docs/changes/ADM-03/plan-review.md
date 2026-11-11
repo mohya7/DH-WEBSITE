@@ -532,4 +532,143 @@ None of these changes the rule, the patch or the commit order.
 
 Round 4 result: APPROVED (no Blocker, no Major, four Minors).
 
-Verdict: APPROVED
+## Round 5
+
+Reviewer: plan-reviewer, 11 November 2026. Plan: `docs/changes/ADM-03/plan.md`,
+round 5, commit `aaa3892`. Reviewed: `git diff 0cb72af aaa3892 --
+docs/changes/ADM-03/plan.md` (3.1 item 9, section 5.6, the risk, coverage and
+revision rows), `test-report.md` Round 3 finding 1, and the architect's
+prototype in `scratchpad/adm03/proto5/`. Read-only in the repository.
+
+I ran sixteen probes of my own against two scratch copies of the editor:
+"Today" is the branch head (`33d18d8`); "Fixed" is the architect's
+`Editor.fixed.tsx` (callers 1 and 2) plus caller 3, the call after the `value`
+effect's `setContent`, which the plan says was not prototyped. No browser, SQL
+Server or port, so scrolling and real keyboard focus are NOT RUN.
+
+### Findings
+
+**1. Major. Section 3.1 (9), caller 2 (`onCreate`), and 5.6: the load-time call
+can change the document and mark the form as edited when an item is merely
+opened. The plan checks scroll and focus, not this.**
+
+- What happens. The helper dispatches a selection-only transaction. TipTap's
+  `TrailingNode` (`@tiptap/extensions/src/trailing-node/trailing-node.ts:66`,
+  `appendTransaction`) answers any transaction on a document that does not end
+  in a paragraph by appending one. That append changes the document, so
+  `onUpdate` runs, `onChange` fires, and an undo step exists. My probe, on
+  mount, with no act by the person:
+  ```
+  Today  LOAD [img, p, img] sel NodeSelection 0-1 onChange calls 0 canUndo false doc ["IMG:Chart",{"paragraph":["Mid"]},"IMG:Chart"]
+  Fixed  LOAD [img, p, img] sel TextSelection 2-2 onChange calls 1 canUndo true  doc ["IMG:Chart",{"paragraph":["Mid"]},"IMG:Chart","paragraph"]
+  Today  LOAD [img, list]   sel NodeSelection 0-1 onChange calls 0 canUndo false
+  Fixed  LOAD [img, list]   sel TextSelection 4-4 onChange calls 1 canUndo true  doc ["IMG:Chart",{"bulletList":[…]},"paragraph"]
+  ```
+- Why it matters. `ItemEditorPage.tsx:80` is `dirty = item !== null && snapshot
+  !== saved`. A changed value on open makes the item dirty at once: "Save
+  content" is enabled, "Publish" is disabled (`:277-278`), and leaving the page
+  raises the unsaved-changes prompt (`:81`, `:89-95`), all before the person has
+  touched anything. A save would then store the extra empty paragraph.
+- When. The document starts with an image and ends in anything but a paragraph
+  (an image, a list, a table, a heading, a code block). A document last saved
+  from this editor always ends in a paragraph, so it does not trigger. Content
+  that reached the database another way, the bundle import or the API, can.
+  Today the same append happens on the person's first click, which is their
+  act; caller 2 moves it to the open.
+- Caller 3 is clean. `setContent` already carries the append in its own
+  dispatch, with `emitUpdate: false`, so the later selection-only dispatch
+  changes nothing:
+  ```
+  Fixed  REPLACE [img,p,img] sel TextSelection 8-8 new onChange calls 0
+  Fixed  REPLACE [img only]  sel TextSelection 2-2 new onChange calls 0
+  ```
+- The same call does not do its job for a document that is only an image.
+  There is no text position yet at creation, so the helper leaves the image
+  selected, and the first key after a Tab or a toolbar button still deletes it:
+  ```
+  Fixed  LOAD [img only] sel NodeSelection 0-1 onChange calls 0 doc ["IMG:Chart"]
+  ```
+  Round 4 said this branch "is not expected to run" because the editor adds a
+  paragraph after a last image. At creation it has not added it yet. Item 9's
+  title, "never leaves an image selected", and the sweep row "Editor creation
+  … Item 9, caller 2" are therefore not true for this document.
+- No planned test would see either point. T30 loads image, "After", which ends
+  in a paragraph. The risk row for load names only scroll and focus.
+- What would satisfy me:
+  - The plan states the rule for load: opening an item calls `onChange` zero
+    times and adds no undo step, whatever the document.
+  - It then either gives a design for caller 2 that keeps that rule for a
+    document not ending in a paragraph, and says what happens to an image-only
+    document; or takes caller 2 out of this change and sends the load case to
+    ADM-22 with probe M1, keeping callers 1 and 3. Either is acceptable. The
+    second is the smaller change and leaves load exactly as it is today.
+  - If caller 2 stays: T30, or a new test, mounts image, "Mid", image and an
+    image-only document, and asserts no `onChange` call and `can().undo()`
+    false after mount, red against the round 5 design as written; and the sweep
+    gains a row for transactions the editor appends itself.
+
+**2. Minor. Scope (B-8) of the load-time calls.**
+- Caller 1 is squarely ADM-03: it is the tester's Major and plan 3.1 (4).
+- Callers 2 and 3 are a different path. The selection there is ProseMirror's
+  default for a stored document, not something this change's code produces. The
+  plan's argument, that it is the same loss and was hidden while every image
+  was deleted, is fair, and one helper serves all. I accept it in scope only
+  if it is free of side effects, which finding 1 shows caller 2 is not. The
+  pull request body should say why load is included, if it stays.
+
+**3. Minor. Section 5.6 and section 9: where the caret lands after a paste.**
+- The helper adds no new surprise. It acts only when the pasted image is the
+  last thing in the document. Everywhere else ProseMirror already leaves a
+  caret, the same in Today and Fixed:
+  ```
+  PASTE [image mid, text follows]            sel TextSelection … "Midd", image, "Xle"
+  PASTE [image end of list item, item follows] … item 1: "one", image; item 2: "Xtwo"
+  PASTE [image end of table cell]             … cell 1: "c1", image; cell 2: "Xc2"
+  ```
+- So the caret after a pasted image can be at the start of the following text,
+  list item or cell, as round 4 finding 1 said for the Image button. Section
+  9's new sentence, "the caret is in the line after that image", should carry
+  the same wording round 4 asked for.
+
+**4. Minor. Section 5.6, counts.**
+- The base is right: `richText.test.tsx` has 23 tests and `npm test` gives
+  `Tests  83 passed (83)` at the head. 23 + 8 = 31 and 83 + 8 = 91.
+- The 9 red and 22 green are predictions from probes, and the plan says so.
+  They are credible: my probes agree for the paste at the end, the late
+  answer, the load and the redo. If finding 1 adds a test or drops caller 2,
+  the counts change and must be restated.
+
+### Checked and found sound
+
+- **Caller 1 is right and enough for the paste.** Fixed: an image pasted at
+  the end leaves a text selection, the key lands in the paragraph after it,
+  and both images stay. Today the same paste leaves a node selection and the
+  key deletes the image. One call after the single dispatch covers all three
+  insert rules, the late answer included.
+- **Undo and redo.** One undo after the key removes only the key and keeps the
+  pasted image, with the key pressed at once and 700 ms later, so T26 does not
+  depend on the history's grouping delay. After two undos and two redos the
+  selection is a caret and the image survives a key (T32). The Image button's
+  own undo and redo also end on a caret, before and after.
+- **Load, apart from finding 1.** No focus is taken (`document.activeElement`
+  is not the editor after mount). No scroll is requested on load (the flag).
+  Under React StrictMode, and with an unmount straight after mount, `onCreate`
+  raises no error. For image, "After" and image, image, "After": text
+  selection, zero `onChange` calls, no undo step.
+- **The sweep.** Every `dispatch`, `insertContent` and `setContent` in the file
+  is listed. Leaving the person's own drag alone is right and is recorded for
+  ADM-22. Missing: the editor's own appended transactions (finding 1).
+- **Tests first.** Tests-only commit, then `RichTextEditor.tsx` only, then the
+  record. T6 and T14 gain assertions and lose none (P-6). The E2 step is
+  stricter; its red is honestly NOT RUN with the reason.
+- **Security.** The helper only sets a selection. Nothing new reaches
+  `knownMediaIds`, and no request is added in product code. The E2 step's
+  second paste uses an id the session already picked. No route, policy,
+  migration, dependency or secret is touched.
+- **Owner decisions.** The two caret sentences are in section 9. O-ADM03-1 and
+  O-ADM03-2 are untouched.
+
+Round 5 result: CHANGES NEEDED (one Major, three Minors). This is the second
+CHANGES NEEDED on this plan (rounds 1 and 5).
+
+Verdict: CHANGES NEEDED
