@@ -134,10 +134,12 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         if (errors.Count > 0)
             return Validation(errors);
 
-        if (from == to)
+        // Compared as the website build keys them: /x and /x/ are one address (ADM-02, ADM-07).
+        if (RedirectPaths.Key(from!) == RedirectPaths.Key(to!))
             return ContentOutcome.Fail(StatusCodes.Status400BadRequest, "redirect_loop", "A redirect cannot point at itself.");
 
-        if (await db.Redirects.AsNoTracking().AnyAsync(redirect => redirect.FromPath == from, cancellationToken))
+        var spellings = RedirectPaths.Spellings(from!);
+        if (await db.Redirects.AsNoTracking().AnyAsync(redirect => spellings.Contains(redirect.FromPath), cancellationToken))
             return ContentOutcome.Fail(StatusCodes.Status409Conflict, "redirect_exists", "A redirect from that path already exists.");
 
         if (await OccupiesLivePathAsync(db, from!, cancellationToken))
@@ -598,8 +600,10 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         return ContentOutcome.Ok(PresentErrorPage(type, page, section));
     }
 
+    /// <summary>Whether a live page answers at this path's address. A public path never ends in / except "/" (ContentPaths).</summary>
     private static async Task<bool> OccupiesLivePathAsync(ContentDbContext db, string fromPath, CancellationToken cancellationToken)
     {
+        fromPath = RedirectPaths.Key(fromPath);
         var published = ContentStatus.Published;
         var pagePaths = await db.Pages.AsNoTracking()
             .Where(page => page.Status == published)
@@ -643,17 +647,19 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         return vacancyPaths.Any(slug => ContentPaths.PublicPath("vacancies", slug) == fromPath);
     }
 
+    /// <summary>Follows the chain from to, by address, so a trailing slash neither hides a hop nor a loop.</summary>
     private static async Task<(string Path, bool Loop)> ResolveDestinationAsync(ContentDbContext db, string to, string from, CancellationToken cancellationToken)
     {
-        var visited = new HashSet<string>(StringComparer.Ordinal) { from };
+        var visited = new HashSet<string>(StringComparer.Ordinal) { RedirectPaths.Key(from) };
         var current = to;
         while (true)
         {
-            if (!visited.Add(current))
+            if (!visited.Add(RedirectPaths.Key(current)))
                 return (current, true);
-            var next = await db.Redirects.AsNoTracking().FirstOrDefaultAsync(redirect => redirect.FromPath == current, cancellationToken);
+            var spellings = RedirectPaths.Spellings(current);
+            var next = await db.Redirects.AsNoTracking().FirstOrDefaultAsync(redirect => spellings.Contains(redirect.FromPath), cancellationToken);
             if (next is null)
-                return (current, current == from);
+                return (current, RedirectPaths.Key(current) == RedirectPaths.Key(from));
             current = next.ToPath;
         }
     }
@@ -860,7 +866,10 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         return errors;
     }
 
-    /// <summary>The checks CreateRedirectAsync applies to a stored redirect, other than that it already exists.</summary>
+    /// <summary>
+    /// The checks CreateRedirectAsync applies to a stored redirect. The import writes every row
+    /// first, so "already exists" becomes: another row starts at the same address.
+    /// </summary>
     public static async Task<Dictionary<string, List<string>>> CheckRedirectAsync(ContentDbContext db, Redirect redirect, CancellationToken cancellationToken)
     {
         var errors = new Dictionary<string, List<string>>(StringComparer.Ordinal);
@@ -873,7 +882,11 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         if (errors.Count > 0)
             return errors;
 
-        if (from == to)
+        var spellings = RedirectPaths.Spellings(from!);
+        if (await db.Redirects.AsNoTracking().AnyAsync(other => other.Id != redirect.Id && spellings.Contains(other.FromPath), cancellationToken))
+            Add(errors, "fromPath", "Another redirect starts at the same address.");
+
+        if (RedirectPaths.Key(from!) == RedirectPaths.Key(to!))
             Add(errors, "toPath", "A redirect cannot point at itself.");
         else if (await OccupiesLivePathAsync(db, from!, cancellationToken))
             Add(errors, "fromPath", "A redirect source cannot equal the path of a live page.");

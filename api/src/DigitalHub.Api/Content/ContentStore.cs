@@ -737,8 +737,10 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas, 
         if (await SlugTakenAsync(collection, id, draft.Slug, cancellationToken))
             Add(errors, "slug", "That slug is already in use.");
 
+        // By address, as the website build keys redirects: a redirect from /s/ takes over /s too (ADM-02).
         var path = ContentPaths.PublicPath(collection, draft.Slug);
-        if (path is not null && await db.Redirects.AsNoTracking().AnyAsync(redirect => redirect.FromPath == path, cancellationToken))
+        var spellings = path is null ? null : RedirectPaths.Spellings(path);
+        if (spellings is not null && await db.Redirects.AsNoTracking().AnyAsync(redirect => spellings.Contains(redirect.FromPath), cancellationToken))
             Add(errors, "slug", "That address is the source of a redirect.");
 
         var referenced = MediaUsage.ReferencedIds(JsonSerializer.Serialize(draft, ContentJson.Options));
@@ -1051,13 +1053,17 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas, 
         if (oldPath is null || newPath is null || oldPath == newPath)
             return;
 
+        /* A redirect starts at the old address whether it was stored as /old or
+           /old/ (the build gives both one address), so it is found and reused by
+           address, never duplicated (ADM-02). Targets are compared as stored. */
+        var oldSpellings = RedirectPaths.Spellings(oldPath);
         var redirects = await db.Redirects
-            .Where(redirect => redirect.ToPath == oldPath || redirect.FromPath == oldPath)
+            .Where(redirect => redirect.ToPath == oldPath || oldSpellings.Contains(redirect.FromPath))
             .ToListAsync(cancellationToken);
-        foreach (var redirect in redirects.Where(redirect => redirect.ToPath == oldPath && redirect.FromPath != oldPath).ToList())
+        foreach (var redirect in redirects.Where(redirect => redirect.ToPath == oldPath && RedirectPaths.Key(redirect.FromPath) != oldPath).ToList())
         {
             redirect.ToPath = newPath;
-            if (redirect.FromPath == redirect.ToPath)
+            if (RedirectPaths.Key(redirect.FromPath) == RedirectPaths.Key(redirect.ToPath))
             {
                 AuditRedirect(userId, "delete_redirect", redirect.Id, redirect.FromPath + " -> " + oldPath);
                 db.Redirects.Remove(redirect);
@@ -1068,7 +1074,7 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas, 
             }
         }
 
-        var own = redirects.FirstOrDefault(redirect => redirect.FromPath == oldPath);
+        var own = redirects.FirstOrDefault(redirect => RedirectPaths.Key(redirect.FromPath) == oldPath);
         if (own is not null)
         {
             own.ToPath = newPath;
