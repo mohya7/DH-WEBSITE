@@ -610,11 +610,14 @@ its text is kept and only its image is removed.**
     text can go after the image: the line after it, or the start of the text,
     list item or table cell that follows.
 
-**Known limit (round 6).** A rich-text field that begins with an image opens
-with that image selected. If you reach the editor with the Tab key or press a
-toolbar button before clicking in the text, the first key you type replaces the
-image. Clicking in the text first avoids it. This is not fixed here; it is
-recorded for ADM-22. It has not been tried in a real browser.
+**Known limit (round 6; widened after the tester's round 4).** A rich-text
+field that begins with an image opens with that image selected. The same
+happens when the field's content is replaced while it is open, for example
+when another item is opened in the same editor, and the new content begins
+with an image. If you reach the editor with the Tab key or press a toolbar
+button before clicking in the text, the first key you type replaces the image.
+Clicking in the text first avoids it. This is not fixed here; it is recorded
+for ADM-22. It has not been tried in a real browser.
 
 ## 10. For ADM-22
 
@@ -642,6 +645,11 @@ Found here and left alone (plan section 4):
   image selected (ProseMirror's start selection). If focus reaches the editor
   without a click in the text (Tab, or a toolbar button), the first key
   replaces the image. A click in the text moves the caret and avoids it.
+  (After the tester's round 4.) The `value` effect does the same: yes, the
+  same as editor creation, when the new document starts with an image. That
+  is when the host replaces the value while the field is open, and when a
+  stored value is not in the editor's own shape, so the effect runs
+  `setContent` at mount (section 19).
   ADM-03 does not fix this: moving the caret at load made the editor add its
   trailing paragraph, which called `onChange` and marked the item as edited
   on open, and it could not help a document that is only an image. A fix must
@@ -1373,5 +1381,59 @@ caret, and the "Known limit" paragraph is in condition 38's words.
 | A field that begins with an image opens with it selected | Plan 5.6, probe M1 | Moved to ADM-22; a known limit for the owner | Section 9, "Known limit"; section 10, the first round-6 entry. Not run in a browser |
 | A dragged image stays selected | Plan 5.6, the sweep | Moved to ADM-22 | Section 10, the second round-6 entry |
 | `tsc -b`, `npm test` and `npm run build` pass | Plan 5.3; CI `studio` | Done | This section, at `93ab48f`: exit 0, `91 passed (91)`, build exit 0 with the preview design check |
+
+## 19. Addendum, 11 November 2026: the sweep row for the `value` effect is corrected
+
+`test-report.md` round 4 (`d8cbc90`) is APPROVED with one Minor for this
+record (finding 1). No code or test changes; the plan is not edited.
+
+**What was wrong.** Section 18's sweep table, copying plan 5.6's, has this row:
+
+| Place | Can leave an image selected? | Answer | Held by, observed |
+| --- | --- | --- | --- |
+| The `value` effect (`setContent`) | Not seen | Not touched | T30's last step: no `onChange` call after the host replaces the value |
+
+"Not seen" is not true. The tester saw it (probes W28, W29, W30 and O1), and I
+had not looked: T30's last step asserts only that `onChange` is not called
+after a replacement. It asserts nothing about the selection, as the plan says
+of T30.
+
+**The row as it should read:**
+
+| Place | Can leave an image selected? | Answer | Held by, observed |
+| --- | --- | --- | --- |
+| The `value` effect (`setContent`) | **Yes: the same as editor creation, when the new document starts with an image.** After `setContent` ProseMirror puts the selection at the start, and the start is the image | Not touched. Moved to ADM-22; the "Known limit" in section 9 | Not fixed, and no test holds the selection. Observed by the tester: W28, the host replaces "Old" with image, "Mid", image, and one key deletes the first image ("X", "Mid", image); W29, an image alone, no image after the key; W30, a stored value not in the editor's own shape (an image with no `decorative` key) that starts with an image, where the effect runs at mount, the same; O1, a node selection after every such replacement, twenty runs of twenty. T30's last step still holds only that a replacement calls `onChange` zero times |
+
+**Why it stays a known limit and is not fixed here,** as the tester says:
+
+- It is the load case by a second door. The `setContent` call in that effect
+  was not written by this change, which added only the known-id note and the
+  replaced-document counter beside it.
+- The document must begin with an image. Before ADM-03 that image was deleted
+  by any key.
+- A fix belongs with the load case in ADM-22, under the same rule T30 pins:
+  loading or replacing a document calls `onChange` zero times and adds no undo
+  step.
+
+**What else changed in this file, in place:**
+
+- Section 9, the "Known limit" paragraph, now also covers content replaced
+  while the field is open.
+- Section 10, the first round-6 "For ADM-22" entry, now says the `value` effect
+  does the same, in the tester's words, and names the two ways it runs.
+
+**What follows from the correction:**
+
+- Section 18's sentence "Nothing runs when a document is loaded or replaced"
+  is about this change's own code and stays true. It never meant that no image
+  is selected after a replacement.
+- Plan 5.6's table has the same row. I do not edit the plan; the correction is
+  here and in the test report.
+- The second way the effect runs, a stored value not in the editor's own
+  shape, means a field can show the limit on first open even when the host
+  never replaces anything.
+
+No command was run for this section. The counts of section 18 stand:
+`31 passed (31)` and `91 passed (91)` at `93ab48f`. Nothing was pushed.
 
 Status: READY FOR TEST
