@@ -684,4 +684,41 @@ Nothing in the plan's Scope, design or test list was changed. For review:
 | Studio end-to-end test for rich-text images | G3 exit gate | Done in CI; NOT RUN locally (no SQL Server) | Red on `0975b00`, green on `59d3c65` (section R). On the round-2 head: NOT RUN until it is pushed; CI `studio` |
 | `tsc -b`, `npm test` and `npm run build` pass | Plan 5.3; CI `studio` | Done | Section R, at `1177ac7`: exit 0, `80 passed (80)`, build exit 0 with the preview design check |
 
+## 14. Addendum: plan round 3 and the order assertions
+
+After round 2 the architect wrote plan round 3 (`213cdb8`). It makes the
+insert rule of section R the design: plan 3.1 (3) now says a paste answer that
+arrives when something was selected after the paste goes "straight after the
+selection". So the note "for the tech lead and the architect" in section R is
+answered, and the difference listed in section 12 is no longer a difference
+from the plan. Round 3 also asks for one strengthening, done here.
+
+- **`eb696cc`, `studio/test/richText.test.tsx` only.** T16, T17 and T18 each gain
+  one assertion on the last `onChange` document's exact content:
+  - T16: "Start", the picked image, "Pasted", then an empty paragraph. The
+    empty paragraph is the one the editor keeps after a last image (section 6);
+    section R's table records it. The plan's short form, "Start", image,
+    "Pasted", leaves it out.
+  - T17: "Before", image, "Pasted", "After".
+  - T18: "Before", image, "After", "Pasted".
+- **No source change.** `RichTextEditor.tsx` is as it was at `1177ac7`, and the
+  new assertions pass against it as written. No earlier assertion changed.
+- The tester's re-test of `fb7615f` is not affected: nothing else was touched.
+
+```
+$ npx vitest run test/richText.test.tsx; echo $?
+ Test Files  1 passed (1)
+      Tests  20 passed (20)
+0
+$ npm test; echo $?
+ Test Files  11 passed (11)
+      Tests  80 passed (80)
+0
+$ npx tsc -b; echo $?
+0
+```
+
+Nothing was pushed, amended or rebased. CI on these commits is NOT RUN until
+the integrator pushes; CI `studio` covers them.
+
 Status: READY FOR TEST
