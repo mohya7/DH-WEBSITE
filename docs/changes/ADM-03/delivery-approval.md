@@ -16,7 +16,35 @@ This approval is a pipeline role. It is not the owner's confirmation that
 `AGENTS.md` requires, and it decides no owner question (P-7). This file is the
 only one written, and it is not committed. Nothing was pushed.
 
-## Update after the conditions were worked (same day)
+## WITHDRAWN: this approval has lapsed (11 November 2026)
+
+**Everything below this section is the record of an approval that no longer
+stands. Do not use its draft pull request body as it is.**
+
+- **Why.** After this approval, CI failed on the records-only head `7aece22`:
+  run `42970225620`, Studio job `130356739362`, `1 failed, 29 passed`, E2 at
+  `rich-text.spec.ts:194`, the inserted image missing (read by me from the job
+  log). The developer found the cause and reproduced it red (T22, `48f256f`):
+  the Image button leaves the new image selected, so the next key replaces it.
+  That is the audit's "Inserting a library image removes it at once", one key
+  later, in the editor code I approved here.
+- **My error.** I accepted E2's `Control+End` as a test step and listed "a
+  paste straight after the Image button replaces that image" as normal
+  behaviour, without asking what a typed key does to the same selection. The
+  two green runs I relied on passed because of that key press.
+- **What happens now.** Plan round 4 is approved at gate 1
+  (`plan-approval.md`, "Gate 1 again: plan round 4", conditions 17 to 30). A
+  file under `studio/src` will change, so condition 2 of this file applies: a
+  full tester round, then gate 2 again from nothing on the new head.
+- **Known to be wrong in the draft body below** and to be rewritten at the next
+  gate 2: the Tests and evidence section (run `42970225620` is missing and the
+  counts will change); behaviour item 4's last sub-point about the Image
+  button; the missing caret item; the ticked Definition of Done boxes.
+- **The verdict line** at the end of this file is now CHANGES NEEDED, which
+  under `docs/changes/README.md` sends the change to the developer and then to
+  the tester. No code was approved or changed by this note.
+
+## Update after the conditions were worked (same day; superseded)
 
 Head `fc7fac5`. Since `a625f00`: `6fcf2ef` (this file, as first written),
 `3a1baa0` (`implementation.md` section 15) and `fc7fac5` (`plan-review.md`
@@ -642,4 +670,4 @@ Found here and left alone:
 https://claude.ai/code/session_01XbYNgkELy87ojZ7Td24A65
 ```
 
-Verdict: APPROVED
+Verdict: CHANGES NEEDED

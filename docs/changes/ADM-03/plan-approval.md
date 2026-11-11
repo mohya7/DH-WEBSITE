@@ -393,4 +393,231 @@ do not send the plan back for a fourth round of wording.
 | Behaviour changes | Shown, not decided | In the pull request body for the owner's merge confirmation | The merge |
 | G3-1 exit-gate date | The owner's open question about 16 November | Not this change's decision | Nothing in this plan |
 
+Result for plan round 3: approved. Superseded by the section below, which holds
+the file's only verdict.
+
+## Gate 1 again: plan round 4
+
+Technical lead, 11 November 2026. Plan: `plan.md` round 4 (`0cb72af`). Review:
+`plan-review.md` Round 4 (`dee41db`), `Verdict: APPROVED`, four Minors.
+Trigger: the developer's BACK TO ARCHITECT in `implementation.md` section 16
+(`fdd8def`). This time the order is right: architect, reviewer, this gate, and
+only then the developer.
+
+Read: `git diff 213cdb8 HEAD -- docs/changes/ADM-03/plan.md` in full,
+`plan-review.md` Round 4 in full, `implementation.md` section 16 in full, the
+drafted patch in the session scratchpad
+(`adm03-insertImage-caret.patch`), and `rich-text.spec.ts:186-193`.
+
+### What I checked myself
+
+```
+$ git rev-list --count origin/change/ADM-03..HEAD
+4            (48f256f, fdd8def, 0cb72af, dee41db; the pushed head is 7aece22)
+$ gh api .../actions/jobs/130356739362          run 42970225620, head 7aece22, failure
+ Test Files  11 passed (11)
+      Tests  80 passed (80)
+  ✘   9 e2e/rich-text.spec.ts:162:1 › ADM-03 rich text: an inserted image stays, and a pasted web image is filtered (21.4s)
+    Expected: 1
+    Received: 0
+    > 194 |   await expect(image).toHaveCount(1);
+  1 failed
+  29 passed (3.2m)
+$ npx vitest run test/richText.test.tsx          (at dee41db)
+     × typing straight after inserting a library image keeps the image
+AssertionError: expected [] to deeply equal [ Array(1) ]
+      Tests  1 failed | 20 passed (21)
+```
+
+- Every other check run on `7aece22` is `success` or `skipped`. The failure is
+  E2 alone, at the image count, after the paste-request assertion passed.
+- T22 is red at the head for the reason the developer gives. The base has not
+  moved (`77296ba`).
+- `7aece22` is records only on top of `aef22b5`, where the same job passed. So
+  the editor code that failed is the code I approved at gate 2.
+
+### What gate 2 missed, and I with it
+
+The defect was in front of every role. `implementation.md` section 6 said that
+after the Image button "the selection is a node selection on the image" and
+concluded "`Control+End` is needed". The tester wrote that a paste straight
+after the Image button replaces the new image. I read both, accepted the first
+as a test step and put the second in the owner's behaviour list as normal paste
+behaviour. None of us asked what a typed key does to that selection. It
+replaces the image: the audit's third bullet, "Inserting a library image
+removes it at once", one key later. E2 passed twice only because `Control+End`
+moved the selection first. My gate-2 approval of `aef22b5` was therefore wrong
+on the audit's own acceptance point, and CI caught it by luck. The developer
+then did the right thing: reproduced it red (T22), wrote the fix, and stopped
+when it moved an existing assertion.
+
+### Decision
+
+Approved, with conditions 17 to 30 below in addition to those already met.
+
+### Why I accept round 4
+
+- **It is ADM-03, not a neighbour (B-8).** Same audit bullet, same module, same
+  file. Leaving it for ADM-22 would ship a blocker fix that fails its own
+  acceptance on the most common path: type, insert an image, keep typing.
+- **The rule is narrow.** It acts only when the selection after the insert is a
+  node selection on an image, and only moves the selection. No document change,
+  no request, no new input. The reviewer's thirteen probes show the image lost
+  in nine cases before and none after, and the four cases that already leave a
+  caret untouched.
+- **T16 changes by a recorded decision, not to make a fix pass (P-6).** With the
+  caret already in the trailing paragraph, a late paste answer takes rule 1 and
+  fills it: "Start", image, "Pasted". The assertion stays exact. Rule 3 keeps
+  T17 and T18.
+- **E2 becomes stricter.** Removing `Control+End` removes the step that hid the
+  defect. Keeping `body.focus()` is honest about what is not known: where
+  keyboard focus is when the picker closes has not been run in a browser.
+- **Red first.** T22 is committed red (`48f256f`). T23 and T16's new document
+  are red against today's editor by the reviewer's probes.
+
+### Reviewer's Minors (round 4)
+
+All four accepted as not blocking; each becomes a condition. None changes the
+rule, the patch or the commit order. One (Minor 4) changes the test count, and
+the counts below are the ones that apply.
+
+1. **"The line after the new image" is not always a new line.** Confirmed from
+   the probe table: when the image is not the last node, the caret goes to the
+   start of the text that follows (next paragraph, list item or table cell).
+   The plan's sentence for the owner is too simple. Conditions 22 and 23.
+2. **A green E2 is weak evidence.** Agreed, and it is exactly how this got
+   through. Conditions 24, 28 and 29.
+3. **The "no such position" branch leaves the image selected.** Accepted with
+   the reason written down. Condition 21.
+4. **No test for the empty document.** Accepted, as its own test and not a line
+   inside T22 or T23, so that its red and green show separately. Condition 18.
+
+### Conditions for the developer, round 4
+
+17. **Nothing is pushed until the fix is in.** `48f256f` and the tests commit
+    below are red heads. The developer pushes nothing at all (condition 1). The
+    integrator pushes only a head that contains the fix, by merge only if the
+    base moves, never a force push (condition 12).
+18. **Commit A, tests only.** Subject from plan section 12 (6), step 1. Files:
+    `studio/test/richText.test.tsx` and `studio/e2e/rich-text.spec.ts`, nothing
+    else.
+    - T16: only the expected document changes, to paragraph "Start", the image,
+      paragraph "Pasted"; its comment says it now takes the caret rule. Name
+      and other assertions unchanged.
+    - T23, as plan section 12 (4): selection after the pick is a text
+      selection; both images kept; content "Intro.", Diagram, the stored image,
+      "Next.".
+    - **T24 (Minor 4),** `inserting a library image into an empty field keeps it
+      when typing follows`: an empty document, pick "Diagram", type at the
+      selection; the image is there and the typed text is in the paragraph
+      after it.
+    - T22 is not edited. No other test is edited.
+    - E2: remove the `Control+End` press and correct the comment above it;
+      `body.focus()` stays; no wait, retry or other step is added.
+    - Quote, at commit A: `npx tsc -b` exit 0;
+      `npx vitest run test/richText.test.tsx` exit 1 with
+      `4 failed | 19 passed (23)`, the failures being T16, T22, T23 and T24,
+      one assertion message each, each about the editor; `npm test` exit 1 with
+      `4 failed | 79 passed (83)`. The scratch type check of the e2e files
+      exit 0.
+19. **Commit B, the fix.** Subject from plan section 12 (6), step 2. File:
+    `studio/src/content/RichTextEditor.tsx` only. The drafted patch
+    (`caretAfterSelectedImage`, called after the insert is dispatched), plus
+    condition 20 and 21's comments. Quote, at commit B:
+    `npx vitest run test/richText.test.tsx` `23 passed (23)`; `npm test`
+    `83 passed (83)`, 11 files; `npx tsc -b` exit 0; the build exit 0 with the
+    preview design check; `git diff --exit-code` on the Studio lockfile and
+    `package.json` exit 0; `git status --short` empty.
+20. **One stale comment is corrected in commit B.** The comment above
+    `filteredPaste` says "(the Image button leaves its new image selected)".
+    After the fix that is untrue. Reword it to an image the person selects
+    after pasting. Comment only.
+21. **Minor 3.** A comment at the `after !== null` test says: StarterKit's
+    `TrailingNode` adds a paragraph after a last image, so a text position
+    always exists and this branch is not expected to run; if it ever did, the
+    image would stay selected, as before this fix. `implementation.md` says the
+    same and cites T24 (the empty document) as the case that would show it.
+22. **Minor 1, the words.** `implementation.md` section 9 and the "Behaviour
+    changes" text use this, not the plan's shorter sentence: "After the Image
+    button the caret is at the next place text can be typed after the new
+    image. When the image is last, that is a new empty line. Otherwise it is
+    the start of the text that follows (the next paragraph, list item or table
+    cell), so typing joins the front of that text. If another image follows
+    directly, the caret is after that one."
+23. **Minor 1, the destination.** The "For ADM-22" section gains: after the
+    Image button at the end of a list item or a table cell, the caret leaves
+    that item or cell for the start of the next one; and whether keyboard focus
+    is in the editor when the picker closes has not been run in a browser (E2
+    calls `body.focus()`).
+24. **Minor 2, in the record.** `implementation.md` states which evidence is
+    which: T22, T23 and T24 are the deterministic proof of this defect and its
+    fix; CI run `42970225620` is the one end-to-end red, seen once and not
+    reproducible on demand; a green E2 shows the path works in Chromium once
+    focus is in the editor, and does not show that staff can pick and type with
+    no click.
+25. **Sentences made untrue by the fix are corrected in `implementation.md`**
+    by a dated section, not by rewriting history above it, except section 9
+    (the pull request text), which is brought up to date in place:
+    - section 9 item 4: remove "the Image button leaves its new image
+      selected"; an image inserted while a check is out now takes the caret
+      rule, and the answer fills the line after it (T16);
+    - section 6's conclusion "`Control+End` is needed" is marked superseded;
+    - section R's T16 row ("…, empty paragraph") is marked superseded by the
+      new expected document;
+    - the coverage table gains the row "Typing straight after the Image button
+      keeps the image" with T22 to T24 and their red and green runs.
+26. **Commit C, the record.** `implementation.md` only, ending
+    `Status: READY FOR TEST`. Subjects with the `ADM-03:` prefix, a body saying
+    why, the trailer; exact paths staged (B-4, B-5). No commit is amended,
+    rebased or squashed, `48f256f` included.
+27. **If the plan cannot be followed** (a count differs; T23 gives another
+    order; T24 passes before the fix; any of the other 19 tests changes
+    result), stop and write BACK TO ARCHITECT with the output. Do not bend an
+    assertion.
+
+### What the tester redoes (round 3 of the test report)
+
+28. A full round on the new head, not a delta check, because `studio/src`
+    changes (gate-2 condition 2):
+    - red on a checkout of commit A and green on commit B, with the counts of
+      conditions 18 and 19;
+    - the reviewer's thirteen Image-button probes against the real editor, and
+      the tester's own F1, L5 and "paste straight after the Image button"
+      cases, which all change;
+    - the security probes S1 to S3, L4 and D1 again, since the file changed;
+    - a statement of which evidence is deterministic (condition 24). A green
+      `studio` run alone is not accepted as proof of this fix.
+
+### What gate 2 redoes
+
+29. Gate 2 starts again from nothing on the new head; the approval of
+    `aef22b5` is withdrawn (`delivery-approval.md`). In addition to the usual
+    checks it will require:
+    - both reds reproduced by me on exports of the commits;
+    - the Studio job green **three times in a row** on the final code head
+      (the first run and two re-runs), run and job ids quoted, because the
+      failure was intermittent and one green run is how it got through. A
+      failure in any of the three stops the change and goes to the developer
+      with the trace;
+    - the pull request body corrected: the caret item worded as in condition
+      22; the item saying a paste straight after the Image button replaces the
+      new image removed, since it is no longer true; run `42970225620` quoted
+      as a red.
+30. **No CI red exists for E2's new form, and none is asked for.** Commit A
+    fails CI's unit-test step, so the end-to-end step would not run on it. This
+    is recorded, not waived: the end-to-end red is run `42970225620`, and the
+    deterministic red is local (T22 to T24).
+
+### Owner decisions, as of round 4
+
+| Id | Question | Status | Blocks |
+| --- | --- | --- | --- |
+| O-ADM03-1 | Push the end-to-end red test alone first? | Not asked for ADM-03; no owner answer for ADM-03. The integrator pushed `0975b00` alone on its own notice | Nothing now |
+| O-ADM03-2 | Insert an image the library marks decorative as decorative? | Asked by card, recommendation "Yes". Unanswered | Nothing here: not built; "For ADM-22" |
+| Behaviour changes | Shown, not decided. Round 4 adds where the caret goes after the Image button (condition 22) | For the owner's merge confirmation | The merge |
+| G3-1 exit-gate date | The owner's open question about 16 November | Not this change's decision | Nothing in this plan |
+
+The owner should also be told plainly, when the pull request is presented, that
+a first delivery approval was given and withdrawn, and why.
+
 Verdict: APPROVED
