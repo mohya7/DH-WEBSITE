@@ -671,4 +671,83 @@ opened. The plan checks scroll and focus, not this.**
 Round 5 result: CHANGES NEEDED (one Major, three Minors). This is the second
 CHANGES NEEDED on this plan (rounds 1 and 5).
 
-Verdict: CHANGES NEEDED
+## Round 6
+
+Reviewer: plan-reviewer, 11 November 2026. Plan: `docs/changes/ADM-03/plan.md`,
+round 6, commit `364b098`. Reviewed: `git diff aaa3892 364b098 --
+docs/changes/ADM-03/plan.md` and its Revision log, against my round 5 probes
+(the "Today" and "Fixed" runs quoted in Round 5). Read-only; no new runs were
+needed, because round 6 removes code paths and adds none.
+
+### Round 5 findings
+
+- **Finding 1, Major: closed.**
+  - Both load-time calls are gone. 3.1 (9), the commit 2 description and the
+    sweep all say the fix is one call to `caretAfterSelectedImage(view)` after
+    `filteredPaste`'s single dispatch, with the helper unchanged.
+  - The rule I asked for is stated: opening an item calls `onChange` zero times
+    and adds no undo step, whatever the document.
+  - T30 pins it as a guard on the three documents that matter: image, "Mid",
+    image; an image alone; image with a list. My round 5 "Today" rows give
+    exactly what T30 expects for each (`onChange calls 0`, `canUndo false`,
+    document as stored), and the `value` replacement row gives no new
+    `onChange` call. The round 5 design gave `onChange calls 1`, `canUndo true`
+    for the first and third, so T30 would have caught it.
+  - The image-only document is no longer claimed as fixed. Item 9's title is
+    narrowed to the paste and the Image button, which is true.
+  - The load case has a destination, ADM-22, with probe M1, the reason the
+    load-time fix was withdrawn, and the rule a later fix must keep.
+  - Removing the call after `setContent` as well is sound. It was harmless, but
+    no probe shows a selected image after a replacement, and the change now has
+    no load-time code at all.
+- **Finding 2, Minor: closed.** No load-time code remains, so the B-8 question
+  is gone.
+- **Finding 3, Minor: closed.** 3.1 (9), section 9 and the owner's sentence say
+  the caret is at the next place text can go, which may be the start of the
+  following text, list item or table cell. They also say the helper acts only
+  when the pasted image is last in the document, which is what my probes
+  showed.
+- **Finding 4, Minor: closed.** T30 moves from red to guard: 8 failed and 23
+  passed of 31, 8 and 83 of 91 in `npm test`, then 31 and 91.
+
+### Counts against my probes
+
+- Base: 23 tests in `richText.test.tsx` and `Tests  83 passed (83)` at the
+  head (run in round 5). Eight new tests give 31 and 91.
+- Red before the fix, 8:
+  - T6, T14, T25, T26, T27, T28: each pastes an image that ends up last in the
+    document. My "Today" row for that case is a node selection, and the key
+    deletes the image.
+  - T29: the late answer ending in an image. I did not probe this one myself;
+    the architect's L2 log shows a node selection today and a text selection
+    with the call.
+  - T32: redo. My own "Today" redo row was confounded by the earlier key, so I
+    rely on the architect's U1 log here. With the call, my redo rows end on a
+    text selection and keep the image.
+- Guards, 2: T30 (above) and T31, an image pasted before following text, which
+  already leaves a caret today.
+- 21 existing + T30 + T31 = 23 passed. The arithmetic and the predictions hold.
+  They remain predictions until the tests exist, and the plan says the
+  developer reports any difference without bending an assertion.
+
+### Whether anything else slipped in
+
+- Nothing. The diff touches only: the header, 3.1 (9), 5.6 (cause, probes,
+  sweep, T30, counts, commit names, the two record texts), section 9's one
+  sentence, two risk rows, two coverage rows and the Revision log.
+- No route, request, stored shape, dependency or workflow changes.
+  `knownMediaIds` is untouched. The E2 step and the commit order are as in
+  round 5. O-ADM03-1 and O-ADM03-2 stand.
+
+### Finding (round 6)
+
+**1. Minor. Section 5.6, T29 and T32: their red rests on the architect's
+probes alone.**
+- If either passes on the tests-only commit, the plan's rule applies: report
+  it, do not change the assertion. The implementation record should quote the
+  actual failing message for each of the eight, so the predicted count is
+  replaced by an observed one.
+
+Round 6 result: APPROVED (no Blocker, no Major, one Minor).
+
+Verdict: APPROVED
