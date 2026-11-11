@@ -2,7 +2,9 @@
 
 Change id: `ADM-03`. Branch: `change/ADM-03`, worktree `/home/user/dh-change-adm03`,
 cut from `origin/rebuild/dotnet-platform` at `77296ba`.
-Architect, round 4, 11 November 2026. Round 4 answers the developer's BACK TO
+Architect, round 5, 11 November 2026. Round 5 answers `test-report.md` Round 3,
+finding 1 (Major, at `33d18d8`): a pasted library image is left selected and
+the next key deletes it. Round 4 answered the developer's BACK TO
 ARCHITECT (`implementation.md` section 16 at `fdd8def`): the Image button
 leaves the new image selected, so the next key replaces it. Earlier rounds:
 round 1 (`15164df`) came back CHANGES NEEDED (`plan-review.md` Round 1 at `fda6532`: one Major, five Minors), answered
@@ -441,6 +443,37 @@ All in `RichTextEditor.tsx`, plus one field in `MediaPicker.tsx` (item 7).
      (`/tmp/claude-0/-home-user/a2e5e522-d1b3-56cb-8c85-c4d5ca889de1/scratchpad/adm03-insertImage-caret.patch`,
      `caretAfterSelectedImage`) does this and is confirmed as the design.
 
+9. **This editor's own code never leaves an image selected (round 5).** A
+   selected image is replaced by the next key or paste. Only the person's own
+   act may select one: a click, a drag, the arrow keys, select all.
+   - **One helper, three more callers.** Item 8's helper
+     (`caretAfterSelectedImage`: if the selection is a node selection on an
+     image, move the caret to the first text position after it) is also
+     called:
+     1. in `filteredPaste`, straight after its one `view.dispatch`, whichever
+        of the three rules of item 3 inserted the content;
+     2. when the editor is created (`onCreate`);
+     3. after the `value` effect's `setContent`.
+   - **Callers 2 and 3 must not scroll.** The helper takes a flag; on load it
+     dispatches the selection without `scrollIntoView`, so opening an item does
+     not jump to the rich-text field. It does not focus the editor.
+   - **Why the paste needs it.** `replaceSelection` puts the selection at the
+     end of what it inserted (`prosemirror-state`, `selectionToInsertionEnd`,
+     bias +1 when the last node is a block). When the slice ends in an image
+     and nothing follows it in the document, the only place is the image
+     itself; the paragraph the editor adds after a last image comes later, in
+     the same dispatch. Rule 3's own `Selection.near(…, -1)` ends the same way
+     when the selection it follows ends at a block boundary (probe L2 in 5.6).
+   - **Why load needs it.** ProseMirror's start selection for a document whose
+     first node is an image is a node selection on that image (probe M1). If
+     focus then arrives without a mouse click in the text (Tab, or a toolbar
+     button, which calls `focus()`), the first key deletes the image.
+   - **An image-carrying paste is never unfiltered.** `handlePaste` sends every
+     slice that holds an image to the filter, stored library images included,
+     so no second paste path needs the rule. A paste with no image cannot
+     select one.
+   - 5.6 has the tests and the sweep.
+
 After items 2 to 6 the only ways an image node enters the editor are: a stored
 document, the Image button, a move inside the editor, and a paste that the
 server filter has passed and whose media id this session already held. The
@@ -814,6 +847,109 @@ It writes only in the scratchpad.
 | A Minor that is not fixed becomes a D-NNN entry | Not a Minor. What was found and left goes to ADM-22 with a "For ADM-22" note (4) |
 | G3-1 exit gate: "each blocker reproduced before its fix and passing after it" | 2.3 and the red runs before; the green runs after |
 
+### 5.6 Round 5: a key after a paste, and the sweep
+
+**Cause, checked by me.** The tester's probe file, pointed at a scratch copy of
+`RichTextEditor.tsx` at `33d18d8` with the repository's fake filter
+(`/tmp/claude-0/-home-user/a2e5e522-d1b3-56cb-8c85-c4d5ca889de1/scratchpad/adm03/proto5/`),
+gives the tester's results: after the paste the selection is `"node"`, and one
+key removes the image, for an image into an empty field (P4), text then image
+at the end (P5), two images at the end (P9) and the cut-and-paste move (P10).
+With one line added, the helper called after `filteredPaste`'s dispatch, every
+probe keeps its images, and P10's undo removes only the typed key. The 23
+existing tests pass against that copy unchanged, also with the `onCreate` call
+added. The call after the effect's `setContent` (caller 3) was not prototyped.
+
+**Three probes of my own** (same folder, `log-today.txt`, `log-fixed.txt`):
+
+| Probe | Today | With item 9 |
+| --- | --- | --- |
+| L2. Late answer (rule 3): paste `<p>Pasted</p>` plus a library image, select the whole document, release, press a key | Selection `"node"`; the pasted image is deleted. The tester's P8 missed this because its selection ended inside a paragraph | Selection `"text"`; both images kept; the key lands after the image |
+| M1. A document that starts with an image: mount, `focus()`, press a key | Selection `"node"` at mount and after focus; the image is deleted | `"text"`; the image is kept and the key lands in the first paragraph |
+| U1. Paste an image at the end, undo, redo, press a key | After the redo the selection is `"node"`; the image is deleted | `"text"`; the image is kept |
+
+**The sweep: every place this file changes the editor's state.**
+
+| Place | Can leave an image selected? | Answer |
+| --- | --- | --- |
+| `insertImage` (`insertContent`) | Yes | Item 8, done in round 4 |
+| `filteredPaste`, rules 1 and 2 (`replaceSelection`) | Yes: tester's P4, P5, P9, P10 | Item 9, caller 1 |
+| `filteredPaste`, rule 3 (`replaceRange`, then `Selection.near`) | Yes: L2 | Item 9, caller 1 |
+| Editor creation (`content: initial`) | Yes: M1 | Item 9, caller 2 |
+| The `value` effect (`setContent`) | Not seen: M1 gave `"text"` after a replacement. Called anyway, so it does not rest on TipTap's choice | Item 9, caller 3 |
+| `handlePaste` returning `false` (no image in the slice) | No: nothing pasted is an image | None |
+| `handleDrop` returning `false` for a move inside the editor | ProseMirror selects the node the person dragged | Left: it is the person's own drag, as a click is |
+| Undo and redo | Redo restored the node selection today (U1); not with item 9 | T32 |
+| The toolbar buttons, `LinkDialog`, `onUpdate`, `caretAfterSelectedImage` itself | No: marks and blocks on text; the helper only ever sets a text selection | None |
+
+**Tests, written first.** Each new test ends by pressing one key with the
+existing `typeAtSelection` helper, with no caret move before it, and asserts the
+selection type before the key. Where a test pastes an image into a fresh
+editor, another editor holding that image is mounted first, as T14 does, so the
+id is known.
+
+| Id | Test name | Today | What it asserts |
+| --- | --- | --- | --- |
+| T6 (extended) | `pasting a copied library image keeps it` | **Red** on the new lines | After its existing assertions: the selection is a text selection; type "X"; still two images with the same `mediaId`; the last paragraph is "X". |
+| T14 (extended) | `a library image copied from another rich-text field on the page is kept` | **Red** on the new lines | After its existing assertions: text selection; type "X"; the second field still has the image. |
+| T25 | `text and a library image pasted at the end are kept when typing follows` | **Red** | Document "Top", image, "Middle", "Bottom". Caret at the end of "Bottom". Paste `<p>Pasted</p>` plus the library image. Text selection; type "X"; two images; content ends "BottomPasted", image, "X". |
+| T26 | `an image cut and pasted at the end is kept when typing follows, and undo takes back only the typing` | **Red** | The same document. Select the image, delete it, put the caret at the end of "Bottom", paste the image's HTML. Text selection; type "X"; one image; content "Top", "Middle", "Bottom", image, "X". One undo: one image, no "X". One paste request. |
+| T27 | `a library image pasted into an empty field is kept when typing follows` | **Red** | Empty editor. Paste the image. Text selection; type "X"; content is the image, then "X". |
+| T28 | `two library images pasted at the end are both kept when typing follows` | **Red** | Paste the image twice in one paste at the end. Text selection; type "X"; three images in the document; the last paragraph is "X". |
+| T29 | `a late paste answer that ends in an image keeps it when typing follows` | **Red** | Answers held. Paste `<p>Pasted</p>` plus the image at the end; select the whole document; release. Text selection; type "X"; two images; content ends "Pasted", image, "X". |
+| T30 | `a document that starts with an image opens with a caret, and typing keeps the image` | **Red** | Document image, "After". The selection after mount is a text selection; call the editor's `focus()`; type "X"; one image; the paragraph is "XAfter". Then the host replaces `value` with another document that starts with an image: text selection again. |
+| T31 | `a library image pasted before following text leaves a caret` | Passes (guard) | Caret at the end of "Middle"; paste the image. Text selection; type "X"; two images; "XBottom". |
+| T32 | `redoing a pasted image does not leave it selected` | **Red** | "Top"; paste the image at the end; undo until the image is gone; redo until it is back. Text selection; type "X"; one image. |
+
+**Counts, from 23 tests in `richText.test.tsx` and 83 in `npm test`.** Eight new
+tests make 31 and 91.
+
+- After the tests-only commit: `npx vitest run test/richText.test.tsx` gives
+  **9 failed** (T6, T14, T25, T26, T27, T28, T29, T30, T32) and **22 passed**;
+  `npm test` gives 9 failed and 82 passed; `npx tsc -b` exit 0.
+- After the fix: **31 passed**, and **91 passed**; `tsc -b` and the build as in
+  5.3.
+- These counts come from the probes above, not from the tests themselves,
+  which are not written yet. If a test the table marks red passes, or the
+  guard fails, the developer reports it and does not bend the assertion.
+
+**End to end: one step added to E2, worth it.** jsdom cannot show what a real
+key does to a real selection. After E2's existing paste assertions and before
+"Save content":
+
+- dispatch a second paste on the editor, `<img mediaid="<id>" alt="<alt>" decorative="false">`;
+- `img[mediaid="<id>"]` `toHaveCount(2)`, and the paste-request list has
+  length 2;
+- `page.keyboard.type("Typed after the paste.")`, with no key before it;
+- the count is still 2 and the text is there. After the reload the count is 2
+  (E2's existing "one image" checks after this point become 2).
+
+Its red is NOT RUN: on the tests-only commit CI's `studio` job stops at the
+unit tests, before the end-to-end step, and there is no SQL Server here. T25 to
+T29 are the red. CI `studio` covers its green.
+
+**Commit order from `33d18d8`.**
+
+1. `ADM-03: Test that a pasted or loaded image is not left selected`:
+   `studio/test/richText.test.tsx` (T25 to T32; the lines added to T6 and T14)
+   and `studio/e2e/rich-text.spec.ts` (the E2 step). Tests only.
+2. `ADM-03: Never leave an image selected after a paste or a load`:
+   `studio/src/content/RichTextEditor.tsx` only: the helper's no-scroll flag
+   and its three new calls.
+3. The record: `implementation.md`, with the two texts below.
+
+**Words for the records.**
+
+- *Behaviour changes for the owner* (also section 9 here): "After a paste that
+  ends in an image, the caret is in the line after that image, so typing
+  straight away keeps it. When an item whose text starts with an image is
+  opened, the caret is in the first line of text, not on the image."
+- *For ADM-22:* "Dragging an image to move it leaves it selected, as a click
+  does; a key pressed then replaces it. That is the editor's normal behaviour
+  for a selection the person made, and ADM-03 leaves it. A visible mark on a
+  selected image, or a confirmation before a key replaces one, would belong
+  with showing the picture in the editor."
+
 ## 6. Security impact
 
 - **Routes and policies:** none added or changed. `POST /api/v1/rich-text/paste`
@@ -945,6 +1081,10 @@ live only in `DigitalHubContent_E2e`, which the harness resets before every run.
   - Two new notices: "The paste could not be checked, so nothing was added.
     Paste again." and "The dropped content included an image, so it was not
     added. Use the image button for images."
+  - After a paste that ends in an image, the caret is in the line after that
+    image, so typing straight away keeps it. The same when an item whose text
+    starts with an image is opened: the caret is in the first line of text,
+    not on the image. (Round 5.)
   - After the Image button the caret is in the line after the new image, so
     typing straight away goes there and keeps the image. If another image
     follows directly, the caret is after that one. (Round 4.)
@@ -982,6 +1122,10 @@ live only in `DigitalHubContent_E2e`, which the harness resets before every run.
 | The server stops accepting a bare list | Pasted text with an image is lost | E2: "Pasted line" must show |
 | jsdom lacks layout and clipboard APIs | Render tests fail for a reason that is not the defect | The stubs in 5.1; the red run must show editor assertions (5.3) |
 | A synthetic paste in Chromium does not reach ProseMirror | E2 fails at "Pasted line" for a harness reason | Not run here: no SQL Server. The CI red run on commit 1 shows where E2 fails; it must fail at the empty paste-request list, before the paste step. If the paste step fails after the fix, the developer reports it and the plan is revised, not the assertion weakened |
+| A filtered paste that ends in an image leaves it selected (tester round 3, finding 1) | The next key deletes a library image just pasted or moved, with no notice | 3.1 (9), caller 1. T25 to T29, and T6 and T14 with a key added, red first (5.6) |
+| A document that starts with an image opens with it selected | A key after focus by Tab or a toolbar button deletes it | 3.1 (9), callers 2 and 3. T30 |
+| The helper scrolls or takes focus when an item is opened | The page jumps to the rich-text field | No `scrollIntoView` and no `focus` on load (3.1, 9). The tester checks it by reading the code; jsdom cannot show a scroll |
+| A fourth way the code selects an image is found later | The same loss again | The sweep in 5.6: every `dispatch`, `insertContent` and `setContent` in the file is listed with its result |
 | The Image button leaves the new image selected | The next key or paste replaces the image: the audit's symptom, one key later. E2 failed on it once in CI (run `42970225620`) | 3.1 (8). T22 red at `48f256f`; T23 for a following image; E2 types with no `Control+End` (round 4) |
 | Keyboard focus is not in the editor when the picker closes | Staff must click the editor before typing | Not claimed and not run in a browser. E2 keeps `body.focus()`; recorded in the "For ADM-22" note |
 | The answer arrives after the editor is removed | `onChange` writes into a section that no longer exists | The mounted flag; T9 |
@@ -1017,6 +1161,8 @@ live only in `DigitalHubContent_E2e`, which the harness resets before every run.
 | A pasted media id the session did not get from the API is dropped; no pasted address is sent or rendered | `plan-review.md` Round 1, finding 1; P-4 | Planned (T13) | |
 | A paste answer never lands in a replaced document | `plan-review.md` Round 1, finding 5 | Planned (T15) | |
 | A paste answer replaces nothing but the selection it was pasted over; a later selection is kept and the content goes after it | `test-report.md` round 1, finding 1; plan 3.1 (3), round 3 | Planned (T16 to T19) | |
+| A pasted or moved library image is kept when typing follows, on every insert rule | `test-report.md` Round 3, finding 1; plan 3.1 (4) | Planned (T25 to T29, T31, T32; T6, T14; E2) | |
+| A document that starts with an image opens with a caret | Found in the round 5 sweep (5.6) | Planned (T30) | |
 | Typing straight after the Image button keeps the image; the caret is in the text position after it | Audit ADM-03, bullet 3; `implementation.md` section 16 | Planned (T22, T23, E2) | |
 | An added paste clears the "not added" notices | `test-report.md` round 1, finding 2 | Planned (T20, T21) | |
 | Library check on the error-page save | `plan-review.md` Round 1, finding 1 (server gap, older than this change) | Moved to ADM-05: "For ADM-05" in `implementation.md` and the PR body | |
@@ -1182,4 +1328,35 @@ live only in `DigitalHubContent_E2e`, which the harness resets before every run.
        ADM-22" focus note.
     Then the tester runs again, and CI `studio` must be green on the pushed
     head with E2 unchanged from commit 1.
+  - Both owner questions stand as they were. Nothing else changes.
+- **Round 5 (11 November 2026):** answers `test-report.md` Round 3, finding 1
+  (Major, CHANGES NEEDED, head `33d18d8`). Documents only.
+  - **The finding is right, and round 4 was too narrow.** Round 4 fixed the
+    Image button and did not ask where else the same selection arises. Plan
+    3.1 (4), "A library image survives a copy or cut and paste", did not hold
+    one key later. I reproduced the tester's probes against a scratch copy of
+    the editor and the cause is `replaceSelection`'s own choice of selection
+    (3.1, 9; 5.6).
+  - **The rule: 3.1 item 9.** This editor's code never leaves an image
+    selected. Item 8's helper is called after `filteredPaste`'s dispatch, for
+    all three insert rules.
+  - **The late-answer path can end the same way.** The tester's P8 did not show
+    it; my probe L2 does, when the later selection ends at a block boundary.
+    The one call after the dispatch covers it. T29.
+  - **An unfiltered image paste does not exist.** Every slice with an image
+    goes to the filter, stored library images included (3.1, 9).
+  - **The sweep found one more path: loading.** A document that starts with an
+    image opens with that image selected (probe M1). It is not this change's
+    new code, but it is the same loss, and before ADM-03 it could not be seen
+    because every image was deleted anyway. It is closed here with the same
+    helper, without scrolling (callers 2 and 3). T30. Redo is covered by T32.
+    The table in 5.6 lists every place the file changes the editor's state.
+  - **Left on purpose:** an image the person dragged stays selected. Recorded
+    for ADM-22.
+  - **Tests first:** T25 to T32, and a key added to T6 and T14. Expected 9
+    failed and 22 passed of 31 (9 and 82 of 91 in `npm test`) before the fix;
+    31 and 91 passed after.
+  - **End to end:** one step added to E2; its red is NOT RUN, with the reason.
+  - **Commit order:** tests only, then `RichTextEditor.tsx` only, then the
+    record (5.6).
   - Both owner questions stand as they were. Nothing else changes.
