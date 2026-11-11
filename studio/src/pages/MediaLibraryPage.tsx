@@ -1,9 +1,11 @@
 import { Button, Form, Input, Modal, Typography } from "antd";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../auth/AuthProvider";
 import { jsonInit, request } from "../api/http";
 import { MediaPicker } from "../content/MediaPicker";
+import { ListPager } from "../ui/ListPager";
 import { PageHeader } from "../ui/PageHeader";
+import { afterEmptyPage, latestOnly, withPage } from "../ui/paging";
 
 type MediaRow = {
   id: string;
@@ -16,9 +18,17 @@ type MediaRow = {
 
 type MediaPage = { items: MediaRow[]; total: number };
 
+const pageSize = 48;
+
 export function MediaLibraryPage() {
   const auth = useAuth();
+  // What is in the search box, and the search last submitted. Every list
+  // request uses the submitted one.
   const [search, setSearch] = useState("");
+  const [applied, setApplied] = useState("");
+  const [current, setCurrent] = useState(1);
+  const [total, setTotal] = useState(0);
+  const requests = useRef(latestOnly());
   const [items, setItems] = useState<MediaRow[]>([]);
   const [selected, setSelected] = useState<MediaRow | null>(null);
   const [usages, setUsages] = useState<string[]>([]);
@@ -29,16 +39,49 @@ export function MediaLibraryPage() {
   const [upload, setUpload] = useState(false);
 
   useEffect(() => {
-    void load();
+    void load("", 1);
   }, []);
 
-  async function load(term = search) {
-    const result = await request(`/api/v1/media?pageSize=48&search=${encodeURIComponent(term)}`);
+  async function load(term: string, pageNumber: number, jumped = false) {
+    const ticket = requests.current.start();
+    const result = await request(`/api/v1/media?${withPage(new URLSearchParams({ search: term }), pageNumber, pageSize)}`);
+    if (!requests.current.isLatest(ticket)) return;
     if (!result.ok || result.body === null) {
       setMessage(result.problem?.title ?? "The library could not be loaded.");
       return;
     }
-    setItems((result.body as MediaPage).items);
+    const body = result.body as MediaPage;
+    // Past the last page after a delete: show the new last page instead,
+    // once. A list that promises rows it does not give is a load error.
+    const step = body.items.length === 0 ? afterEmptyPage(pageNumber, body.total, pageSize, jumped) : "show";
+    if (step === "fail") {
+      setMessage("The library could not be loaded.");
+      return;
+    }
+    if (step !== "show") {
+      await load(term, step, true);
+      return;
+    }
+    setCurrent(pageNumber);
+    setTotal(body.total);
+    setItems(body.items);
+  }
+
+  // The pager moves when the page arrives (load), so after a failure it still
+  // shows the page whose rows are on screen.
+  function goTo(pageNumber: number) {
+    void load(applied, pageNumber);
+  }
+
+  function submitSearch(term: string) {
+    setApplied(term);
+    void load(term, 1);
+  }
+
+  /* After an upload: the list is newest first, so the new image is on page 1. */
+  function afterUpload() {
+    setUpload(false);
+    void load(applied, 1);
   }
 
   async function open(row: MediaRow) {
@@ -64,7 +107,7 @@ export function MediaLibraryPage() {
       return;
     }
     setMessage("Saved.");
-    await load();
+    await load(applied, current);
   }
 
   async function remove() {
@@ -77,7 +120,7 @@ export function MediaLibraryPage() {
       return;
     }
     setSelected(null);
-    await load();
+    await load(applied, current);
   }
 
   return (
@@ -86,7 +129,7 @@ export function MediaLibraryPage() {
         title="Media library"
         extra={<Button type="primary" onClick={() => setUpload(true)}>Upload</Button>}
       />
-      <Input.Search className="mb-4 max-w-md" placeholder="Search alt text, caption, or file name" value={search} onChange={(event) => setSearch(event.target.value)} onSearch={(value) => void load(value)} allowClear />
+      <Input.Search className="mb-4 max-w-md" placeholder="Search alt text, caption, or file name" value={search} onChange={(event) => setSearch(event.target.value)} onSearch={(value) => submitSearch(value)} allowClear />
       {message !== null && selected === null ? <Typography.Paragraph>{message}</Typography.Paragraph> : null}
       <div className="grid grid-cols-4 gap-4">
         {items.map((item) => (
@@ -96,6 +139,7 @@ export function MediaLibraryPage() {
           </button>
         ))}
       </div>
+      <ListPager label="Media library pages" current={current} pageSize={pageSize} total={total} onChange={goTo} />
       <Modal title="Image" open={selected !== null} onCancel={() => setSelected(null)} footer={null} width={640}>
         {selected !== null ? (
           <Form layout="vertical">
@@ -122,7 +166,7 @@ export function MediaLibraryPage() {
           </Form>
         ) : null}
       </Modal>
-      <MediaPicker open={upload} onClose={() => { setUpload(false); void load(); }} onSelect={() => { setUpload(false); void load(); }} />
+      <MediaPicker open={upload} onClose={afterUpload} onSelect={afterUpload} />
     </section>
   );
 }

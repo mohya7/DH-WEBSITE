@@ -82,5 +82,13 @@ export const studioTheme: ThemeConfig = {
     Typography: {
       fontFamilyCode: fonts.body,
     },
+    Pagination: {
+      itemBg: surfaces.card,
+      itemLinkBg: surfaces.card,
+      itemActiveBg: surfaces.raised,
+      itemActiveColor: accent.studio,
+      itemActiveColorHover: accent.studio,
+      itemInputBg: surfaces.input,
+    },
   },
 };

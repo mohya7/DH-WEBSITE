@@ -52,12 +52,23 @@ export const referenceCollections: Record<string, CollectionName> = {
 };
 
 async function published(collection: CollectionName): Promise<{ items: BlockItem[]; omitted: string[] }> {
+  const failed = `The published ${collection} could not be loaded for the preview.`;
   const rows: ListRow[] = [];
+  const seen = new Set<string>();
   for (let page = 1; ; page++) {
     const list = await request(`/api/v1/${collection}?page=${page}&pageSize=100&status=published`);
-    if (!list.ok || list.body === null) throw new Error(`The published ${collection} could not be loaded for the preview.`);
+    if (!list.ok || list.body === null) throw new Error(failed);
     const body = list.body as { items: ListRow[]; total: number };
-    rows.push(...body.items);
+    // Keep the first occurrence of each id: a row that shifted across a page
+    // boundary between two requests appears once.
+    const fresh = body.items.filter((row) => !seen.has(row.id));
+    // A non-empty page with nothing new means the API is not paging. Fail
+    // closed rather than show repeated or missing cards (ADM-06).
+    if (body.items.length > 0 && fresh.length === 0) throw new Error(failed);
+    for (const row of fresh) {
+      seen.add(row.id);
+      rows.push(row);
+    }
     if (body.items.length === 0 || rows.length >= body.total) break;
   }
   const omitted: string[] = [];
