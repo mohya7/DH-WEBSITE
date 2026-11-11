@@ -130,4 +130,54 @@ from reading the code and git, not from running a suite.
 
 Not checked: that #44 is the only other open pull request (no `gh` call made).
 
-Verdict: CHANGES NEEDED
+Round 1 result: CHANGES NEEDED (findings 1 and 2). The file's single verdict line is
+at the end, after the latest round.
+
+## Round 2
+
+Reviewer: plan-reviewer, 11 November 2026. Reviewed `docs/changes/ADM-10/plan.md` at
+`1059d39` (on `cf14094`, `3436530`, `32f0414`), with `git diff 3436530 1059d39`.
+Section 12 answers each Round 1 finding; I checked each answer against the code.
+O-ADM10-1 and O-ADM10-2 are PENDING on owner cards, which is expected and not a
+finding. Nothing was run here except read-only git and one `gh api` call: no
+`dotnet`, no SQL Server, no `node_modules`.
+
+### Round 1 findings
+
+| # | Severity | Status | Evidence |
+| --- | --- | --- | --- |
+| 1 | Major, E1 uploads one asset twice | **Closed** | E1 no longer uses `pixel.png`. It makes two 16 by 16 PNGs of different colours plus a stamp pixel, asserts `duplicate: false` and different ids, and deletes only the ids it recorded. The API supports this: `MediaUpload` binds `File`, `Alt`, `Decorative` (`MediaController.cs:94-102`), and `MediaBody` carries `Duplicate` (`MediaLibrary.cs:227-241, 270`), serialised as `duplicate`. `DELETE /api/v1/media/{id}` is `studio-admin` (`MediaController.cs:40-41`), and E1 signs in as admin. The upload budget is 20 an hour per user (`Program.cs:113, 141-149`); the e2e suite stays well under it |
+| 2 | Major, E1's red hidden in CI | **Closed** | 5.2 now splits the commits as ADM-07 did: commit 1 = T1 to T5, E1, W1/W2; commit 2 = S1 to S4. `ci.yml:237` "Unit tests" stays before `ci.yml:271` "End-to-end suite", so at commit 1 the unit tests are green and E1 runs and fails at "Choose image". The expected red is stated per job, and the push order is stated. No workflow change. `studio/tsconfig.node.json:17` includes only `e2e/env.ts` from `e2e/`, so `npx tsc -b` stays green at commit 1, as the plan says |
+| 3 | Minor, `afterEach` and the S2 mock | **Closed** | The `afterEach` is quoted verbatim and matches `listPaging.test.tsx:166-170`. `GET /api/v1/media/m-002` is mocked and S2 asserts the request. Unplanned paths throw |
+| 4 | Minor, API tests leave the share image set | **Closed** | Each T test's `finally` nulls both fields with `ExecuteUpdateAsync`, the way `SetVersionAsync` writes the row (`SettingsVersionTests.cs:86-91`), then deletes its seeded media row. `ClearSettingsAsync` exists (`SettingsVersionTests.cs:139`, `AdminApiTests.cs:179`) |
+| 5 | Minor, where `MediaPicker` renders | **Closed** | A sibling of the settings `<Form>`, with `onSelect` calling `form.setFieldValue`, as the item editor does (`ItemEditorPage.tsx:396`) |
+| 6 | Minor, factual slips | **Closed** | Header: `1059d39`'s ancestry is `cf14094`, `3436530`, `32f0414` (confirmed). The snapshot path is `website/fixtures/snapshot/content.json`, and both fields are `null` there. E1 uses `getByLabel("Email", { exact: true })`. The delete-before-save race has its own risk row, accepted with a reason. Open PRs: `gh api "repos/mohya7/DH-WEBSITE/pulls?state=open"` returns only `44 change/GAP-07` (run by me) |
+
+### New findings
+
+**1. Minor, not blocking. Section 5.1, E1 image generation.**
+- E1 draws its PNGs on a browser canvas through `page.evaluate`. The suite already
+  makes unique PNGs in Node with no page: `uniquePngBytes()` in
+  `studio/e2e/rich-text.spec.ts:32-58` (ADM-03, random pixels and zlib). Both work,
+  and the canvas route still yields a different WebP hash per colour.
+- Would satisfy me: the developer may use either. If they copy the Node helper, they
+  copy it into `settings.spec.ts` and do not move it, because that would change
+  `rich-text.spec.ts`, which this plan does not list. No plan change is required.
+
+### Checked again and found sound
+
+- Every Round 1 "sound" item still holds. The diff changes only the header, 2.7,
+  3.2 (where the picker renders), the 3.3 path, 5.1, 5.2, 5.4, section 9 (status
+  wording and the "push nothing" rule), the risks, the coverage row and section 12.
+  3.1 (the internal setter flags, the exists check, the 300 limit) is unchanged, and
+  so are the scope table, security, migrations and rollback.
+- The 5.4 row now says that if O-ADM10-1 is "No", the database reds cannot be shown
+  and delivery is BLOCKED ON OWNER until the owner accepts that in words. This is
+  correct under P-7 and does not assume an answer. The section 9 rule that the fixed
+  head is not pushed while O-ADM10-1 is pending is consistent with it.
+- The accepted race (an image deleted between the exists check and the save) is a
+  single `SaveChangesAsync`, so nothing is half saved. That is a reasonable
+  acceptance for an admin-only window of milliseconds.
+- There is no migration, lockfile, workflow or gate change, and nothing is weakened.
+
+Verdict: APPROVED
