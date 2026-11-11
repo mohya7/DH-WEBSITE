@@ -403,4 +403,240 @@ Every planned check passes, locally or in CI, and there is no Blocker or Major.
 The four Minors go back to the developer and the integrator; findings 3 and 4
 are records that gate 2 will read.
 
+Round 1 result: APPROVED (no Blocker, no Major, four Minors).
+
+## Round 2
+
+Tester and security engineer, 11 November 2026. The developer answered findings
+1 to 3 of round 1; finding 4 is the integrator's.
+
+- **Commit tested:** `fb7615f` (`fb7615f090f3cebb01a1969d90f24ba74d2b00db`).
+  New since round 1: `c4d93b9` (red, T16 to T21), `1177ac7` (fix), `fb7615f`
+  (`implementation.md` section R). `f72dc56` is round 1 of this report,
+  committed by someone else, unchanged.
+- **Where:** a fresh detached worktree of `fb7615f`, `/home/user/dh-test-adm03`,
+  removed at the end. Same rules as round 1: no commit, push, rebase or amend;
+  no port; no database; no source, test, lockfile or workflow changed. This
+  section is the only thing written.
+- **The branch moved again while I was testing.** After `fb7615f` came
+  `213cdb8` (plan round 3, the insert rule), `eb696cc` (six lines in
+  `richText.test.tsx`: an order assertion in T16, T17 and T18) and `aef22b5`
+  (record). The remote head is `aef22b5`. `git diff fb7615f aef22b5 -- studio/src`
+  is empty: the editor is the same file at both commits. `fb7615f` is what I
+  tested in full; section 5 says what I checked on `aef22b5`.
+
+### 1. Red at `c4d93b9`, green at `fb7615f`
+
+Setup: `npm ci` exit 0, `found 0 vulnerabilities`;
+`git diff --exit-code -- studio/package-lock.json studio/package.json` exit 0.
+
+**Red, on a checkout of `c4d93b9`:**
+
+```
+$ npx tsc -b; echo $?
+0
+$ npx vitest run test/richText.test.tsx; echo $?
+ Test Files  1 failed (1)
+      Tests  5 failed | 15 passed (20)
+1
+$ npm test
+ Test Files  1 failed | 10 passed (11)
+      Tests  5 failed | 75 passed (80)
+```
+
+| Id | Test | Message, as printed |
+| --- | --- | --- |
+| T16 | an image inserted while a paste is being checked is kept | `AssertionError: expected [] to deeply equal [ Array(1) ]` |
+| T17 | an image selected while a paste is being checked is kept | `AssertionError: expected [] to deeply equal [ Array(1) ]` |
+| T18 | a document selected while a paste is being checked is kept | `AssertionError: expected [] to deeply equal [ Array(1) ]` |
+| T20 | a paste that is added clears the notice that nothing was added | `AssertionError: expected 'The paste could not be checked, so no…' to be null` |
+| T21 | a paste that is added clears the notice that a drop was refused | `AssertionError: expected 'The dropped content included an image…' to be null` |
+
+Each is an assertion about the editor; the output has no "is not a function"
+or "is not defined" line. T19 (`a paste over a selection replaces that
+selection`) passes, as a guard, with T1 to T15. The fourteen earlier tests are
+unchanged: the diff of the test file only adds T16 to T21, a `keepSelection`
+argument to the `paste` helper, and the helpers `selectImage` and `selectAll`.
+
+**Green, on `fb7615f`:**
+
+```
+$ npx vitest run test/richText.test.tsx; echo $?
+ Test Files  1 passed (1)
+      Tests  20 passed (20)
+0
+$ npm test; echo $?
+ Test Files  11 passed (11)
+      Tests  80 passed (80)
+0
+$ npx tsc -b; echo $?
+0
+$ VITE_PUBLIC_SITE_URL=https://website.ci.invalid npm run build; echo $?
+✓ built in 830ms
+Preview design: /website-design/d1ebe4132f8cfa8e/ matches website/design/ byte for byte.
+0
+$ git status --short            (prints nothing)
+$ npm audit --audit-level=high
+found 0 vulnerabilities
+```
+
+The 20 tests also pass with the fake swapped for the real
+`RichText.FilterPaste` (the scratch console of round 1, rebuilt from this
+commit's `RichText.cs`): `20 passed`, in the probe run below.
+
+### 2. Scope
+
+| Commit | Files |
+| --- | --- |
+| `c4d93b9` | `studio/test/richText.test.tsx` |
+| `1177ac7` | `studio/src/content/RichTextEditor.tsx` |
+| `fb7615f` | `docs/changes/ADM-03/implementation.md` |
+
+`git diff --quiet 59d3c65 fb7615f --` over `studio/package.json`,
+`studio/package-lock.json`, `studio/src/content/MediaPicker.tsx`, `api`,
+`website`, `packages`, `.github`, `studio/e2e`: exit 0. The fix is 46 lines in
+one file: `Selection` imported from `@tiptap/pm/state` (already a dependency),
+`clearNotAddedNotice`, and the three-way insert in `filteredPaste`. The known-id
+set, `withoutUnknownMediaIds`, `handleDrop`, the `value` effect and the request
+are untouched, so conditions 5 to 9 stand as in round 1.
+
+### 3. Probes, against the real server filter
+
+The 19 probes of round 1 were run again on `fb7615f`, with six new ones
+(L1 to L6): `Tests  1 failed | 44 passed (45)` over four files, which includes
+the developer's 20 against the real filter. The one failure was an assertion
+of my own that was wrong (it looked for "item one" unbroken, and the paste
+correctly landed after the four selected characters, giving "item", the
+pasted text, " one"). Corrected and re-run: passed. Nothing in the editor
+failed.
+
+**Round 1 findings, re-run:**
+
+| Probe | Round 1 | Now |
+| --- | --- | --- |
+| F1. Image button used while a paste answer is out | 0 images after the answer | 1 image. Document: "Start", the image, "Pasted", empty paragraph |
+| R1b. Stored image selected meanwhile | image removed | kept; pasted text after it (T17, and L4) |
+| R1c. Whole document selected meanwhile | document replaced by the paste | kept; pasted text at the end (T18) |
+| F2. Failed paste, then the same paste succeeds | notice still "nothing was added" | notice `null`, 2 images |
+
+**New probes on the insert rule:**
+
+| Probe | What was done | Result |
+| --- | --- | --- |
+| L1. A text range selected mid-paragraph meanwhile | Paste, select characters 2 to 5 of "Before", release | "BefoPasted", "re", image, "After": inserted straight after the selection, nothing replaced. Undo returns the exact document and the selection; redo returns the exact result |
+| L2a. Pasted over "Before", then "After" selected instead | | Both kept; paste lands after "After" |
+| L2b. Pasted over the whole document, then a key typed | | "xPasteB": the typed key replaced the selection, as typing does; the paste then lands at the caret |
+| L2c. Pasted over a selection, selection moved away and back | | The paste-time selection is replaced (rule 2). Right: it is again what the person pasted over |
+| L3. Two pastes over the same whole-document selection | | "OneTwo": the first replaces, the second lands at the caret. Both added |
+| L3. A later selection inside a table cell, a list item and a code block | | Inserted after the selection in each; the table, list and stored image stay; `Validate` accepts the document after each |
+| L5. Undo and redo after a late insert behind an inserted image | | Undo removes the paste and the image (one history group, made within the same half second); redo returns exactly the same document; `Validate` accepts it |
+| L6. Notices, eleven steps | | A plain paste, or a checked paste that drops nothing, clears "could not be checked" and the drop notice. Typing does not. The image notice is never cleared and still replaces the others, as before (ADM-22) |
+
+**Security, on the changed insert:**
+
+| Probe | What was done | Result |
+| --- | --- | --- |
+| S1, S2, S3, U2, D1, E1 of round 1 | unchanged | All pass again: no foreign id, address or `"src"` in any request, document or `onChange` value; paste, drop and remount do not seed the set; an id the picker only listed is not known; the error-page host is clean |
+| L4. Crafted `img[mediaid][src]` with a later selection, and over a selection | The crafted paste twice with the whole document selected while the answer is out (rule 3); twice pasted over a selection (rule 2); once more after closing and reopening the field; then eight undos and eight redos | 5 requests, none with the foreign id, `evil.example` or `"src"`. The only image in the editor is the stored one. The foreign id is in no `onChange` value and does not come back through the history |
+| L4. The document is replaced while the answer is out, with a selection made in the new document | | Nothing inserted; "could not be checked" notice. The replaced-document check still runs before the insert rule |
+| L4. Replaced and put back to the same document while the answer is out | Pasted over a whole-document selection; value set to another item and back | Nothing inserted; notice. The counter decides, not `doc.eq`, so an identical-looking document cannot make rule 2 replace it |
+
+### 4. What I think of the rule
+
+It is right, and it is now the plan's (`213cdb8`, 3.1 (3)), which I read against
+the code: the three cases match.
+
+- It keeps the round 1 behaviour wherever round 1 was not wrong (a caret), so
+  E1 and E2 take the same path as before.
+- Rule 2 needs both `doc.eq` and `selection.eq`. I tried to make it replace
+  something the person did not paste over (L2a, L2b, L3, L4) and could not.
+- Rule 3 puts the content after the selection's end. With a text range that
+  can be mid-word (L1), exactly as the caret rule can when the caret is
+  mid-word. Nothing is lost and one undo removes it.
+- One thing to know, not a finding: a paste made straight after the Image
+  button, with the new image still selected, replaces that image (rule 2). It
+  is a paste over a selection, and a paste with no image does the same at
+  once.
+
+### 5. CI
+
+**On `fb7615f`:** the "Studio — typecheck, build, end-to-end" job
+(`130319940504`) and the API job (`130319940231`) are `cancelled`, at 04:24:57
+and 04:24:43 UTC: the push of `aef22b5` cancelled them. A cancelled run is not
+evidence. Website, website browser tests, section comparison, both npm audits,
+NuGet audit, Semgrep and both gitleaks scans are `success` on `fb7615f`.
+E1 and E2 on `fb7615f` itself: NOT RUN (no SQL Server here; the CI run was
+cancelled). Covered by CI job `studio` on `aef22b5`, whose editor source is
+identical.
+
+**On `aef22b5`** (not the commit I tested; the only code difference is six
+assertion lines in `richText.test.tsx`). In my worktree, as an extra:
+`npx vitest run test/richText.test.tsx` `20 passed (20)`; `npm test`
+`80 passed (80)`; `npx tsc -b` exit 0. CI: run `42959042545`, job
+`130321040327`, "Studio — typecheck, build, end-to-end": `completed`,
+`success`, 04:24:59 to 04:31:31 UTC. From the job log:
+
+```
+ Test Files  11 passed (11)
+      Tests  80 passed (80)
+  ✓   8 e2e/rich-text.spec.ts:88:1 › ADM-03 rich text: typing after a stored image keeps the image and the text (8.5s)
+  ✓   9 e2e/rich-text.spec.ts:162:1 › ADM-03 rich text: an inserted image stays, and a pasted web image is filtered (11.7s)
+  30 passed (4.6m)
+```
+
+Every other check run on `aef22b5` is `success` (API, Website, website browser
+tests, section comparison, both npm audits, NuGet audit, Semgrep, both gitleaks
+scans, security gate self-test, actionlint); CodeQL and screenshot parity are
+`skipped`, as before. So E1 and E2 pass in Chromium against the real API with
+the round 2 editor.
+
+### Findings, round 2
+
+No Blocker. No Major. Round 1's findings:
+
+| Round 1 finding | State |
+| --- | --- |
+| 1. A later selection is replaced by the answer | Closed: T16 to T18 red then green; probes F1, R1b, R1c, L1 to L5 |
+| 2. The "nothing was added" notice stays | Closed: T20, T21 red then green; probes F2, L6 |
+| 3. `implementation.md` out of date | Closed at `fb7615f` for the three points named. See 5 below |
+| 4. The pull request body lacks condition 14's three sections | Open, the integrator's; to be done before gate 2. Still the commit-1 text when I last read it |
+
+New:
+
+**5. Minor. Records lag the pushes again.** `implementation.md` section R (at
+`fb7615f`) says "This round's commits are not pushed. CI on `c4d93b9` and
+`1177ac7` is NOT RUN." They are pushed, and the run on `fb7615f` was cancelled.
+`c4d93b9` was not pushed alone, so the round 2 red has no CI run; my local red
+in section 1 is the evidence for it, and the unit tests are what was red (no
+end-to-end test changed). The integrator's record should give the run on the
+final head. Gate 2 should read CI on the head it approves, not on `fb7615f`.
+
+**6. Minor, for gate 2. The tested commit is not the head.** `213cdb8`,
+`eb696cc` and `aef22b5` came after `fb7615f`. I checked what section 5 says
+and no more. The editor source is unchanged, so I do not ask for another full
+round; if any `studio/src` file changes after `aef22b5`, it needs one.
+
+### Coverage, round 2
+
+| Item | Source | Status | Evidence |
+| --- | --- | --- | --- |
+| A selection made while a paste is checked is kept | Round 1 finding 1; plan 3.1 (3) round 3 | Verified | T16, T17, T18 red at `c4d93b9`, green at `fb7615f`; probes F1, L1, L2a, L3, L5 |
+| A paste over a selection still replaces it | Plan 3.1 (3) rule 2 | Verified | T19 (guard); probes L2c, L3 |
+| A paste that is added clears this change's two notices, and only those | Round 1 finding 2 | Verified | T20, T21 red then green; probes F2, L6 |
+| A crafted media id is still dropped and never sent, on every insert path | Plan section 6; T13 | Verified | T13; probes S1, S2, S3, L4 |
+| The known-id set is still seeded only from loaded documents and the picker | Conditions 5, 9 | Verified | Section 2 (those lines untouched); probes S1, S3, L4 |
+| Undo and redo after a late insert | Tester | Verified | Probes L1, L5, U1, U2, L4 |
+| A paste answer never lands in a replaced document | T15 | Verified | T15; probe L4 (twice) |
+| The second host; nested images; drop; Markdown pattern | Round 1 | Verified again | Probes E1, N1, D1, M1 re-run |
+| `tsc -b`, `npm test`, build | Plan 5.3 | Verified | Section 1: exit 0, `80 passed (80)`, build exit 0 with the preview design check |
+| Scope: `1177ac7` touches only `RichTextEditor.tsx`; no package, config, API or workflow change | Conditions 3, 11 | Verified | Section 2 |
+| E1 and E2 with the new insert | G3 exit gate | Verified in CI on `aef22b5` (same editor source); cancelled on `fb7615f`; NOT RUN locally | Section 5 |
+| Records match what happened | Round 1 finding 3; P-8 | Partly | Finding 5 |
+| Pull request body: three sections | Condition 14 | Open, integrator | Round 1 finding 4 |
+
+Every planned check passes, locally on `fb7615f` or in CI on `aef22b5`, and
+there is no Blocker or Major. Round 1's findings 1 to 3 are closed. Open: round
+1 finding 4 and round 2 findings 5 and 6, all Minor, all records, all for the
+integrator and gate 2.
+
 Verdict: APPROVED
