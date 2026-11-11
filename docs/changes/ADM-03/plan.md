@@ -2,8 +2,10 @@
 
 Change id: `ADM-03`. Branch: `change/ADM-03`, worktree `/home/user/dh-change-adm03`,
 cut from `origin/rebuild/dotnet-platform` at `77296ba`.
-Architect, round 3, 11 November 2026. Round 1 (`15164df`) came back CHANGES
-NEEDED (`plan-review.md` Round 1 at `fda6532`: one Major, five Minors), answered
+Architect, round 4, 11 November 2026. Round 4 answers the developer's BACK TO
+ARCHITECT (`implementation.md` section 16 at `fdd8def`): the Image button
+leaves the new image selected, so the next key replaces it. Earlier rounds:
+round 1 (`15164df`) came back CHANGES NEEDED (`plan-review.md` Round 1 at `fda6532`: one Major, five Minors), answered
 in round 2. Round 3 confirms the developer's insert rule after the tester's
 finding 1 (`test-report.md` round 1; `implementation.md` section R at
 `fb7615f`). Section 12 answers each point.
@@ -348,9 +350,10 @@ All in `RichTextEditor.tsx`, plus one field in `MediaPicker.tsx` (item 7).
         put the caret at the end of what was added. Nothing is replaced.
      "After the selection" is the design, not only the developer's choice. It
      is the nearest place to the caret rule that replaces nothing; it keeps
-     reading order; and for the Image button, which leaves its new image
-     selected, the pasted content follows the image, as it follows text typed
-     in that moment. Inserting before the selection, or collapsing it to its
+     reading order; and when the person selects an image after pasting, the
+     pasted content follows that image, as it follows text typed in that
+     moment. (Round 4: the Image button no longer leaves its image selected,
+     item 8, so an image picked while a check is out takes rule 1.) Inserting before the selection, or collapsing it to its
      head, would do no better and would differ from rule 1 for no reason.
    - A paste that is added clears this change's own two notices, "could not be
      checked" and the drop notice, and only those (round 3). The older image
@@ -411,6 +414,32 @@ All in `RichTextEditor.tsx`, plus one field in `MediaPicker.tsx` (item 7).
    field gives `false`). `insertImage` uses `decorative: choice.decorative`.
    `FormWalker.tsx:184,201`, `ItemEditorPage.tsx:396` and
    `MediaLibraryPage.tsx:169` read only `id`, `path` and `alt`, and are unchanged.
+
+8. **After the Image button, the caret is in the text position after the new
+   image, and the image is not selected (round 4).** Numbered 8 so that items 1
+   to 7 keep their numbers.
+   - **Why.** TipTap's `insertContent` leaves a node selection on the image
+     when it is inserted at the end of a text block, which is where the caret
+     is after typing. A key pressed then replaces the image
+     (`implementation.md` section 16; T22 at `48f256f`:
+     `expected [] to deeply equal [ Array(1) ]`). That is the audit's own
+     symptom, "Inserting a library image removes it at once", one key later.
+   - **Rule.** After `insertImage` has dispatched its insert, if the selection
+     is a node selection on an image, set the selection to the first text
+     position after it: `Selection.findFrom(doc.resolve(selection.to), 1, true)`.
+     It runs after the insert, because the paragraph the editor adds after a
+     last image does not exist before then. If there is no such position, the
+     selection is left as it is.
+   - **When another image, or any node with no text, sits straight after the
+     new one,** the caret goes to the next text position beyond it. Typing then
+     lands after both. Nothing is selected and nothing is replaced. The plan
+     does not add a paragraph between the two images: that would change the
+     document without the person asking.
+   - When the insert already leaves a caret (the caret was at the start of a
+     paragraph with text), nothing more is done.
+   - The developer's drafted patch
+     (`/tmp/claude-0/-home-user/a2e5e522-d1b3-56cb-8c85-c4d5ca889de1/scratchpad/adm03-insertImage-caret.patch`,
+     `caretAfterSelectedImage`) does this and is confirmed as the design.
 
 After items 2 to 6 the only ways an image node enters the editor are: a stored
 document, the Image button, a move inside the editor, and a paste that the
@@ -503,7 +532,7 @@ rule in 3.1 (3) gives the same text layout as an ordinary paste.
 
 | File | Change |
 | --- | --- |
-| `studio/src/content/RichTextEditor.tsx` | 3.1 items 1 to 6: `onUpdate` only calls `onChange`; `handlePaste` takes the slice and sends an image-carrying slice to the filter; the answer is inserted with `replaceSelection`; the mounted flag and the replaced-document counter; the session set of media ids, filled from loaded documents and the picker, and the `mediaId: null` rule for ids outside it; `parseHTML` and `addInputRules` on `StudioImage`; `handleDrop`. `filterPaste` (182-200) is replaced by the new function. `cleanNode`, `cleanDocument`, `parseDocument`, the `value` effect, the toolbar and `LinkDialog` are unchanged. On "Yes" to O-ADM03-2, `insertImage` also takes `decorative` from the choice. |
+| `studio/src/content/RichTextEditor.tsx` | 3.1 items 1 to 6: `onUpdate` only calls `onChange`; `handlePaste` takes the slice and sends an image-carrying slice to the filter; the answer is inserted with `replaceSelection`; the mounted flag and the replaced-document counter; the session set of media ids, filled from loaded documents and the picker, and the `mediaId: null` rule for ids outside it; `parseHTML` and `addInputRules` on `StudioImage`; `handleDrop`. **Round 4:** item 8, `insertImage` moves the caret off the new image (round 2 implied `insertImage` was unchanged apart from O-ADM03-2). `filterPaste` (182-200) is replaced by the new function. `cleanNode`, `cleanDocument`, `parseDocument`, the `value` effect, the toolbar and `LinkDialog` are unchanged. On "Yes" to O-ADM03-2, `insertImage` also takes `decorative` from the choice. |
 | `studio/src/content/MediaPicker.tsx` | **Only on "Yes" to O-ADM03-2.** `MediaChoice` gains `decorative: boolean`; `MediaRow` gains `decorative?: boolean`; the two `onSelect` calls pass it. Nothing else. |
 | `studio/test/listPaging.test.tsx` | **Only on "Yes" to O-ADM03-2.** S11's expected choice (line 400) gains `decorative: false`. The assertion becomes stricter; nothing is removed (P-6). |
 
@@ -651,9 +680,13 @@ collect every request to `/api/v1/rich-text/paste` with `page.on("request")`.
     fill the heading, click the Body editor and type "Intro.".
   - Click the editor's "Image" button; in the "Choose an image" modal click the
     tile named by the alt text.
-  - Press `Control+End` and type "After the image." (the caret must be in a
-    paragraph, not on the image; the developer adds an `Enter` first if the
-    trailing paragraph is not there).
+  - **Round 4:** `body.focus()`, then type "After the image." straight away.
+    The `Control+End` press is removed: it hid the defect of item 8, and E2
+    passed only when it landed before the first key. `body.focus()` stays. It
+    stands for keyboard focus being in the editor, which this plan does not
+    claim happens by itself when the picker closes (not run in a browser; for
+    the "For ADM-22" note). It is not there to move the caret. E2 asserts the
+    image count and both texts, not their order; T22 holds the exact order.
   - **First assertion after the typing:** the list of paste requests is empty.
   - Then: `img[mediaid="<id>"]` in the editor `toHaveCount(1)`, and "Intro." and
     "After the image." are there.
@@ -912,6 +945,9 @@ live only in `DigitalHubContent_E2e`, which the harness resets before every run.
   - Two new notices: "The paste could not be checked, so nothing was added.
     Paste again." and "The dropped content included an image, so it was not
     added. Use the image button for images."
+  - After the Image button the caret is in the line after the new image, so
+    typing straight away goes there and keeps the image. If another image
+    follows directly, the caret is after that one. (Round 4.)
   - Content pasted with an image is added when the check returns: at the caret,
     or, if something was selected after pasting, straight after that selection.
     So it can follow text typed or an image inserted in that moment. Nothing
@@ -946,7 +982,8 @@ live only in `DigitalHubContent_E2e`, which the harness resets before every run.
 | The server stops accepting a bare list | Pasted text with an image is lost | E2: "Pasted line" must show |
 | jsdom lacks layout and clipboard APIs | Render tests fail for a reason that is not the defect | The stubs in 5.1; the red run must show editor assertions (5.3) |
 | A synthetic paste in Chromium does not reach ProseMirror | E2 fails at "Pasted line" for a harness reason | Not run here: no SQL Server. The CI red run on commit 1 shows where E2 fails; it must fail at the empty paste-request list, before the paste step. If the paste step fails after the fix, the developer reports it and the plan is revised, not the assertion weakened |
-| The caret sits on the image when E2 types | The typed text replaces the image and E2 fails after the fix | E2 presses `Control+End` first, and the step says the caret must be in a paragraph (5.1) |
+| The Image button leaves the new image selected | The next key or paste replaces the image: the audit's symptom, one key later. E2 failed on it once in CI (run `42970225620`) | 3.1 (8). T22 red at `48f256f`; T23 for a following image; E2 types with no `Control+End` (round 4) |
+| Keyboard focus is not in the editor when the picker closes | Staff must click the editor before typing | Not claimed and not run in a browser. E2 keeps `body.focus()`; recorded in the "For ADM-22" note |
 | The answer arrives after the editor is removed | `onChange` writes into a section that no longer exists | The mounted flag; T9 |
 | A web page puts a media id into the editor through `img[mediaid]` | An id the library does not hold blocks a page save with nothing to see, or is stored by the error-page save | The session set (3.1, 4): an id this tab did not get from the API is sent as `null` and dropped. T13, red first, and red against the round 1 design |
 | The session set misses an id it should hold | A legitimate cut and paste of a library image is dropped | T6 (same editor) and T14 (another field on the page); E1 and E2 load and pick real images. It fails closed, with the notice |
@@ -980,6 +1017,7 @@ live only in `DigitalHubContent_E2e`, which the harness resets before every run.
 | A pasted media id the session did not get from the API is dropped; no pasted address is sent or rendered | `plan-review.md` Round 1, finding 1; P-4 | Planned (T13) | |
 | A paste answer never lands in a replaced document | `plan-review.md` Round 1, finding 5 | Planned (T15) | |
 | A paste answer replaces nothing but the selection it was pasted over; a later selection is kept and the content goes after it | `test-report.md` round 1, finding 1; plan 3.1 (3), round 3 | Planned (T16 to T19) | |
+| Typing straight after the Image button keeps the image; the caret is in the text position after it | Audit ADM-03, bullet 3; `implementation.md` section 16 | Planned (T22, T23, E2) | |
 | An added paste clears the "not added" notices | `test-report.md` round 1, finding 2 | Planned (T20, T21) | |
 | Library check on the error-page save | `plan-review.md` Round 1, finding 1 (server gap, older than this change) | Moved to ADM-05: "For ADM-05" in `implementation.md` and the PR body | |
 | Paste of table cells with an image; image copied in another tab | `plan-review.md` Round 1, findings 1 and 5 | Moved to ADM-22: "For ADM-22" note | |
@@ -1097,3 +1135,51 @@ live only in `DigitalHubContent_E2e`, which the harness resets before every run.
   - Sections 5.1 to 5.3 are left as the round 2 record of the planned tests.
     T16 to T21 and their red and green runs are in `implementation.md`
     section R.
+- **Round 4 (11 November 2026):** answers the developer's BACK TO ARCHITECT
+  (`implementation.md` section 16, head `fdd8def`) and the coordinator's six
+  points. Documents only.
+  - **(1) `insertImage` puts the caret in the text position after the new
+    image: decided, and in ADM-03's scope.** It is the audit's third bullet,
+    not a neighbour of it: after `eff1880` the image survives the insert and is
+    removed by the next key. 3.1 item 8 is the rule; the drafted patch is
+    confirmed. Stopping to ask was right: it changes an existing assertion and
+    a sentence of the plan.
+  - **(2) T16.** Its expected document becomes paragraph "Start", the image,
+    paragraph "Pasted", with no empty paragraph after: the caret is already in
+    that paragraph, so the answer fills it (rule 1). T16 keeps its name and its
+    other assertions and stays as the test of the tester's probe F1, an image
+    picked while a check is out; its comment says it now takes the caret rule.
+    The assertion stays exact, and the change is this recorded decision (P-6).
+    Rule 3 keeps its tests: T17 selects an image after the paste, which is the
+    case T16 used to reach by accident, and T18 selects the whole document.
+    That is enough; no new rule 3 test.
+  - **(3) Sentences.** 3.1 (3) no longer says the Image button leaves its image
+    selected. Section 9 gains the caret line. The files table says `insertImage`
+    changes. `implementation.md` section 9 item 4 and the pull request body
+    take the same words from section 9 here.
+  - **(4) Another image straight after the new one.** The caret goes to the
+    next text position beyond it (3.1, 8). New guard-and-red test **T23**,
+    `inserting a library image before another image leaves neither selected`:
+    document "Intro." then a stored image; caret at the end of "Intro."; pick
+    "Diagram"; type "Next." at the selection. Expected: the selection after the
+    pick is a text selection; both images are there; the content is "Intro.",
+    Diagram, the stored image, "Next.". If the run gives another order with
+    both images kept, the developer reports it and does not bend the assertion.
+  - **(5) E2.** `Control+End` is removed, so E2 picks and then types, as staff
+    do. `body.focus()` stays, for the reason in 5.1. E2's red for this defect is
+    CI run `42970225620` (job `130356739362`), which cannot be reproduced on
+    demand; T22 is the red that can.
+  - **(6) Commit order from `fdd8def`.** `48f256f` (T22, red) stands.
+    1. `ADM-03: Test the caret after the Image button, with and without a following image`:
+       T23 added, T16's expected document changed, and `Control+End` removed
+       from `rich-text.spec.ts`. Tests only. Expected:
+       `npx vitest run test/richText.test.tsx` gives T16, T22 and T23 failed,
+       the other 19 passed; `tsc -b` exit 0.
+    2. `ADM-03: Put the caret after an image inserted with the Image button`:
+       the patch, `RichTextEditor.tsx` only. Expected: 22 passed; `npm test`,
+       `tsc -b` and the build as in 5.3.
+    3. The record: `implementation.md`, with section 9 item 4 and the "For
+       ADM-22" focus note.
+    Then the tester runs again, and CI `studio` must be green on the pushed
+    head with E2 unchanged from commit 1.
+  - Both owner questions stand as they were. Nothing else changes.
