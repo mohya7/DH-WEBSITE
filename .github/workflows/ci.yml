@@ -93,6 +93,14 @@ jobs:
           --project src/DigitalHub.Api/DigitalHub.Api.csproj
           --connection "Server=localhost,1433;Database=DigitalHubContent_Test;User ID=sa;Password=$SA_PASSWORD;Encrypt=True;TrustServerCertificate=True"
 
+      - name: Migration checks — idempotent script twice, previous schema
+        # New gate (ENGINEERING_STANDARDS.md section 3): reports until
+        # MIGRATION_CHECKS_BLOCKING_FROM, then blocks. The canary always blocks.
+        env:
+          MIGRATION_CHECKS_BLOCKING_FROM: "2026-11-18"
+          BASE_REF: ${{ github.base_ref || 'rebuild/dotnet-platform' }}
+        run: tools/migration-checks/run.sh "${{ job.services.mssql.id }}"
+
       - name: Grant the restricted login read and write, and nothing else
         # The audit log is append-only for the application login (finding L6).
         run: |
@@ -395,4 +403,85 @@ jobs:
         with:
           name: screenshot-parity
           path: reports/screenshot-parity
+          if-no-files-found: warn
+
+  website-browser:
+    name: Website — browser tests, default and consent builds
+    runs-on: ubuntu-24.04
+    # The 29 Playwright tests in website/browser-tests, each in the build it targets:
+    # pages.spec.ts in both builds, consent.spec.ts only in the consent build
+    # (SNAPSHOT_SETTINGS_FIXTURE=consent). Playwright exits 0 when tests skip, so
+    # tools/browser-suite/check-report.mjs reads both reports against
+    # tools/browser-suite/expected.json. A test that does not run as expected fails
+    # the job at once; a failed test is a warning until BROWSER_TESTS_BLOCKING_FROM
+    # (UTC) and fails the job from that date. Runner pinned to ubuntu-24.04 because
+    # Playwright 1.56.1 cannot install its browsers on ubuntu-latest (26.04).
+    env:
+      BROWSER_TESTS_BLOCKING_FROM: "2026-11-18"
+      CONTENT_SOURCE: snapshot
+      PUBLIC_SITE_URL: https://digitalhub.com.eg
+      PLAYWRIGHT_HTML_OPEN: never
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - run: npm ci
+
+      - name: Canary — the check must reject its committed bad reports
+        run: node tools/browser-suite/run-canary.mjs
+
+      - name: Install Playwright's Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Default build
+        run: npm run build
+
+      - name: Browser tests, default build
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: ${{ github.workspace }}/reports/website-browser/default.json
+          PLAYWRIGHT_HTML_OUTPUT_DIR: ${{ github.workspace }}/reports/website-browser/default-html
+        run: |
+          status=0
+          npx playwright test --reporter=list,json,html --output "${{ github.workspace }}/reports/website-browser/default-results" || status=$?
+          echo "Playwright exit ${status}"
+          # 1 is failed tests, which the check step judges; any other code means the run itself broke.
+          if [ "${status}" -gt 1 ]; then exit "${status}"; fi
+
+      - name: Consent build
+        env:
+          SNAPSHOT_SETTINGS_FIXTURE: consent
+        run: |
+          rm -rf out
+          npm run build
+
+      - name: Browser tests, consent build
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: ${{ github.workspace }}/reports/website-browser/consent.json
+          PLAYWRIGHT_HTML_OUTPUT_DIR: ${{ github.workspace }}/reports/website-browser/consent-html
+        run: |
+          status=0
+          npx playwright test --reporter=list,json,html --output "${{ github.workspace }}/reports/website-browser/consent-results" || status=$?
+          echo "Playwright exit ${status}"
+          # 1 is failed tests, which the check step judges; any other code means the run itself broke.
+          if [ "${status}" -gt 1 ]; then exit "${status}"; fi
+
+      - name: Check both runs
+        env:
+          REPORTS: ${{ github.workspace }}/reports/website-browser
+        run: node tools/browser-suite/check-report.mjs tools/browser-suite/expected.json "default=${REPORTS}/default.json" "consent=${REPORTS}/consent.json"
+
+      - name: Upload the browser test reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: website-browser-report
+          path: reports/website-browser
           if-no-files-found: warn

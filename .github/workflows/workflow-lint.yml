@@ -1,0 +1,72 @@
+# Workflow lint (GAP-08, standard rule G-13): actionlint on every workflow in
+# .github/workflows/, this one included. Target: 0 findings.
+#
+# actionlint 1.7.12 and shellcheck 0.11.0 are downloaded from their GitHub
+# releases by .github/lint/install-actionlint.sh and checked by sha256 before
+# use (sources next to each value below). shellcheck is pinned too, because
+# actionlint checks run: scripts with it only when it finds the binary and
+# skips that check silently when it does not; the runner's own shellcheck
+# moves with the image.
+#
+# The job first runs the gate's self-test (.github/lint/self-test.sh), then
+# the canary (.github/lint/canary/canary-workflow.yml, whose findings must
+# equal .github/lint/canary.expected). Both always block: a gate that cannot
+# fire fails. Then it lints the workflows with .github/lint/run-actionlint.sh.
+#
+# Report week: a new gate reports for seven days from its merge, then blocks
+# (ENGINEERING_STANDARDS.md, section 3). Before ACTIONLINT_BLOCKING_FROM (UTC)
+# findings are warnings; on and after it they fail the job. The date is at
+# least seven days after the merge and no later than 2026-11-23 (Wave 1).
+#
+# A separate workflow on purpose: ci.yml is edited by other open changes, and
+# security.yml is pinned byte for byte by .github/security/security.expected.yml.
+# No paths filter and no if:, so the check runs on every pull request and can
+# be made a required status check.
+
+name: Workflow lint
+
+on:
+  pull_request:
+  push:
+    branches: [rebuild/dotnet-platform]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: workflow-lint-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ACTIONLINT_VERSION: "1.7.12"
+  # sha256 of actionlint_1.7.12_linux_amd64.tar.gz, from the release's actionlint_1.7.12_checksums.txt.
+  ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+  SHELLCHECK_VERSION: "0.11.0"
+  # sha256 of shellcheck-v0.11.0.linux.x86_64.tar.xz from the koalaman/shellcheck v0.11.0 release
+  # (no checksum file is published; the extracted binary is identical to the PyPI shellcheck-py 0.11.0.1 wheel's).
+  SHELLCHECK_SHA256: 8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198
+  # Findings warn before this day (UTC) and fail from it. See the header.
+  ACTIONLINT_BLOCKING_FROM: "2026-11-18"
+
+jobs:
+  actionlint:
+    name: actionlint (every workflow)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Install actionlint ${{ env.ACTIONLINT_VERSION }} and shellcheck ${{ env.SHELLCHECK_VERSION }} (checksum verified)
+        run: bash .github/lint/install-actionlint.sh
+
+      - name: Self-test the gate
+        run: bash .github/lint/self-test.sh
+
+      - name: Canary (must report exactly the expected findings)
+        run: bash .github/lint/run-actionlint.sh canary
+
+      - name: Lint every workflow
+        run: bash .github/lint/run-actionlint.sh workflows

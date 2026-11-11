@@ -23,6 +23,10 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Finding 9 (GAP-12): no server banner. Kestrel writes Server itself, after
+// any middleware, so it is turned off here and not removed in a middleware.
+builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
+
 builder.Host.UseSerilog((context, services, configuration) => configuration
     .ReadFrom.Configuration(context.Configuration)
     // Sinks registered as services too; the tests use one to read the log.
