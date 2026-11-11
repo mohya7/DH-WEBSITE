@@ -680,8 +680,11 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         if (blogPaths.Any(slug => ContentPaths.PublicPath("blog-posts", slug) == fromPath))
             return true;
 
+        // The build also writes an ended vacancy's page ("no longer open"), so it is live too
+        // (ADM-07, F-2; O-ADM07-2 "Yes, refuse it"). The same predicate as BuildContentStore.
+        var ended = ContentStatus.Ended;
         var vacancyPaths = await db.Vacancies.AsNoTracking()
-            .Where(item => item.Status == published)
+            .Where(item => item.Status == published || item.Status == ended)
             .Select(item => item.Slug)
             .ToListAsync(cancellationToken);
         return vacancyPaths.Any(slug => ContentPaths.PublicPath("vacancies", slug) == fromPath);
