@@ -143,6 +143,16 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         if (RedirectPaths.Key(from!) == RedirectPaths.Key(to!))
             return ContentOutcome.Fail(StatusCodes.Status400BadRequest, "redirect_loop", "A redirect cannot point at itself.");
 
+        /* The checks and the insert are one unit (ADM-07, F-1): every create holds one
+           application lock until its transaction ends, so two creates of one address,
+           /x and /x/ included, cannot both pass the duplicate check, and two creates
+           that would close a loop through different addresses cannot both pass the loop
+           check. Every early return disposes the transaction, which rolls back and
+           releases the lock. */
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        if (!await TakeRedirectLockAsync(cancellationToken))
+            return ContentOutcome.Fail(StatusCodes.Status503ServiceUnavailable, "redirect_busy", "Another redirect is being saved. Try again.");
+
         var spellings = RedirectPaths.Spellings(from!);
         if (await db.Redirects.AsNoTracking().AnyAsync(redirect => spellings.Contains(redirect.FromPath), cancellationToken))
             return ContentOutcome.Fail(StatusCodes.Status409Conflict, "redirect_exists", "A redirect from that path already exists.");
@@ -167,6 +177,7 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         db.Redirects.Add(created);
         Audit(userId, "create_redirect", "redirect", created.Id.ToString(), created.FromPath + " -> " + created.ToPath);
         await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         // Still created when no page answers at the target (the audit's fix warns, and a
         // chain to another redirect's source collapses, Phase B 4.5), but said so (ADM-07).
@@ -182,6 +193,25 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
             TargetLive = RedirectTargets.Resolves(created.ToPath, live),
         }, StatusCodes.Status201Created);
     }
+
+    /// <summary>
+    /// Takes the lock every redirect create holds, owned by the current transaction. False on
+    /// a timeout, a deadlock or an error (sp_getapplock below 0). It needs only membership of
+    /// public, so the application login can take it.
+    /// </summary>
+    private async Task<bool> TakeRedirectLockAsync(CancellationToken cancellationToken)
+    {
+        var result = new Microsoft.Data.SqlClient.SqlParameter("@result", System.Data.SqlDbType.Int) { Direction = System.Data.ParameterDirection.Output };
+        await db.Database.ExecuteSqlRawAsync(RedirectLockSql, [result], cancellationToken);
+        return result.Value is int code && code >= 0;
+    }
+
+    /* One fixed resource for all creates, so the loop check is serialised across addresses
+       too. A create waits at most 5 s for another, then is refused as busy (503
+       redirect_busy). RedirectConcurrencyTests holds this resource, and its gate's cap
+       must stay well under this timeout. */
+    private const string RedirectLockSql =
+        "EXEC @result = sp_getapplock @Resource = N'digitalhub:redirects', @LockMode = N'Exclusive', @LockOwner = N'Transaction', @LockTimeout = 5000;";
 
     public async Task<ContentOutcome> DeleteRedirectAsync(Guid id, string? userId, CancellationToken cancellationToken)
     {
