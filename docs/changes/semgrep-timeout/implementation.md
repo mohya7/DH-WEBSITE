@@ -233,8 +233,12 @@ None.
   design changes.
 - **Commit bodies** name #41, #42 and #44 as condition 9 words it. The plan's §2
   evidence names #40 (failed once, passed on re-run), #41 (job 130198029247), #44
-  (job 128779169900) and base run 42496209770; the developer has no separate
-  evidence for #42 and quotes the condition's wording as given.
+  (job 128779169900) and base run 42496209770. #42 failed the same way too
+  (evidence from the tester's round 1 review): job 130203984103 (run
+  42923444182, attempt 1, on `4d45a1f`) failed with `type Timeout; path
+  .github/security/gate.test.mjs`, and attempt 2 (job 130204601188) passed. The
+  commit bodies' wording is therefore correct. An earlier version of this record
+  said there was no separate evidence for #42; that was wrong.
 - The new test finds each mutation by name in `shapeMutations` and fails with
   `<name> is missing from shapeMutations` if one is removed, in addition to
   §3's three assertions.
