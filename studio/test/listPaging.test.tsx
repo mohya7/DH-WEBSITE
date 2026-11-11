@@ -428,3 +428,166 @@ describe("media picker paging", () => {
     );
   });
 });
+
+/*
+ * Tester's round-1 findings (test-report.md). A failed page load must leave the
+ * pager on the page whose rows are shown, and an empty reload may jump to the
+ * last page at most once.
+ */
+describe("failed and inconsistent page loads", () => {
+  const failure: Reply = { ok: false, status: 500, body: null, problem: { title: "Server error" } };
+
+  function pageOf(path: string): string | null {
+    return new URL(path, "http://studio.test").searchParams.get("page");
+  }
+
+  function listApi(base: string, rows: unknown[]) {
+    return async (path: string, init?: RequestInit): Promise<Reply> => {
+      if (path.startsWith(`${base}?`)) return ok(pagedBody(rows as Array<{ id: string }>, path));
+      throw new Error(`unexpected ${init?.method ?? "GET"} ${path}`);
+    };
+  }
+
+  const auditRows = Array.from({ length: 120 }, (_, index) => ({
+    id: `a-${three(index + 1)}`,
+    userId: "user-1",
+    action: "update_item",
+    entityType: "page",
+    entityId: `entity-${three(index + 1)}`,
+    at: "2026-11-01T00:00:00Z",
+    success: true,
+    detail: null,
+  }));
+
+  const redirectRows = Array.from({ length: 120 }, (_, index) => ({
+    id: `r-${three(index + 1)}`,
+    fromPath: `/r-${three(index + 1)}`,
+    toPath: "/",
+    statusCode: 301,
+    source: "manual",
+    createdAt: "2026-11-01T00:00:00Z",
+  }));
+
+  type Screen = {
+    name: string;
+    base: string;
+    rows: () => unknown[];
+    healthy: () => (path: string, init?: RequestInit) => Promise<Reply>;
+    render: () => void;
+    first: string;
+    loadError: string;
+  };
+
+  const screens: Screen[] = [
+    {
+      name: "inbox",
+      base: "/api/v1/contact-requests",
+      rows: () => enquiries(120),
+      healthy: () => inboxApi(enquiries(120)),
+      render: () => render(<ContactInboxPage />),
+      first: "Enquiry 001",
+      loadError: "Contact requests could not be loaded.",
+    },
+    {
+      name: "audit log",
+      base: "/api/v1/audit",
+      rows: () => auditRows,
+      healthy: () => listApi("/api/v1/audit", auditRows),
+      render: () => render(<AuditPage />),
+      first: "entity-001",
+      loadError: "Audit log could not be loaded.",
+    },
+    {
+      name: "redirects",
+      base: "/api/v1/redirects",
+      rows: () => redirectRows,
+      healthy: () => listApi("/api/v1/redirects", redirectRows),
+      render: () => render(<RedirectsPage />),
+      first: "/r-001",
+      loadError: "Redirects could not be loaded.",
+    },
+    {
+      name: "media library",
+      base: "/api/v1/media",
+      rows: () => images(120),
+      healthy: () => mediaApi(images(120)),
+      render: () => render(<MediaLibraryPage />),
+      first: "Image 001",
+      loadError: "The library could not be loaded.",
+    },
+    {
+      name: "media picker",
+      base: "/api/v1/media",
+      rows: () => images(120),
+      healthy: () => mediaApi(images(120)),
+      render: () => render(<MediaPicker open onClose={() => {}} onSelect={() => {}} />, { wrapper: NoMotion }),
+      first: "Image 001",
+      loadError: "The library could not be loaded.",
+    },
+  ];
+
+  function activePage(): string | null {
+    return document.body.querySelector(".ant-pagination-item-active")?.getAttribute("title") ?? null;
+  }
+
+  it.each(screens)("$name keeps the pager on the page shown when page 2 fails to load", async (target) => {
+    const healthy = target.healthy();
+    api.handler = async (path, init) =>
+      path.startsWith(`${target.base}?`) && pageOf(path) === "2" ? failure : healthy(path, init);
+    target.render();
+    await screen.findByText(target.first);
+    expect(activePage()).toBe("1");
+
+    fireEvent.click(pageItem("2"));
+
+    await screen.findByText("Server error");
+    expect(screen.getByText(target.first)).toBeTruthy();
+    expect(activePage()).toBe("1");
+  });
+
+  it("after a failed page load, Mark handled reloads the page shown", async () => {
+    const healthy = inboxApi(enquiries(120));
+    api.handler = async (path, init) =>
+      path.startsWith("/api/v1/contact-requests?") && pageOf(path) === "2" ? failure : healthy(path, init);
+    render(<ContactInboxPage />);
+    await screen.findByText("Enquiry 001");
+    fireEvent.click(pageItem("2"));
+    await screen.findByText("Server error");
+
+    fireEvent.click(screen.getByText("Enquiry 001"));
+    const before = listQueries("/api/v1/contact-requests").length;
+    fireEvent.click(await screen.findByRole("button", { name: "Mark handled" }));
+
+    await waitFor(() => expect(listQueries("/api/v1/contact-requests").length).toBeGreaterThan(before));
+    expect(lastListQuery("/api/v1/contact-requests").get("page")).toBe("1");
+  });
+
+  it.each(screens.filter((target) => ["inbox", "redirects", "media library"].includes(target.name)))(
+    "$name jumps to the last page at most once when pages come back empty with rows promised",
+    async (target) => {
+      const rows = target.rows();
+      let calls = 0;
+      api.handler = async (path) => {
+        if (!path.startsWith(`${target.base}?`)) throw new Error(`unexpected GET ${path}`);
+        calls += 1;
+        // A cut-off for the loop this test looks for, so a failing run ends.
+        if (calls > 10) return failure;
+        if (pageOf(path) === "1") return ok(pagedBody(rows as Array<{ id: string }>, path));
+        return ok({ items: [], total: 120 });
+      };
+      target.render();
+      await screen.findByText(target.first);
+      const before = listQueries(target.base).length;
+
+      fireEvent.click(pageItem("2"));
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      });
+
+      expect(listQueries(target.base).length - before).toBeLessThanOrEqual(2);
+      await screen.findByText(target.loadError);
+      expect(screen.getByText(target.first)).toBeTruthy();
+      expect(activePage()).toBe("1");
+    },
+  );
+});
