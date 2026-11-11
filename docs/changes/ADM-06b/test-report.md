@@ -245,7 +245,7 @@ No Blocker or Major.
 
 Two Minors; the CI red and green and the base merge are open for gate 2.
 
-Round 1 result: PASS. Superseded by Round 2 below, which holds the file's only verdict.
+Round 1 result: no Blocker or Major (two Minors). Superseded by Round 3 below, which holds the file's only verdict line.
 
 ## Round 2
 
@@ -438,4 +438,111 @@ None. Round 1 Findings 1 and 2 are fixed and verified.
 | Collection list and overview past 100 | Plan 3.4 | Moved to ADM-08 | `implementation.md` section 6; PR body pending |
 | ADM-06 closed | ADM-06a 3.3 | Open | Needs this change merged |
 
-Verdict: PASS
+Round 2 result: no findings; E1 and E2 still open in CI. Superseded by Round 3 below.
+
+## Round 3 (addendum: CI on `5d108fe`, and the verdict line)
+
+Docs only. No code was re-run locally: the head is still `5d108fe`, the commit
+tested in round 2. This round records the finished CI for E1 and E2 and fixes a
+record defect found at gate 2: rounds 1 and 2 ended with `Verdict: PASS`, which is
+not one of the lines allowed by `docs/changes/README.md` ("Verdict lines") and
+`.claude/agents/tester.md`. Those two lines are now plain round results, and the
+file's only verdict line is at the end of this section.
+
+### CI, read from the GitHub API
+
+```
+$ gh api repos/mohya7/DH-WEBSITE/actions/runs/42934036321 --jq '{name,head_sha,status,conclusion,event}'
+{"conclusion":"success","event":"pull_request","head_sha":"5d108fe574a982c6849234f253e0b6533cb5c084","name":"CI","status":"completed"}
+$ gh api repos/mohya7/DH-WEBSITE/actions/runs/42934036321/jobs --jq '.jobs[]|"\(.id) | \(.name) | \(.conclusion)"'
+130239528805 | Website — typecheck, tests, design check, snapshot build | success
+130239529274 | Website — browser tests, default and consent builds | success
+130239529303 | API — Release build, migrations, integration tests | success
+130239529364 | Studio — typecheck, build, end-to-end | success
+130239947654 | Section comparison against feature/interviewer-portal | success
+130239948973 | Screenshot parity (optional, label "screenshots") | skipped
+$ gh api repos/mohya7/DH-WEBSITE/actions/runs/42934036305 --jq '{name,head_sha,status,conclusion}'
+{"conclusion":"success","head_sha":"5d108fe574a982c6849234f253e0b6533cb5c084","name":"Security","status":"completed"}
+  jobs: Security gate self-test, Secret scan (gitleaks, this pull request's commits),
+  npm audit (studio), NuGet vulnerable packages (api), npm audit (website),
+  Semgrep (ERROR fails, WARNING reported), Secret scan (gitleaks, full history): all success
+```
+
+Studio job log (`gh api repos/mohya7/DH-WEBSITE/actions/jobs/130239529364/logs`,
+readable through the proxy; colour codes stripped):
+
+```
+ Test Files  10 passed (10)
+      Tests  60 passed (60)
+> tsc -b && vite build && node scripts/check-preview-design.ts
+Preview design: /website-design/d1ebe4132f8cfa8e/ matches website/design/ byte for byte.
+  ✓   4 e2e/paging.spec.ts:46:1 › ADM-06 inbox: the 51st enquiry is on page 2 and opens (4.9s)
+  ✓   5 e2e/paging.spec.ts:93:1 › ADM-06 audit log and redirects: the 51st row is on page 2 (7.1s)
+  28 passed (3.0m)
+```
+
+No `failed` or `flaky` line in the log. The run's artifacts include
+`studio-e2e-report` (691577 bytes), which holds E1's and E2's screenshots. The
+coordinator's figures match what I read.
+
+- **E1 and E2: passed in CI** on `5d108fe`, a head that contains #49 (`1f53484`)
+  and #50 (`3e1fc47`), round 2 section 1. That includes their `toHaveCSS` colour
+  checks on the inbox pager and on the audit table's pager (plan 3.2, condition 5).
+  Not run locally (no SQL Server, no `dotnet`).
+- **Semgrep green on the final head** (condition 7): yes, job `130239752170`.
+
+### Correction to round 2
+
+Round 2 section 4 quoted `grep -ciE "warning|not wrapped in act|unhandled"` as `0`
+for the local `listPaging.test.tsx` run. The CI log shows a stderr block on the
+new test "after a failed page load, Mark handled reloads the page shown":
+`Warning: [antd: message] Static function can not consume context like dynamic theme. Please use 'App' component instead.`
+and jsdom's `Not implemented: Window's getComputedStyle() method: with pseudo-elements`.
+The warning comes from the existing static `message.success("Marked handled.")`
+call in `ContactInboxPage.tsx`, which is older than ADM-06b. antd prints it once
+per process, and the test passes. It is an observation, not a finding: it fails no
+check and is not caused by this change. Not an act warning or an unhandled error.
+
+### Still open, outside the tester's records
+
+- The PR #51 body: "For ADM-08" (condition 4), "Behaviour changes for the owner"
+  (condition 15), and the first line, which should no longer say "Do not merge
+  before #49" now that #49 is in the head.
+- Whether the red on `58caf70` (E2 reported at the cleanup error) meets
+  condition 6 is for gate 2 (round 2 section 7).
+- The owner's view on the picker reset (condition 15).
+
+### Findings
+
+None. Round 1 Findings 1 and 2 stay fixed (round 2 section 5).
+
+### Coverage table (round 3, final)
+
+| Item | Source | Status | Evidence |
+| --- | --- | --- | --- |
+| Fix: paging controls on the audit screen | Audit ADM-06, Fix 2 | Verified | S5, S6 and the failed-load test green (round 2); E2 passed in CI run 42934036321, job 130239529364 |
+| Fix: paging controls on the inbox screen | Audit ADM-06, Fix 2 | Verified | S1 to S4 and the new tests green (round 2); E1 passed in CI (same job) |
+| Fix: paging controls on the media library | Audit ADM-06, Fix 2 | Verified (unit); no e2e by plan | S9, S10 and the new tests green; media e2e belongs to ADM-16 |
+| Media picker reaches images past the newest 24 | Audit ADM-06, bullet 3 | Verified (unit) | S11, S12 green |
+| Picker box shows the applied search on reopening | Plan 3.1 (4), S12 | Verified | Red at `933b3b9` (round 1), green at `5d108fe` |
+| Studio reaches enquiries past the 50th | Audit ADM-06, bullets 3, 5 | Verified | S1; E1 `✓ e2e/paging.spec.ts:46:1` in CI |
+| Studio reaches audit entries past the 50th | Audit ADM-06, bullet 3 | Verified | S5; E2 `✓ e2e/paging.spec.ts:93:1` in CI |
+| Redirects screen reaches redirects past the 50th | Plan 3.4 | Verified | S7, S8; E2 in CI |
+| Preview loader never repeats items | Audit ADM-06, bullet 4 | Verified | P2, P3 red at `f1b4215`, green at `5d108fe`; P1 green |
+| Pager follows the navy look | `phase-b-studio.md` 480, 501 | Verified | `theme.ts` six tokens; E1 and E2 `toHaveCSS` passed in CI; screenshots in artifact `studio-e2e-report` |
+| Round 1 Finding 1: pager moves only when the page arrives | Round 1 | Fixed, verified | Round 2 sections 3 and 5 |
+| Round 1 Finding 2: jump to the last page at most once | Round 1 | Fixed, verified | Round 2 sections 3 and 5 |
+| E2E change adds only timeouts | Round 2 | Verified | Round 2 section 6 |
+| Merge `5d108fe` brings nothing that conflicts | Round 2 | Verified | Round 2 section 1 |
+| Final head contains `1f53484` (#49) and `3e1fc47` (#50) | Conditions 2, 16 | Verified | Both `--is-ancestor` exit 0 (round 2) |
+| Regression tests shown failing before the fix | G3 checklist | Verified locally; E1/E2 CI red recorded, adequacy for gate 2 | Round 1 section 2; round 2 section 3; `58caf70` `studio` `failure` |
+| `tsc -b`, unit tests and build pass | Plan 5.3; condition 13 | Verified | Local (round 2) and CI: `Tests 60 passed (60)`, preview design match |
+| CI green with E1 and E2 | Plan 5.4 | Verified | CI run 42934036321 `success`; Playwright `28 passed (3.0m)` |
+| API and website unchanged and green | Plan 5.4 | Verified (CI) | Jobs 130239529303, 130239528805, 130239529274, 130239947654 `success` |
+| Lockfile unchanged | B-7 | Verified | Round 2 section 2 |
+| Scope (conditions 8, 13) and shims test-only (14) | Gate 1 | Verified | Round 2 section 4 |
+| npm audit, Semgrep, gitleaks, NuGet audit | `security.yml`; tester checklist | Verified | Local npm audit 0 (round 2); Security run 42934036305 `success`, Semgrep job 130239752170 |
+| Collection list and overview past 100 | Plan 3.4 | Moved to ADM-08 | `implementation.md` section 6; PR body pending (outside these records) |
+| ADM-06 closed | ADM-06a 3.3 | Open | Needs this change merged |
+
+Verdict: APPROVED
