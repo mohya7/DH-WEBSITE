@@ -238,4 +238,65 @@ true.**
   slug-rename hole is found and proposed as a new audit finding, not fixed here.
 - **Risks** are specific and each names the test that catches it.
 
-Verdict: CHANGES NEEDED
+Round 1 result: CHANGES NEEDED (finding 1, Major). The file's single verdict line is at the end of the latest round.
+
+## Round 2
+
+Reviewer: plan-reviewer, 12 November 2026. Reviewed `docs/changes/ADM-05/plan.md` at
+`0857268` (`git diff 76bf41f 0857268 -- docs/changes/ADM-05/plan.md`, and the
+revision log in section 12) against the nine Round 1 findings, then looked for
+anything new that the revision introduced. Nothing was built or run here. Every
+check below was made by reading the code with `git`, `grep` and `sed`.
+
+### Round 1 findings
+
+| # | Severity | Closed? | Evidence |
+| --- | --- | --- | --- |
+| 1 | Major | Yes | 2.9 now states the rule as "about files, not lines" and drops the "If ADM-10 merges first" alternative. New 4.1 sets the order: ADM-10 merges first; only the test-only commits 1 and 2 come before that, and they are pushed only if O-ADM05-2 is "Yes"; then `origin/rebuild/dotnet-platform` with ADM-10 is merged in, proven with `git merge-base --is-ancestor` in `implementation.md`; then commit 3 (and commit 5, which touches `AdminStore.cs` only under (c)). If ADM-10 is late, the developer stops (step 5). ADM-04 is held on the two files until ADM-05 merges (step 6). Merging, not rebasing, is established practice: `change/ADM-02` (`1836fdd`) and `change/ADM-06` (`abe177b`) each carry a merge commit. Commits 1 and 2 touch neither shared file. The risk rows are replaced, and there is a new coverage row |
+| 2 | Minor | Yes | 5.1: the `finally` no longer deletes audit rows; it cites `ListPagingTests.cs:176` and `AuditLogPermissionTests.cs`. T7 now finds exactly one row by entity id (a page id the helper seeds fresh for each test) and a time after the test started, so leftover rows cannot match it. `At` is set in the same process as the test (`ContentStore.Audit`, `DateTime.UtcNow`) |
+| 3 | Minor | Yes | 3.1 step 5: on a success, `SaveErrorPageAsync` calls `LoadAsync("pages", id)` again and builds the answer from that; a failure outcome is returned as it is. `MutateAsync` is unchanged, so "No change to any existing method" holds. The window where a page is deleted between the commit and the reload is named and is narrow; `DeleteAsync` refuses a published page (`ContentStore.cs:244-245`, checked) |
+| 4 | Minor | Yes | 3.5: a 400 on Save fills the same per-card list as a blocked publish. New S7 is red today, because only the title line shows. Mapping each key to its field is left to ADM-14 by name |
+| 5 | Minor | Yes | B9 lists the 409 title, the 404 title and the 400 field keys. The new section's `SortOrder` is back to 0 (`AdminStore.cs:617-623`) |
+| 6 | Minor | Yes | Section 8 now has the stale working-copy step: publish or discard any `error-404` or `error-500` whose chip reads "changed", through Pages, before the revert or right after it and before anyone saves on the screen. It is a Studio action, not a database edit |
+| 7 | Minor | Yes, with a note (new finding 1) | T12 and S8 are added, both "(c) only", with commit 5a if (c) comes late. T12's message "is longer than 500 characters." matches `ContentFields.Limit` (`ContentDocuments.cs:551-555`), under the key `metaDescription` |
+| 8 | Minor | Yes | 2.8 is corrected and matches the code: `AdminApiTests.cs:540-588`, `ContentPublishTests.ErrorPageAsync` and `BuildContentTests.PublishedErrorPageAsync` |
+| 9 | Minor | Yes | 5.5 and section 9 now say "T1 to T7, T9 and E1"; T2 does its own set-up and save; the G3 row is cited at line 17; `EmptyDoc` moves to `ContentStore` and is removed from `AdminStore` (3.1, Scope) |
+
+### New findings
+
+**1. Minor. 3.4 (c) and T12: "A body without the key leaves the stored value as it
+is", but the plan does not say how.**
+- `ErrorPageUpdate` binds with System.Text.Json. A plain `string? MetaDescription`
+  cannot tell a missing key from `null`, so the T12 assertion "a `PUT` with no
+  `metaDescription` key leaves the stored value" would fail if the property is
+  written the obvious way.
+- The pattern already exists. ADM-10 (`04d0e80`, `AdminStore.cs`, `SiteSettingsUpdate`)
+  uses a private backing field with an `internal bool ...Sent` flag that the setter
+  sets. After the merge in 4.1 step 3, it is in the same file.
+- This matters only if O-ADM05-1 is (c), and T12 would catch the mistake. It does
+  not block gate 1.
+- What would satisfy me: the plan, or the gate-1 conditions, name ADM-10's sent-flag
+  pattern for `ErrorPageUpdate.MetaDescription`, and say what an explicit `null`
+  does (clears the value, as with ADM-10).
+
+### Checked again and still sound
+
+- No new file is listed outside the Round 1 set, apart from T12 and S8 inside the
+  existing new test files. No route, policy, migration, package or workflow is
+  changed.
+- The owner questions are unchanged: O-ADM05-1 (O-16), O-ADM05-2 and O-ADM05-3 are
+  PENDING, and nothing is assumed. The order in 4.1 comes from the coordinator and
+  integrator, not from the owner, and the plan does not present it as an owner
+  decision.
+- **Gate 1 can proceed with O-ADM05-1 to 3 open,** on the Round 1 conditions:
+  - commits 1 and 2 may be written locally, and pushed only after O-ADM05-2 is
+    answered "Yes" in the owner's words;
+  - commit 3 waits for ADM-10's merge (4.1);
+  - commit 5 waits for O-ADM05-1;
+  - gate 2 cannot approve while O-ADM05-1 or O-ADM05-2 is open.
+  O-ADM05-3 holds up only the G3-1 batch exit gate.
+- The red-first design is unchanged except for S7 (red today: no list) and T12/S8
+  (red today under (c): no field). The commit split still keeps E1's red visible in
+  CI.
+
+Verdict: APPROVED
