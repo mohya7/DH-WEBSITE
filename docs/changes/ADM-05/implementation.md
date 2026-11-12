@@ -399,7 +399,52 @@ T1 to T11 and E1: NOT RUN locally (section 5). CI is pending (section 6).
 - **New finding for the audit:** an error page's slug can be renamed through Pages,
   after which the screen and the build lose the page. It is not fixed here.
 
-## 11. Coverage table
+## 11. Rework round 1 (`test-report.md` Round 1, `294fb4d`)
+
+The report's verdict is BLOCKED ON OWNER, only because CI cannot run (GitHub Actions
+billing). It raises three Minors. Each one is answered on top of `294fb4d`, with its test
+commit first.
+
+| # | Finding | Test commit | Fix commit | Answer |
+| --- | --- | --- | --- | --- |
+| 1 | Save and Publish have no in-flight guard: a double-click sends two requests with the same version, and the second one's 409 shows "Someone else changed this page." | `2670e8c` (S9 `sends one save while a save is in flight`, S10 `sends one publish while a publish is in flight`) | `f067d95` | While a card's Save or Publish is in flight, both of its buttons are disabled. A ref also refuses a second request that arrives before React has redrawn the buttons. The other card stays usable. |
+| 2 | Old publish findings stay on a card after a later 409, and the 409 message does not name the page | `3a69005` (S11 `a new publish clears the card's old problems, and a conflict names the page`, S12 the same for a save) | `1d9778b` | A new Save or Publish clears the card's list and its conflict line. A 409 now shows on that card as "<type> page: Someone else changed this page.", that is plan 3.5's wording with the page's name in front. So S6 passes unchanged. |
+| 3 | No test pins the `collection == "pages"` half of `PublishChecks.IsErrorPage` | `14f4b48` (T13 `An_item_in_another_collection_with_an_error_page_slug_still_needs_a_meta_description`) | none needed | A service with the slug `error-404` (at `/services/error-404`) must still be refused on `metaDescription`. The code is already right, so T13 is expected to pass at the head, and to fail only if `collection == "pages" &&` is removed. It removes any leftover `error-404` service before and after it runs, with its sections. NOT RUN here (no `dotnet`, no SQL Server). CI job `api` covers it. The mutation check (remove the clause and watch T13 fail) is for a machine with `dotnet` |
+
+### Red, before each fix (from `studio/`)
+
+```
+$ npx vitest run test/errorPages.test.tsx        # at 2670e8c
+     × sends one save while a save is in flight
+     × sends one publish while a publish is in flight
+AssertionError: expected false to be true // Object.is equality   (the button is not disabled in flight; both tests)
+      Tests  2 failed | 7 passed (9)
+exit=1
+
+$ npx vitest run test/errorPages.test.tsx        # at 3a69005
+     × a new publish clears the card's old problems, and a conflict names the page
+     × a new save clears the card's old problems, and a conflict names the page
+AssertionError: expected '404 pagedraftPublishing is blocked un…' to contain '404 page: Someone else changed this p…'
+AssertionError: expected '500 pagedraftOne or more fields are i…' to contain '500 page: Someone else changed this p…'
+      Tests  2 failed | 9 passed (11)
+exit=1
+```
+
+### Green, after the fixes (from `studio/`, at `14f4b48`)
+
+| Command | Exit | Output |
+| --- | --- | --- |
+| `npx vitest run test/errorPages.test.tsx` (at `f067d95`) | 0 | `Tests 9 passed (9)` |
+| `npx vitest run test/errorPages.test.tsx` (at `1d9778b`) | 0 | `Tests 11 passed (11)` |
+| `npx tsc -b` | 0 | no output |
+| `npm test` | 0 | `Test Files 14 passed (14)`, `Tests 109 passed (109)` |
+| `VITE_PUBLIC_SITE_URL=https://website.ci.invalid npm run build` | 0 | `Preview design: /website-design/d1ebe4132f8cfa8e/ matches website/design/ byte for byte.` |
+| `npx tsc -p <scratch config>` over the new unit tests | 1 | the only error is `src/content/model.ts(87,55) TS2339 'env'` (scratch config, no `vite/client` types, as before); none in the test file |
+
+- T13, like T1 to T12, has not been compiled or run. CI job `api` is pending (section 6).
+- The rework touches only `studio/src/pages/ErrorPagesPage.tsx`, `studio/test/errorPages.test.tsx` and `api/tests/DigitalHub.Api.Tests/ErrorPagePublishTests.cs`, all of them plan files.
+
+## 12. Coverage table
 
 | Item | Source | Status | Evidence |
 | --- | --- | --- | --- |
@@ -420,6 +465,7 @@ T1 to T11 and E1: NOT RUN locally (section 5). CI is pending (section 6).
 | FR-S-21 moves from "Partly" to "Works" | Audit line 46 | Done in code (CI pending) | Commits 3 to 5 |
 | A refused save lists its fields on the screen | Review round 1, finding 4 | Done | `a3a94d7`; S7 red to green |
 | The meta description field (only under (c)) | O-ADM05-1 (c) | Moved: not needed, the answer is (a) | Section 1 |
+| Test report round 1, Minors 1 to 3 | `test-report.md` Round 1 | Done (Minor 3's test CI pending) | Section 11: `2670e8c`/`f067d95`, `3a69005`/`1d9778b`, `14f4b48` |
 | Shared-file order: ADM-10 merged into `change/ADM-05` before commit 3 | `AGENTS.md`; review round 1, finding 1 | Done | Section 2: `0b3ef34`, `merge-base --is-ancestor 2bbd586 HEAD` exit 0 |
 
 Status: READY FOR TEST
