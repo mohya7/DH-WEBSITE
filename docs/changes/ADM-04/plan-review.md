@@ -391,4 +391,94 @@ of `EnsureActorAsync`.**
   - the commit order and the CI red plan under O-ADM04-3;
   - the G3 checklist rows.
 
-Verdict: CHANGES NEEDED
+Round 2 outcome: CHANGES NEEDED (one Major, R2-1).
+
+## Round 3
+
+Reviewer: plan-reviewer, 12 November 2026. Plan reviewed:
+`docs/changes/ADM-04/plan.md` at `59e1269` (round 3), against Round 2 above
+(`0ff4c77`). I checked the code at `32f0414` and ran nothing.
+`origin/rebuild/dotnet-platform` is still `2bbd586`. `change/ADM-05` is still
+`741d70c`.
+
+### Round 2 findings
+
+| Finding | Round 3 answer | Status |
+| --- | --- | --- |
+| R2-1 Major, T15's gate matched `SessionCheck`'s reads | `UserRolesReadGate` matches only reader commands whose text contains `[AspNetUserRoles]` and that carry an armed user id. Every sign-in happens before arming. A warm-up asserts `Matched` 0 on authenticated requests. Matched `CommandText` lines are logged and quoted. Both traces are re-derived | **Closed** (detail below) |
+| R2-2 Minor, deactivated-actor branch not reached | New T16: a manual-release gate holds B's request at X's roles read inside the lock, the test deactivates B, then releases it; the answer is 403 and X is unchanged. The same branch on reactivate is stated as review-only | Closed |
+| R2-3 Minor, ADM-05 head moved | 2.1 gives `741d70c`. 4.1 step 3 stays as the guard | Closed. `git ls-remote` still shows `741d70c` |
+
+**Why R2-1 is closed.** I checked the new trace against the code:
+
+- **No read during authentication matches.** `SessionCheck` reads only `AspNetUsers`
+  and `RefreshTokens` (`SessionCheck.cs:40-43`, 55-57). `PasswordChangeGate` and
+  `ContentController` make no user or role read (`git grep` finds none). The JWT
+  handler takes roles from claims. Sign-in does call `GetRolesAsync`
+  (`AuthController.cs`, login), and the plan keeps every sign-in before the gate is
+  armed. The warm-up turns this reasoning into an assertion that runs every time.
+- **The table name is right.** `AspNetUserRoles` is created at `InitialPlatform.cs:233`,
+  as the plan says.
+- **At green, exactly one command matches.**
+  - `sp_getapplock` goes through `ExecuteSqlRawAsync`, a non-query command, so the
+    reader gate never sees it.
+  - The second request issues no reader command while it waits for the lock.
+  - The admin count (`GetUsersInRoleAsync`) is parameterised by the role, not by a
+    user.
+  - The first request's later reads of `AspNetUserRoles` (the actor check, and
+    `IsInRoleAsync` inside `RemoveFromRolesAsync`) come after the disarm.
+  - So `Matched` 1 holds. The 2 s hold sits inside the 5 s lock timeout, and the plan
+    asserts that coupling.
+- **A broken implementation fails.**
+  - If the target read moves before the lock, `Matched` is 2. That fails even when the
+    actor check inside the lock would have saved the outcome.
+  - If the actor check moves before the lock, both requests write.
+  - Either way the test fails.
+- **The plan says what T15 does not prove.** If only the admin count moved out of the
+  lock, the outcome could not change, because the actor check inside the lock leaves
+  an active admin who is not the target. The plan marks the count's place as
+  review-only, and that argument is sound. The one exception is a deactivate racing
+  the change, which is ADM-04b's stated exposure.
+- **T16's trace holds.**
+  - Under the default READ COMMITTED transaction, B's request holds only the app lock
+    and a released shared read of X's row, so the test's `UPDATE` of B's row commits
+    while B's request waits.
+  - The gate is armed with {X} only, so the test's own `UserManager` calls cannot
+    match.
+  - `EnsureActorAsync` is required to read fresh (`AsNoTracking`), so it sees the
+    deactivation.
+
+### Findings
+
+**R3-1. Minor. Section 5.1, the T15 trace "It is deterministic". That is true only if
+both requests reach the gate within the 2 s cap.**
+- In the broken case, suppose the second request reaches its pre-lock roles read more
+  than 2 s after the first. The first read is then released alone, and the second
+  request reads committed state and can answer 403 with `Matched` 1. The test would
+  then pass on a broken store.
+- The requests are sent together, so this is unlikely in practice. ADM-07's T7 has the
+  same property, and running the test three times with logged matches is reasonable
+  evidence.
+- No change is required. The word "deterministic" could say "given both requests
+  arrive within the cap". The developer could also log each request's arrival time
+  next to the matched lines.
+
+**R3-2. Minor (carried, accepted). The deactivated-actor branch on the reactivate
+route, and the admin count's place inside the lock, are covered by review only.**
+- Both are stated in 5.1, in Risks and in the coverage table, each with its reason.
+- The tester should read `UserAccessStore` at gate 2 to confirm both. Nothing in the
+  plan needs to change.
+
+### Checked and sound in Round 3
+
+- Only T15, T16, the T14 wording, 2.1, the 3.1 note that `EnsureActorAsync` reads
+  fresh, and the lists in 5.2 to 5.5, Risks and coverage changed. The design, scope,
+  security impact, owner answers and rollback are unchanged from Round 2. They were
+  sound there and remain so.
+- Commit 1 now holds T1 to T16, and commit 3 makes T1 to T11 and T13 to T16 green.
+  The CI red list matches. T15 and T16 run three times with their matches logged.
+- No new file falls in another branch's scope. `UserRoleConcurrencyTests.cs` was
+  already in the scope list, and ADM-05 at `741d70c` still touches only its own
+  files.
+
+Verdict: APPROVED
