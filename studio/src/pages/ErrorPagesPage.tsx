@@ -28,6 +28,8 @@ export function ErrorPagesPage() {
   const [error, setError] = useState<string | null>(null);
   const [dirty, setDirty] = useState<Record<string, boolean>>({});
   const [problems, setProblems] = useState<Record<string, Problem | null>>({});
+  // A 409 on a card's Save or Publish, shown on that card.
+  const [conflicts, setConflicts] = useState<Record<string, boolean>>({});
   // A reload keeps the unsaved edits of other cards.
   const dirtyRef = useRef(dirty);
   dirtyRef.current = dirty;
@@ -35,10 +37,14 @@ export function ErrorPagesPage() {
   const [busy, setBusy] = useState<Record<string, boolean>>({});
   const busyRef = useRef<Record<string, boolean>>({});
 
+  /* Starts a card's Save or Publish, unless one is in flight. A new attempt clears
+     what the last one left on the card. */
   function begin(type: string) {
     if (busyRef.current[type]) return false;
     busyRef.current = { ...busyRef.current, [type]: true };
     setBusy(busyRef.current);
+    setProblem(type, null);
+    setConflicts((current) => ({ ...current, [type]: false }));
     return true;
   }
 
@@ -83,7 +89,7 @@ export function ErrorPagesPage() {
     }));
     if (!result.ok || result.body === null) {
       if (result.status === 409) {
-        setError("Someone else changed this page.");
+        setConflicts((current) => ({ ...current, [page.type]: true }));
       } else if (result.status === 400 && result.problem?.errors !== undefined) {
         setProblem(page.type, result.problem);
       } else {
@@ -114,7 +120,7 @@ export function ErrorPagesPage() {
     const result = await request(`/api/v1/pages/${page.id}/publish`, jsonInit("POST", { version: page.version }));
     if (!result.ok) {
       if (result.status === 409) {
-        setError("Someone else changed this page.");
+        setConflicts((current) => ({ ...current, [page.type]: true }));
       } else if (result.status === 400 && (result.problem?.errors !== undefined || result.problem?.warnings !== undefined)) {
         setProblem(page.type, result.problem);
       } else {
@@ -151,6 +157,9 @@ export function ErrorPagesPage() {
                 <StatusChip state={page.state} />
               </div>
               {page.state === "published" && page.notice ? <Typography.Paragraph type="secondary">{page.notice}</Typography.Paragraph> : null}
+              {conflicts[page.type] ? (
+                <Typography.Paragraph type="danger"><strong>{page.type} page:</strong>{" "}<span>Someone else changed this page.</span></Typography.Paragraph>
+              ) : null}
               <Findings problem={problems[page.type] ?? null} />
               <Form layout="vertical">
                 <Form.Item label="Title">
