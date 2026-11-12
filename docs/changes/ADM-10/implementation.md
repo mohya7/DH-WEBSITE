@@ -42,11 +42,15 @@ plan 5.2). The old tip is kept on the local branch `adm10-pre-rebuild` only.
 | 3 | `54bd132` | ADM-10: Keep the default share image when a settings save leaves it out | `api/src/DigitalHub.Api/Content/AdminStore.cs` |
 | 4 | `884bca6` | ADM-10: Add a default share image control to Site settings | `studio/src/pages/SettingsPage.tsx` |
 | 5 | `daa3de9` | ADM-10: Use the settings alt with the default share image on the website | `website/src/seo/head.ts` |
-| 6 | this commit | ADM-10: Implementation record | `docs/changes/ADM-10/implementation.md` |
+| 6 | `8694853` | ADM-10: Implementation record | `docs/changes/ADM-10/implementation.md` |
+| 7 | this commit | ADM-10: Record the red CI run at commit 1 | `docs/changes/ADM-10/implementation.md` |
 
-**Pushed:** commit 1 (`b1521f5`) only, with `git push origin b1521f5:refs/heads/change/ADM-10`.
-Commits 2 to 6 are local until the coordinator confirms that commit 1's CI jobs have
-finished.
+**Pushed:**
+- Commit 1 (`b1521f5`) went alone first, with `git push origin b1521f5:refs/heads/change/ADM-10`.
+- After the coordinator reported that commit 1's run had finished (section "CI at commit 1"),
+  the rest went by head SHA with `git push origin <head>:refs/heads/change/ADM-10`. This is
+  not a bare push and not a force push; it is a fast-forward from `b1521f5`.
+- Commit 7 (this update) records the CI result.
 
 ## What changed, by the plan's Scope (section 4)
 
@@ -149,8 +153,8 @@ lockfiles. I touched no database.
 | `cd studio && npm test` | 0 | `Test Files 12 passed (12)`, `Tests 94 passed (94)`: unit tests are green at commit 1, as 5.2 needs |
 | `cd studio && npx tsc --ignoreConfig --noEmit --strict --target ES2023 --lib ES2023,DOM --module ESNext --moduleResolution bundler --skipLibCheck --types node e2e/settings.spec.ts e2e/redirects.spec.ts` | 0 | An ad hoc check of E1, which is outside `tsconfig.node.json`'s `include`. Run on the first build of this spec; the file is byte-identical in `b1521f5`. Not a CI step |
 | `cd api && dotnet build DigitalHub.slnx -c Release` | NOT RUN | No `dotnet`, and it cannot be installed. CI job `api` |
-| T1 to T5 red | NOT RUN locally | Needs `dotnet` and `DigitalHubContent_Test`. CI job `api` on commit 1 (pushed). Expected: T1, T2 (alt-only half), T3 (500), T4 (500 on 301 characters), T5 |
-| E1 red | NOT RUN locally | Needs the API and `DigitalHubContent_E2e`. CI job `studio` on commit 1. Expected: the "Choose image" button is not found |
+| T1 to T5 red | NOT RUN locally | Needs `dotnet` and `DigitalHubContent_Test`. **Shown red in CI**, job `api`, run 43036287741 (see "CI at commit 1") |
+| E1 red | NOT RUN locally | Needs the API and `DigitalHubContent_E2e`. **Shown red in CI**, job `studio`, attempt 4 (131027779373), by test timeout. The locator is not named in the log |
 
 ### At commit 2 (`bf29cb2`), tests only
 
@@ -199,10 +203,62 @@ compiled by me.**
 
 ## CI at commit 1
 
-Pending. The coordinator opens the draft pull request and watches the run. The run and
-job ids, and each failing assertion, go here. Per condition 4, if job `website` is red on
-W1, `section-compare` and `screenshot-parity` are recorded as skipped, not passed. Both
-are then to be shown green on the final head.
+Pushed alone: `b1521f5`. Run 43036287741 (workflow CI), on PR #56 (draft), attempts 1
+to 4. The coordinator read the logs and relayed them; I have not seen them myself. Every
+attempt is listed here, so no rerun hides a result.
+
+| Job | Attempt / job id | Result |
+| --- | --- | --- |
+| `api` | 1 / 130575850302 | Red. "Total tests: 545, Passed: 540, Failed: 5". The five failures are exactly T1 to T5. See the table below |
+| `api` | 2 / 130586030225 | Red, the same five: "Total tests: 545, Passed: 540, Failed: 5" |
+| `website` | 1 / 130575850555 | Red, on W1 only: "expected 'National e-services portal for a government ministry' to be 'Digital Hub logo'" at `seo.test.tsx:81`. 430 passed, 31 skipped |
+| `website` | 2 / 130586030140 | Red, the same (W1 only) |
+| `website` | rerun / 131027779401 | Red, the same (W1 only) |
+| `section-compare`, `screenshot-parity` | all attempts | **Skipped**, not passed, because `website` was red (`needs: website`, condition 4). They are still to be shown green on the final head |
+| `studio` | 1 / 130575849881 | Infrastructure failure. Unit tests 94/94 passed. Then the sqlcmd/browser apt install failed with "Temporary failure resolving 'azure.archive.ubuntu.com'" (apt exit 100), before any end-to-end test ran |
+| `studio` | 2 / 130586029703 | The same infrastructure failure; no e2e test ran |
+| `studio` | 3 / 130628238370 | The same infrastructure failure; no e2e test ran |
+| `studio` | 4 / 131027779373 (12 Nov 07:09 UTC) | Unit tests green. End-to-end "1 failed, 31 passed". The one failure is E1 (`settings.spec.ts:73`), see below |
+| `website-browser` | 130575850546, 130586030315, 130628238493 | The same apt/DNS infrastructure failure, before any test ran |
+
+**`api`, T1 to T5, as relayed:**
+
+| Test | Failure |
+| --- | --- |
+| T1 `A_save_without_the_share_image_fields_keeps_them` | expected the id, got null |
+| T2 `An_explicit_null_clears_the_share_image_and_its_alt` | expected the id, got null. This is the alt-only half, as predicted above |
+| T3 `An_unknown_media_id_is_refused_and_changes_nothing` | expected BadRequest, got InternalServerError (G-1) |
+| T4 `An_alt_override_over_300_characters_is_refused` | expected BadRequest, got InternalServerError (G-2) |
+| T5 `The_build_content_carries_the_saved_share_image` | expected the id, got null |
+
+These results also show that `SettingsShareImageTests.cs` compiles and runs against the
+base API in job `api`. The fix in `AdminStore.cs` has not been compiled yet. That happens
+on the full head.
+
+**E1 is red by a test timeout. The run does not prove it stopped at "Choose image".**
+- Failure: "Test timeout of 90000ms exceeded". Then, in the cleanup, "apiRequestContext.get:
+  Target page, context or browser has been closed" at `settings.spec.ts:135`.
+- The log does not name the locator that E1 was waiting on, and the trace artifact could
+  not be downloaded. So I record it only as red by timeout.
+- The expected cause is that there is no "Choose image" button at the base. That is
+  likely, because `getByRole("button", { name: "Choose image", exact: true }).click()`
+  waits until the test times out. But this run does not prove it.
+
+**Note for the tester: E1's cleanup cannot run after a timeout.**
+- The `finally` block in `settings.spec.ts` (from line 132) uses the `request` fixture.
+- When the 90-second test timeout fires, Playwright has already closed the context. So
+  the first cleanup call (`request.get`, line 135) throws.
+- After a timeout, then:
+  - the settings row is not restored;
+  - the two uploaded images are not deleted.
+- At this red run, the base Studio could not choose an image. So the settings row most
+  likely still held its original share image, though only the API changes before the UI
+  steps had happened.
+- The two images stay in `DigitalHubContent_E2e` until the next reset, which happens
+  before every run.
+- At a green run the `finally` runs normally.
+- The coordinator directed that the test is not changed now. I leave it to the tester to
+  judge whether this is a finding.
 
 ## Migrations
 
@@ -220,9 +276,15 @@ None (plan section 7).
 | An unknown media id is refused with 400, not 500 | Found here (G-1) | Built, not run | `54bd132`. T3: CI job `api` |
 | An alt over 300 characters is refused with 400, not 500 | Found here (G-2) | Built, not run | `54bd132`. T4: CI job `api` |
 | The saved image reaches the build content | FR-S-17; G3-1 exit gate | Built, not run | T5: CI job `api` |
-| Regression tests committed and shown failing before the fix | G3 checklist | Partly | Tests-only commits `b1521f5` and `bf29cb2` come before the fixes. W1 and S1 to S4 are red locally. The T and E1 reds wait on CI at `b1521f5` (pushed alone) |
-| End-to-end test for this Major | G3 checklist | Written, not run | E1 in `b1521f5`. CI job `studio` |
+| Regression tests committed and shown failing before the fix | G3 checklist | Done | Tests-only commits `b1521f5` and `bf29cb2` come before the fixes. W1 and S1 to S4 are red locally. CI run 43036287741 at `b1521f5`: T1 to T5 red (`api`, 130575850302 and 130586030225); W1 red (`website`, 130575850555); E1 red by timeout (`studio`, 131027779373) |
+| End-to-end test for this Major | G3 checklist | Red shown, green pending | E1 red at `b1521f5` (job 131027779373, timeout). Green: CI job `studio` on the full head |
 | Editors can see but not change the share image | Settled design (roles) | Done (unit) | S4 red at `bf29cb2`, green at `884bca6` |
 | FR-S-17 settings moves from "Partly" to "Works" | Audit, line 43 | Not yet | Needs the CI runs |
 
-Status: NOT READY: commit 1's CI run (O-ADM10-1, "Yes") is not recorded, the rest is not pushed, and the .NET side has not been compiled or run
+Status: NOT READY: waiting for the CI run on the full head.
+- The fixed `AdminStore.cs` has never been compiled: there is no `dotnet` here.
+- None of these has run against the fixes: T1 to T5 green, E1 green, the 5.3 filter
+  with `ContentBundleTests`, the full Playwright suite, `section-compare` and
+  `screenshot-parity`.
+- Step 4 of my role ("Run the plan's test plan in full") is therefore not met. I will
+  set READY FOR TEST once that run is green and recorded here.
