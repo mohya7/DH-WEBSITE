@@ -5,7 +5,9 @@
  * is created, but the Studio warns on create and marks its row "No page".
  *
  * The test seeds its own page through the API, names everything with a per-run
- * stamp (adm07-...), and removes what it made in finally.
+ * stamp (adm07-...), and removes what it made in finally. Each create waits for the
+ * dialog to close (after a create) or stay open (after a refusal), so a step never
+ * types into a dialog that is still closing.
  */
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { e2eAdminEmail, e2eApiOrigin, e2ePassword } from "./env";
@@ -27,7 +29,13 @@ async function addRedirect(page: Page, fromPath: string, toPath: string) {
   await dialog.getByPlaceholder("/new-path").fill(toPath);
   const answered = page.waitForResponse((entry) => entry.url().endsWith("/api/v1/redirects") && entry.request().method() === "POST");
   await dialog.getByRole("button", { name: "Create", exact: true }).click();
-  return await answered;
+  const response = await answered;
+  // create() closes the dialog after a create and keeps it open after a refusal.
+  // Wait for that to finish, so the next call never types into a dialog that is
+  // still fading out (ADM-07c).
+  if (response.ok()) await expect(dialog).toBeHidden();
+  else await expect(dialog).toBeVisible();
+  return response;
 }
 
 function rowFrom(page: Page, fromPath: string) {
