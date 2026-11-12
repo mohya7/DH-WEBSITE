@@ -14,7 +14,7 @@ $ dotnet --version
 $ sqlcmd -?                                          (exit 127)
 ```
 
-So **no C# in this change has been compiled or run.** Every API test (T1 to T16), E1 and
+So **no C# in this change has been compiled or run.** Every API test (T1 to T17), E1 and
 every CI row is PENDING below. Nothing here is CI evidence. The Studio unit tests, the
 Studio build and the website checks did run, and are quoted as run.
 
@@ -27,7 +27,9 @@ Studio build and the website checks did run, and are quoted as run.
 | 2 | `486588c` | ADM-04: Test role change and reactivation on the users screen | `studio/test/users.test.tsx` |
 | 3 | `1806847` | ADM-04: Change roles and reactivate users in the API | `UserAccessController.cs`, `UserAccessStore.cs`, `TemporaryPassword.cs`, `Program.cs` |
 | 4 | `1b947f5` | ADM-04: Change roles and reactivate from the users screen | `studio/src/pages/UsersPage.tsx` |
-| 5 | (this file) | ADM-04: Implementation record | `docs/changes/ADM-04/implementation.md` |
+| 6 | `deff0ce` | ADM-04: Test that another spelling of your own id cannot change your role | `UserRoleAndReactivationTests.cs` (T17, rework round 1) |
+| 7 | `81b951b` | ADM-04: Refuse your own role change whatever spelling of the id is sent | `UserAccessStore.cs` (rework round 1) |
+| 5 | `2b81b04` | ADM-04: Implementation record | `docs/changes/ADM-04/implementation.md` |
 
 **Commit 1, the red-test commit, is `bf634e2`.** It holds T1 to T16 and E1 in test files
 only. Commit 2 (`486588c`) holds S1 to S7. Test commits come before fix commits, in the
@@ -134,6 +136,10 @@ judge it.
    T16 then write one timeline to `ITestOutputHelper`: each request's send and answer
    time, each users-lock call, each matched read with its parameters and `CommandText`,
    then `Matched` and the cap. Times are UTC `HH:mm:ss.fff`.
+10. **The Role column is 130 px wide, not 100** (`UsersPage.tsx`, `width: 130`), so a
+    small select with "editor" and its arrow fits in the cell. It is the one visual
+    change to the screen beyond 3.2's list; the chip rows sit in the same wider column.
+    Not declared in round 0; recorded here for gate 2 (test report round 1, finding 2).
 
 ## 4. Red first
 
@@ -161,7 +167,7 @@ spec tsc exit 0
 ```
 
 (`studio/tsconfig*.json` does not include `e2e/*.spec.ts`, so the spec was checked on its
-own.) The three C# test files were not compiled (no `dotnet`).
+own.) The three C# test files were not compiled (no `dotnet`). T17 was added in rework round 1 (`deff0ce`); its red is also PENDING CI.
 
 ### 4.2 Commit 2 (`486588c`): S1 to S7, run locally
 
@@ -193,6 +199,34 @@ $ cd studio && npm test                                     (exit 1)
 S1, S2, S4, S5 and S6 fail at the planned step (no select, no Reactivate, no text). S3
 and S7 pass. Every existing Studio test passes (the base had 13 files, 98 tests; see 7.1).
 
+## 4a. Rework round 1 (`test-report.md` Round 1 at `55e77ee`)
+
+The report's verdict was BLOCKED ON OWNER only because CI cannot run. Two Minors came back
+to the developer; finding 3 is pre-existing and project-wide, and is not for this change.
+
+| Finding | Answer | Commits | Evidence |
+| --- | --- | --- | --- |
+| 1. Minor. `cannot_change_own_role` bypassed by a non-canonical id (trailing `%20`, or another case) | Red test first: T17 `An_admin_cannot_change_their_own_role_through_another_spelling_of_their_id` sends a dedicated admin's own id upper-cased and with a trailing `%20`, expecting 400 `cannot_change_own_role` and the role unchanged. Fix: after `FindByIdAsync`, inside the lock, the store compares the loaded `user.Id` with the actor (`UserAccessStore.cs:59-61`); the early check on the id as typed stays (46-47). Both answer through one `OwnRole()` (225-226). Reactivate has no own-id check to fix: an actor is active, so their own id answers `already_active`. Deactivate's `cannot_deactivate_self` has the same pattern in `AdminStore.cs`: left for ADM-04b (below) | `deff0ce` (test), `81b951b` (fix) | **PENDING** CI job `api`: T17 red at `deff0ce` (expected: 200 for the upper-case spelling, the admin demoted; read from the code, not run), green at `81b951b`. Not compiled here (no `dotnet`) |
+| 2. Minor. Role column width 100 to 130 not declared | Recorded as 3.1 item 10. No code change | this record | Section 3.1 |
+| 3. Minor, pre-existing. Unknown JSON fields are ignored | Not changed: project-wide, out of scope, for the owner's list as the tester says | none | n/a |
+
+**For ADM-04b (plan 4.2), added by this round:** `AdminStore.DeactivateUserAsync` compares
+the id as typed with the actor for `cannot_deactivate_self` (`AdminStore.cs`, the first
+statement of `DeactivateUserAsync`), so another spelling of the actor's own id passes it.
+ADM-04b should compare the loaded user's `Id`, with a red test like T17. The last-admin
+guard still applies there, so the effect is self-deactivation, not lost access.
+
+Studio, re-run at `81b951b` (no Studio file changed this round):
+
+```
+$ cd studio && npx tsc -b                                    exit 0
+$ cd studio && npm test                                      exit 0
+ Test Files  14 passed (14)
+      Tests  105 passed (105)
+$ cd studio && VITE_PUBLIC_SITE_URL=https://website.ci.invalid npm run build    exit 0
+Preview design: /website-design/d1ebe4132f8cfa8e/ matches website/design/ byte for byte.
+```
+
 ## 5. Migrations
 
 None (plan section 7). No schema file, migration or database was touched. Nothing was
@@ -205,11 +239,11 @@ Source lines are in `api/src/DigitalHub.Api/Content/AdminStore.cs` at the merged
 
 | Copy | Where the copy is | Source in `AdminStore.cs` at `804e85f` |
 | --- | --- | --- |
-| `IsDeactivated(ApplicationUser)` | `UserAccessStore.cs:229-230` | 858-859 |
-| `Audit(...)` | `UserAccessStore.cs:233-246` | 1064-1077 |
-| `Validation(string, string)` | `UserAccessStore.cs:249-250` | 1079-1080 |
-| `Validation(Dictionary<string, List<string>>)` | `UserAccessStore.cs:253-258` | 1082-1087 |
-| `Missing(string)` | `UserAccessStore.cs:261-262` | 1089-1090 |
+| `IsDeactivated(ApplicationUser)` | `UserAccessStore.cs:236-237` | 858-859 |
+| `Audit(...)` | `UserAccessStore.cs:240-253` | 1064-1077 |
+| `Validation(string, string)` | `UserAccessStore.cs:256-257` | 1079-1080 |
+| `Validation(Dictionary<string, List<string>>)` | `UserAccessStore.cs:260-265` | 1082-1087 |
+| `Missing(string)` | `UserAccessStore.cs:268-269` | 1089-1090 |
 | The temporary-password generator | `TemporaryPassword.NewAcceptedAsync` (`TemporaryPassword.cs:22-33`) and `TemporaryPassword.New()` (35-61) | `NewAcceptedTemporaryPasswordAsync` 448-464 (summary at 448-452) and `NewTemporaryPassword` 861-888 |
 
 Not copied: the revoke helper. `UserAccessStore` calls `TokenService.RevokeUserAsync`
@@ -366,31 +400,33 @@ open branch touches a file in this change's scope.**
 
 ## 8. Where C6's reads are (for the tester to confirm by reading)
 
-All in `api/src/DigitalHub.Api/Content/UserAccessStore.cs` at `1b947f5`:
+All in `api/src/DigitalHub.Api/Content/UserAccessStore.cs` at `81b951b` (renumbered after
+the round 1 fix, which added the own-id check at 59-61 and `OwnRole()` at 225-226):
 
 - **The lock is the first statement in each transaction.** `ChangeRoleAsync`: the
   transaction begins at line 50 and `TakeUsersLockAsync` is called at 51, before any read.
-  `ReactivateAsync`: 113 and 114. `TakeUsersLockAsync` (200-205) runs `UsersLockSql`
+  `ReactivateAsync`: 117 and 118. `TakeUsersLockAsync` (204-209) runs `UsersLockSql`
   (33-34: `sp_getapplock @Resource = N'digitalhub:admins', @LockMode = N'Exclusive',
-  @LockOwner = N'Transaction', @LockTimeout = 5000`) through `ExecuteSqlRawAsync` (203);
-  below 0 answers 503 `users_busy` (52, 115).
-- **After the lock, in `ChangeRoleAsync`:** the target load `FindByIdAsync` at 55, its roles
-  `GetRolesAsync` at 58, the deactivated check at 63, the admin count
-  `GetUsersInRoleAsync(Roles.Admin)` at 70 (counting active admins other than the target,
-  71), then `EnsureActorAsync` at 77. Before the lock there are only the role check (41-43)
-  and the own-id check (46-47), which read nothing.
-- **`EnsureActorAsync` reads fresh** (179-193): the actor with
-  `db.Users.AsNoTracking()` (184), and its roles with a new query on `db.UserRoles`
-  joined to `db.Roles`, both `AsNoTracking()` (188-191). It never uses an entity the
+  @LockOwner = N'Transaction', @LockTimeout = 5000`) through `ExecuteSqlRawAsync` (207);
+  below 0 answers 503 `users_busy` (52, 119).
+- **After the lock, in `ChangeRoleAsync`:** the target load `FindByIdAsync` at 55, the
+  own-id check on the loaded `user.Id` at 60 (round 1, finding 1), its roles
+  `GetRolesAsync` at 62, the deactivated check at 67, the admin count
+  `GetUsersInRoleAsync(Roles.Admin)` at 74 (counting active admins other than the target,
+  75), then `EnsureActorAsync` at 81. Before the lock there are only the role check (41-43)
+  and the own-id check on the id as typed (46-47), which read nothing.
+- **`EnsureActorAsync` reads fresh** (183-197): the actor with
+  `db.Users.AsNoTracking()` (188), and its roles with a new query on `db.UserRoles`
+  joined to `db.Roles`, both `AsNoTracking()` (192-195). It never uses an entity the
   context already tracks.
-- **The reactivate route calls `EnsureActorAsync` after the lock** (116, after 114), and
-  before the target load (120) and its roles (123).
-- The write order in `ChangeRoleAsync`: `RemoveFromRolesAsync` (88), `AddToRoleAsync` (91),
-  `UpdateSecurityStampAsync` (94), `tokens.RevokeUserAsync` (99), audit and commit
-  (102-104). In `ReactivateAsync`: lockout cleared (132-134), temporary password and
-  `RemovePasswordAsync`/`AddPasswordAsync` (137-143), `MustChangePassword` (144),
-  `UpdateSecurityStampAsync` (145), `UpdateAsync` (150), `RevokeUserAsync` (155), audit of
-  the role only and commit (158-160).
+- **The reactivate route calls `EnsureActorAsync` after the lock** (120, after 118), and
+  before the target load (124) and its roles (127).
+- The write order in `ChangeRoleAsync`: `RemoveFromRolesAsync` (92), `AddToRoleAsync` (95),
+  `UpdateSecurityStampAsync` (98), `tokens.RevokeUserAsync` (103), audit and commit
+  (106-108). In `ReactivateAsync`: lockout cleared (136-138), temporary password and
+  `RemovePasswordAsync`/`AddPasswordAsync` (141-147), `MustChangePassword` (148),
+  `UpdateSecurityStampAsync` (149), `UpdateAsync` (154), `RevokeUserAsync` (159), audit of
+  the role only and commit (162-164).
 
 R3-2 stands as accepted at gate 1: the admin count's place inside the lock, and the
 reactivate route's deactivated-actor branch, are covered by this reading only.
@@ -432,16 +468,16 @@ plan and gate 1 require:
 | Item | Source | Status | Evidence |
 | --- | --- | --- | --- |
 | An admin can change another user's role (API) | ADM-04 Fix 1; FR-S-02; `phase-b-studio.md` line 43 | Implemented; test PENDING CI | `UserAccessStore.ChangeRoleAsync` (`1806847`); T1 (`bf634e2`), CI job `api` |
-| The last-admin guard holds for role changes, from the database | ADM-04 Fix 1; 8.4, 10.11 | Implemented; test PENDING CI | `UserAccessStore.cs:68-74`, inside the lock; T3, CI job `api` |
+| The last-admin guard holds for role changes, from the database | ADM-04 Fix 1; 8.4, 10.11 | Implemented; test PENDING CI | `UserAccessStore.cs:72-78`, inside the lock; T3, CI job `api` |
 | Concurrent role changes cannot both pass the guard | 2.4; F-1 | Implemented; test PENDING CI (3 runs, C5) | Lock first (50-51); T15, CI job `api`. The count's place in the lock: by reading only (section 8, R3-2) |
-| A demoted or deactivated actor cannot finish an in-flight change | F-6, R2-2 | Implemented; tests PENDING CI | `EnsureActorAsync` (179-193), called at 77 and 116; T14, T15, T16, CI job `api`. Reactivate's deactivated-actor branch: by reading only (section 8) |
-| A role change ends the user's sessions, including one re-opened by a racing refresh | 2.5; F-5 | Implemented; tests PENDING CI | Stamp rotated (94), tokens revoked (99); T2, T13, CI job `api` |
-| An admin cannot change their own role | B3 | Implemented; test PENDING CI | `UserAccessStore.cs:46-47`; T8, CI job `api` |
+| A demoted or deactivated actor cannot finish an in-flight change | F-6, R2-2 | Implemented; tests PENDING CI | `EnsureActorAsync` (183-197), called at 81 and 120; T14, T15, T16, CI job `api`. Reactivate's deactivated-actor branch: by reading only (section 8) |
+| A role change ends the user's sessions, including one re-opened by a racing refresh | 2.5; F-5 | Implemented; tests PENDING CI | Stamp rotated (98), tokens revoked (103); T2, T13, CI job `api` |
+| An admin cannot change their own role | B3 | Implemented; tests PENDING CI | `UserAccessStore.cs:46-47` (id as typed) and 60-61 (the loaded `user.Id`, round 1 finding 1); T8, T17 (`deff0ce`), CI job `api` |
 | A deactivated user can be reactivated with a new temporary password (API) | ADM-04 Fix 2; O-ADM04-2 | Implemented; test PENDING CI | `ReactivateAsync`, `TemporaryPassword.cs`; T4, CI job `api` |
-| Reactivation restores the new-user lockout state and fails cleanly | F-7 | Implemented; tests PENDING CI | 132-134; every `IdentityResult` checked (138-152) inside the transaction; T4, T6, CI job `api` |
-| Reactivation does not revive old sessions | Brief | Implemented; test PENDING CI | `RevokeUserAsync` (155), stamp rotated (145); T5, CI job `api` |
+| Reactivation restores the new-user lockout state and fails cleanly | F-7 | Implemented; tests PENDING CI | 136-138; every `IdentityResult` checked (142-156) inside the transaction; T4, T6, CI job `api` |
+| Reactivation does not revive old sessions | Brief | Implemented; test PENDING CI | `RevokeUserAsync` (159), stamp rotated (149); T5, CI job `api` |
 | A deactivated email can be used again, by reactivation | ADM-04 title, bullet 2 | Implemented; S6 green locally; T12, E1 PENDING CI | S6 passes at `1b947f5` (7.3); T12, E1, CI jobs `api`, `studio` |
-| Role changes and reactivations are audited; the temporary password is in no application log or audit row | Brief; FR-S-15; F-2 | Implemented; tests PENDING CI | Audit at 102 and 158 (role only); T1, T4, T10, CI job `api` |
+| Role changes and reactivations are audited; the temporary password is in no application log or audit row | Brief; FR-S-15; F-2 | Implemented; tests PENDING CI | Audit at 106 and 162 (role only); T1, T4, T10, CI job `api` |
 | The reactivation answer is not cached | F-9 | Implemented; test PENDING CI | `UserAccessController.Reactivate` sets `no-store`; T4, CI job `api` |
 | Editors, HR, deactivated and must-change users cannot reach the new routes | Brief; 10.2 | Implemented; tests PENDING CI | `[Authorize(Policy = "studio-admin")]`, no `AllowedBeforePasswordChange`; T11 and `CareersTests` unchanged, CI job `api` |
 | User Management: role change with confirmation | ADM-04 Fix 4 | Done (unit); E1 PENDING CI | S1, S2, S4 red at `486588c`, green at `1b947f5` (4.2, 7.3) |
