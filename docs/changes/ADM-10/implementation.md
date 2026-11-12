@@ -43,7 +43,8 @@ plan 5.2). The old tip is kept on the local branch `adm10-pre-rebuild` only.
 | 4 | `884bca6` | ADM-10: Add a default share image control to Site settings | `studio/src/pages/SettingsPage.tsx` |
 | 5 | `daa3de9` | ADM-10: Use the settings alt with the default share image on the website | `website/src/seo/head.ts` |
 | 6 | `8694853` | ADM-10: Implementation record | `docs/changes/ADM-10/implementation.md` |
-| 7 | this commit | ADM-10: Record the red CI run at commit 1 | `docs/changes/ADM-10/implementation.md` |
+| 7 | `73dc514` | ADM-10: Record the red CI run at commit 1 | `docs/changes/ADM-10/implementation.md` |
+| 8 | this commit | ADM-10: Record the green CI run at the head | `docs/changes/ADM-10/implementation.md` |
 
 **Pushed:**
 - Commit 1 (`b1521f5`) went alone first, with `git push origin b1521f5:refs/heads/change/ADM-10`.
@@ -188,18 +189,17 @@ In the first round, `npm run build` without `VITE_PUBLIC_SITE_URL` exited 1 with
 | `cd website && npx vitest run` | 0 | `Test Files 23 passed \| 1 skipped (24)`, `Tests 431 passed \| 31 skipped (462)`. The skips are in files this change does not touch |
 | `cd website && npm run design:check` | 0 | `All 25 files match: 24 identical, 1 ported with the recorded change.` |
 | `cd website && CONTENT_SOURCE=snapshot PUBLIC_SITE_URL=https://digitalhub.com.eg npm run build` | 0 | `Build output checks passed.` |
-| Section comparison and screenshot parity | NOT RUN | CI jobs `section-compare` and `screenshot-parity` (both `needs: website`) |
+| Section comparison and screenshot parity | NOT RUN locally | `section-compare` is green in CI at `73dc514` (job 131032075939). `screenshot-parity` was skipped there: it needs the "screenshots" label (see "CI at the full head") |
 
-### Not run at the head, for any commit
+### Not run locally, covered by CI at the head
 
-- `cd api && dotnet build DigitalHub.slnx -c Release`.
-- `dotnet test ... -c Release --no-build`, both the full run and the 5.3 filter with
-  `ContentBundleTests`.
-- `npx playwright test`, both the full suite and `e2e/settings.spec.ts e2e/appearance.spec.ts`.
-
-They need `dotnet`, SQL Server and the e2e harness. CI jobs `api` and `studio` cover
-them. **The `AdminStore.cs` change and `SettingsShareImageTests.cs` have not been
-compiled by me.**
+- `dotnet build DigitalHub.slnx -c Release`, and `dotnet test` in full: there is no
+  `dotnet` here. CI job `api` ran both at `73dc514`: 545 of 545 passed.
+- The 5.3 filter (`SettingsShareImageTests`, `SettingsVersionTests`, `CookieSettingsTests`,
+  `Section5Tests`, `ContentBundleTests`, `AdminApiTests`): it was not run as a separate
+  filtered command. Every one of these classes is inside that full run.
+- `npx playwright test`: needs SQL Server. CI job `studio` ran it at `73dc514`: 32 of 32
+  passed, including E1 and `appearance.spec.ts`.
 
 ## CI at commit 1
 
@@ -260,6 +260,35 @@ on the full head.
 - The coordinator directed that the test is not changed now. I leave it to the tester to
   judge whether this is a finding.
 
+## CI at the full head
+
+Head `73dc514`, pushed by SHA as a fast-forward from `b1521f5`. The coordinator read the
+logs and relayed them.
+
+| Workflow / job | Run / job id | Result |
+| --- | --- | --- |
+| CI, `api` | 43173375547 / 131031721416 | Success. "Total tests: 545, Passed: 545". T1 to T5 pass. This is the first compile of the fixed `AdminStore.cs`, in Release (plan 5.3). The full suite includes every class in the 5.3 filter: `SettingsShareImageTests`, `SettingsVersionTests`, `CookieSettingsTests`, `Section5Tests`, `ContentBundleTests` and `AdminApiTests` |
+| CI, `studio` | 43173375547 / 131031721438 | Success. Unit tests "98 passed (98)". End-to-end "32 passed (4.7m)", including E1 (`settings.spec.ts:73`, 12.3s) and `appearance.spec.ts` |
+| CI, `website` | 43173375547 / 131031721120 | Success |
+| CI, `website-browser` | 43173375547 / 131031721414 | Success |
+| CI, `section-compare` | 43173375547 / 131032075939 | Success. It was skipped at commit 1; it is green here (condition 4) |
+| CI, `screenshot-parity` | 43173375547 / 131032077663 | **Skipped**, not passed. The job runs only on a pull request labelled "screenshots" (`ci.yml:353-357`, "Optional and manual"), the same as for earlier changes |
+| Security | 43173375733 | Success |
+| Workflow lint | 43173375511 | Success |
+| CodeQL | 43173375540 | Skipped |
+
+**Condition 4, still open.** `plan-approval.md` says of `section-compare` and
+`screenshot-parity`: "Record them as skipped, not as passed, and show them green on the
+final head."
+- `section-compare` is green.
+- `screenshot-parity` is skipped on the final head, so this condition is not met yet.
+- Locally, the website design check and the snapshot build both exited 0 at `daa3de9`.
+  The snapshot has both settings fields `null`, so the plan expects no visual change.
+- That is expected parity, not shown parity. I do not count it as green.
+- To close it: add the "screenshots" label to PR #56, then record that job's result
+  here. Alternatively, the tech lead can rule that condition 4 does not cover this
+  optional job.
+
 ## Migrations
 
 None (plan section 7).
@@ -268,23 +297,24 @@ None (plan section 7).
 
 | Item | Source | Status | Evidence |
 | --- | --- | --- | --- |
-| A save without the share image fields keeps the stored image | ADM-10, "Treat a missing field as unchanged" | Built, not run | `54bd132`. T1, T5 in `b1521f5`. CI job `api` |
-| The Studio form carries the image through every save | ADM-10, "or carry it through the save" | Done (unit) | S1 red at `bf29cb2` (exit 1), green at `884bca6` (exit 0). E1: CI job `studio` |
-| A media picker on the Settings form (choose, change, clear) | ADM-10, "A media picker" | Done (unit) | S2, S3 red at `bf29cb2`, green at `884bca6`. E1: CI job `studio` |
+| A save without the share image fields keeps the stored image | ADM-10, "Treat a missing field as unchanged" | Done | `54bd132`. T1 and T5 red at `b1521f5` (job 130575850302), green at `73dc514` (job 131031721416) |
+| The Studio form carries the image through every save | ADM-10, "or carry it through the save" | Done | S1 red at `bf29cb2` (exit 1), green at `884bca6` (exit 0). E1 red at `b1521f5` (131027779373, timeout), green at `73dc514` (131031721438) |
+| A media picker on the Settings form (choose, change, clear) | ADM-10, "A media picker" | Done | S2 and S3 red at `bf29cb2`, green at `884bca6`. E1 green at `73dc514` (131031721438) |
 | An alt override on the form | ADM-10, "alt override on the form"; O-ADM10-2 (a) | Done (unit) | S1, S2, S4 alt checks red at `bf29cb2`, green at `884bca6` |
 | The website uses the settings alt with the default image | Found here (2.3); O-ADM10-2 (a) | Done | W1 red at `b1521f5` (exit 1), green at `daa3de9` (exit 0). W2 green at both. Design check and snapshot build exit 0 |
-| An unknown media id is refused with 400, not 500 | Found here (G-1) | Built, not run | `54bd132`. T3: CI job `api` |
-| An alt over 300 characters is refused with 400, not 500 | Found here (G-2) | Built, not run | `54bd132`. T4: CI job `api` |
-| The saved image reaches the build content | FR-S-17; G3-1 exit gate | Built, not run | T5: CI job `api` |
+| An unknown media id is refused with 400, not 500 | Found here (G-1) | Done | T3 was 500 at `b1521f5`, and passes at `73dc514` (131031721416) |
+| An alt over 300 characters is refused with 400, not 500 | Found here (G-2) | Done | T4 was 500 at `b1521f5`, and passes at `73dc514` (131031721416) |
+| The saved image reaches the build content | FR-S-17; G3-1 exit gate | Done | T5 red at `b1521f5`, green at `73dc514` |
 | Regression tests committed and shown failing before the fix | G3 checklist | Done | Tests-only commits `b1521f5` and `bf29cb2` come before the fixes. W1 and S1 to S4 are red locally. CI run 43036287741 at `b1521f5`: T1 to T5 red (`api`, 130575850302 and 130586030225); W1 red (`website`, 130575850555); E1 red by timeout (`studio`, 131027779373) |
-| End-to-end test for this Major | G3 checklist | Red shown, green pending | E1 red at `b1521f5` (job 131027779373, timeout). Green: CI job `studio` on the full head |
+| End-to-end test for this Major | G3 checklist | Done | E1 red at `b1521f5` (131027779373, timeout), green at `73dc514` (131031721438, 12.3s) |
 | Editors can see but not change the share image | Settled design (roles) | Done (unit) | S4 red at `bf29cb2`, green at `884bca6` |
-| FR-S-17 settings moves from "Partly" to "Works" | Audit, line 43 | Not yet | Needs the CI runs |
+| FR-S-17 settings moves from "Partly" to "Works" | Audit, line 43 | Done, pending the tester | Every row above is done, and CI is green at `73dc514`. `screenshot-parity` is the exception: it was skipped (condition 4) |
 
-Status: NOT READY: waiting for the CI run on the full head.
-- The fixed `AdminStore.cs` has never been compiled: there is no `dotnet` here.
-- None of these has run against the fixes: T1 to T5 green, E1 green, the 5.3 filter
-  with `ContentBundleTests`, the full Playwright suite, `section-compare` and
-  `screenshot-parity`.
-- Step 4 of my role ("Run the plan's test plan in full") is therefore not met. I will
-  set READY FOR TEST once that run is green and recorded here.
+Status: NOT READY: one item is left.
+- `screenshot-parity` has not been shown green on the final head. Condition 4 of
+  `plan-approval.md` requires it. The job was skipped because PR #56 has no
+  "screenshots" label.
+- Everything else in the plan's test plan has passed in CI at `73dc514`, with the red
+  shown first at `b1521f5`.
+- Once that job is green, or the tech lead rules that condition 4 does not apply to this
+  optional job, this becomes READY FOR TEST with no code change.
