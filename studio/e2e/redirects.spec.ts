@@ -25,7 +25,8 @@ async function addRedirect(page: Page, fromPath: string, toPath: string) {
   }
   await dialog.getByPlaceholder("/old-path").fill(fromPath);
   await dialog.getByPlaceholder("/new-path").fill(toPath);
-  const answered = page.waitForResponse((entry) => entry.url().endsWith("/api/v1/redirects") && entry.request().method() === "POST");
+  console.log(`[diag] addRedirect ${fromPath} -> ${toPath}: dialog visible ${await dialog.isVisible()}`);
+  const answered = page.waitForResponse((entry) => entry.url().endsWith("/api/v1/redirects") && entry.request().method() === "POST", { timeout: 15000 });
   await dialog.getByRole("button", { name: "Create", exact: true }).click();
   return await answered;
 }
@@ -69,12 +70,16 @@ test("ADM-07 redirects: a live page and a loop are refused, a target with no pag
       `Redirect created, but no published page answers at /${stamp}-nowhere. Visitors who follow it see the 404 page.`,
       { exact: true },
     )).toBeVisible();
-    const searched = page.waitForResponse((entry) => /\/api\/v1\/redirects\?/.test(entry.url()) && entry.url().includes(`search=${stamp}`));
+    console.log("[diag] step 3 created; searching");
+    page.on("request", (r) => { if (r.url().includes("/api/v1/redirects")) console.log(`[diag] request ${r.method()} ${r.url()}`); });
+    const searched = page.waitForResponse((entry) => /\/api\/v1\/redirects\?/.test(entry.url()) && entry.url().includes(`search=${stamp}`), { timeout: 15000 });
     await page.getByPlaceholder("Search paths").fill(stamp);
     await page.getByPlaceholder("Search paths").press("Enter");
     await searched;
+    console.log("[diag] search answered");
     await expect(rowFrom(page, `/${stamp}-old`).getByText("No page", { exact: true })).toBeVisible();
 
+    console.log("[diag] step 3 row checked");
     // 4. A redirect to the live page is created quietly, and its row is not marked.
     expect((await addRedirect(page, `/${stamp}-ok`, `/${slug}/`)).status()).toBe(201);
     await expect(page.locator(".ant-message").getByText("Redirect created.", { exact: true })).toBeVisible();
