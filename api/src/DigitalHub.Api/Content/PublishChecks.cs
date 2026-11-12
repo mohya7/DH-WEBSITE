@@ -25,7 +25,11 @@ public static class PublishChecks
         Dictionary<string, List<string>> warnings,
         CancellationToken cancellationToken)
     {
-        if (ContentPaths.PublicPath(collection, draft.Slug) is not null)
+        /* O-16 (O-ADM05-1, answer (a)): the 404 and 500 pages need no meta
+           description. The site serves them at /404 and /500, not at an address of
+           their own, and search engines never show them. Every other page keeps the
+           rule, noindex or not. */
+        if (ContentPaths.PublicPath(collection, draft.Slug) is not null && !IsErrorPage(collection, draft.Slug))
             AddDescription(draft, errors);
         if (collection == "blog-posts")
             AddBlogBody(draft, errors);
@@ -40,6 +44,9 @@ public static class PublishChecks
             summary = value.GetString();
         return First(draft.MetaDescription, summary);
     }
+
+    private static bool IsErrorPage(string collection, string slug) =>
+        collection == "pages" && BuildContentStore.ErrorSlugs.ContainsValue(slug);
 
     private static void AddBlogBody(DraftDocument draft, Dictionary<string, List<string>> errors)
     {
