@@ -32,7 +32,7 @@ async function pickOption(page: Page, title: string) {
 }
 
 test("ADM-04 users: change a role, deactivate, reactivate", async ({ page, request }) => {
-  const stamp = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  const stamp = `${Date.now().toString(36)}${crypto.randomUUID().slice(0, 8)}`;
   const email = `e2e-adm04-${stamp}@digitalhub.test`;
   const password = `Adm04-${stamp}-Kq7!`;
   const headers = await adminHeaders(request);
