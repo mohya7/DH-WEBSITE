@@ -31,6 +31,21 @@ export function ErrorPagesPage() {
   // A reload keeps the unsaved edits of other cards.
   const dirtyRef = useRef(dirty);
   dirtyRef.current = dirty;
+  // The card whose Save or Publish is in flight; a second click waits for the answer.
+  const [busy, setBusy] = useState<Record<string, boolean>>({});
+  const busyRef = useRef<Record<string, boolean>>({});
+
+  function begin(type: string) {
+    if (busyRef.current[type]) return false;
+    busyRef.current = { ...busyRef.current, [type]: true };
+    setBusy(busyRef.current);
+    return true;
+  }
+
+  function end(type: string) {
+    busyRef.current = { ...busyRef.current, [type]: false };
+    setBusy(busyRef.current);
+  }
 
   useEffect(() => {
     void load();
@@ -52,6 +67,15 @@ export function ErrorPagesPage() {
   }
 
   async function save(page: ErrorPage) {
+    if (!begin(page.type)) return;
+    try {
+      await sendSave(page);
+    } finally {
+      end(page.type);
+    }
+  }
+
+  async function sendSave(page: ErrorPage) {
     const result = await request(`/api/v1/error-pages/${page.type}`, jsonInit("PUT", {
       version: page.version,
       title: page.title,
@@ -78,6 +102,15 @@ export function ErrorPagesPage() {
   }
 
   async function publish(page: ErrorPage) {
+    if (!begin(page.type)) return;
+    try {
+      await sendPublish(page);
+    } finally {
+      end(page.type);
+    }
+  }
+
+  async function sendPublish(page: ErrorPage) {
     const result = await request(`/api/v1/pages/${page.id}/publish`, jsonInit("POST", { version: page.version }));
     if (!result.ok) {
       if (result.status === 409) {
@@ -110,6 +143,7 @@ export function ErrorPagesPage() {
       <div className="space-y-8">
         {items.map((page) => {
           const unsaved = dirty[page.type] === true;
+          const sending = busy[page.type] === true;
           return (
             <div key={page.type} className="section-card">
               <div className="flex items-center gap-3">
@@ -126,8 +160,8 @@ export function ErrorPagesPage() {
                   <RichTextEditor value={page.body} onChange={(body) => patch(page.type, { body })} fieldPath={`error-${page.type}.body`} label="Body" />
                 </Form.Item>
                 <Space>
-                  <Button type="primary" onClick={() => void save(page)}>Save</Button>
-                  <Button disabled={unsaved} onClick={() => void publish(page)}>Publish</Button>
+                  <Button type="primary" disabled={sending} onClick={() => void save(page)}>Save</Button>
+                  <Button disabled={unsaved || sending} onClick={() => void publish(page)}>Publish</Button>
                 </Space>
                 {unsaved ? <Typography.Paragraph type="secondary" className="!mt-2">Save before publishing, so the check runs on what is on screen.</Typography.Paragraph> : null}
               </Form>
