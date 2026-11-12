@@ -88,7 +88,9 @@ function shareImage(site: Site, item: AnyContentItem): { image?: string; imageAl
   if (!asset) return {};
   // A library alt describes the file, which may be reused from another page. Use it only when this page supplies its own alt.
   const own = item.shareImageAltOverride?.trim();
-  return { image: asset.path, imageAlt: own || documentTitle(item) };
+  // ADM-10: the alt set with the default share image applies only when this page falls back to that image.
+  const fallback = item.shareImageId ? undefined : site.content.settings.defaultShareImageAltOverride?.trim();
+  return { image: asset.path, imageAlt: own || fallback || documentTitle(item) };
 }
 
 function calendar(value: string | null | undefined): string | undefined {
