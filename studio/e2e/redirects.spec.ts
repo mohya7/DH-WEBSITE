@@ -52,6 +52,7 @@ test("ADM-07 redirects: a live page and a loop are refused, a target with no pag
     expect(published.ok(), `publish the page: ${await published.text()}`).toBeTruthy();
 
     await signIn(page);
+    await page.addStyleTag({ content: '[class*="-zoom-leave"],[class*="-fade-leave"]{animation-duration:1.5s !important}' });
     await openArea(page, "Redirects");
     await expect(page.getByRole("heading", { name: "Redirects", exact: true })).toBeVisible();
 
