@@ -148,7 +148,7 @@ public sealed class ContactRequestsController(AdminStore store) : ControllerBase
 [ApiController]
 [Authorize(Policy = "studio")]
 [Route("api/v1/error-pages")]
-public sealed class ErrorPagesController(AdminStore store) : ControllerBase
+public sealed class ErrorPagesController(ContentStore store) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> List(CancellationToken cancellationToken) =>
@@ -156,7 +156,7 @@ public sealed class ErrorPagesController(AdminStore store) : ControllerBase
 
     [HttpPut("{type}")]
     public async Task<IActionResult> Put(string type, [FromBody] ErrorPageUpdate request, CancellationToken cancellationToken) =>
-        Respond(await store.UpdateErrorPageAsync(type, request, UserId(), cancellationToken));
+        Respond(await store.SaveErrorPageAsync(type, request, UserId(), cancellationToken));
 
     private string? UserId() => User.FindFirst("sub")?.Value;
 

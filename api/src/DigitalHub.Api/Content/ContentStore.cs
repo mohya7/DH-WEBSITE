@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using DigitalHub.Api.Conventions;
 using DigitalHub.Api.Data;
 using Microsoft.EntityFrameworkCore;
@@ -607,6 +608,129 @@ public sealed class ContentStore(ContentDbContext db, SectionSchemaSet schemas, 
         Audit(userId, "create", collection, record.Id);
         var loaded = new Loaded { Record = record, Sections = [] };
         return await CommitAsync(cancellationToken, () => ContentOutcome.Ok(Present(collection, loaded, draft), StatusCodes.Status201Created));
+    }
+
+    /// <summary>
+    /// The 404 and 500 pages, for their screen (ADM-05). Each is an ordinary page
+    /// under a reserved slug and is read as Pages reads it: the working copy when
+    /// there is one, else the record. A missing page is left out; nothing is created.
+    /// </summary>
+    public async Task<ContentOutcome> ListErrorPagesAsync(CancellationToken cancellationToken)
+    {
+        var items = new List<object>();
+        foreach (var (type, slug) in BuildContentStore.ErrorSlugs)
+        {
+            var id = await ErrorPageIdAsync(slug, cancellationToken);
+            if (id is null)
+                continue;
+            var loaded = await LoadAsync("pages", id.Value, cancellationToken);
+            if (loaded is not null)
+                items.Add(PresentErrorPage(type, loaded));
+        }
+
+        return ContentOutcome.Ok(new { items });
+    }
+
+    /// <summary>
+    /// Saves an error page's title and body as a page save (ADM-05): through
+    /// MutateAsync, so a published page gets a working copy and goes live only at
+    /// Publish, and the save runs the page checks, the library check among them.
+    /// Only the title, and the text section's heading and body, are changed; the
+    /// section's other fields stay. Never creates a page.
+    /// </summary>
+    public async Task<ContentOutcome> SaveErrorPageAsync(string type, ErrorPageUpdate request, string? userId, CancellationToken cancellationToken)
+    {
+        if (!BuildContentStore.ErrorSlugs.TryGetValue(type, out var slug))
+            return Validation("type", "Type must be 404 or 500.");
+        if (request.Version < 1)
+            return Validation("version", "Version is required.");
+        if (string.IsNullOrWhiteSpace(request.Title))
+            return Validation("title", "Title is required.");
+
+        var bodyErrors = RichText.Validate(request.Body);
+        if (bodyErrors.Count > 0)
+            return Validation("body", string.Join(" ", bodyErrors));
+
+        var id = await ErrorPageIdAsync(slug, cancellationToken);
+        if (id is null)
+            return ErrorPageMissing();
+
+        var title = request.Title.Trim();
+        var body = request.Body ?? EmptyDoc;
+        var saved = await MutateAsync("pages", id.Value, request.Version, userId, "update_error_page", draft =>
+        {
+            draft.Title = title;
+            var ordered = draft.Sections.OrderBy(section => section.SortOrder).ToList();
+            var text = ordered.FirstOrDefault(section => section.Type == SectionTypes.RichText) ?? ordered.FirstOrDefault();
+            if (text is null)
+            {
+                text = new DraftSection { Id = Guid.NewGuid(), Type = SectionTypes.RichText, Visible = true, SortOrder = 0 };
+                draft.Sections.Add(text);
+            }
+
+            // A rich_text section keeps its other fields (eyebrow, blocks). Another
+            // type's fields do not fit rich_text.json, so it starts again.
+            var fields = text.Type == SectionTypes.RichText && text.Fields.ValueKind == JsonValueKind.Object
+                ? JsonNode.Parse(text.Fields.GetRawText())!.AsObject()
+                : new JsonObject();
+            fields["heading"] = title;
+            fields["body"] = body;
+            text.Type = SectionTypes.RichText;
+            text.Fields = Parse(fields.ToJsonString(ContentJson.Options));
+        }, cancellationToken);
+        if (saved.Code is not null)
+            return saved;
+
+        var reloaded = await LoadAsync("pages", id.Value, cancellationToken);
+        return reloaded is null ? ErrorPageMissing() : ContentOutcome.Ok(PresentErrorPage(type, reloaded));
+    }
+
+    private const string EmptyDoc = """{"type":"doc","content":[{"type":"paragraph"}]}""";
+
+    private async Task<Guid?> ErrorPageIdAsync(string slug, CancellationToken cancellationToken) =>
+        await db.Pages.AsNoTracking()
+            .Where(page => page.Slug == slug)
+            .Select(page => (Guid?)page.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+    private static ContentOutcome ErrorPageMissing() =>
+        ContentOutcome.Fail(StatusCodes.Status404NotFound, "not_found", "That error page does not exist.");
+
+    /// <summary>
+    /// The error-page screen's shape: today's type, id, title, body and version, from
+    /// the draft, with the page's status and state as Present gives them.
+    /// </summary>
+    private static object PresentErrorPage(string type, Loaded loaded)
+    {
+        var draft = DocumentOf("pages", loaded);
+        var ordered = draft.Sections.OrderBy(section => section.SortOrder).ToList();
+        var text = ordered.FirstOrDefault(section => section.Type == SectionTypes.RichText) ?? ordered.FirstOrDefault();
+        var body = EmptyDoc;
+        if (text is not null && text.Fields.ValueKind == JsonValueKind.Object && text.Fields.TryGetProperty("body", out var field))
+        {
+            body = field.ValueKind switch
+            {
+                JsonValueKind.String => field.GetString() ?? EmptyDoc,
+                JsonValueKind.Object => field.GetRawText(),
+                _ => EmptyDoc,
+            };
+        }
+
+        var published = loaded.Record.Status == ContentStatus.Published;
+        var hasWorkingCopy = published && loaded.Copy is not null;
+        return new
+        {
+            type,
+            id = loaded.Record.Id,
+            title = draft.Title,
+            body,
+            version = loaded.Record.Version,
+            status = loaded.Record.Status.ToString().ToLowerInvariant(),
+            state = StateOf(loaded.Record.Status, hasWorkingCopy),
+            hasWorkingCopy,
+            publishedAt = loaded.Record.PublishedAt,
+            notice = published ? "Published changes appear on the website at the next build." : null,
+        };
     }
 
     private async Task<ContentOutcome> MutateAsync(
