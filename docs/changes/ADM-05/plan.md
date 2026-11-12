@@ -2,7 +2,12 @@
 
 Change id: `ADM-05`. Branch: `change/ADM-05`, worktree `/home/user/dh-change-adm05`,
 cut from `origin/rebuild/dotnet-platform` at `32f0414` (ADM-07 merged as #55).
-Architect, round 1, 12 November 2026. Every line number below is at `32f0414`.
+Architect, round 2, 12 November 2026. Round 1 (`76bf41f`) came back CHANGES NEEDED
+(`plan-review.md` Round 1 at `676e068`: one Major, eight Minors). Section 12 answers
+each one. The main change is the order of work: ADM-10 merges first, and this
+change's `AdminStore.cs` and `AdminControllers.cs` commit is written only after
+`change/ADM-05` has merged a base that contains ADM-10 (4.1). Every line number
+below is at `32f0414`.
 
 **One change: the 404 and 500 pages go through the same draft and publish flow as
 every other page, and their screen can publish them.** It closes ADM-05. It also
@@ -55,7 +60,7 @@ ADM-02 left to ADM-05 (`docs/changes/ADM-02/plan.md` section 4, line 675).
   - The G3-1 exit gate (refinement plan, Track G3, line 225): "A clean website build
     from `DigitalHubContent_Studio` with no patched content; each blocker reproduced
     before its fix and passing after it".
-  - The G3 track (line 15): "All six blockers fixed by 16 November".
+  - The G3 track (line 17): "All six blockers fixed by 16 November".
   - The G3 rule (line 221): "Every fix carries a regression test that fails first."
   - The success measure (line 250): "Website builds from Studio content that need
     patching first | Every build (error pages, redirects, schema formats) | 0 |
@@ -257,8 +262,15 @@ uses the image.
 - `ContentPublishTests` (925-983, helper `ErrorPageAsync` 1062-1095).
 - `RedirectTargetRuleTests.cs:27` (K2): `RedirectTargets.ErrorPageKeys` is `404`,
   `500`.
-- All are `[Collection("SqlServer")]`, so they run one after another. Each puts the
-  error pages back as it found them.
+- All are `[Collection("SqlServer")]`, so they run one after another. They do **not**
+  all put the error pages back as they found them (round 1, finding 8):
+  - `AdminApiTests.Error_pages_are_editable...` deletes every `error-*` page and
+    leaves its own seeded drafts behind, with new ids.
+  - `ContentPublishTests.ErrorPageAsync` keeps an existing page as it is, and removes
+    only a page it created.
+  - Only `BuildContentTests.PublishedErrorPageAsync` restores the status it changed.
+  So a new test cannot assume any starting state. The helper in 5.1 copes with any
+  of them: none, drafts, or published pages.
 - No Studio unit test covers `ErrorPagesPage`. No end-to-end spec opens it except
   `verification.spec.ts` P2.12 ("Every sidebar screen loads with no console error"),
   on an empty list: the end-to-end database is reset empty (`studio/e2e/start-api.ts`
@@ -266,16 +278,30 @@ uses the image.
 
 ### 2.9 Other branches that touch the same files
 
-- `change/ADM-10` (`04d0e80`, gate 2 approved, not merged) changes `AdminStore.cs`
-  at hunks `@@ -242`, `@@ -281`, `@@ -823` and `@@ -1165,8 +1173,28` (the
-  `SiteSettingsUpdate` class, which ends just above `ErrorPageUpdate` at 1190). This
-  plan leaves `ErrorPageUpdate` where it is, unchanged, so the two diffs do not touch
-  the same lines. The removals here are at 18, 573-641 and 1022-1053.
-- ADM-04 (users) is next in the batch and will touch `AdminStore.cs` and
-  `AdminControllers.cs` (`UsersController`, 74-100). This change touches neither the
-  users code nor the lines next to it.
-- The integrator merges one at a time. If ADM-10 merges first, the developer rebases
-  and re-runs every suite before review (Risks).
+- `change/ADM-10` (`04d0e80`, gate 2 approved, not merged; it waits only on the
+  owner's merge confirmation, as the coordinator relayed) changes `AdminStore.cs`
+  (`git diff 32f0414 04d0e80 -- api/src/DigitalHub.Api/Content/AdminStore.cs`: hunks
+  `@@ -242`, `@@ -281`, `@@ -823`, `@@ -1165`). This change also edits
+  `AdminStore.cs`.
+- ADM-04 (users) is next in the batch. By the audit's text (lines 105-116) it changes
+  `UsersController` in `AdminControllers.cs` (74-100) and its store in
+  `AdminStore.cs`. This change edits `ErrorPagesController` in `AdminControllers.cs`
+  and `AdminStore.cs`.
+- `AGENTS.md`: "Parallel work must change different files." The rule is about files,
+  not lines (round 1, finding 1). Two changes that edit `AdminStore.cs` or
+  `AdminControllers.cs` therefore may not be in progress on those files at the same
+  time. The order that keeps to the rule is in 4.1. It is the integrator's order, as
+  the coordinator stated it.
+- For each `change/*` head in `git ls-remote`, I ran `git diff --name-only
+  $(git merge-base <head> 32f0414) <head>` over this change's five source files
+  (`AdminStore.cs`, `AdminControllers.cs`, `ContentStore.cs`, `PublishChecks.cs`,
+  `ErrorPagesPage.tsx`). The result:
+  - `change/ADM-10`: `AdminStore.cs`.
+  - `change/ADM-02` and `change/ADM-07`: `AdminStore.cs` and `ContentStore.cs`. Both
+    are already in the base, as #54 (`6262f48`) and #55 (`32f0414`).
+  - Every other head: none of the five files.
+  So outside ADM-10, and ADM-04 once it starts, no in-flight change shares a file
+  with this one.
 
 ### 2.10 What I could run here
 
@@ -312,9 +338,14 @@ userId, CancellationToken)`** (new, public):
    - The section is picked by today's rule, applied to `draft.Sections` in
      `SortOrder` order: the first `rich_text`, or else the first, or else a new
      `DraftSection { Id = Guid.NewGuid(), Type = "rich_text", Visible = true,
-     SortOrder = 10 }`.
+     SortOrder = 0 }`. `SortOrder = 0` is today's value (`AdminStore.cs:617-623`),
+     kept (round 1, finding 5).
    - If the picked section is already `rich_text`, its fields are kept, and only
-     `heading` (the title) and `body` (`request.Body ?? EmptyDoc`) are set. An
+     `heading` (the title) and `body` (`request.Body ?? EmptyDoc`) are set.
+     `EmptyDoc` (`AdminStore.cs:1103`) is used only by the error-page code
+     (`grep -n EmptyDoc api/src/DigitalHub.Api/Content/*.cs`: lines 635, 1024-1042,
+     1103 of `AdminStore.cs`). It moves to `ContentStore` as a private constant with
+     the same text, and is removed from `AdminStore` (round 1, finding 9). An
      `eyebrow` or `blocks` value stays (found here, 2.3).
    - If it is another type, it becomes `rich_text` with `{ heading, body }` only, as
      today. That type's fields do not fit `rich_text.json`
@@ -329,7 +360,29 @@ userId, CancellationToken)`** (new, public):
    - **A draft page:** the record and its sections are written, as now. A draft is
      not in the build either way.
    - It raises the version, audits, and commits.
-5. The answer is the error-page shape (3.2), built from the saved draft.
+5. **The answer (round 1, finding 3).** `MutateAsync` returns the Pages shape
+   (`Present(collection, loaded, draft)`), and its `loaded` does not leave the method.
+   So `SaveErrorPageAsync` does not use that body:
+   - If the outcome is not a success, it is returned as it is (400, 404 or 409).
+   - On success, `SaveErrorPageAsync` calls `LoadAsync("pages", id)` again and builds
+     the error-page shape (3.2) from it, with `DocumentOf` for the title and body.
+     That gives the committed `status`, `state`, `hasWorkingCopy`, `publishedAt` and
+     the new `version`.
+   - `MutateAsync` and every other existing method stay unchanged. "No change to any
+     existing method" (Scope) holds.
+   - If the page is deleted between the commit and the reload, the answer is 404
+     "That error page does not exist.". The save itself has already been committed,
+     and the page it was saved to is gone. That needs an admin to delete the draft
+     page through Pages in the same few milliseconds. A published page cannot be
+     deleted (`DeleteAsync`, `ContentStore.cs:244-245`).
+
+**Titles of the refusals (round 1, finding 5).** `MutateAsync`'s 409 title is "This
+item was changed by someone else." (`Conflict()`, `ContentStore.cs:1218-1219`).
+Today's is "Someone else changed this page." (`AdminStore.cs:610`). Its 404 is "That
+item does not exist." when the page goes between the slug lookup and `LoadAsync`.
+These titles are **not** remapped. The Studio shows its own text on 409
+(`ErrorPagesPage.tsx:40`), so the screen does not change. The API answer does, and B9
+lists it.
 
 **`ContentStore.ListErrorPagesAsync(CancellationToken)`** (new, public): for each
 type, find the page by slug and, if it exists, `LoadAsync("pages", id)` and
@@ -340,8 +393,8 @@ type, find the page by slug and, if it exists, `LoadAsync("pages", id)` and
 the `studio` policy and the `ErrorPageUpdate` body are unchanged.
 
 **`AdminStore`** loses `ErrorTypes` (18), `ListErrorPagesAsync` (573-589),
-`UpdateErrorPageAsync` (591-641) and `PresentErrorPage` (1022-1053), which have no
-other caller (`grep -rn "ErrorTypes\|PresentErrorPage\|UpdateErrorPageAsync\|ListErrorPagesAsync" api`).
+`UpdateErrorPageAsync` (591-641), `PresentErrorPage` (1022-1053) and `EmptyDoc`
+(1103), which have no other caller (`grep -rn "ErrorTypes\|PresentErrorPage\|UpdateErrorPageAsync\|ListErrorPagesAsync" api`).
 `ErrorPageUpdate` (1190-1197) stays in `AdminStore.cs`, unchanged (2.9).
 
 ### 3.2 The answer of `GET` and `PUT /api/v1/error-pages`
@@ -388,11 +441,14 @@ The code here waits on the owner's answer.
 - **(c) No exemption.** The rule stays. The error-pages screen gets a "Meta
   description" field: `ErrorPageUpdate` gains `MetaDescription` (optional, at most
   500 characters, by `ContentFields.Validate`), the save sets
-  `draft.MetaDescription`, and the answer carries `metaDescription`. Staff then type
-  a description that no search engine shows.
+  `draft.MetaDescription`, and the answer carries `metaDescription`. A body without
+  the key leaves the stored value as it is, so an older client cannot clear it (the
+  ADM-10 defect). The Studio always sends it. Staff then type a description that no
+  search engine shows. T12 and S8 test it.
 
-Whatever the answer, it is one commit (5.2, commit 5). Until the owner answers, the
-developer builds commits 1 to 4 and 6 to 7 and does not write commit 5. Without
+Whatever the answer, it is one fix commit (5.2, commit 5, with test commit 5a before
+it under a late (c)). Until the owner answers, the developer builds commits 1 to 4,
+in the 4.1 order, and does not write commit 5. Without
 commit 5 the screen's Publish shows the `metaDescription` error, so ADM-05 is not
 done.
 
@@ -419,6 +475,16 @@ done.
     `key: messages` from `problem.errors` and `problem.warnings`, as `Findings` does
     (`ItemEditorPage.tsx:483-505`). It is a plain list, with no jump links, because
     this screen has no section form to jump to.
+- **A refused Save (round 1, finding 4).** The save can now be refused for reasons
+  the screen never saw before (B3, B4). They all come back as 400
+  `validation_failed`, titled "One or more fields are invalid." (`ContentStore.cs`,
+  `Validation`). So a 400 on Save fills the same per-card list as a blocked publish:
+  `problem.title`, then each `key: messages` from `problem.errors`. The card stays
+  dirty, and nothing is reloaded. A 409 keeps today's text. Any other failure keeps
+  today's `problem.title` line. A successful Save or Publish clears the list. S7
+  tests it. Mapping each key (for example `sections[0].body`) to its field on screen
+  is left to ADM-14, by name. Its fix (audit line 236) is "field errors mapped to
+  fields".
 - A published page with no draft shows the notice from the API.
 - **Not added:** Unpublish (it would break the next API build, `prepare.ts:46`),
   Discard draft (Pages has it, and ADM-14 is the finding about its missing
@@ -445,8 +511,8 @@ done.
 
 | File | What |
 | --- | --- |
-| `api/tests/DigitalHub.Api.Tests/ErrorPagePublishTests.cs` | T1 to T11 (5.1) |
-| `studio/test/errorPages.test.tsx` | S1 to S6 (5.1) |
+| `api/tests/DigitalHub.Api.Tests/ErrorPagePublishTests.cs` | T1 to T11, and T12 if O-ADM05-1 is (c) (5.1) |
+| `studio/test/errorPages.test.tsx` | S1 to S7, and S8 if (c) (5.1) |
 | `studio/e2e/error-pages.spec.ts` | E1 (5.1) |
 | `docs/changes/ADM-05/implementation.md` | The developer's record |
 
@@ -454,11 +520,44 @@ done.
 
 | File | What changes |
 | --- | --- |
-| `api/src/DigitalHub.Api/Content/ContentStore.cs` | New public `ListErrorPagesAsync`, `SaveErrorPageAsync`. New private `PresentErrorPage` (moved, 3.2). Uses the existing `MutateAsync`, `LoadAsync`, `DocumentOf`, `StateOf`. No change to any existing method |
+| `api/src/DigitalHub.Api/Content/ContentStore.cs` | New public `ListErrorPagesAsync`, `SaveErrorPageAsync`. New private `PresentErrorPage` and `EmptyDoc` (moved, 3.1, 3.2). Uses the existing `MutateAsync`, `LoadAsync`, `DocumentOf`, `StateOf`. No change to any existing method |
 | `api/src/DigitalHub.Api/Controllers/AdminControllers.cs` | `ErrorPagesController` (148-165) takes `ContentStore`. Routes and policy unchanged |
-| `api/src/DigitalHub.Api/Content/AdminStore.cs` | Remove `ErrorTypes`, `ListErrorPagesAsync`, `UpdateErrorPageAsync`, `PresentErrorPage`. `ErrorPageUpdate` unchanged (with `MetaDescription` added only if O-ADM05-1 is (c)) |
+| `api/src/DigitalHub.Api/Content/AdminStore.cs` | Remove `ErrorTypes`, `ListErrorPagesAsync`, `UpdateErrorPageAsync`, `PresentErrorPage`, `EmptyDoc`. `ErrorPageUpdate` unchanged (with `MetaDescription` added only if O-ADM05-1 is (c)) |
 | `api/src/DigitalHub.Api/Content/PublishChecks.cs` | Lines 28-29 only, per O-ADM05-1 (a) or (b). Not changed if (c) |
 | `studio/src/pages/ErrorPagesPage.tsx` | 3.5 |
+
+### 4.1 Order of work on the shared files (round 1, finding 1)
+
+`AdminStore.cs` and `AdminControllers.cs` are shared with ADM-10 and ADM-04 (2.9).
+`AGENTS.md`: "Parallel work must change different files." The order is the
+integrator's, as the coordinator stated it on 12 November 2026:
+
+1. **ADM-10 merges first.** It waits only on the owner's merge confirmation.
+2. **Commits 1 and 2 (tests only)** may be written, and pushed for the CI red if
+   O-ADM05-2 is "Yes", on `change/ADM-05` at `32f0414` before that. Neither touches
+   `AdminStore.cs` or `AdminControllers.cs`. T1 to T11 compile against the base API.
+3. **Before commit 3**, the developer merges `origin/rebuild/dotnet-platform`, which
+   must then contain ADM-10, into `change/ADM-05`. It is a merge commit, never a
+   rebase, so the commits already pushed for the CI red keep their ids. The
+   developer quotes `git log --oneline -3 origin/rebuild/dotnet-platform`, showing
+   the ADM-10 merge, and `git merge-base --is-ancestor <that merge> HEAD` (exit 0)
+   in `implementation.md`.
+4. **Commit 3** (`ContentStore.cs`, `AdminControllers.cs`, `AdminStore.cs`) and
+   **commit 5** (which touches `AdminStore.cs` only under (c)) are written only
+   after step 3. Commits 4 and 6 follow, in the 5.2 order. ADM-10 adds 32 lines to
+   `AdminStore.cs` and removes 4 (`git diff --stat 32f0414 04d0e80`), so this
+   plan's `AdminStore.cs` line numbers will have moved. The developer finds the
+   members by name.
+5. If ADM-10 has not merged when commits 1 and 2 are done, the developer stops
+   there, records it, and tells the coordinator. The developer does not write
+   commit 3 on the old base, and does not copy ADM-10's change in.
+6. **ADM-04 does not start work on `AdminStore.cs` or `AdminControllers.cs` until
+   ADM-05 has merged.** That is for the coordinator to hold. It is stated here so
+   ADM-04's plan can cite it.
+
+After the merge in step 3, and before commit 3, the developer runs every suite in
+5.3 again. The reds must be the same as at commit 1 (5.4), and nothing else may
+fail. Any difference is recorded and reported before going on.
 
 ### Out of scope (left alone on purpose)
 
@@ -492,24 +591,32 @@ helpers as in `ContentPublishTests.cs:11-60`.
   seeds both pages as `AdminApiTests.SeedErrorPages` does (718-750), with the given
   status, `NoIndex = true`, no meta description, and a `rich_text` section `{
   heading, body: "Body A" }`. A `finally` puts the saved rows back. It also deletes
-  what the test made: working copies, revisions, audit rows it can identify by
-  entity id, and media rows. It runs after a failed assertion too.
+  what the test made: working copies, revisions and media rows. It runs after a
+  failed assertion too. The helper accepts any starting state (2.8).
+- **Audit rows stay (round 1, finding 2).** The application login cannot delete from
+  `audit_log` (`AuditLogPermissionTests.cs:46-48`), so the `finally` does not try.
+  This is what `ListPagingTests.cs:176` does: "The audit rows stay: the app login
+  cannot delete from audit_log." The elevated account
+  (`ApiFactory.ElevatedTestConnectionString()`, as `ContentApiTests.cs:597-603`) is
+  not used. Leftover rows are harmless: T7 finds its own row by user, entity id and
+  a time after the test started, not by "the newest row".
 - **Build content:** read with the build token, as `BuildContentTests.ReadBuildAsync`
   (267-276).
 
 | Id | Name | Asserts | Red at base because |
 | --- | --- | --- | --- |
 | T1 | `A_save_on_a_published_error_page_does_not_reach_the_build` | Both published with "Body A". `PUT /api/v1/error-pages/404` with "Body B" gives 200. `GET /api/v1/build/content`: `errorPages.404.sections[0].fields.body` contains "Body A", not "Body B". The `pages` row's section `Fields` still has "Body A". One `WorkingCopy` with `PageId` = the 404 id exists | The save writes the record, so the build shows "Body B" (2.4). This is the audit's "from reading the code, not run" claim, reproduced |
-| T2 | `The_list_shows_the_draft_and_its_state` | After T1's save: `GET /api/v1/error-pages`, item 404 has `body` with "Body B", `state` "changed", `status` "published", `hasWorkingCopy` true, `publishedAt` not null. Item 500 has `state` "published" | No `state` property (`GetProperty` throws) |
+| T2 | `The_list_shows_the_draft_and_its_state` | Its own set-up (both published, "Body A") and its own save of "Body B" to 404, as in T1 (xUnit tests share no state). Then `GET /api/v1/error-pages`, item 404 has `body` with "Body B", `state` "changed", `status` "published", `hasWorkingCopy` true, `publishedAt` not null. Item 500 has `state` "published" | No `state` property (`GetProperty` throws) |
 | T3 | `An_editor_publishes_a_saved_error_page_draft` | Draft pages. An **editor** saves "Body B", then `POST /api/v1/pages/{id}/publish` with the new version gives 200 and `state` "published". The build content `errorPages.404.publishedAt` is not null and its body has "Body B". `GET /api/v1/error-pages` shows `state` "published" and `hasWorkingCopy` false | 400 `publish_blocked`, `errors.metaDescription` (2.6). **(a) and (b).** If (c), the save also sends `metaDescription`, and the test asserts the same 200 |
 | T4 | `A_published_error_page_goes_live_only_at_publish` | Published "Body A", save "Body B" (build still "Body A"), publish (200). Build now "Body B". No working copy left. One new `revisions` row for the page | Today the build already shows "Body B" after the save, and the publish is blocked |
 | T5 | `An_error_page_save_refuses_an_image_not_in_the_library` | `PUT` with a body holding `{"type":"image","attrs":{"mediaId":"<new guid>","alt":"Diagram"}}`: 400 `validation_failed`, and `errors.media` contains "`<guid> is not in the library.`". The page is unchanged | 200: no library check (2.7, ADM-03 section 11) |
 | T6 | `An_error_page_save_keeps_the_section_s_other_fields` | Seed the 404 section with `eyebrow: "Oops"`. After a save (draft page), the section's fields have `eyebrow` "Oops", the new `heading` and the new `body` | Fields are replaced with `{ heading, body }` (2.3) |
-| T7 | `An_error_page_save_is_audited_as_a_page_save` | After a save, the newest audit row for that user has `Action` "update_error_page", `EntityType` "page", `EntityId` the page id | Today `EntityType` "error_page", `EntityId` "404" (B5) |
+| T7 | `An_error_page_save_is_audited_as_a_page_save` | After a save, exactly one audit row with `EntityId` the page id and `At` after the test's start time exists, with `Action` "update_error_page" and `EntityType` "page" | Today `EntityType` "error_page", `EntityId` "404" (B5) |
 | T8 | `An_ordinary_page_still_needs_a_meta_description` | A new page (`POST /api/v1/pages`, a stamped slug, no description; `noIndex: true` if (a), `noIndex: false` if (b)). Publish: 400, `errors.metaDescription`. Deleted in `finally` | Green at base. Guards the scope of the exemption. Kept in (c) |
 | T9 | `A_save_on_a_draft_error_page_stays_out_of_the_build` | Draft pages: save gives 200, `state` "draft". Build content `errorPages.404` is `null` | Red only on the `state` assertion. Guards the draft path |
 | T10 | `A_stale_version_is_a_conflict` | Save with `version + 3`: 409 `concurrency_conflict`. Nothing changes | Green at base. Guard |
 | T11 | `HR_cannot_read_save_or_publish_error_pages` | An HR user gets 403 on `GET` and `PUT /api/v1/error-pages/404` and on `POST /api/v1/pages/{id}/publish` | Green at base. Guards the policies (section 6). The HR session helper follows the existing HR tests (`CareersTests.cs`) |
+| T12 | `The_error_page_meta_description_is_saved_and_limited` (**only if O-ADM05-1 is (c)**) | Draft pages. `PUT /api/v1/error-pages/404` with `metaDescription: "Shown nowhere."` gives 200, and the answer and `GET /api/v1/error-pages` carry it. A `PUT` with 501 characters gives 400 `validation_failed`, with `errors.metaDescription` "is longer than 500 characters." (`ContentFields.Limit`, `ContentDocuments.cs:551-555`). A `PUT` with no `metaDescription` key leaves the stored value as it is (the ADM-10 lesson). The page is unchanged after the 400 | No `metaDescription` on `ErrorPageUpdate`: the value is ignored, so the first assertion fails |
 
 `AdminApiTests.Error_pages_are_editable_and_get_does_not_create_them` is **not
 changed**. It must pass as it is, since it is the existing contract test.
@@ -529,6 +636,8 @@ the real one. Every path the handler does not expect throws.
 | S4 | `lists what blocks a publish` | Publish answers 400 `{ title: "Publishing is blocked until every check passes.", errors: { media: ["m-1 is not in the library."] } }`: the card shows the title and "media: m-1 is not in the library.". The list is not reloaded | No list |
 | S5 | `says a save on a published page is a draft` | 404 `status` "published": Save (200) calls the spy with "404 page saved as a draft. Publish to put it on the website." | Today "404 page saved." |
 | S6 | `a stale publish says someone else changed the page` | Publish answers 409: "Someone else changed this page." shows | No Publish button |
+| S7 | `lists what blocks a save` | Save on 404 answers 400 `{ title: "One or more fields are invalid.", errors: { media: ["m-1 is not in the library."] } }`: the 404 card shows the title and "media: m-1 is not in the library.". No second `GET`. The card's Publish stays disabled (still dirty). A Save that then answers 200 clears the list | Today only the title line shows, and no list |
+| S8 | `sends the meta description on save` (**only if O-ADM05-1 is (c)**) | The 404 card has a "Meta description" field showing the listed value. After typing "Shown nowhere.", Save sends one `PUT /api/v1/error-pages/404` whose body has `metaDescription: "Shown nowhere."` with `version`, `title` and `body` | No field |
 
 **End-to-end, `studio/e2e/error-pages.spec.ts`** (E1). ADM-05 is a Blocker, not a
 Major, but the G3-1 gate asks that each blocker be "reproduced before its fix and
@@ -565,17 +674,23 @@ The split follows ADM-07 and ADM-10. CI job `studio` runs "Unit tests"
 same commit would hide E1's red. So:
 
 1. `ADM-05: Test that error-page saves are drafts and the screen can publish`:
-   T1 to T11 and E1. No source change.
-2. `ADM-05: Test the error pages screen's state and Publish`: S1 to S6.
+   T1 to T11 and E1, plus T12 if O-ADM05-1 is already answered (c). No source
+   change.
+2. `ADM-05: Test the error pages screen's state and Publish`: S1 to S7, plus S8 if
+   (c) is already the answer.
+   - **(Merge, 4.1 step 3):** `origin/rebuild/dotnet-platform` with ADM-10, merged
+     into `change/ADM-05`. Not a rebase.
 3. `ADM-05: Save the error pages through the draft flow`: `ContentStore.cs`,
    `AdminControllers.cs`, `AdminStore.cs` (3.1, 3.2). Makes T1, T2, T5, T6, T7 and
    T9 green.
 4. `ADM-05: Publish the error pages from their screen`: `ErrorPagesPage.tsx` (3.5).
-   Makes S1 to S6 green.
+   Makes S1 to S7 green.
 5. `ADM-05: <the O-ADM05-1 answer>`: `PublishChecks.cs` for (a) or (b), or the meta
    description field for (c) (`AdminStore.cs` `ErrorPageUpdate`, `ContentStore.cs`,
-   `ErrorPagesPage.tsx`). Makes T3, T4 and E1 green. **Not written until the owner
-   answers.**
+   `ErrorPagesPage.tsx`). Makes T3, T4 and E1 green, and T12 and S8 under (c).
+   **Not written until the owner answers.** If the answer is (c) and comes after
+   commits 1 and 2, T12 and S8 go first in their own test-only commit, 5a. It is run
+   red locally (S8) and in CI (T12, if O-ADM05-2 allows the push) before commit 5.
 6. `ADM-05: Implementation record`.
 
 Each fix commit can be reverted on its own. Commit 4 before 5 is safe: until 5 lands,
@@ -596,7 +711,7 @@ cd studio && npm ci && npx tsc -b
 - Expected: the build has 0 errors (the tests compile against the base API). `tsc -b`
   passes. `e2e/` specs other than `env.ts` are outside `tsconfig.node.json`'s
   `include`, as ADM-07 recorded.
-- T1 to T11 and E1 need SQL Server. Without it they fail at the connection, which is
+- T1 to T12 and E1 need SQL Server. Without it they fail at the connection, which is
   not the red. Record them as NOT RUN locally, covered by CI jobs `api` and `studio`
   (5.4).
 
@@ -606,7 +721,8 @@ cd studio && npm ci && npx tsc -b
 cd studio && npx vitest run test/errorPages.test.tsx
 ```
 
-Expected: S1 to S6 fail, each at the assertion in 5.1, quoted as run.
+Expected: S1 to S7 (and S8 under (c)) fail, each at the assertion in 5.1, quoted as
+run.
 
 **After the fix commits (green), every suite:**
 
@@ -644,15 +760,15 @@ that cannot run is NOT RUN, with the reason and the CI job that covers it.
 ### 5.4 CI evidence on the pull request
 
 - **Red at commit 1** (needs O-ADM05-2 "Yes"):
-  - Job `api`: T1, T2, T3, T4, T5, T6, T7 and T9 fail. Quote each assertion. T8,
+  - Job `api`: T1, T2, T3, T4, T5, T6, T7 and T9 fail (and T12 under (c)). Quote each assertion. T8,
     T10, T11 and every existing test pass.
-  - Job `studio`: unit tests pass (S1 to S6 are not in commit 1). In the end-to-end
+  - Job `studio`: unit tests pass (S1 to S8 are not in commit 1). In the end-to-end
     suite, E1 fails at step 1 under (a) or (b), or at step 2 under (c). Every other
     spec passes.
   - Job `website`: green (no change).
   - Wait until `api`, `website` and `studio` have finished before pushing again.
     `cancel-in-progress` cancelled part of ADM-02's red run (ADM-07 5.4).
-- **Red at commit 2:** job `studio`, "Unit tests": S1 to S6. The local red is enough.
+- **Red at commit 2:** job `studio`, "Unit tests": S1 to S7 (and S8). The local red is enough.
 - **Green, on the final head, every workflow:** `ci.yml` jobs `api` (quote the TRX
   total), `website`, `studio` (unit and end-to-end), `section-compare`,
   `website-browser`; `security.yml`; `workflow-lint.yml`.
@@ -662,7 +778,7 @@ that cannot run is NOT RUN, with the reason and the CI job that covers it.
 | Rule | How this change meets it |
 | --- | --- |
 | "The finding, its evidence and its fix come from `docs/quality/admin-audit-2026-10-28.md`" | Section 1 quotes it. The three fixes are 3.1, 3.5 and 3.4 (O-16). T6 (section fields kept) was found here and is flagged so |
-| "The regression test is committed and shown failing before the fix" | Commits 1 and 2 hold tests only. S1 to S6 are red locally. T1 to T9 and E1 are red in CI at commit 1, if O-ADM05-2 is "Yes". If it is "No", the database reds cannot be shown, the row is not met, and delivery is BLOCKED ON OWNER until the owner accepts that in words (P-7) |
+| "The regression test is committed and shown failing before the fix" | Commits 1 and 2 hold tests only. S1 to S7 are red locally. T1 to T7, T9 and E1 are red in CI at commit 1 (T8, T10 and T11 are guards, green at the base; T12 and S8 only under (c)), if O-ADM05-2 is "Yes". If it is "No", the database reds cannot be shown, the row is not met, and delivery is BLOCKED ON OWNER until the owner accepts that in words (P-7) |
 | "The end-to-end suite gets a test for each Major" | ADM-05 is a Blocker. E1 is added anyway, for the G3-1 "reproduced before its fix" gate |
 | "A Minor that is not fixed becomes a D-NNN entry" | Not a Minor. Nothing in the finding is left unfixed once O-ADM05-1 is answered |
 | G3-1 exit gate: "each blocker reproduced before its fix and passing after it" | T1 reproduces the go-live-on-save claim. T3 and E1 reproduce the blocked publish. T5 reproduces ADM-03's handover. All pass after the fix |
@@ -710,6 +826,19 @@ Data written while it was live stays valid under the old code:
 - A working copy on a published error page is an ordinary page working copy. After a
   revert, Pages still shows it and can publish or discard it. The reverted error-page
   screen would not show it, and its Save would write the record again.
+- **A stale working copy must be cleared (round 1, finding 6).** If one is left, the
+  reverted screen's Save writes the record, and a later Publish through Pages copies
+  the older working copy over it (`PublishAsync`, `ContentStore.cs:325-330`). The
+  text the screen saved would be lost. So, in each database the change ran against
+  (`DigitalHubContent_Studio` is the one that matters; the test and end-to-end
+  catalogs are reset):
+  1. Before the revert, or right after it and before anyone saves on the Error pages
+     screen, open Pages, find `error-404` and `error-500`, and for each one whose
+     chip reads "changed": publish it if the draft is wanted, or "Discard draft" if
+     not.
+  2. Then check that neither page reads "changed".
+  This is a Studio action by the owner or with the owner's go-ahead, not a database
+  edit. Only one agent at a time may write a local database (`AGENTS.md`).
 - A page published through this change stays published. That is what the build
   needs.
 - If (a) or (b) is reverted, the next publish of an error page needs a meta
@@ -747,7 +876,7 @@ Data written while it was live stays valid under the old code:
 - **O-ADM05-2. Status: PENDING.** "For ADM-05, may the developer push the test-only
   commit first, so CI shows the database and end-to-end tests failing before the fix,
   as with ADM-02, ADM-07 and ADM-10?"
-  - **Recommendation: Yes.** T1 to T9 and E1 need SQL Server, which only CI jobs
+  - **Recommendation: Yes.** T1 to T7, T9 and E1 need SQL Server, which only CI jobs
     `api` and `studio` have here. Without the push, their red cannot be shown and the
     G3 rule is not met.
   - The owner's earlier yeses covered those changes only ("Yes, red tests first",
@@ -787,6 +916,16 @@ are the audit's fix, so they are not asked as separate decisions. Say so before 
   what blocks a publish.
 - **B8:** The O-ADM05-1 answer: (a) or (b) changes the publish rule; (c) adds a
   field.
+- **B9 (round 1, finding 5):** The API's refusal titles on this route become the page
+  save's titles:
+  - 409: "This item was changed by someone else." (was "Someone else changed this
+    page.");
+  - a page removed between the lookup and the load: 404 "That item does not exist.";
+  - a refused save: 400 "One or more fields are invalid." with the field keys of a
+    page save (for example `sections[0].body`, `media`, `slug`, `title`).
+  The screen keeps its own 409 text. It now lists the 400's fields (3.5, S7).
+- A new text section is still created at `SortOrder = 0`, as today (3.1), so that is
+  not a behaviour change.
 
 ## 10. Risks
 
@@ -796,10 +935,12 @@ are the audit's fix, so they are not asked as separate decisions. Say so before 
 | The list reads the record and not the working copy | Staff see the live text after saving a draft and think the save was lost | T2, S1, E1 step 3 |
 | `CheckAsync` refuses the imported 404 body, for example on its page references | Staff cannot save the imported page | `CheckAsync(publishing: false)` does not check references (`PublishChecks` runs only at publish). `AdminApiTests.Error_pages_are_editable...` seeds the imported shape and must stay green unchanged. At publish, references to unpublished pages are warnings, not errors (`PublishChecks.cs:250-251`) |
 | The exemption is wider than intended | Ordinary pages publish without a description | T8 (a page with `noIndex: true` under (a)) |
-| Other tests leave error pages in a different state, or these tests do | Order-dependent failures in `AdminApiTests`, `BuildContentTests`, `ContentPublishTests` | All are in collection `SqlServer` (serial). Each T test restores in `finally`. The filter run in 5.3 runs every class that touches them |
+| Other tests leave error pages in a different state, or these tests do | Order-dependent failures in `AdminApiTests`, `BuildContentTests`, `ContentPublishTests` | The other classes do not all restore what they change (2.8), so the T tests do not rely on them. Each T test's helper accepts any starting state (none, drafts or published), seeds its own pages, and puts the saved rows back in `finally`. All are in collection `SqlServer` (serial). The filter run in 5.3 runs every class that touches the error pages |
+| The `finally` tries to delete audit rows | `PermissionDenied` hides the real assertion in every T test | It does not: audit rows stay (5.1). T7 finds its row by entity id and time |
 | E1 leaves published error pages in `DigitalHubContent_E2e` | Later specs see a non-empty Error pages list | `finally` unpublishes and deletes both. `workers: 1`. `verification.spec.ts` runs in 5.3 |
 | E1's red at commit 1 hidden by a red unit-test step | No CI red for E1 | Commit split (5.2) |
-| Conflict with ADM-10 or ADM-04 in `AdminStore.cs` or `AdminControllers.cs` | Merge conflict, or a missed change | `ErrorPageUpdate` stays where it is (2.9). The developer rebases on whatever has merged before review and re-runs every suite |
+| Two in-flight changes edit `AdminStore.cs` or `AdminControllers.cs` (ADM-10, ADM-04) | Breaks "Parallel work must change different files" (`AGENTS.md`); a merge conflict or a lost change | The order in 4.1: ADM-10 merges first; commit 3 is written only after `change/ADM-05` has merged a base containing ADM-10 (a merge, never a rebase), and `implementation.md` proves it with `git merge-base --is-ancestor`; ADM-04 does not start on those two files until ADM-05 merges. The suites are re-run after the merge |
+| ADM-10's merge is late | Commit 3 cannot be written, and ADM-05 misses 16 November | 4.1 step 5: the developer stops after commits 1 and 2 and tells the coordinator. Nothing is copied from ADM-10 and nothing is written on the old base |
 | Renaming `error-404` through Pages | The screen and the build lose the page | Out of scope (section 4). Recommended as a new audit finding. It exists today and is not made worse |
 | A `RichTextEditor` host invariant is broken | ADM-03's paste guard could accept an id it should not | The screen still feeds `value` only from the API or `onChange` (3.5). S2 and S3 reload from the API. T5 adds the server check behind it |
 | O-ADM05-1 unanswered by 16 November | ADM-05 misses the batch date | Commits 1 to 4 do not wait. Only commit 5 does. The coordinator asks it now |
@@ -823,10 +964,71 @@ are the audit's fix, so they are not asked as separate decisions. Say so before 
 | An API build gets past `prepare.ts:44-48` once both pages are published | ADM-05, bullet 2; success measure line 250 | Planned (the `DigitalHubContent_Studio` run waits on O-ADM05-3 and O-ADM02-2) | |
 | G3-1 exit gate: a clean build from `DigitalHubContent_Studio` with no patched content | Refinement plan line 225 | Planned (batch gate; not this change alone) | |
 | FR-S-21 moves from "Partly" to "Works" | Audit requirement table, line 46 | Planned | |
+| A refused save lists its fields on the screen | Found by review (round 1, finding 4); B3, B4 | Planned | |
+| The meta description field saves, is limited to 500 and is kept when left out (only if (c)) | O-ADM05-1 (c); review round 1, finding 7 | Planned (only if O-ADM05-1 is (c)) | |
+| Shared-file order: ADM-10 merged into `change/ADM-05` before commit 3; ADM-04 held on the two files until ADM-05 merges | `AGENTS.md` "Parallel work must change different files"; review round 1, finding 1 | Planned | |
 
 ## 12. Revision log
 
-- **Round 1** (12 November 2026): first version. No review yet.
+- **Round 1** (12 November 2026, `76bf41f`): first version.
+- **Round 2** (12 November 2026): answers `plan-review.md` Round 1 (`676e068`,
+  CHANGES NEEDED, one Major and eight Minors), point by point.
+  1. **Major, shared files.** Agreed: `AGENTS.md`'s rule is about files, not lines.
+     2.9 no longer argues "different lines", and the "If ADM-10 merges first"
+     alternative is gone. New 4.1 states the integrator's order, as the coordinator
+     gave it:
+     - ADM-10 merges first.
+     - Only the test commits 1 and 2 may be written, and pushed, before that.
+     - Before commit 3, `change/ADM-05` merges `origin/rebuild/dotnet-platform`
+       containing ADM-10. It is a merge, never a rebase, proven in
+       `implementation.md` with `git merge-base --is-ancestor`. Commits 3 to 5 come
+       after it, and the suites are re-run.
+     - If ADM-10 is late, the developer stops and reports.
+     - ADM-04 does not start on `AdminStore.cs` or `AdminControllers.cs` until ADM-05
+       merges.
+     2.9 now also lists, from `git ls-remote` and `git merge-base`, which `change/*`
+       heads touch this change's five source files: only ADM-10 is in flight. 5.2
+       shows the merge step, and the risk rows are replaced. The review's other
+       option (leave `AdminStore.cs` untouched) is not taken, because the
+       coordinator chose the order.
+  2. **Minor, audit-row clean-up.** The `finally` no longer deletes audit rows. They
+     stay, as `ListPagingTests.cs:176` does, because the app login cannot delete them
+     (`AuditLogPermissionTests.cs:46-48`). T7 finds its row by entity id and time.
+     There is a new risk row (5.1, Risks).
+  3. **Minor, the save's answer.** 3.1 step 5 names the mechanism. On success,
+     `SaveErrorPageAsync` reloads with `LoadAsync("pages", id)` and presents the 3.2
+     shape from that. A failure outcome is returned as it is. `MutateAsync` is not
+     changed, so "No change to any existing method" stays true.
+  4. **Minor, refused saves show only the title.** A 400 on Save now fills the same
+     per-card list as a blocked publish (3.5). New S7. Mapping the keys to fields is
+     left to ADM-14 by name ("field errors mapped to fields", audit line 236).
+  5. **Minor, unlisted behaviour changes.** The 409 and 404 titles are not remapped.
+     B9 lists them, and the 400 field keys. The new section's `SortOrder` is now 0, as
+     today, so that change is gone (3.1, B-list).
+  6. **Minor, rollback and a stale working copy.** Section 8 now says to publish or
+     discard any "changed" `error-404` or `error-500` through Pages, before the revert
+     or right after it and before any save on the reverted screen.
+  7. **Minor, no tests for (c).** New T12 (save stores it; 501 characters gives 400
+     "is longer than 500 characters."; a missing key keeps the stored value) and S8
+     (the field is sent on Save), both "(c) only". 3.4 (c) now says a missing key
+     keeps the value. 5.2 says where they go if (c) comes late (commit 5a), with
+     coverage rows.
+  8. **Minor, 2.8's restore claim.** Corrected. Only `BuildContentTests` restores.
+     `AdminApiTests` leaves new drafts, and `ContentPublishTests` keeps what it finds.
+     The risk row now rests on the helper, which accepts any starting state.
+  9. **Minor, inconsistencies.**
+     - 5.5 and section 9 now say "T1 to T7, T9 and E1" are red, with T8, T10 and T11
+       as guards.
+     - T2 does its own set-up and save.
+     - The G3 track row is cited at line 17.
+     - `EmptyDoc` moves to `ContentStore` and is removed from `AdminStore` (3.1,
+       Scope).
+  - Also fixed: 3.4 said "commits 1 to 4 and 6 to 7". It now says commits 1 to 4, in
+    the 4.1 order.
+  - **Owner questions:** unchanged. O-ADM05-1 (O-16), O-ADM05-2 and O-ADM05-3 are
+    PENDING. Nothing is assumed. The reviewer confirmed that no answer to O-16 is on
+    record.
 
-Plan state: round 1, ready for plan review. Delivery waits on O-ADM05-1 (O-16) for
-commit 5 and on O-ADM05-2 for the CI red. Gate 1 does not.
+Plan state: round 2, ready for plan review. Gate 1 may proceed with the owner
+questions open, under the conditions the review states. Delivery waits on O-ADM05-1
+(O-16) for commit 5, on O-ADM05-2 for the CI red, and on ADM-10's merge for commit 3.
