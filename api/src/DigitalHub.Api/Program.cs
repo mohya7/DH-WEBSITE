@@ -74,6 +74,7 @@ builder.Services.AddSingleton<CollectionSchemaSet>();
 builder.Services.AddScoped<ContentStore>();
 builder.Services.AddScoped<MediaLibrary>();
 builder.Services.AddScoped<AdminStore>();
+builder.Services.AddScoped<UserAccessStore>();
 builder.Services.AddScoped<PublicContactStore>();
 builder.Services.AddScoped<ApplicationIntake>();
 builder.Services.AddSingleton<ApplyThrottle>();
