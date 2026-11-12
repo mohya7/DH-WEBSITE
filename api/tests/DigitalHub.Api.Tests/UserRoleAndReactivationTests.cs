@@ -327,6 +327,35 @@ public sealed class UserRoleAndReactivationTests : IClassFixture<ApiFactory>
         Assert.Contains("admin", await RolesAsync(me));
     }
 
+    // T17 (test report round 1, finding 1): the own-role refusal compares the loaded user,
+    // not the id as typed. SQL Server's = ignores trailing spaces, and the id column's
+    // collation ignores case, so either spelling loads the actor's own row.
+    [Fact]
+    public async Task An_admin_cannot_change_their_own_role_through_another_spelling_of_their_id()
+    {
+        // A dedicated admin, so a red run demotes only this test's user; the primary admin stays active.
+        var admin = await AdminAsync();
+        var email = NewEmail("t17");
+        var password = TestPassphrase.New();
+        var id = await CreateUserAsync(admin, email, "admin", password);
+        try
+        {
+            var self = await AuthSession.LoginAsync(_client, email, password);
+            Assert.Equal(HttpStatusCode.OK, self.Status);
+
+            foreach (var spelling in new[] { id.ToUpperInvariant(), id + "%20" })
+            {
+                var refused = await SendAsync(self, HttpMethod.Put, $"/api/v1/users/{spelling}/role", new { role = "editor" });
+                Assert.True(refused.Status == HttpStatusCode.BadRequest && Code(refused.Body) == "cannot_change_own_role", Describe("change own role as " + spelling, refused));
+                Assert.Equal(["admin"], await RolesAsync(id));
+            }
+        }
+        finally
+        {
+            await DeactivateQuietlyAsync(id);
+        }
+    }
+
     // T9
     [Fact]
     public async Task A_role_change_waits_for_the_users_lock_and_then_refuses_as_busy()
