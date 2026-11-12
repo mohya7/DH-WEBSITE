@@ -109,9 +109,18 @@ const ok = (body: unknown, status = 200): Reply => ({ ok: true, status, body, pr
 const fail = (status: number, problem: Problem): Reply => ({ ok: false, status, body: problem, problem });
 
 type Answers = {
-  save?: (page: ErrorPage, sent: { version: number; title: string; body: string }) => Reply;
-  publish?: (id: string, sent: { version: number }) => Reply;
+  save?: (page: ErrorPage, sent: { version: number; title: string; body: string }) => Reply | Promise<Reply>;
+  publish?: (id: string, sent: { version: number }) => Reply | Promise<Reply>;
 };
+
+/** An answer the test releases itself, to hold a request in flight. */
+function held() {
+  let release: (reply: Reply) => void = () => {};
+  const answer = new Promise<Reply>((resolve) => {
+    release = resolve;
+  });
+  return { answer, release: (reply: Reply) => release(reply) };
+}
 
 /** An error-pages API holding these pages. Save and publish answer as the test says. */
 function errorPagesApi(pages: ErrorPage[], answers: Answers = {}) {
@@ -295,5 +304,62 @@ describe("error pages screen", () => {
     await waitFor(() => expect(within(cardOf("404")).queryByText("media: m-1 is not in the library.")).toBeNull());
     expect(within(cardOf("404")).queryByText("One or more fields are invalid.")).toBeNull();
     expect(publishButton("404").disabled).toBe(false);
+  });
+
+  // Test report round 1, Minor 1: a double-click sent a second request with the same version.
+  it("sends one save while a save is in flight", async () => {
+    const pages = [errorPage("404", "draft"), errorPage("500", "draft")];
+    const accept = acceptSave(pages);
+    const pending = held();
+    const seen: { first: { page: ErrorPage; sent: { version: number; title: string; body: string } } | null } = { first: null };
+    api.handler = errorPagesApi(pages, {
+      save: (page, sent) => {
+        if (seen.first !== null) return fail(409, { code: "concurrency_conflict", title: "This item was changed by someone else." });
+        seen.first = { page, sent };
+        return pending.answer;
+      },
+    });
+    await renderScreen();
+
+    fireEvent.change(titleInput("404"), { target: { value: "Lost" } });
+    fireEvent.click(saveButton("404"));
+    await waitFor(() => expect((saveButton("404") as HTMLButtonElement).disabled).toBe(true));
+    fireEvent.click(saveButton("404"));
+    expect(api.calls.filter((call) => call.method === "PUT")).toHaveLength(1);
+
+    pending.release(accept(seen.first!.page, seen.first!.sent));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("404 page saved."));
+    await waitFor(() => expect((saveButton("404") as HTMLButtonElement).disabled).toBe(false));
+    expect(api.calls.filter((call) => call.method === "PUT")).toHaveLength(1);
+    expect(screen.queryByText("Someone else changed this page.")).toBeNull();
+  });
+
+  it("sends one publish while a publish is in flight", async () => {
+    const pages = [errorPage("404", "draft"), errorPage("500", "draft")];
+    const pending = held();
+    let publishes = 0;
+    api.handler = errorPagesApi(pages, {
+      publish: (id) => {
+        publishes += 1;
+        if (publishes > 1) return fail(409, { code: "concurrency_conflict", title: "This item was changed by someone else." });
+        return pending.answer.then((reply) => {
+          const page = pages.find((item) => item.id === id)!;
+          pages.splice(pages.indexOf(page), 1, { ...page, version: page.version + 1, status: "published", state: "published" });
+          return reply;
+        });
+      },
+    });
+    await renderScreen();
+
+    fireEvent.click(publishButton("404"));
+    await waitFor(() => expect(publishButton("404").disabled).toBe(true));
+    fireEvent.click(publishButton("404"));
+    expect(publishes).toBe(1);
+
+    pending.release(ok({ id: "p-404", state: "published", status: "published", version: 4, warnings: {} }));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("404 page published. Changes appear on the website at the next build."));
+    await waitFor(() => expect(publishButton("404").disabled).toBe(false));
+    expect(publishes).toBe(1);
+    expect(screen.queryByText("Someone else changed this page.")).toBeNull();
   });
 });
