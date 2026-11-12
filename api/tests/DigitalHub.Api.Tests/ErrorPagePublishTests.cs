@@ -256,6 +256,31 @@ public sealed class ErrorPagePublishTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task An_item_in_another_collection_with_an_error_page_slug_still_needs_a_meta_description()
+    {
+        /* Test report round 1, Minor 3: pins the collection half of the exemption.
+           Only the pages error-404 and error-500 are exempt; a service with the slug
+           error-404 lives at /services/error-404, an address of its own. */
+        const string slug = "error-404";
+        await RemoveServicesAsync(slug);
+        var editor = await Editor();
+        var created = await SendAsync(editor, HttpMethod.Post, "/api/v1/services", new { slug, title = "A service named like an error page" });
+        Assert.True(created.Status == HttpStatusCode.Created, created.Body);
+        var id = JsonDocument.Parse(created.Body).RootElement.GetProperty("id").GetGuid();
+        try
+        {
+            var refused = await SendAsync(editor, HttpMethod.Post, "/api/v1/services/" + id + "/publish", new { version = Version(created.Body) });
+            Assert.True(refused.Status == HttpStatusCode.BadRequest, refused.Body);
+            Assert.Equal("publish_blocked", Code(refused.Body));
+            Assert.True(JsonDocument.Parse(refused.Body).RootElement.GetProperty("errors").TryGetProperty("metaDescription", out _), refused.Body);
+        }
+        finally
+        {
+            await RemoveServicesAsync(slug);
+        }
+    }
+
+    [Fact]
     public async Task A_save_on_a_draft_error_page_stays_out_of_the_build()
     {
         var pages = await ErrorPagesAsync(ContentStatus.Draft);
@@ -454,6 +479,18 @@ public sealed class ErrorPagePublishTests : IClassFixture<ApiFactory>
 
         var response = await SendAsync(await Admin(), HttpMethod.Delete, "/api/v1/pages/" + id + "?version=" + version);
         Assert.Equal(HttpStatusCode.NoContent, response.Status);
+    }
+
+    /// <summary>Removes services with this slug, their sections with them; one may be left by an earlier failed run.</summary>
+    private async Task RemoveServicesAsync(string slug)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var database = scope.ServiceProvider.GetRequiredService<ContentDbContext>();
+        var services = await database.Services.Where(service => service.Slug == slug).ToListAsync();
+        if (services.Count == 0)
+            return;
+        database.Services.RemoveRange(services);
+        await database.SaveChangesAsync();
     }
 
     private async Task<JsonElement> ReadBuildAsync()
