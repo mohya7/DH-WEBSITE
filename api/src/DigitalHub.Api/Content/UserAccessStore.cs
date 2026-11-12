@@ -44,7 +44,7 @@ public sealed class UserAccessStore(ContentDbContext db, UserManager<Application
 
         // 2. Never your own role (another admin does it), as for deactivate.
         if (string.Equals(id, actorId, StringComparison.Ordinal))
-            return ContentOutcome.Fail(StatusCodes.Status400BadRequest, "cannot_change_own_role", "You cannot change your own role.");
+            return OwnRole();
 
         // 3. The lock is the first statement in the transaction; every read below is inside it.
         await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
@@ -55,6 +55,10 @@ public sealed class UserAccessStore(ContentDbContext db, UserManager<Application
         var user = await users.FindByIdAsync(id);
         if (user is null)
             return Missing(Gone);
+        // Step 2 again, on the loaded row: the id as typed may be another spelling of the
+        // actor's own id (a trailing space or another case), which SQL Server still matches.
+        if (string.Equals(user.Id, actorId, StringComparison.Ordinal))
+            return OwnRole();
         var current = (await users.GetRolesAsync(user)).Where(Roles.IsKnown).ToList();
         if (current.Count == 0)
             return Missing(Gone);
@@ -217,6 +221,9 @@ public sealed class UserAccessStore(ContentDbContext db, UserManager<Application
         result.Errors.Any(error => error.Code == nameof(IdentityErrorDescriber.ConcurrencyFailure))
             ? ContentOutcome.Fail(StatusCodes.Status409Conflict, "concurrency_conflict", "Someone else changed this user. Reload and try again.")
             : ContentOutcome.Fail(StatusCodes.Status400BadRequest, "validation_failed", title);
+
+    private static ContentOutcome OwnRole() =>
+        ContentOutcome.Fail(StatusCodes.Status400BadRequest, "cannot_change_own_role", "You cannot change your own role.");
 
     private static ContentOutcome Busy() =>
         ContentOutcome.Fail(StatusCodes.Status503ServiceUnavailable, "users_busy", "Another change to the users is in progress. Try again.");
