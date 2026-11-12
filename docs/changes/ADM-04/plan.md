@@ -4,11 +4,22 @@ Change id: `ADM-04`. Branch: `change/ADM-04`, worktree `/home/user/dh-change-adm
 cut from `origin/rebuild/dotnet-platform` at `32f0414` (ADM-07 merged as #55). The base
 is now `2bbd586` (ADM-10 merged as #56). The developer merges it in first (4.1).
 
-Architect, round 2, 12 November 2026. Round 1 (`4ad921b`) came back CHANGES NEEDED
-(`plan-review.md` Round 1 at `81a105c`: two Majors, nine Minors). Section 12 answers
-each one. The owner has answered all three questions (section 9).
+Architect, round 3, 12 November 2026. Round 2 (`80e734b`) came back CHANGES NEEDED
+(`plan-review.md` Round 2 at `0ff4c77`: R2-1 Major, R2-2 and R2-3 Minor). The round 3
+changes:
 
-The main changes since round 1:
+- T15's gate now matches only `[AspNetUserRoles]` reads, which the store makes only
+  after the lock and authentication never makes, and the traces are re-derived (R2-1).
+- A new T16 reaches the deactivated-actor branch through a manually released gate
+  (R2-2).
+- ADM-05's head is updated (R2-3).
+
+Section 12 answers each one.
+
+Round 1 (`4ad921b`) came back CHANGES NEEDED (`plan-review.md` Round 1 at `81a105c`:
+two Majors, nine Minors). The owner has answered all three questions (section 9).
+
+The main changes in round 2:
 
 - A new test, T15, runs the two demotions at the same moment, and the actor is checked
   again inside the lock (F-1, F-6).
@@ -109,9 +120,15 @@ e8dc356 ADM-05: Exempt the 404 and 500 pages from the meta-description rule
 ```
 
 - **ADM-10 has merged** (#56, `2bbd586`).
-- **ADM-05 has not merged.** The coordinator gave its head as `e04e57a`. Since then the
-  remote has moved one commit on, to `294fb4d`, which adds a test report and no source
-  file.
+- **ADM-05 has not merged.** The coordinator gave its head as `e04e57a`. The remote
+  has since moved on: to `294fb4d` (round 2), and then to `741d70c` (round 3,
+  `git ls-remote origin refs/heads/change/ADM-05`).
+  - The reviewer's Round 2 check: `git diff --name-only e04e57a origin/change/ADM-05`
+    lists only `ErrorPagePublishTests.cs`, `ErrorPagesPage.tsx`,
+    `errorPages.test.tsx` and ADM-05 docs.
+  - Every `origin/change/*` head was re-checked, and none touches a file in this
+    change's scope.
+  - 4.1 step 3 re-checks before each source commit, so later moves are caught there.
 - The open pull requests in round 1 were #57 (`change/ADM-05-red`, "do not merge") and
   #44 (`change/GAP-07`, `.github/` only).
 
@@ -351,10 +368,13 @@ any read of the target, the actor or the admins:
 `sp_getapplock @Resource = N'digitalhub:admins', @LockMode = N'Exclusive', @LockOwner =
 N'Transaction', @LockTimeout = 5000`. A result below 0 means roll back and answer 503
 `users_busy` "Another change to the users is in progress. Try again." Every read
-below is inside the lock, and T15 proves it (F-1).
+below is inside the lock. T15 proves it for the target and actor reads; the count's place is review-only (5.1).
 
 **The actor is checked again inside the lock (F-6).** It is the
-`EnsureActorAsync(actorId)` step below. It reloads the actor by id. If the actor is
+`EnsureActorAsync(actorId)` step below. It reloads the actor by id with fresh
+queries: `db.Users.AsNoTracking()` for the lockout fields, and a roles query on
+`AspNetUserRoles`. It never trusts an entity already tracked by the request's
+`ContentDbContext`, so a change committed while the request waited is seen. If the actor is
 gone, deactivated (`IsDeactivated`) or no longer in role `admin`, the answer is 403
 `forbidden` "You do not have access to this resource." (the text of
 `Program.cs`'s `OnForbidden`), and nothing is written. A request sent by an admin who
@@ -369,8 +389,10 @@ The token was valid when the request started; the database decides at the write.
    create text).
 2. If `id == actorId`: 400 `cannot_change_own_role` "You cannot change your own role."
 3. Begin a transaction and take the users lock. If it fails: 503 `users_busy`.
-4. Load the target (`FindByIdAsync`) and its roles. No user, or no Studio role
-   (`Roles.IsKnown`): 404 "That user does not exist."
+4. Load the target (`FindByIdAsync`) and its roles (`GetRolesAsync`, a read of
+   `[AspNetUserRoles]` with the target's id as a parameter). This roles read is the
+   one T15 and T16 hold (5.1). No user, or no Studio role (`Roles.IsKnown`): 404 "That
+   user does not exist."
 5. A deactivated target: 400 `user_deactivated` "Reactivate this user before changing
    their role."
 6. **The last-admin guard.** Applies when the target's roles include `admin` and the
@@ -540,7 +562,7 @@ What the screen does:
 | `api/src/DigitalHub.Api/Content/UserAccessStore.cs` | `ChangeRoleAsync`, `ReactivateAsync`, `UserRoleChange`, the users lock, `EnsureActorAsync`, private helpers (3.1) |
 | `api/src/DigitalHub.Api/Identity/TemporaryPassword.cs` | The temporary-password generator, copied (3.1) |
 | `api/tests/DigitalHub.Api.Tests/UserRoleAndReactivationTests.cs` | T1 to T14 (5.1) |
-| `api/tests/DigitalHub.Api.Tests/UserRoleConcurrencyTests.cs` | T15, with its own gated factory (5.1) |
+| `api/tests/DigitalHub.Api.Tests/UserRoleConcurrencyTests.cs` | T15 and T16, with their own gated factory filtered on `[AspNetUserRoles]` (5.1) |
 | `api/tests/DigitalHub.Api.Tests/ReactivationLogTests.cs` | T10, with its own logging factory (5.1) |
 | `studio/test/users.test.tsx` | S1 to S7 (5.1) |
 | `studio/e2e/users.spec.ts` | E1 (5.1) |
@@ -662,7 +684,7 @@ until ADM-04b" line.
 | T11 | `Editors_and_HR_cannot_change_roles_or_reactivate` | An editor and an HR user each get 403 on `PUT /api/v1/users/{id}/role` and on `POST /api/v1/users/{id}/reactivate`. The target is unchanged | 404 by routing (the reviewer agrees). It guards the policy |
 | T12 | `Creating_a_deactivated_email_is_still_email_taken` | Create E, deactivate E, then `POST /api/v1/users` with E's email in upper case: 409 `email_taken`. Nothing is created | **Green at base.** It pins the API contract the screen relies on |
 | T13 | `A_refresh_that_races_a_role_change_cannot_keep_the_old_role` (F-5) | Editor E signs in (session S). Read S's family id from the access token's `sid` claim (`JwtSecurityTokenHandler`, as `SessionCheckTests` does). Admin changes E to `hr`. Then, through `ContentDbContext`, add one live `RefreshToken` row in that family (`UserId` E, random `TokenHash` and `CsrfTokenHash`, `ExpiresAt` +1 day, `CreatedAt` and `SessionStartedAt` now). That row stands for the write of a refresh that read the user before the change and saved after it. S's access token, which carries the old stamp just as the racing refresh's new token would: 401 on `GET /api/v1/pages`. `finally`: the row is revoked | 404 at the change step. **It is also red after a fix that only revokes tokens**: the family is live again, so without the stamp rotation S answers 200 |
-| T14 | `A_demoted_or_deactivated_admin_cannot_finish_a_users_change` (F-6) | Create admin Y, editor E and a deactivated editor D; Y signs in. Through `UserManager`, remove Y's admin role (Y's token still says admin). Other admins, including the primary admin, stay active. Y sends `PUT /api/v1/users/{E}/role` `{ role: "admin" }`: 403 `forbidden`, and E is still an editor. Y sends `POST /api/v1/users/{D}/reactivate`: 403 `forbidden`, and D is still deactivated. Repeat with Y deactivated in place of demoted: both 401 (`SessionCheck`). `finally`: Y deactivated | 404 |
+| T14 | `A_demoted_or_deactivated_admin_cannot_finish_a_users_change` (F-6) | Create admin Y, editor E and a deactivated editor D; Y signs in. Through `UserManager`, remove Y's admin role (Y's token still says admin). Other admins, including the primary admin, stay active. Y sends `PUT /api/v1/users/{E}/role` `{ role: "admin" }`: 403 `forbidden`, and E is still an editor. Y sends `POST /api/v1/users/{D}/reactivate`: 403 `forbidden`, and D is still deactivated. Repeat with Y deactivated in place of demoted: both 401. That 401 comes from `SessionCheck`, before the store runs, so it pins the outer layer only; the store's deactivated-actor branch is T16's (R2-2). `finally`: Y deactivated | 404 |
 
 **T10, `api/tests/DigitalHub.Api.Tests/ReactivationLogTests.cs`** (F-2),
 `[Collection("SqlServer")]`, with its own `IClassFixture<LoggingFactory>`. The factory
@@ -682,39 +704,128 @@ derives from `ApiFactory` and follows `RateLimitLogTests.LoggingFactory`
 | --- | --- | --- | --- |
 | T10 | `A_reactivation_password_appears_in_no_application_log_event_and_no_audit_row` | Create and deactivate editor E. Clear the sink. Reactivate E through HTTP: 200, and take `temporaryPassword`. Then, for every captured event: the rendered message, every property's `ToString()` and the exception's `ToString()` do not contain the password. The sink has at least one event from this request (the request log line for `POST /api/v1/users/{E}/reactivate`), so the test cannot pass on an empty sink. The audit row for E has a `Detail` that does not contain it either. `finally`: E deactivated | The reactivation returns 404, so the first assertion (200) fails. That is the status, not a missing sink: the request-log assertion would pass at base |
 
-**T15, `api/tests/DigitalHub.Api.Tests/UserRoleConcurrencyTests.cs`** (F-1),
-`[Collection("SqlServer")]`, with its own `IClassFixture<GatedUsersFactory>`. The
-factory follows `RedirectConcurrencyTests.GatedApiFactory` (201-211). It adds a
-`DbCommandInterceptor`, `UserReadGate`, modelled on `RedirectReadGate` (225-290):
+**T15 and T16, `api/tests/DigitalHub.Api.Tests/UserRoleConcurrencyTests.cs`** (F-1,
+R2-1, R2-2), `[Collection("SqlServer")]`, with its own
+`IClassFixture<GatedUsersFactory>`. The factory follows
+`RedirectConcurrencyTests.GatedApiFactory` (201-211). It adds a `DbCommandInterceptor`,
+`UserRolesReadGate`, modelled on `RedirectReadGate` (225-290).
 
-- While armed with a set of user ids, it holds every reader command that has a
-  parameter equal to one of them.
-- It releases what it holds when two commands have arrived, or when the cap has
-  passed, and then disarms, so nothing later is held. It counts `Matched`.
-- The cap is 2 s. The users lock timeout is 5 s. Both are constants in the test with
+**What the gate matches (R2-1).** A reader command matches only if both hold:
+
+- its `CommandText` contains `[AspNetUserRoles]`, the table filter, as ADM-07's gate
+  filters on `FROM [redirects]` (`RedirectConcurrencyTests.cs:285-287`);
+- one of its parameters equals one of the armed user ids.
+
+Who reads `[AspNetUserRoles]` with a user id as a parameter:
+
+- **The store, after the lock:**
+  - the target's `GetRolesAsync` (3.1 step 4);
+  - `EnsureActorAsync`'s roles query for the actor (3.1 step 7).
+  - The admin count (`GetUsersInRoleAsync`, step 6) joins `AspNetUserRoles` on the
+    *role* id, so it carries no user id and does not match.
+- **Nothing during authentication:**
+  - `SessionCheck.ValidateAsync` reads `AspNetUsers` (`SessionCheck.cs:40-43`) and
+    `RefreshTokens` (55-57).
+  - The JWT handler takes roles from claims.
+  - `PasswordChangeGate` reads `HttpContext.Items`.
+  - None of these reads `AspNetUserRoles`. These are exactly the reads that tripped the
+    round 2 gate.
+- **Sign-in also reads it** (`AuthController.Login`, `GetRolesAsync`). That is why
+  every sign-in in these tests happens before the gate is armed.
+
+**How the gate behaves:**
+
+- **Default mode (T15):** it releases what it holds when two commands have matched, or
+  when the cap has passed. It then disarms, so nothing later is held.
+- **Manual mode (T16):** it holds the first matching command until the test calls
+  `Release()`, or until a 10 s safety cap passes, and then disarms.
+- It records `Matched` and the `CommandText` of each matched command.
+- The cap is 2 s. The users lock timeout is 5 s. Both are constants in the test, with
   the coupling comment from `RedirectConcurrencyTests.cs:25-35`, and the test asserts
   `2 * cap <= lock timeout`.
 
+**Proof that authentication does not match (R2-1).** Every test in this class starts
+with a warm-up:
+
+1. Arm the gate with the test's ids.
+2. Send `GET /api/v1/pages` with each signed-in session. That route runs
+   `SessionCheck`, and `ContentStore` reads no users or roles.
+3. Assert `Matched` is 0.
+4. Disarm and re-arm.
+
+Each matched `CommandText` is written to `ITestOutputHelper`, as ADM-07 logged
+`ToQueryString`. The developer quotes those lines in `implementation.md` at commit 3,
+showing that every one is an `[AspNetUserRoles]` read issued by `UserAccessStore`.
+
 | Id | Name | Asserts | Red at base because |
 | --- | --- | --- | --- |
-| T15 | `Two_admins_demoting_each_other_at_once_leave_one_admin` | Ensure the primary admin is active. Create admins A and B, and sign both in. Arm the gate with {A, B}. Send, at once, A's `PUT /api/v1/users/{B}/role` `{ role: "editor" }` and B's `PUT /api/v1/users/{A}/role` `{ role: "editor" }`. Then: exactly one answer is 200 and the other is 403 `forbidden`; exactly one of A and B is still an admin in the database; `Gate.Matched` is 1. `finally`: disarm, deactivate A and B | 404 for both, so "exactly one 200" fails |
+| T15 | `Two_admins_demoting_each_other_at_once_leave_one_admin` | Ensure the primary admin is active. Create admins A and B, and sign both in. Warm-up (`Matched` 0). Arm the gate with {A, B}, default mode. Send, at once, A's `PUT /api/v1/users/{B}/role` `{ role: "editor" }` and B's `PUT /api/v1/users/{A}/role` `{ role: "editor" }`. Then: exactly one answer is 200 and the other is 403 `forbidden`; exactly one of A and B is still an admin in the database; `Gate.Matched` is 1, and that command's text contains `[AspNetUserRoles]`. `finally`: disarm, deactivate A and B | 404 for both, so "exactly one 200" fails (no store, so `Matched` is also 0) |
+| T16 | `An_admin_deactivated_while_their_role_change_waits_cannot_finish_it` (R2-2) | Ensure the primary admin is active. Create admin B and editor X, and sign B in. Warm-up (`Matched` 0). Arm the gate with {X}, manual mode. Start B's `PUT /api/v1/users/{X}/role` `{ role: "hr" }` without awaiting it. Wait until `Matched` is 1, polling every 50 ms for up to 5 s: B's request now holds the users lock and is held at X's roles read (3.1 step 4). Through `UserManager` in a separate scope, deactivate B (`LockoutEnabled` true, `LockoutEnd` `DateTimeOffset.MaxValue`). This writes `AspNetUsers` directly and takes no app lock, so it does not wait on B's request. Call `Release()`. B's answer: 403 `forbidden`. X is still an editor, and X's sessions and stamp are unchanged. `finally`: release, disarm, deactivate X, leave B deactivated | 404 at once and `Matched` 0, so the wait for `Matched` 1 times out (the test fails there with a message naming the step) |
 
-Why T15 fails if any read moves before `sp_getapplock`:
+**T15, traced with the new filter (R2-1):**
 
-- **At green:** the request that takes the lock first reads the target or the actor by
-  id, and the gate holds that read. The other request waits in `sp_getapplock`, which
-  is not a reader command and carries neither id. So only one command arrives, and
-  the gate releases at the cap. The first request commits. The second then gets the
-  lock, re-reads its actor, which has just lost the admin role, and answers 403.
-  `Matched` is 1.
-- **If the target or actor reads (or the admin count) ran before the lock:** both
-  requests' first reads would reach the gate, so two commands match and both are
-  released together. Both requests would see two active admins and a valid actor. Both
-  would demote, leaving neither A nor B an admin, and `Matched` would be 2. The test
-  fails on all three assertions.
+- **At green:**
+  1. Both requests pass `SessionCheck`. That reads `AspNetUsers` and `RefreshTokens`,
+     so there is no match (the warm-up shows it).
+  2. Each request reaches `UserAccessStore`, begins its transaction and calls
+     `sp_getapplock`, a non-query command the reader gate never sees. Say A gets the
+     lock and B waits in `sp_getapplock`.
+  3. A loads B from `AspNetUsers` (no match), then reads B's roles from
+     `[AspNetUserRoles]` with B's id. That is match 1, and the gate holds it.
+  4. B's request is still waiting for the lock, so it issues no reader command, and
+     nothing else matches. At the 2 s cap the gate releases A's read and disarms.
+  5. A runs the count (no user-id parameter), the actor check on A (after the disarm,
+     so not held), and the write, and commits. That releases the lock, about 2 s after
+     B began waiting, under the 5 s timeout.
+  6. B gets the lock. It reads A's roles (the gate is disarmed), then the actor check
+     reads B: B is no longer admin, so 403.
+  - Result: one 200 and one 403, exactly one of A and B is admin, and `Matched` is 1.
+- **Broken: the target load or the actor check runs before `sp_getapplock`.**
+  1. Both requests issue an `[AspNetUserRoles]` read before taking the lock: A's with
+     B's id (target) or A's id (actor), and B's with A's or B's id.
+  2. Both ids are armed, so the gate holds A's read (match 1) and then B's (match 2),
+     and releases both together. The two requests are now aligned: each has read the
+     other still admin and itself still admin.
+  3. They then serialise on the lock only for the write. Neither re-reads, so both
+     write.
+  - Result: two 200s, neither A nor B admin, and `Matched` 2. All three assertions
+    fail.
+  - It is deterministic. The gate guarantees that both pre-lock reads happen before
+    either write, because a held read is released only when the other has arrived.
+- **What T15 does not catch:** the admin count alone (3.1 step 6) moving out of the
+  lock while the target and actor reads stay inside.
+  - That move cannot change any outcome. Inside the lock, the actor check proves the
+    actor is an active admin other than the target, and the actor stays one after the
+    write.
+  - Role writes are serialised by the lock. Deactivate is not, until ADM-04b (4.2).
+  - So at least one active admin always remains, whatever the count read.
+  - The count's place inside the lock is therefore **covered by review only**. It is
+    stated so here, and in the coverage table.
 
-T15 is what proves the coverage row "Concurrent role changes cannot both pass the
-guard". T9 proves only the 503 path.
+**T16, traced:**
+
+- **At green:**
+  1. B passes `SessionCheck` (no match) and takes the lock.
+  2. B loads X from `AspNetUsers` (no match), then reads X's roles. That is match 1,
+     and the gate holds it.
+  3. The test sees `Matched` 1 and deactivates B in its own scope. B's request holds
+     only the app lock and has not read or locked B's row, so the update commits at
+     once.
+  4. `Release()`. B's request runs the count (no match).
+  5. `EnsureActorAsync` reads B fresh (`AsNoTracking`, 3.1) and finds B deactivated:
+     403. Nothing is written.
+- **Broken: the actor check runs before the lock, or uses data read before the hold.**
+  B is found active and admin, and X becomes hr with 200. The test fails.
+- **What T16 covers:** the deactivated branch of `EnsureActorAsync` on the role route.
+  On the reactivate route the actor check comes before any `[AspNetUserRoles]` read
+  of the target (3.1 Reactivate step 1), so a hold cannot be placed between the
+  check's two reads. That route's deactivated-actor branch is the same method and the
+  same condition, and is **covered by review only** (R2-2). Its demoted-actor branch
+  is T14's.
+
+T15 and T16 are what prove the coverage rows "Concurrent role changes cannot both pass
+the guard" and "A demoted or deactivated actor cannot finish an in-flight change". T9
+proves only the 503 path.
 
 **Studio, `studio/test/users.test.tsx`** (vitest, jsdom). The harness:
 
@@ -773,12 +884,12 @@ CI job `studio` runs "Unit tests" (`ci.yml:237`) before "End-to-end suite"
 
 0. **Merge** `origin/rebuild/dotnet-platform` (`2bbd586`) into `change/ADM-04` (4.1
    step 2). Not a rebase.
-1. `ADM-04: Test role change and reactivation in the API and end-to-end`. T1 to T15 and
+1. `ADM-04: Test role change and reactivation in the API and end-to-end`. T1 to T16 and
    E1, in test files only, touching no shared file.
 2. `ADM-04: Test role change and reactivation on the users screen`. S1 to S7.
 3. `ADM-04: Change roles and reactivate users in the API`. Adds
    `UserAccessController.cs`, `UserAccessStore.cs`, `TemporaryPassword.cs`, and
-   `Program.cs`. Makes T1 to T11, T13, T14 and T15 green.
+   `Program.cs`. Makes T1 to T11 and T13 to T16 green.
 4. `ADM-04: Change roles and reactivate from the users screen`. Changes
    `UsersPage.tsx`. Makes S1, S2, S4 to S6 and E1 green.
 5. `ADM-04: Implementation record`.
@@ -800,7 +911,7 @@ cd studio && npm ci && npx tsc -b
 
 - Expected: 0 errors, since HTTP-only tests compile against the base. No more build
   warnings than the base's 13 (ADM-07 2.6).
-- T1 to T15 and E1 need SQL Server. Without it they fail at the connection, which is
+- T1 to T16 and E1 need SQL Server. Without it they fail at the connection, which is
   not the red. Record them as NOT RUN locally, covered by CI jobs `api` and `studio`
   (5.4).
 
@@ -839,10 +950,11 @@ cd website && CONTENT_SOURCE=snapshot PUBLIC_SITE_URL=https://digitalhub.com.eg 
 
 - `CareersTests.Authorization_matches_for_every_endpoint` must pass unchanged, with the
   two new routes in it (2.7).
-- `RedirectConcurrencyTests` and `RateLimitLogTests` are in the filter because T15 and
+- `RedirectConcurrencyTests` and `RateLimitLogTests` are in the filter because T15, T16 and
   T10 reuse their patterns, and both must stay green.
-- T15 runs three times in a row (`--filter FullyQualifiedName~UserRoleConcurrencyTests`,
-  three runs), each quoted, to show it is not flaky.
+- T15 and T16 run three times in a row (`--filter FullyQualifiedName~UserRoleConcurrencyTests`,
+  three runs), each quoted with the logged matched `CommandText` lines, to show they are
+  not flaky and that only `[AspNetUserRoles]` reads by the store matched (R2-1).
 - Any test that passed at the base and fails now is a regression. It is reported before
   anything is fixed.
 
@@ -853,7 +965,7 @@ cannot run is NOT RUN, with the reason and the CI job that covers it.
 ### 5.4 CI evidence on the pull request
 
 - **Red at commit 1** (O-ADM04-3 is "Yes, red tests first"):
-  - Job `api`: T1 to T11 and T13 to T15 fail, each at its assertion, quoted. T12 and
+  - Job `api`: T1 to T11 and T13 to T16 fail, each at its assertion, quoted. T12 and
     every existing test pass.
   - Job `studio`: unit tests pass (S1 to S7 are not in commit 1). In the end-to-end
     suite, E1 fails at step 2. Every other spec passes.
@@ -872,7 +984,7 @@ cannot run is NOT RUN, with the reason and the CI job that covers it.
 | Rule | How this change meets it |
 | --- | --- |
 | "The finding, its evidence and its fix come from `docs/quality/admin-audit-2026-10-28.md`" | Section 1 quotes it. Change role with the guard: 3.1. Reactivate: 3.1. O-15: decided (a), no delete (section 9). The matching UI: 3.2 |
-| "The regression test is committed and shown failing before the fix" | Commits 1 and 2 hold tests only. S1, S2, S4 to S6 are red locally. T1 to T11, T13 to T15 and E1 are red in CI at commit 1, pushed first under O-ADM04-3 "Yes, red tests first" |
+| "The regression test is committed and shown failing before the fix" | Commits 1 and 2 hold tests only. S1, S2, S4 to S6 are red locally. T1 to T11, T13 to T16 and E1 are red in CI at commit 1, pushed first under O-ADM04-3 "Yes, red tests first" |
 | "The end-to-end suite gets a test for each Major" | ADM-04 is a Blocker. E1 is added anyway, for the G3-1 "reproduced before its fix" gate |
 | "A Minor that is not fixed becomes a D-NNN entry" | Not a Minor. Nothing in the finding is left unfixed: delete is decided "no" by the owner |
 | G3-1 exit gate: "each blocker reproduced before its fix and passing after it" | T1, T4 and E1 reproduce "cannot have their role changed, be reactivated". T12 with S6 and E1 step 5 reproduce the "deactivated email" part. All pass after the fix |
@@ -897,7 +1009,7 @@ cannot run is NOT RUN, with the reason and the CI job that covers it.
     (active and still `admin`).
   - The actor's token only lets the request in; the database decides at the write.
   - So an admin who has been demoted or deactivated cannot finish a request that is
-    already in flight (T14), and two admins demoting each other cannot both succeed
+    already in flight (T14, T16), and two admins demoting each other cannot both succeed
     (T15).
   - The guard is reachable through HTTP only with such a stale actor, which is what
     T3 builds (3.1 step 6, F-6).
@@ -1022,16 +1134,16 @@ if any is not wanted.
 | --- | --- | --- |
 | The role change does not end the user's sessions | A demoted admin keeps admin rights for up to 10 minutes | T2 (old access token 401 on two routes, refresh 401, stamp changed), E1 step 3 |
 | A refresh racing the role change re-opens the family with the old role | A demoted admin gets a fresh 10-minute admin token | T13: red without the stamp rotation, green with it (F-5). That racing refresh also leaves a live refresh token in the family. Its next refresh issues a token with the new stamp and the **new** role, so the user keeps a session at the right role. Accepted: the role is correct |
-| A read (target, actor or admin count) runs before `sp_getapplock` | Two demotions both pass; no active admin is left | T15 (one 200 and one 403, one admin left, `Matched` 1), run three times (F-1) |
-| The actor is not re-checked inside the lock | A demoted admin's in-flight request promotes someone | T14 and T15 (F-6) |
+| A read (target, actor or admin count) runs before `sp_getapplock` | Two demotions both pass; no active admin is left | T15 (one 200 and one 403, one admin left, `Matched` 1, gate filtered on `[AspNetUserRoles]` after a `Matched` 0 warm-up), run three times (F-1, R2-1). The admin count alone moving out of the lock cannot change the outcome and is covered by review only (5.1) |
+| The actor is not re-checked inside the lock | A demoted admin's in-flight request promotes someone | T14, T15 and T16 (F-6, R2-2) |
 | The guard counts from the token, not the database, or counts the target | The last admin is demoted, or a valid demotion is refused | T3 (token says admin, database says editor), T1 (two active admins: allowed) |
 | A deactivate racing a demotion (deactivate takes no lock until ADM-04b) | No active admin; recovery needs database work | Not caught here. It is the same exposure two deactivates already have today. ADM-04b is scheduled right after ADM-05, inside G3-1 (4.2), and the PR body lists it (F-3) |
-| T9's or T15's constants drift from the store's | A test passes against a lock nobody takes, or turns flaky | Constants with coupling comments, as `RedirectConcurrencyTests.cs:25-35`. T9 asserts the wait is at least 4.5 s; T15 asserts `2 * cap <= timeout` |
+| T9's or T15's constants drift from the store's | A test passes against a lock nobody takes, or turns flaky | Constants with coupling comments, as `RedirectConcurrencyTests.cs:25-35`. T9 asserts the wait is at least 4.5 s; T15 and T16 assert `2 * cap <= timeout` |
 | Reactivation revives a session from before deactivation | A device used before the person left gets back in | T5 |
 | The temporary password leaks into logs or audit | A secret in the log store | T10, against the application's own sink at Verbose, with a non-empty-sink assertion (F-2) |
 | A reactivation fails half way | A user active with no password, or with the old one | One transaction, rolled back on any failed `IdentityResult` (3.1 step 6, F-7). T6 shows refused paths leave the user deactivated |
 | The temporary password is cached by a proxy or browser | A credential stored on disk | `Cache-Control: no-store` on reactivate (T4, F-9). Reset is still without it until ADM-04b |
-| T3, T14 or T15 leave admins locked or extra admins active | Later tests fail on sign-in, or must lock leftovers | `finally` restores every lockout changed, deactivates every admin made, and restores the primary admin. Collection `SqlServer` is serial (F-10) |
+| T3, T14, T15 or T16 leave admins locked or extra admins active | Later tests fail on sign-in, or must lock leftovers | `finally` restores every lockout changed, deactivates every admin made, and restores the primary admin. Collection `SqlServer` is serial (F-10) |
 | The new controller collides with `UsersController`'s routes | Ambiguous-route 500s | The templates differ. `CareersTests.Authorization_matches_for_every_endpoint` calls every route as admin |
 | The duplicate-key guard or the 4 KB cap is left off | A body with two `role` keys applies the last one, or a large body is buffered | T7, T6 |
 | A must-change admin can change roles | The gate is bypassed | `CareersTests` "must-change" expects 403 `password_change_required` on every route not marked allowed. The new actions carry no `AllowedBeforePasswordChange` |
@@ -1046,7 +1158,13 @@ if any is not wanted.
   - the 10-minute window after a demotion and the racing-refresh window (2.5);
   - the deactivate race (2.4);
   - T15's claim that `sp_getapplock` is not seen as a reader command by the
-    interceptor (as in ADM-07's gate, where it held).
+    interceptor (as in ADM-07's gate, where it held; the reviewer confirms it goes
+    through `ExecuteSqlRawAsync`).
+  - That Identity's `GetRolesAsync` SQL names `[AspNetUserRoles]` and passes the user
+    id as a parameter, and that sign-in is the only authentication-time reader of that
+    table. The table name is confirmed (`InitialPlatform.cs:233`). The SQL shape is
+    from memory of EF Core and Identity. The warm-up assertion (`Matched` 0) and the
+    logged `CommandText` (5.1) check both at run time, and the developer quotes them.
 - **Identity details, read from memory of ASP.NET Core Identity, not run:**
   - that `RemoveFromRolesAsync`, `AddToRoleAsync` and `UpdateSecurityStampAsync` save
     through `UpdateAsync` inside the open transaction (as `CreateUserAsync` relies
@@ -1067,8 +1185,8 @@ if any is not wanted.
 | --- | --- | --- | --- |
 | An admin can change another user's role (API) | ADM-04 Fix 1; FR-S-02 "assign roles"; `phase-b-studio.md` line 43 | Planned | |
 | The last-admin guard holds for role changes, from the database | ADM-04 Fix 1 "keeping the last-admin guard"; `phase-b-studio.md` 8.4, 10.11 | Planned (T3) | |
-| Concurrent role changes cannot both pass the guard | Found here (2.4); review F-1 | Planned (T15) | |
-| A demoted or deactivated actor cannot finish an in-flight change | Review F-6 | Planned (T14, T15) | |
+| Concurrent role changes cannot both pass the guard | Found here (2.4); review F-1 | Planned (T15 for the target and actor reads; the count's place in the lock by review only, 5.1) | |
+| A demoted or deactivated actor cannot finish an in-flight change | Review F-6, R2-2 | Planned (T14, T15, T16; the reactivate route's deactivated-actor branch by review only, 5.1) | |
 | A role change ends the user's sessions, including one re-opened by a racing refresh | Found here (2.5); review F-5; brief: "sessions and tokens of a ... demoted user" | Planned (T2, T13) | |
 | An admin cannot change their own role | Found here; mirrors `cannot_deactivate_self` (B3) | Planned (T8) | |
 | A deactivated user can be reactivated with a new temporary password (API) | ADM-04 Fix 2; O-ADM04-2 (a) | Planned (T4) | |
@@ -1174,6 +1292,52 @@ if any is not wanted.
     always created. The delete coverage row is "Decided". FR-S-02 "Works" no longer
     waits on an answer.
 
-Plan state: round 2, ready for plan review. All three owner questions are answered. No
+- **Round 3** (12 November 2026): answers `plan-review.md` Round 2 (`0ff4c77`, CHANGES
+  NEEDED, R2-1 Major, R2-2 and R2-3 Minor).
+  1. **R2-1, Major (T15's gate matched `SessionCheck`'s reads).** Agreed: the round 2
+     gate had no table filter, so `SessionCheck`'s `AspNetUsers` and `RefreshTokens`
+     reads by user id were the first two matches, and it disarmed before the lock.
+     - The gate (now `UserRolesReadGate`) matches only reader commands whose text
+       contains `[AspNetUserRoles]` and that carry an armed user id as a parameter, as
+       the coordinator suggested.
+     - The store makes that read only after the lock: the target's `GetRolesAsync`
+       (3.1 step 4) and the actor check's roles query (step 7). The admin count carries
+       the role id, not a user id. Authentication never reads the table: `SessionCheck`
+       reads `AspNetUsers` and `RefreshTokens`, the JWT handler reads claims, and
+       `PasswordChangeGate` reads `HttpContext.Items`. Sign-in does read it, so every
+       sign-in comes before arming.
+     - Each test starts with a warm-up: armed, authenticated `GET /api/v1/pages` per
+       session, assert `Matched` 0. Matched `CommandText` lines go to
+       `ITestOutputHelper`, and the developer quotes them in `implementation.md`, as
+       ADM-07 did with `ToQueryString`.
+     - The green and broken traces are re-derived step by step (5.1). Green: one match,
+       held to the cap while the other request waits in `sp_getapplock`; one 200, one
+       403, `Matched` 1. Broken (target or actor read before the lock): two held reads
+       released together, both write, `Matched` 2. Deterministic.
+     - **Stated limit:** the admin count alone moving out of the lock cannot change
+       any outcome, because the actor check inside the lock already guarantees an
+       active admin remains. Its place is covered by review only, as 5.1, Risks and the
+       coverage table say.
+     - 3.1 now requires `EnsureActorAsync` to read fresh (`AsNoTracking`, and a roles
+       query), never a tracked entity.
+  2. **R2-2, Minor (the deactivated-actor branch was not reached).**
+     - The new T16 reaches it with the corrected gate in manual mode. B's role change
+       is held at X's roles read inside the lock; the test deactivates B in its own
+       scope, then calls `Release()`. B gets 403 and X is unchanged.
+     - At base it fails at the wait for `Matched` 1.
+     - The same branch on the reactivate route cannot be held between the actor
+       check's reads, so it is stated as covered by review only (same method, same
+       condition).
+     - T14's deactivated variant is now described as pinning `SessionCheck`'s 401
+       only.
+  3. **R2-3, Minor (ADM-05's head moved).** 2.1 now gives `741d70c`, with the
+     reviewer's re-check that no `change/*` head touches a file in this change's scope.
+     4.1 step 3 stays the guard for later moves.
+  - Also updated: the scope row, commit 1 and 3 contents (T1 to T16), the red and
+    green lists in 5.3 to 5.5, the risk rows, and the three-run requirement, which now
+    covers T15 and T16 with their logged matches.
+  - **Owner answers:** unchanged from round 2.
+
+Plan state: round 3, ready for plan review. All three owner questions are answered. No
 commit waits on ADM-05, because this change touches none of its files. ADM-04b is
 scheduled as the first change after ADM-05 merges, inside G3-1.
