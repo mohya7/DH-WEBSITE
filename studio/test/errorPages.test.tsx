@@ -362,4 +362,52 @@ describe("error pages screen", () => {
     expect(publishes).toBe(1);
     expect(screen.queryByText("Someone else changed this page.")).toBeNull();
   });
+
+  // Test report round 1, Minor 2: old findings stayed on the card, and the conflict did not say which page.
+  it("a new publish clears the card's old problems, and a conflict names the page", async () => {
+    let attempt = 0;
+    api.handler = errorPagesApi([errorPage("404", "draft"), errorPage("500", "draft")], {
+      publish: () => {
+        attempt += 1;
+        return attempt === 1
+          ? fail(400, { code: "publish_blocked", title: "Publishing is blocked until every check passes.", errors: { media: ["m-1 is not in the library."] } })
+          : fail(409, { code: "concurrency_conflict", title: "This item was changed by someone else." });
+      },
+    });
+    await renderScreen();
+
+    fireEvent.click(publishButton("404"));
+    expect(await within(cardOf("404")).findByText("media: m-1 is not in the library.")).toBeTruthy();
+    await waitFor(() => expect(publishButton("404").disabled).toBe(false));
+
+    fireEvent.click(publishButton("404"));
+
+    await waitFor(() => expect(cardOf("404").textContent).toContain("404 page: Someone else changed this page."));
+    expect(within(cardOf("404")).queryByText("media: m-1 is not in the library.")).toBeNull();
+    expect(within(cardOf("404")).queryByText("Publishing is blocked until every check passes.")).toBeNull();
+    expect(cardOf("500").textContent).not.toContain("Someone else changed");
+  });
+
+  it("a new save clears the card's old problems, and a conflict names the page", async () => {
+    let attempt = 0;
+    api.handler = errorPagesApi([errorPage("404", "draft"), errorPage("500", "draft")], {
+      save: () => {
+        attempt += 1;
+        return attempt === 1
+          ? fail(400, { code: "validation_failed", title: "One or more fields are invalid.", errors: { media: ["m-1 is not in the library."] } })
+          : fail(409, { code: "concurrency_conflict", title: "This item was changed by someone else." });
+      },
+    });
+    await renderScreen();
+
+    fireEvent.click(saveButton("500"));
+    expect(await within(cardOf("500")).findByText("media: m-1 is not in the library.")).toBeTruthy();
+    await waitFor(() => expect((saveButton("500") as HTMLButtonElement).disabled).toBe(false));
+
+    fireEvent.click(saveButton("500"));
+
+    await waitFor(() => expect(cardOf("500").textContent).toContain("500 page: Someone else changed this page."));
+    expect(within(cardOf("500")).queryByText("media: m-1 is not in the library.")).toBeNull();
+    expect(cardOf("404").textContent).not.toContain("Someone else changed");
+  });
 });
