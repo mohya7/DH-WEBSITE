@@ -264,4 +264,131 @@ equivalent.**
   - The rule that a "No" on O-ADM04-3 makes delivery BLOCKED ON OWNER is correct
     under P-7.
 
+Round 1 outcome: CHANGES NEEDED (two Majors, F-1 and F-2).
+
+## Round 2
+
+Reviewer: plan-reviewer, 12 November 2026. Plan reviewed: `docs/changes/ADM-04/plan.md`
+at `80e734b` (round 2), against Round 1 above (`81a105c`). As in Round 1, I checked the
+code claims at `32f0414` with `git show` and `git grep`, and ran nothing.
+`origin/rebuild/dotnet-platform` is still `2bbd586`.
+
+### Round 1 findings
+
+| Finding | Round 2 answer | Status |
+| --- | --- | --- |
+| F-1 Major, no test proves the count is inside the lock | T15 with `UserReadGate`; the lock is the first statement in the transaction | **Not closed.** T15's gate as specified fails at green and does not tell the two designs apart (R2-1) |
+| F-2 Major, T10 does not see application logs | `ReactivationLogTests` with an `ILogEventSink` in the test host, at Verbose, with an assertion that the sink is not empty | Closed. `Program.cs:30-33` reads sinks from services (`ReadFrom.Services`), so the sink receives the API's own events, including the request log |
+| F-3 ADM-04b undated | Scheduled first after ADM-05, inside G3-1, target 16 November; PR body carries "Known exposure until ADM-04b"; scope adds lock and actor check on deactivate and reset | Closed |
+| F-4 `Modal.confirm` | One more controlled `<Modal>`; the empty-body guard is copied unchanged | Closed. `redirects.test.tsx` already passes that guard with controlled modals |
+| F-5 Racing refresh | `UpdateSecurityStampAsync` as well as revocation; T13 | Closed. `RefreshAsync` reads the user and stamp (95) before it issues a token, and `SessionCheck` compares `sst` (44-50). `RefreshToken` has `UserId`, `TokenHash`, `CsrfTokenHash`, `FamilyId`, `ExpiresAt`, `CreatedAt`, `SessionStartedAt`, and `ContentDbContext.cs:55-63` defines no concurrency token on it. So T13's inserted row reproduces the race's write, and it is red against a fix that only revokes. The remaining window, a session at the *new* role, is stated and accepted in Risks |
+| F-6 Actor not re-checked | `EnsureActorAsync` inside the lock on both writes; T14; B10 | Closed. Putting the guard before the actor check, so that T3 still reaches `last_admin` through HTTP, is reasoned and harmless. A stale actor learns only that the target is the last admin |
+| F-7 Reactivate failure paths and lockout | Rollback with 409 or 400; `LockoutEnabled = users.Options.Lockout.AllowedForNewUsers`; `AccessFailedCount` 0; 4 KB cap; T4 and T6 assert them | Closed |
+| F-8 Copied revoke helper | `TokenService.RevokeUserAsync(id, null, ct)` is injected and used | Closed |
+| F-9 `no-store` only noted | Set on reactivate's 200 (T4); reset's answer moves to ADM-04b item 2 | Closed |
+| F-10 Leftover admins | `finally` deactivates every admin a test made and every user it reactivated | Closed |
+| F-11 Stale facts | Fixed. ADM-05 given as `294fb4d` | Closed. ADM-05 has moved again since (R2-3) |
+
+### Findings
+
+**R2-1. Major. Section 5.1 T15. The gate matches `SessionCheck`'s reads, so it releases
+before the store's reads and the test fails at green.**
+- What is wrong: `UserReadGate` holds "every reader command that has a parameter equal
+  to one of" A's or B's ids. That condition has no table filter. ADM-07's gate has one:
+  it matches only `FROM [redirects]` (`RedirectConcurrencyTests.cs:285-287`). Before
+  either request reaches the controller, JWT validation runs `SessionCheck.ValidateAsync`
+  on each one. That method issues two reader commands parameterised by the actor's own
+  id:
+  - `db.Users ... Where(candidate => candidate.Id == userId) ... SingleOrDefaultAsync`
+    (`SessionCheck.cs:40-43`);
+  - `db.RefreshTokens.AnyAsync(token => ... token.UserId == userId ...)` (55-57).
+
+  A's request carries A's id and B's carries B's, and both ids are in the armed set. So
+  the first two commands to match are the two `SessionCheck` reads. On the second
+  match the gate releases and disarms (the same logic as `RedirectReadGate`), before
+  either request reaches `sp_getapplock`.
+- What follows:
+  - **At green**, nothing is held inside the lock. The requests still serialise on the
+    app lock, so the outcome is correct (one 200 and one 403), but `Gate.Matched` is 2
+    or more. The planned assertion `Matched` 1 fails on a correct implementation.
+  - **With the reads moved before the lock** (the regression T15 exists to catch), the
+    gate is already disarmed, so nothing widens the race window. The test then depends
+    on timing and does not reliably fail.
+  - The "Why T15 fails" argument in 5.1 therefore does not hold. Its own claim that only
+    one command matches at green is wrong.
+- What would satisfy me:
+  - Limit the gate's match to a command that only the store issues after the lock. One
+    choice is a read of `[AspNetUserRoles]` with A's or B's id as a parameter (the
+    target's `GetRolesAsync`, 3.1 step 4). `SessionCheck`, `PasswordChangeGate` and
+    the JWT handler never read that table.
+  - State in 5.1 that the developer confirms, at commit 1 or commit 3, that no command
+    issued during authentication matches. For example, log the matched `CommandText` in
+    the test output, as ADM-07 did with `ToQueryString`.
+  - Re-derive the green and broken traces for the new filter. They should still give
+    `Matched` 1 at green, and two held reads with both demotions passing when the reads
+    run before the lock.
+
+**R2-2. Minor. Sections 3.1 and 5.1 T14. No test reaches the deactivated-actor branch
+of `EnsureActorAsync`.**
+- T14's "deactivated" variant gets 401 from `SessionCheck` before the store runs, so it
+  tests `SessionCheck`, not the actor check.
+- The demoted branch is tested by T14 and T15, and the deactivated branch is one
+  condition in the same method.
+- Acceptable as it stands. Either reach that branch with the corrected T15 gate (B
+  deactivated while its request is held), or note in 5.1 that the branch is covered by
+  review only.
+
+**R2-3. Minor. Section 2.1. The ADM-05 head has moved again.**
+- `git ls-remote` now gives `change/ADM-05` at `741d70c`, not `294fb4d`.
+- `git diff --name-only e04e57a origin/change/ADM-05` lists `ErrorPagePublishTests.cs`,
+  `ErrorPagesPage.tsx`, `errorPages.test.tsx` and ADM-05 docs.
+- I re-ran the overlap check over every `origin/change/*` head:
+  - no head touches `UsersPage.tsx`, `UserAccess*`, `TemporaryPassword.cs`,
+    `UserRole*`, `ReactivationLog*` or `users.(test|spec)`;
+  - only `change/GAP-12` touches `Program.cs`, and it is merged.
+- No plan change is needed. Step 3 of 4.1 re-checks before each source commit.
+
+### Checked and sound in Round 2
+
+- **The lock and the actor check.** The order in 3.1 is right: lock first, then target,
+  guard, actor, write. Rotating the stamp and revoking happen in the same transaction.
+  `sp_getapplock` goes through `ExecuteSqlRawAsync`, which is a non-query command, so
+  a reader gate never sees it.
+- **Reactivate.**
+  - The lock and actor check come first.
+  - `users.Options.Lockout.AllowedForNewUsers` restores a new user's lockout state.
+  - Every `IdentityResult` is checked, and the user stays deactivated on any failure.
+  - `no-store` is set on the 200.
+  - The temporary password is never in `Detail`.
+- **T10.**
+  - It logs at Verbose for `Default` and both overrides.
+  - Its non-empty-sink assertion rests on the request log, which
+    `UseSerilogRequestLogging` (`Program.cs:274`) writes at Information.
+  - It is red at the base on the reactivation status, and it cannot pass vacuously.
+- **T13.** It reads the family id from the `sid` claim
+  (`TokenService.SessionClaim = "sid"`, line 48), as `SessionCheckTests.cs:125-127`
+  does. The hr user's old access token carries `editor`, so `GET /api/v1/pages`
+  answers 200 under a fix that only revokes. That makes the test discriminating.
+- **CareersTests.** The matrix still covers both routes. As admin, reactivate with the
+  dummy id takes the lock, passes the actor check and answers 404, so it changes
+  nothing.
+- **Owner answers.**
+  - The words are quoted, with the owner's name, the date and time (12 November 2026,
+    12:09 UTC) and the medium (card tap, relayed by the coordinator).
+  - Each answer is read narrowly, and the plan says the cards were not seen first-hand.
+    That matches the ADM-07 and ADM-10 approvals.
+  - The (b) and (c) branches are removed throughout. The delete row is "Decided", with
+    no code.
+  - I could not see the cards, and the tech lead should confirm the relay at gate 1.
+- **Unchanged since Round 1 and still sound:**
+  - scope;
+  - layering, and the "not changed" list (now with `TokenService.cs` and
+    `SessionCheck.cs`);
+  - no migration;
+  - rollback;
+  - Release-only commands with the new test classes in the filter, and T15 run three
+    times;
+  - the commit order and the CI red plan under O-ADM04-3;
+  - the G3 checklist rows.
+
 Verdict: CHANGES NEEDED
