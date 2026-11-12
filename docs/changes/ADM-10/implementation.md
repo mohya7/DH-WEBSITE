@@ -44,7 +44,8 @@ plan 5.2). The old tip is kept on the local branch `adm10-pre-rebuild` only.
 | 5 | `daa3de9` | ADM-10: Use the settings alt with the default share image on the website | `website/src/seo/head.ts` |
 | 6 | `8694853` | ADM-10: Implementation record | `docs/changes/ADM-10/implementation.md` |
 | 7 | `73dc514` | ADM-10: Record the red CI run at commit 1 | `docs/changes/ADM-10/implementation.md` |
-| 8 | this commit | ADM-10: Record the green CI run at the head | `docs/changes/ADM-10/implementation.md` |
+| 8 | `8b9feff` | ADM-10: Record the green CI run at the head | `docs/changes/ADM-10/implementation.md` |
+| 9 | this commit | ADM-10: Record screenshot parity at the head; ready for test | `docs/changes/ADM-10/implementation.md` |
 
 **Pushed:**
 - Commit 1 (`b1521f5`) went alone first, with `git push origin b1521f5:refs/heads/change/ADM-10`.
@@ -189,7 +190,7 @@ In the first round, `npm run build` without `VITE_PUBLIC_SITE_URL` exited 1 with
 | `cd website && npx vitest run` | 0 | `Test Files 23 passed \| 1 skipped (24)`, `Tests 431 passed \| 31 skipped (462)`. The skips are in files this change does not touch |
 | `cd website && npm run design:check` | 0 | `All 25 files match: 24 identical, 1 ported with the recorded change.` |
 | `cd website && CONTENT_SOURCE=snapshot PUBLIC_SITE_URL=https://digitalhub.com.eg npm run build` | 0 | `Build output checks passed.` |
-| Section comparison and screenshot parity | NOT RUN locally | `section-compare` is green in CI at `73dc514` (job 131032075939). `screenshot-parity` was skipped there: it needs the "screenshots" label (see "CI at the full head") |
+| Section comparison and screenshot parity | NOT RUN locally | Both are green in CI at `8b9feff`: `section-compare` 131036544632 and `screenshot-parity` 131036544539 (comparison not yet approved parity, see "CI at `8b9feff`") |
 
 ### Not run locally, covered by CI at the head
 
@@ -277,17 +278,35 @@ logs and relayed them.
 | Workflow lint | 43173375511 | Success |
 | CodeQL | 43173375540 | Skipped |
 
-**Condition 4, still open.** `plan-approval.md` says of `section-compare` and
-`screenshot-parity`: "Record them as skipped, not as passed, and show them green on the
-final head."
-- `section-compare` is green.
-- `screenshot-parity` is skipped on the final head, so this condition is not met yet.
-- Locally, the website design check and the snapshot build both exited 0 at `daa3de9`.
-  The snapshot has both settings fields `null`, so the plan expects no visual change.
-- That is expected parity, not shown parity. I do not count it as green.
-- To close it: add the "screenshots" label to PR #56, then record that job's result
-  here. Alternatively, the tech lead can rule that condition 4 does not cover this
-  optional job.
+**Condition 4.** `section-compare` is green at `73dc514`. `screenshot-parity` was skipped
+there, because PR #56 had no "screenshots" label then. Both are green at `8b9feff`, below.
+
+## CI at `8b9feff`, with the "screenshots" label
+
+The coordinator added the "screenshots" label to PR #56. Run 43174682660 on `8b9feff` was
+cancelled by the run that the label started. It is listed so that nothing is hidden.
+
+| Workflow / job | Run / job id | Result |
+| --- | --- | --- |
+| CI (cancelled) | 43174682660 | Cancelled by the label-triggered run below |
+| CI, `api` | 43174717473 / 131036177727 | Success |
+| CI, `studio` | 43174717473 / 131036177622 | Success |
+| CI, `website` | 43174717473 / 131036177485 | Success |
+| CI, `website-browser` | 43174717473 / 131036177672 | Success |
+| CI, `section-compare` | 43174717473 / 131036544632 | Success |
+| CI, `screenshot-parity` | 43174717473 / 131036544539 | Success: the "Chromium regression tests" and "Compare screenshots" steps both succeeded |
+
+**A passing comparison is not approved parity.** `ci.yml:358-359` says: "The comparison
+does not fail the workflow while the screenshot register waits for its first approved
+entries. The Chromium regression tests do fail the job." The Chromium regression tests
+passed, and they can fail the job. A green "Compare screenshots" step does not show that
+the screenshots match approved entries.
+
+`8b9feff` differs from `73dc514` only in `implementation.md`. So this run covers the same
+code as run 43173375547.
+
+Condition 4 is met. `section-compare` and `screenshot-parity` were recorded as skipped at
+commit 1, and both are green on the final head.
 
 ## Migrations
 
@@ -308,13 +327,12 @@ None (plan section 7).
 | Regression tests committed and shown failing before the fix | G3 checklist | Done | Tests-only commits `b1521f5` and `bf29cb2` come before the fixes. W1 and S1 to S4 are red locally. CI run 43036287741 at `b1521f5`: T1 to T5 red (`api`, 130575850302 and 130586030225); W1 red (`website`, 130575850555); E1 red by timeout (`studio`, 131027779373) |
 | End-to-end test for this Major | G3 checklist | Done | E1 red at `b1521f5` (131027779373, timeout), green at `73dc514` (131031721438, 12.3s) |
 | Editors can see but not change the share image | Settled design (roles) | Done (unit) | S4 red at `bf29cb2`, green at `884bca6` |
-| FR-S-17 settings moves from "Partly" to "Works" | Audit, line 43 | Done, pending the tester | Every row above is done, and CI is green at `73dc514`. `screenshot-parity` is the exception: it was skipped (condition 4) |
+| FR-S-17 settings moves from "Partly" to "Works" | Audit, line 43 | Done, pending the tester | Every row above is done. CI is green at `73dc514` (run 43173375547) and at `8b9feff` (run 43174717473, `screenshot-parity` included) |
 
-Status: NOT READY: one item is left.
-- `screenshot-parity` has not been shown green on the final head. Condition 4 of
-  `plan-approval.md` requires it. The job was skipped because PR #56 has no
-  "screenshots" label.
-- Everything else in the plan's test plan has passed in CI at `73dc514`, with the red
-  shown first at `b1521f5`.
-- Once that job is green, or the tech lead rules that condition 4 does not apply to this
-  optional job, this becomes READY FOR TEST with no code change.
+For the tester:
+- T2 was red at the base on its alt-only half. The plan had predicted it green.
+- At commit 1, E1 was red only by a test timeout. The log does not name the locator.
+- E1's `finally` block cannot run after a timeout.
+- The screenshot comparison passing is not approved parity.
+
+Status: READY FOR TEST
