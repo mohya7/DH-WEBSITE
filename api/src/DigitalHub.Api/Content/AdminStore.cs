@@ -15,7 +15,6 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
     private static readonly Regex GtmId = new(@"^GTM-[A-Z0-9]{7,}$", RegexOptions.CultureInvariant | RegexOptions.Compiled);
     private static readonly Regex Phone = new(@"^\+?[0-9][0-9\s\-().]{5,38}$", RegexOptions.CultureInvariant | RegexOptions.Compiled);
     private static readonly HashSet<string> StudioRoles = new(StringComparer.Ordinal) { Roles.Admin, Roles.Editor, Roles.Hr };
-    private static readonly string[] ErrorTypes = ["404", "500"];
 
     public async Task<ContentOutcome> GetNavigationAsync(string? menu, CancellationToken cancellationToken)
     {
@@ -577,76 +576,6 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         return ContentOutcome.Ok(PresentContact(request));
     }
 
-    public async Task<ContentOutcome> ListErrorPagesAsync(CancellationToken cancellationToken)
-    {
-        var items = new List<object>();
-        foreach (var type in ErrorTypes)
-        {
-            var slug = "error-" + type;
-            var page = await db.Pages.AsNoTracking().Include(item => item.Sections)
-                .FirstOrDefaultAsync(item => item.Slug == slug, cancellationToken);
-            if (page is null)
-                continue;
-            var section = page.Sections.OrderBy(item => item.SortOrder).FirstOrDefault(item => item.Type == SectionTypes.RichText)
-                ?? page.Sections.OrderBy(item => item.SortOrder).FirstOrDefault();
-            items.Add(PresentErrorPage(type, page, section));
-        }
-
-        return ContentOutcome.Ok(new { items });
-    }
-
-    public async Task<ContentOutcome> UpdateErrorPageAsync(string type, ErrorPageUpdate request, string? userId, CancellationToken cancellationToken)
-    {
-        if (type is not ("404" or "500"))
-            return Validation("type", "Type must be 404 or 500.");
-        if (request.Version < 1)
-            return Validation("version", "Version is required.");
-        if (string.IsNullOrWhiteSpace(request.Title))
-            return Validation("title", "Title is required.");
-
-        var bodyErrors = RichText.Validate(request.Body);
-        if (bodyErrors.Count > 0)
-            return Validation("body", string.Join(" ", bodyErrors));
-
-        var slug = "error-" + type;
-        var page = await db.Pages.Include(item => item.Sections).FirstOrDefaultAsync(item => item.Slug == slug, cancellationToken);
-        if (page is null)
-            return Missing("That error page does not exist.");
-        if (page.Version != request.Version)
-            return ContentOutcome.Fail(StatusCodes.Status409Conflict, "concurrency_conflict", "Someone else changed this page.");
-
-        var section = page.Sections.OrderBy(item => item.SortOrder).FirstOrDefault(item => item.Type == SectionTypes.RichText)
-            ?? page.Sections.OrderBy(item => item.SortOrder).FirstOrDefault();
-        if (section is null)
-        {
-            section = new Section
-            {
-                Id = Guid.NewGuid(),
-                PageId = page.Id,
-                Type = SectionTypes.RichText,
-                SortOrder = 0,
-                Visible = true,
-                Fields = "{}",
-            };
-            page.Sections.Add(section);
-            db.Sections.Add(section);
-        }
-
-        page.Title = request.Title.Trim();
-        page.UpdatedAt = DateTime.UtcNow;
-        page.Version += 1;
-        section.Type = SectionTypes.RichText;
-        section.Fields = JsonSerializer.Serialize(new
-        {
-            heading = page.Title,
-            body = request.Body ?? EmptyDoc,
-        }, ContentJson.Options);
-
-        Audit(userId, "update_error_page", "error_page", type, page.Title);
-        await db.SaveChangesAsync(cancellationToken);
-        return ContentOutcome.Ok(PresentErrorPage(type, page, section));
-    }
-
     /// <summary>Whether a live page answers at this path's address. A public path never ends in / except "/" (ContentPaths).</summary>
     private static async Task<bool> OccupiesLivePathAsync(ContentDbContext db, string fromPath, CancellationToken cancellationToken)
     {
@@ -1027,40 +956,6 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         request.CreatedAt,
     };
 
-    private static object PresentErrorPage(string type, Page page, Section? section)
-    {
-        var body = EmptyDoc;
-        if (section is not null)
-        {
-            try
-            {
-                using var document = JsonDocument.Parse(section.Fields);
-                if (document.RootElement.TryGetProperty("body", out var field))
-                {
-                    body = field.ValueKind switch
-                    {
-                        JsonValueKind.String => field.GetString() ?? EmptyDoc,
-                        JsonValueKind.Object => field.GetRawText(),
-                        _ => EmptyDoc,
-                    };
-                }
-            }
-            catch (JsonException)
-            {
-                body = EmptyDoc;
-            }
-        }
-
-        return new
-        {
-            type,
-            id = page.Id,
-            title = page.Title,
-            body,
-            version = page.Version,
-        };
-    }
-
     private void Audit(string? userId, string action, string entityType, string? entityId, string? detail = null)
     {
         db.AuditLog.Add(new AuditLogEntry
@@ -1107,8 +1002,6 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         if (value is not null && value.Trim().Length > max)
             Add(errors, name, "is longer than " + max + " characters.");
     }
-
-    private const string EmptyDoc = """{"type":"doc","content":[{"type":"paragraph"}]}""";
 }
 
 public sealed class NavigationReplaceRequest
