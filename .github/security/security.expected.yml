@@ -2,10 +2,13 @@
 # application is out of scope). A separate workflow, so the four CI jobs and their
 # timings are unchanged.
 #
-# Each job fails only on a NEW High or Critical finding (or any new secret).
+# Each job fails on a NEW High or Critical finding (or any new secret).
 # Findings that already existed are listed with an owner in
 # .github/security/known-findings.json and reported as warnings; nothing is
 # suppressed in the tools. .github/security/gate.mjs does the comparison.
+# The npm jobs audit the full tree, development packages included, and the
+# NuGet job the whole solution graph. Both also fail on an allow-list entry
+# that is expired, has no D-NNN, or disagrees with docs/deferred-items.md.
 #
 # Semgrep Community Edition 1.180.0 is installed in the Semgrep job and run by
 # .github/security/run-semgrep.sh. That script is the only place the roots,
