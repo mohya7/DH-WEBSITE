@@ -16,6 +16,8 @@ them one after another.
 After step 6 the pipeline stops for the owner. A tech-lead approval is a role in
 this pipeline; it is never the owner's confirmation that `AGENTS.md` requires,
 and it never counts as an owner decision under P-7.
+When the owner confirms, `/change` pushes the branch and opens the pull
+request; the owner squash-merges it, and no agent merges.
 
 ## Where the records live
 
