@@ -4,7 +4,7 @@ Rebuild of the Digital Hub website and Content Studio on .NET 10 and React.
 Branch: rebuild/dotnet-platform. Folder: D:\work\DigitalHub\dh-platform.
 
 Read before any work: docs/business-analysis.md, docs/phase-a-foundation.md,
-docs/phase-b-studio.md.
+docs/phase-b-studio.md, ENGINEERING_STANDARDS.md, docs/PROJECT_PROFILE.md.
 
 Status: Phase A complete. Phase B complete — verified by 22 of 22 end-to-end tests
 in three consecutive runs, and 208 of 208 integration tests. Phase C, the public
