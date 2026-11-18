@@ -111,6 +111,15 @@ jobs:
               ALTER ROLE db_datawriter ADD MEMBER [$APP_LOGIN];
               DENY UPDATE, DELETE ON dbo.audit_log TO [$APP_LOGIN];"
 
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - run: npm ci
+        working-directory: website
+
       - name: Integration tests (Release)
         run: >-
           dotnet test tests/DigitalHub.Api.Tests/DigitalHub.Api.Tests.csproj

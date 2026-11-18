@@ -5,9 +5,12 @@ import { TableCell } from "@tiptap/extension-table-cell";
 import { TableHeader } from "@tiptap/extension-table-header";
 import { TableRow } from "@tiptap/extension-table-row";
 import { EditorContent, useEditor, type JSONContent } from "@tiptap/react";
+import { Fragment, Slice } from "@tiptap/pm/model";
+import { NodeSelection, Selection } from "@tiptap/pm/state";
+import type { EditorView } from "@tiptap/pm/view";
 import StarterKit from "@tiptap/starter-kit";
 import { Button, Modal, Space } from "antd";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { jsonInit, request } from "../api/http";
 import { referenceCollections } from "./model";
 import { MediaPicker, rememberMedia, type MediaChoice } from "./MediaPicker";
@@ -33,7 +36,94 @@ const StudioImage = Image.extend({
       src: { default: null, rendered: false },
     };
   },
+  // The editor renders an image as img[mediaid] with no src, so its own HTML
+  // must parse back into a node when it is copied or cut and pasted. Whether
+  // a pasted media id is kept is decided in filteredPaste, not here.
+  parseHTML() {
+    return [{ tag: "img[mediaid]" }, { tag: 'img[src]:not([src^="data:"])' }];
+  },
+  // Typing ![alt](url) stays text: an image enters only with a media id.
+  addInputRules() {
+    return [];
+  },
 }).configure({ inline: false, allowBase64: false });
+
+const imageNotice = "This paste included an image. Use the image button so you can add alt text.";
+const uncheckedNotice = "The paste could not be checked, so nothing was added. Paste again.";
+const dropNotice = "The dropped content included an image, so it was not added. Use the image button for images.";
+
+/*
+ * The media ids this Studio session got from the API, in lower case. A pasted
+ * image keeps its media id only if the id is here; any other id is sent to
+ * the paste filter as null, so the image is dropped.
+ *
+ * An id enters in three places only: from the document an editor is created
+ * with, from a document set through `value`, and from the picker (insertImage).
+ * It is shared by every rich-text field open in the tab, so an image can be
+ * copied from one field to another. An id is never removed.
+ *
+ * This is safe only because every host passes `value` from the API or from
+ * this editor's own onChange. A host that feeds `value` from anything else
+ * (the clipboard, browser storage, an address) must not use this editor
+ * unchanged: it would make ids of its own choosing known.
+ *
+ * It is not MediaPicker's map of paths, which holds every image the picker
+ * has listed.
+ */
+const knownMediaIds = new Set<string>();
+
+function noteMediaIds(node: JSONContent) {
+  if (node.type === "image" && typeof node.attrs?.mediaId === "string") knownMediaIds.add(node.attrs.mediaId.toLowerCase());
+  node.content?.forEach(noteMediaIds);
+}
+
+function withoutUnknownMediaIds(node: JSONContent): JSONContent {
+  if (node.type === "image") {
+    const mediaId: unknown = node.attrs?.mediaId;
+    if (typeof mediaId === "string" && knownMediaIds.has(mediaId.toLowerCase())) return node;
+    return { ...node, attrs: { ...node.attrs, mediaId: null } };
+  }
+  if (node.content === undefined) return node;
+  return { ...node, content: node.content.map(withoutUnknownMediaIds) };
+}
+
+type SetNotice = Dispatch<SetStateAction<string | null>>;
+
+// A paste was added, so the notices that say a paste or a drop was not added
+// no longer hold. Only those two: the image notice stays, as before.
+function clearNotAddedNotice(setNotice: SetNotice) {
+  setNotice((current) => (current === uncheckedNotice || current === dropNotice ? null : current));
+}
+
+/*
+ * After the Image button, and after a checked paste. Both can leave an image
+ * selected: insertContent when the image is put at the end of a text block,
+ * and a paste when the image it ends in is the last thing in the document. A
+ * selected image is replaced by the next key pressed or the next paste. So
+ * the caret is moved to the first text position after the image: the
+ * paragraph that follows it, which the editor adds when the image is the last
+ * node. This runs after the insert has been dispatched, because that
+ * paragraph does not exist before then. It is not called when a document is
+ * loaded or replaced: opening an item must change nothing.
+ */
+function caretAfterSelectedImage(view: EditorView) {
+  const { selection, doc, tr } = view.state;
+  if (!(selection instanceof NodeSelection) || selection.node.type.name !== "image") return;
+  const after = Selection.findFrom(doc.resolve(selection.to), 1, true);
+  // StarterKit's TrailingNode adds a paragraph after a last image, so a text
+  // position always exists and the null case is not expected to happen. If it
+  // ever did, the image would stay selected, as it was before this fix.
+  if (after !== null) view.dispatch(tr.setSelection(after).scrollIntoView());
+}
+
+function hasImage(slice: Slice): boolean {
+  let found = false;
+  slice.content.descendants((node) => {
+    if (node.type.name === "image") found = true;
+    return !found;
+  });
+  return found;
+}
 
 function parseDocument(value: string): JSONContent {
   if (value.trim().length === 0) return { type: "doc", content: [{ type: "paragraph" }] };
@@ -92,6 +182,23 @@ export function RichTextEditor({
   const [picker, setPicker] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // False once the editor has been removed: TipTap destroys its view a moment later.
+  const mounted = useRef(true);
+  // Raised each time the document is replaced from outside, through `value`.
+  const replaced = useRef(0);
+  const [initial] = useState(() => {
+    const first = parseDocument(value);
+    noteMediaIds(first);
+    return first;
+  });
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ heading: { levels: [2, 3, 4] }, link: false }),
@@ -102,24 +209,33 @@ export function RichTextEditor({
       TableHeader,
       TableCell,
     ],
-    content: parseDocument(value),
+    content: initial,
     editorProps: {
       attributes: { "data-field": fieldPath, class: "min-h-40", role: "textbox", "aria-multiline": "true", "aria-label": label },
-      handlePaste(_view, event) {
+      handlePaste(view, event, slice) {
         const files = Array.from(event.clipboardData?.files ?? []);
         if (files.some((file) => file.type.startsWith("image/"))) {
-          setNotice("This paste included an image. Use the image button so you can add alt text.");
+          setNotice(imageNotice);
           return true;
         }
-        return false;
+        // A paste with no image is left to ProseMirror. One that carries an
+        // image is not inserted here: the server filter answers first.
+        if (!hasImage(slice)) {
+          clearNotAddedNotice(setNotice);
+          return false;
+        }
+        void filteredPaste(view, slice, setNotice, () => mounted.current, () => replaced.current);
+        return true;
+      },
+      handleDrop(_view, _event, slice, moved) {
+        // A move inside the editor, or a drop with no image, is left to ProseMirror.
+        if (moved || !hasImage(slice)) return false;
+        setNotice(dropNotice);
+        return true;
       },
     },
+    // Reports the document and nothing else: no request, and the document is never replaced from here.
     onUpdate: ({ editor: current }) => {
-      const raw = JSON.stringify(current.getJSON());
-      if (raw.includes('"type":"image"') && raw.includes('"src"')) {
-        void filterPaste(raw, current, onChange, setNotice);
-        return;
-      }
       onChange(cleanDocument(current.getJSON()));
     },
   });
@@ -127,11 +243,15 @@ export function RichTextEditor({
   useEffect(() => {
     if (editor === null) return;
     if (cleanDocument(editor.getJSON()) === value) return;
-    editor.commands.setContent(parseDocument(value), { emitUpdate: false });
+    const next = parseDocument(value);
+    noteMediaIds(next);
+    replaced.current += 1;
+    editor.commands.setContent(next, { emitUpdate: false });
   }, [editor, value]);
 
   function insertImage(choice: MediaChoice) {
     rememberMedia(choice.id, choice.path);
+    knownMediaIds.add(choice.id.toLowerCase());
     editor
       ?.chain()
       .focus()
@@ -140,6 +260,7 @@ export function RichTextEditor({
         attrs: { mediaId: choice.id, alt: choice.alt, decorative: false, src: choice.path },
       })
       .run();
+    if (editor !== null) caretAfterSelectedImage(editor.view);
     setPicker(false);
   }
 
@@ -179,24 +300,78 @@ export function RichTextEditor({
   );
 }
 
-async function filterPaste(
-  raw: string,
-  editor: NonNullable<ReturnType<typeof useEditor>>,
-  onChange: (value: string) => void,
-  setNotice: (value: string) => void,
+/*
+ * A paste that carries an image. The pasted slice, never the document, goes to
+ * the server's paste filter, and the answer is inserted when it arrives.
+ * Nothing is inserted before the answer, so what was typed meanwhile stays.
+ *
+ * The answer replaces only what the person had selected when they pasted, and
+ * only if that selection and the document are still as they were; a paste
+ * does that. With a caret it is inserted at the caret. With any other
+ * selection, one made after the paste (an image the person selects while the
+ * check is out), it is inserted after the selection and replaces nothing.
+ */
+async function filteredPaste(
+  view: EditorView,
+  slice: Slice,
+  setNotice: SetNotice,
+  isMounted: () => boolean,
+  replacedCount: () => number,
 ) {
-  const result = await request("/api/v1/rich-text/paste", jsonInit("POST", { document: raw }));
-  if (!result.ok || result.body === null) {
-    setNotice("This paste included an image. Use the image button so you can add alt text.");
+  const replacedBefore = replacedCount();
+  const pastedInto = view.state;
+  // cleanNode leaves an image with mediaId, alt and decorative only, so no address is sent.
+  const pasted = ((slice.content.toJSON() ?? []) as JSONContent[]).map(cleanNode).map(withoutUnknownMediaIds);
+
+  let filtered: { document: string; imagesDropped: boolean } | null = null;
+  try {
+    const result = await request("/api/v1/rich-text/paste", jsonInit("POST", { document: JSON.stringify(pasted) }));
+    if (result.ok && result.body !== null) filtered = result.body as { document: string; imagesDropped: boolean };
+  } catch {
+    filtered = null;
+  }
+
+  // The editor has been removed: there is nothing to add to, and nobody to tell.
+  if (!isMounted() || view.isDestroyed) return;
+  // The document was replaced from outside while the filter was out (another
+  // item was opened in this editor): the paste belongs to the old document.
+  if (replacedCount() !== replacedBefore || filtered === null) {
+    setNotice(uncheckedNotice);
     return;
   }
 
-  const filtered = result.body as { document: string; imagesDropped: boolean };
-  editor.commands.setContent(parseDocument(filtered.document), { emitUpdate: false });
-  onChange(cleanDocument(editor.getJSON()));
-  if (filtered.imagesDropped) {
-    setNotice("This paste included an image. Use the image button so you can add alt text.");
+  try {
+    const content = (JSON.parse(filtered.document) as JSONContent).content ?? [];
+    const fragment = Fragment.fromJSON(view.state.schema, content);
+    // Open at the ends as the pasted slice was, so pasted text joins the
+    // sentence it lands in, as an ordinary paste does.
+    const widest = Slice.maxOpen(fragment);
+    const piece = new Slice(fragment, Math.min(slice.openStart, widest.openStart), Math.min(slice.openEnd, widest.openEnd));
+    if (fragment.size > 0) {
+      const { state } = view;
+      const untouched = state.doc.eq(pastedInto.doc) && state.selection.eq(pastedInto.selection);
+      const transaction = state.tr;
+      if (state.selection.empty || untouched) {
+        transaction.replaceSelection(piece);
+      } else {
+        const after = state.selection.to;
+        transaction.replaceRange(after, after, piece);
+        // The caret goes to the end of what was added, as after a paste.
+        transaction.setSelection(Selection.near(transaction.doc.resolve(transaction.mapping.map(after, 1)), -1));
+      }
+      view.dispatch(transaction.scrollIntoView());
+      // Whichever rule inserted it: when what was added ends in an image and
+      // nothing follows it, the selection is left on that image, and the next
+      // key would replace it.
+      caretAfterSelectedImage(view);
+      if (!filtered.imagesDropped) clearNotAddedNotice(setNotice);
+    }
+  } catch {
+    setNotice(uncheckedNotice);
+    return;
   }
+
+  if (filtered.imagesDropped) setNotice(imageNotice);
 }
 
 function LinkDialog({

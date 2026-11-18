@@ -27,6 +27,8 @@
  *   - out/web.config is the file generated from this content's redirects and
  *     container id; the consent script and stylesheet are in out/behaviors/
  *     only when the site settings name a container
+ *   - reports, without failing, every redirect whose target has no page in
+ *     out/ (ADM-07; the API's RedirectTargets applies the same rule)
  *   - out/sitemap.xml, out/robots.txt, and out/llms.txt match the content
  *   - every page has one JSON-LD script, and it matches the structured data
  *   - Next's _not-found export is not in the output
@@ -34,7 +36,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { AnyContentItem, BuildContent } from "../src/content/build-content";
+import type { AnyContentItem, BuildContent, Redirect } from "../src/content/build-content";
 import type { Manifest } from "../src/content/prepared";
 import { sectionRenders } from "@digitalhub/blocks/select";
 import type { PageKind } from "@digitalhub/blocks/context";
@@ -350,6 +352,25 @@ export function checkConsentFiles(outDir: string, tagManager: boolean): string[]
   return expected.filter((name) => !present.includes(name)).map((name) => `behaviors/${name} is missing, but a container id is set.`);
 }
 
+/**
+ * One line per redirect whose target has no page in the build (ADM-07). The target's
+ * address is its key, as web-config.ts keys a redirect (trailing slashes removed),
+ * and it resolves only when that address's page file was written. The error pages
+ * never count, nor do .html spellings, other cases or media. Files are looked up in
+ * the walked list, ordinally, so the answer is the same on a case-insensitive file
+ * system. A report only: it adds nothing to the problems, so the build does not fail.
+ */
+export function redirectTargetReport(outDir: string, redirects: readonly Redirect[]): string[] {
+  const files = new Set(fs.existsSync(outDir) ? walk(outDir).map((file) => path.relative(outDir, file).split(path.sep).join("/")) : []);
+  const lines: string[] = [];
+  for (const row of redirects) {
+    const key = row.toPath.replace(/\/+$/, "") || "/";
+    const file = htmlFileFor(key);
+    if (!files.has(file) || errorFiles.includes(file)) lines.push(`Redirect ${row.fromPath} -> ${row.toPath}: no page in the build answers at ${row.toPath}.`);
+  }
+  return lines;
+}
+
 function main(): void {
   const websiteRoot = process.cwd();
   const manifest = JSON.parse(fs.readFileSync(path.join(websiteRoot, ".content", "manifest.json"), "utf8")) as Manifest;
@@ -373,6 +394,10 @@ function main(): void {
   if (!fs.existsSync(configFile)) report.problems.push("web.config is missing from the build output.");
   else if (fs.readFileSync(configFile, "utf8") !== expectedConfig) report.problems.push("out/web.config does not match the redirects and the container id in the content.");
   else console.log(`web.config: ${content.redirects.length} redirect(s), report-only content security policy${tagManager ? " with Tag Manager hosts" : ""}, custom 404 and 500.`);
+
+  const unresolved = redirectTargetReport(path.join(websiteRoot, "out"), content.redirects);
+  if (unresolved.length === 0) console.log(`Redirect targets: all ${content.redirects.length} resolve to a page.`);
+  else console.log(`Redirect targets: ${unresolved.length} of ${content.redirects.length} point at no page (reported, not a failure):\n  ${unresolved.join("\n  ")}`);
 
   report.problems.push(...checkConsentFiles(path.join(websiteRoot, "out"), tagManager));
   console.log(tagManager ? "Consent: the banner script and stylesheet are in out/behaviors/." : "Consent: no container id, so no consent file is in out/behaviors/.");

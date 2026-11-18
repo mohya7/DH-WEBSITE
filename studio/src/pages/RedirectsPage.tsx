@@ -12,11 +12,28 @@ type RedirectRow = {
   statusCode: number;
   source: string;
   createdAt: string;
+  // Whether a published page answers at toPath (ADM-07). Absent from an older API.
+  targetLive?: boolean;
 };
 
 type Page = { items: RedirectRow[]; total: number };
 
 const pageSize = 50;
+
+const noPageTitle = "No published page answers at this address. Visitors who follow this redirect see the 404 page.";
+
+/* Shown on a row whose target has no page: the warning colour on the text and
+   icon only, as for the slug-redirect warning (Phase B). */
+function NoPageMarker() {
+  return (
+    <span className="ml-2 inline-flex items-center gap-1 text-xs" style={{ color: "var(--dh-warning)" }} title={noPageTitle}>
+      <svg aria-hidden="true" width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M8 1.5 15.2 14H.8L8 1.5Zm-.75 4.5v4h1.5V6h-1.5Zm0 5.25v1.5h1.5v-1.5h-1.5Z" />
+      </svg>
+      No page
+    </span>
+  );
+}
 
 export function RedirectsPage() {
   // What is in the search box, and the search last submitted. Every list
@@ -82,7 +99,13 @@ export function RedirectsPage() {
     setOpen(false);
     setFromPath("");
     setToPath("");
-    message.success("Redirect created.");
+    // Created either way; the API says whether a page answers at the stored, collapsed target.
+    const created = result.body as RedirectRow | null;
+    if (created?.targetLive === false) {
+      message.warning(`Redirect created, but no published page answers at ${created.toPath}. Visitors who follow it see the 404 page.`);
+    } else {
+      message.success("Redirect created.");
+    }
     await load(applied, current);
   }
 
@@ -109,7 +132,16 @@ export function RedirectsPage() {
         pagination={tablePager(current, pageSize, page.total, goTo)}
         columns={[
           { title: "From", dataIndex: "fromPath" },
-          { title: "To", dataIndex: "toPath" },
+          {
+            title: "To",
+            dataIndex: "toPath",
+            render: (toPath: string, row) => (
+              <>
+                <span>{toPath}</span>
+                {row.targetLive === false ? <NoPageMarker /> : null}
+              </>
+            ),
+          },
           { title: "Source", dataIndex: "source", width: 100 },
           {
             title: "",

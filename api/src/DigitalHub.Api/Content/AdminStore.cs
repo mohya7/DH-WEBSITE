@@ -113,17 +113,22 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
             .OrderBy(redirect => redirect.FromPath)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(redirect => new
-            {
-                redirect.Id,
-                redirect.FromPath,
-                redirect.ToPath,
-                redirect.StatusCode,
-                redirect.Source,
-                redirect.CreatedAt,
-            })
             .ToListAsync(cancellationToken);
-        return ContentOutcome.Ok(new PageResult<object>(rows.Cast<object>().ToList(), page, pageSize, total));
+
+        // Whether a page answers at each target, so the Studio can flag redirects left
+        // pointing at nothing by an unpublish or a delete (ADM-07).
+        var live = await RedirectTargets.LivePathsAsync(db, cancellationToken);
+        var items = rows.Select(redirect => (object)new
+        {
+            redirect.Id,
+            redirect.FromPath,
+            redirect.ToPath,
+            redirect.StatusCode,
+            redirect.Source,
+            redirect.CreatedAt,
+            TargetLive = RedirectTargets.Resolves(redirect.ToPath, live),
+        }).ToList();
+        return ContentOutcome.Ok(new PageResult<object>(items, page, pageSize, total));
     }
 
     public async Task<ContentOutcome> CreateRedirectAsync(RedirectCreateRequest request, string? userId, CancellationToken cancellationToken)
@@ -134,10 +139,22 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         if (errors.Count > 0)
             return Validation(errors);
 
-        if (from == to)
+        // Compared as the website build keys them: /x and /x/ are one address (ADM-02, ADM-07).
+        if (RedirectPaths.Key(from!) == RedirectPaths.Key(to!))
             return ContentOutcome.Fail(StatusCodes.Status400BadRequest, "redirect_loop", "A redirect cannot point at itself.");
 
-        if (await db.Redirects.AsNoTracking().AnyAsync(redirect => redirect.FromPath == from, cancellationToken))
+        /* The checks and the insert are one unit (ADM-07, F-1): every create holds one
+           application lock until its transaction ends, so two creates of one address,
+           /x and /x/ included, cannot both pass the duplicate check, and two creates
+           that would close a loop through different addresses cannot both pass the loop
+           check. Every early return disposes the transaction, which rolls back and
+           releases the lock. */
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        if (!await TakeRedirectLockAsync(cancellationToken))
+            return ContentOutcome.Fail(StatusCodes.Status503ServiceUnavailable, "redirect_busy", "Another redirect is being saved. Try again.");
+
+        var spellings = RedirectPaths.Spellings(from!);
+        if (await db.Redirects.AsNoTracking().AnyAsync(redirect => spellings.Contains(redirect.FromPath), cancellationToken))
             return ContentOutcome.Fail(StatusCodes.Status409Conflict, "redirect_exists", "A redirect from that path already exists.");
 
         if (await OccupiesLivePathAsync(db, from!, cancellationToken))
@@ -160,6 +177,11 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         db.Redirects.Add(created);
         Audit(userId, "create_redirect", "redirect", created.Id.ToString(), created.FromPath + " -> " + created.ToPath);
         await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        // Still created when no page answers at the target (the audit's fix warns, and a
+        // chain to another redirect's source collapses, Phase B 4.5), but said so (ADM-07).
+        var live = await RedirectTargets.LivePathsAsync(db, cancellationToken);
         return ContentOutcome.Ok(new
         {
             created.Id,
@@ -168,8 +190,28 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
             created.StatusCode,
             created.Source,
             created.CreatedAt,
+            TargetLive = RedirectTargets.Resolves(created.ToPath, live),
         }, StatusCodes.Status201Created);
     }
+
+    /// <summary>
+    /// Takes the lock every redirect create holds, owned by the current transaction. False on
+    /// a timeout, a deadlock or an error (sp_getapplock below 0). It needs only membership of
+    /// public, so the application login can take it.
+    /// </summary>
+    private async Task<bool> TakeRedirectLockAsync(CancellationToken cancellationToken)
+    {
+        var result = new Microsoft.Data.SqlClient.SqlParameter("@result", System.Data.SqlDbType.Int) { Direction = System.Data.ParameterDirection.Output };
+        await db.Database.ExecuteSqlRawAsync(RedirectLockSql, [result], cancellationToken);
+        return result.Value is int code && code >= 0;
+    }
+
+    /* One fixed resource for all creates, so the loop check is serialised across addresses
+       too. A create waits at most 5 s for another, then is refused as busy (503
+       redirect_busy). RedirectConcurrencyTests holds this resource, and its gate's cap
+       must stay well under this timeout. */
+    private const string RedirectLockSql =
+        "EXEC @result = sp_getapplock @Resource = N'digitalhub:redirects', @LockMode = N'Exclusive', @LockOwner = N'Transaction', @LockTimeout = 5000;";
 
     public async Task<ContentOutcome> DeleteRedirectAsync(Guid id, string? userId, CancellationToken cancellationToken)
     {
@@ -200,6 +242,10 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         var errors = ValidateSettings(request);
         if (request.Version is null or < 0)
             Add(errors, "version", "Version is required.");
+        // An id that is not in the library would fail the foreign key as a 500 (ADM-10, G-1).
+        if (request.DefaultShareImageIdSent && request.DefaultShareImageId is { } shareImageId
+            && !await db.Media.AnyAsync(asset => asset.Id == shareImageId, cancellationToken))
+            Add(errors, "defaultShareImageId", "Choose an image from the media library.");
         if (errors.Count > 0)
             return Validation(errors);
 
@@ -239,8 +285,11 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         settings.Country = TrimOrNull(request.Country);
         settings.DefaultMetaTitle = TrimOrNull(request.DefaultMetaTitle);
         settings.DefaultMetaDescription = TrimOrNull(request.DefaultMetaDescription);
-        settings.DefaultShareImageId = request.DefaultShareImageId;
-        settings.DefaultShareImageAltOverride = TrimOrNull(request.DefaultShareImageAltOverride);
+        // ADM-10: a body that leaves either field out keeps the stored value; null clears.
+        if (request.DefaultShareImageIdSent)
+            settings.DefaultShareImageId = request.DefaultShareImageId;
+        if (request.DefaultShareImageAltOverrideSent)
+            settings.DefaultShareImageAltOverride = TrimOrNull(request.DefaultShareImageAltOverride);
         settings.OrganizationName = TrimOrNull(request.OrganizationName);
         settings.LegalName = TrimOrNull(request.LegalName);
         settings.AnalyticsContainerId = TrimOrNull(request.AnalyticsContainerId);
@@ -598,8 +647,10 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         return ContentOutcome.Ok(PresentErrorPage(type, page, section));
     }
 
+    /// <summary>Whether a live page answers at this path's address. A public path never ends in / except "/" (ContentPaths).</summary>
     private static async Task<bool> OccupiesLivePathAsync(ContentDbContext db, string fromPath, CancellationToken cancellationToken)
     {
+        fromPath = RedirectPaths.Key(fromPath);
         var published = ContentStatus.Published;
         var pagePaths = await db.Pages.AsNoTracking()
             .Where(page => page.Status == published)
@@ -636,24 +687,29 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         if (blogPaths.Any(slug => ContentPaths.PublicPath("blog-posts", slug) == fromPath))
             return true;
 
+        // The build also writes an ended vacancy's page ("no longer open"), so it is live too
+        // (ADM-07, F-2; O-ADM07-2 "Yes, refuse it"). The same predicate as BuildContentStore.
+        var ended = ContentStatus.Ended;
         var vacancyPaths = await db.Vacancies.AsNoTracking()
-            .Where(item => item.Status == published)
+            .Where(item => item.Status == published || item.Status == ended)
             .Select(item => item.Slug)
             .ToListAsync(cancellationToken);
         return vacancyPaths.Any(slug => ContentPaths.PublicPath("vacancies", slug) == fromPath);
     }
 
+    /// <summary>Follows the chain from to, by address, so a trailing slash neither hides a hop nor a loop.</summary>
     private static async Task<(string Path, bool Loop)> ResolveDestinationAsync(ContentDbContext db, string to, string from, CancellationToken cancellationToken)
     {
-        var visited = new HashSet<string>(StringComparer.Ordinal) { from };
+        var visited = new HashSet<string>(StringComparer.Ordinal) { RedirectPaths.Key(from) };
         var current = to;
         while (true)
         {
-            if (!visited.Add(current))
+            if (!visited.Add(RedirectPaths.Key(current)))
                 return (current, true);
-            var next = await db.Redirects.AsNoTracking().FirstOrDefaultAsync(redirect => redirect.FromPath == current, cancellationToken);
+            var spellings = RedirectPaths.Spellings(current);
+            var next = await db.Redirects.AsNoTracking().FirstOrDefaultAsync(redirect => spellings.Contains(redirect.FromPath), cancellationToken);
             if (next is null)
-                return (current, current == from);
+                return (current, RedirectPaths.Key(current) == RedirectPaths.Key(from));
             current = next.ToPath;
         }
     }
@@ -774,6 +830,7 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         LimitText(errors, "cookieRejectLabel", request.CookieRejectLabel, 80);
         LimitText(errors, "cookieAnalyticsLabel", request.CookieAnalyticsLabel, 80);
         LimitText(errors, "cookieSettingsLabel", request.CookieSettingsLabel, 80);
+        LimitText(errors, "defaultShareImageAltOverride", request.DefaultShareImageAltOverride, 300);
         return errors;
     }
 
@@ -860,7 +917,10 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         return errors;
     }
 
-    /// <summary>The checks CreateRedirectAsync applies to a stored redirect, other than that it already exists.</summary>
+    /// <summary>
+    /// The checks CreateRedirectAsync applies to a stored redirect. The import writes every row
+    /// first, so "already exists" becomes: another row starts at the same address.
+    /// </summary>
     public static async Task<Dictionary<string, List<string>>> CheckRedirectAsync(ContentDbContext db, Redirect redirect, CancellationToken cancellationToken)
     {
         var errors = new Dictionary<string, List<string>>(StringComparer.Ordinal);
@@ -873,7 +933,11 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         if (errors.Count > 0)
             return errors;
 
-        if (from == to)
+        var spellings = RedirectPaths.Spellings(from!);
+        if (await db.Redirects.AsNoTracking().AnyAsync(other => other.Id != redirect.Id && spellings.Contains(other.FromPath), cancellationToken))
+            Add(errors, "fromPath", "Another redirect starts at the same address.");
+
+        if (RedirectPaths.Key(from!) == RedirectPaths.Key(to!))
             Add(errors, "toPath", "A redirect cannot point at itself.");
         else if (await OccupiesLivePathAsync(db, from!, cancellationToken))
             Add(errors, "fromPath", "A redirect source cannot equal the path of a live page.");
@@ -1109,8 +1173,28 @@ public sealed class SiteSettingsUpdate
     public string? Country { get; set; }
     public string? DefaultMetaTitle { get; set; }
     public string? DefaultMetaDescription { get; set; }
-    public Guid? DefaultShareImageId { get; set; }
-    public string? DefaultShareImageAltOverride { get; set; }
+    private Guid? _defaultShareImageId;
+    private string? _defaultShareImageAltOverride;
+
+    public Guid? DefaultShareImageId
+    {
+        get => _defaultShareImageId;
+        set { _defaultShareImageId = value; DefaultShareImageIdSent = true; }
+    }
+
+    public string? DefaultShareImageAltOverride
+    {
+        get => _defaultShareImageAltOverride;
+        set { _defaultShareImageAltOverride = value; DefaultShareImageAltOverrideSent = true; }
+    }
+
+    /// <summary>False when the body had no defaultShareImageId: the save keeps the stored one (ADM-10).</summary>
+    /// <remarks>Internal, so System.Text.Json and the bundle import's reflection over the public properties never see it.</remarks>
+    internal bool DefaultShareImageIdSent { get; private set; }
+
+    /// <summary>False when the body had no defaultShareImageAltOverride: the save keeps the stored one (ADM-10).</summary>
+    internal bool DefaultShareImageAltOverrideSent { get; private set; }
+
     public string? OrganizationName { get; set; }
     public string? LegalName { get; set; }
     public string? AnalyticsContainerId { get; set; }

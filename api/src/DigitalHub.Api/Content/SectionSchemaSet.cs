@@ -8,7 +8,8 @@ public sealed class SectionSchemaSet
     private readonly Dictionary<string, JsonSchema> _byType;
     private readonly Dictionary<string, HashSet<string>> _inlineTextByType;
     private readonly Dictionary<string, List<string[]>> _urlPathsByType;
-    private readonly EvaluationOptions _options;
+    private readonly EvaluationOptions _asserting;
+    private readonly EvaluationOptions _annotating;
 
     public SectionSchemaSet()
     {
@@ -31,7 +32,8 @@ public sealed class SectionSchemaSet
             _byType[name] = JsonSchema.FromFile(file, build);
         }
 
-        _options = new EvaluationOptions { OutputFormat = OutputFormat.List };
+        _asserting = SchemaFormats.Asserting();
+        _annotating = SchemaFormats.Annotating();
     }
 
     public bool Knows(string type) => _byType.ContainsKey(type);
@@ -128,13 +130,26 @@ public sealed class SectionSchemaSet
         }
     }
 
-    public IReadOnlyList<string> Validate(string type, string fieldsJson)
+    /// <summary>
+    /// The check for content that is published or about to be: schema formats are
+    /// asserted (SchemaFormats), so nothing the website build refuses gets through.
+    /// Every caller gets this unless it asks for the draft check.
+    /// </summary>
+    public IReadOnlyList<string> Validate(string type, string fieldsJson) => Validate(type, fieldsJson, _asserting);
+
+    /// <summary>
+    /// The check for a draft: formats are annotations only, so a value the Studio saves
+    /// before it is finished (an empty reference or image id) still saves. Save is not publish.
+    /// </summary>
+    public IReadOnlyList<string> ValidateDraft(string type, string fieldsJson) => Validate(type, fieldsJson, _annotating);
+
+    private IReadOnlyList<string> Validate(string type, string fieldsJson, EvaluationOptions options)
     {
         if (!_byType.TryGetValue(type, out var schema))
             return ["Unknown section type."];
 
         using var document = JsonDocument.Parse(fieldsJson);
-        var result = schema.Evaluate(document.RootElement, _options);
+        var result = schema.Evaluate(document.RootElement, options);
         if (result.IsValid)
             return [.. LinkProblems(type, document.RootElement)];
 

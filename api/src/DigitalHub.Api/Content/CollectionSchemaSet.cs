@@ -8,7 +8,8 @@ public sealed class CollectionSchemaSet
     private readonly Dictionary<string, JsonSchema> _byCollection;
     private readonly Dictionary<string, JsonElement> _documents;
     private readonly Dictionary<string, List<string[]>> _urlPathsByCollection = new(StringComparer.Ordinal);
-    private readonly EvaluationOptions _options;
+    private readonly EvaluationOptions _asserting;
+    private readonly EvaluationOptions _annotating;
 
     public CollectionSchemaSet()
     {
@@ -33,7 +34,8 @@ public sealed class CollectionSchemaSet
                 _urlPathsByCollection[name] = urlPaths;
         }
 
-        _options = new EvaluationOptions { OutputFormat = OutputFormat.List };
+        _asserting = SchemaFormats.Asserting();
+        _annotating = SchemaFormats.Annotating();
     }
 
     public IReadOnlyDictionary<string, JsonElement> Documents => _documents;
@@ -74,13 +76,26 @@ public sealed class CollectionSchemaSet
         }
     }
 
-    public IReadOnlyList<string> Validate(string collection, string fieldsJson)
+    /// <summary>
+    /// The check for content that is published or about to be: schema formats are
+    /// asserted (SchemaFormats), so nothing the website build refuses gets through.
+    /// Every caller gets this unless it asks for the draft check.
+    /// </summary>
+    public IReadOnlyList<string> Validate(string collection, string fieldsJson) => Validate(collection, fieldsJson, _asserting);
+
+    /// <summary>
+    /// The check for a draft: formats are annotations only, so a value the Studio saves
+    /// before it is finished (an empty reference or image id) still saves. Save is not publish.
+    /// </summary>
+    public IReadOnlyList<string> ValidateDraft(string collection, string fieldsJson) => Validate(collection, fieldsJson, _annotating);
+
+    private IReadOnlyList<string> Validate(string collection, string fieldsJson, EvaluationOptions options)
     {
         if (!_byCollection.TryGetValue(collection, out var schema))
             return ["Unknown collection."];
 
         using var document = JsonDocument.Parse(fieldsJson);
-        var result = schema.Evaluate(document.RootElement, _options);
+        var result = schema.Evaluate(document.RootElement, options);
         if (result.IsValid)
             return [.. LinkProblems(collection, document.RootElement)];
 

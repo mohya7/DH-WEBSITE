@@ -158,6 +158,53 @@ public sealed class ContentBundleTests : IClassFixture<ApiFactory>, IDisposable
     }
 
     [Fact]
+    public async Task A_published_row_with_an_id_the_website_would_refuse_is_not_imported()
+    {
+        // ADM-02: the website build refuses a published "uuid" value that is not a lower-case UUID.
+        await InTransactionAsync(async db =>
+        {
+            await SeedAsync(db);
+            var bundle = Edit(await ExportAsync(db, _source), root => CaseCardsSection(root, new { title = "T", reference = new { type = "case_study", id = "not-a-uuid" } }));
+            await EmptyAsync(db);
+
+            var result = await ImportAsync(db, _target, bundle);
+            Assert.False(result.Ok);
+            Assert.Contains(result.Problems, problem => problem.StartsWith("pages " + PageId + ": sections[0]", StringComparison.Ordinal) && problem.Contains("format 'uuid'", StringComparison.Ordinal));
+            Assert.Equal(0, await db.Pages.CountAsync());
+        });
+    }
+
+    [Fact]
+    public async Task A_draft_row_or_working_copy_with_an_unchosen_id_still_imports()
+    {
+        // Save is not publish: a draft, and a working copy of a published item, may hold what the Studio saved.
+        await InTransactionAsync(async db =>
+        {
+            await SeedAsync(db);
+            var bundle = Edit(await ExportAsync(db, _source), root =>
+            {
+                CaseCardsSection(root, new { title = "T", reference = new { type = "case_study", id = "" } });
+                root["tables"]!["pages"]![0]!["status"] = "draft";
+                var copy = root["tables"]!["working-copies"]![0]!;
+                var draft = JsonSerializer.Deserialize<DraftDocument>(copy["document"]!.GetValue<string>(), ContentJson.Options)!;
+                draft.Sections.Add(new DraftSection
+                {
+                    Id = Guid.Parse("b0000000-0000-0000-0000-000000000001"),
+                    Type = "case_cards",
+                    SortOrder = 0,
+                    Visible = true,
+                    Fields = JsonSerializer.SerializeToElement(new { heading = "H", items = new[] { new { title = "T", image = new { mediaId = "", alt = "A", decorative = false } } } }),
+                });
+                copy["document"] = JsonSerializer.Serialize(draft, ContentJson.Options);
+            });
+            await EmptyAsync(db);
+
+            var result = await ImportAsync(db, _target, bundle);
+            Assert.True(result.Ok, string.Join("\n", result.Problems));
+        });
+    }
+
+    [Fact]
     public async Task A_bundle_made_at_another_migration_is_refused()
     {
         await InTransactionAsync(async db =>
@@ -695,6 +742,14 @@ public sealed class ContentBundleTests : IClassFixture<ApiFactory>, IDisposable
         await db.TeamMembers.ExecuteDeleteAsync();
         await db.NewsItems.ExecuteDeleteAsync();
         await db.Media.ExecuteDeleteAsync();
+    }
+
+    /// <summary>The seeded page's only section, made a case_cards section holding one item.</summary>
+    private static void CaseCardsSection(JsonObject root, object item)
+    {
+        var section = root["tables"]!["sections"]![0]!;
+        section["type"] = "case_cards";
+        section["fields"] = JsonSerializer.Serialize(new { heading = "H", items = new[] { item } });
     }
 
     private static string Doc(string text) =>
