@@ -548,6 +548,71 @@ public sealed class UserRoleAndReactivationTests : IClassFixture<ApiFactory>
         }
     }
 
+    // T18 (rework round 2, R2-6): no token, no session, on both new routes.
+    [Fact]
+    public async Task An_anonymous_caller_cannot_change_a_role_or_reactivate()
+    {
+        var started = DateTime.UtcNow.AddSeconds(-1);
+        var admin = await AdminAsync();
+        var editor = await CreateUserAsync(admin, NewEmail("t18-editor"), "editor", TestPassphrase.New());
+        var gone = await CreateUserAsync(admin, NewEmail("t18-gone"), "editor", TestPassphrase.New());
+        var deactivated = await SendAsync(admin, HttpMethod.Post, $"/api/v1/users/{gone}/deactivate");
+        Assert.True(deactivated.Status == HttpStatusCode.OK, Describe("deactivate", deactivated));
+
+        using var anonymous = _factory.CreateClient();
+        using (var role = await anonymous.PutAsJsonAsync($"/api/v1/users/{editor}/role", new { role = "admin" }))
+        {
+            Assert.Equal(HttpStatusCode.Unauthorized, role.StatusCode);
+            Assert.Equal("application/problem+json", role.Content.Headers.ContentType?.MediaType);
+        }
+
+        using (var reactivate = await anonymous.PostAsync($"/api/v1/users/{gone}/reactivate", null))
+        {
+            Assert.Equal(HttpStatusCode.Unauthorized, reactivate.StatusCode);
+            Assert.Equal("application/problem+json", reactivate.Content.Headers.ContentType?.MediaType);
+        }
+
+        Assert.Equal(["editor"], await RolesAsync(editor));
+        Assert.True(IsDeactivated(await LoadAsync(gone)), "The anonymous reactivation made the user active.");
+        Assert.Empty(await AuditAsync(editor, "change_user_role", started));
+        Assert.Empty(await AuditAsync(gone, "reactivate_user", started));
+    }
+
+    // T19 (rework round 2, R2-3, gate-1 condition C7 item 3): UserAccessStore.Failed maps
+    // Identity's ConcurrencyFailure to 409 concurrency_conflict. This confirms Identity
+    // answers a save from a stale ConcurrencyStamp with that code.
+    [Fact]
+    public async Task A_stale_concurrency_stamp_yields_ConcurrencyFailure()
+    {
+        var email = NewEmail("t19-stale");
+        string id;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var user = new ApplicationUser { UserName = email, Email = email, EmailConfirmed = true };
+            Assert.True((await users.CreateAsync(user, TestPassphrase.New())).Succeeded);
+            id = user.Id;
+        }
+
+        using var staleScope = _factory.Services.CreateScope();
+        var staleUsers = staleScope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var stale = await staleUsers.FindByIdAsync(id);
+        Assert.NotNull(stale);
+
+        using (var freshScope = _factory.Services.CreateScope())
+        {
+            var freshUsers = freshScope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var fresh = await freshUsers.FindByIdAsync(id);
+            Assert.NotNull(fresh);
+            Assert.True((await freshUsers.UpdateSecurityStampAsync(fresh)).Succeeded);
+        }
+
+        var result = await staleUsers.UpdateSecurityStampAsync(stale);
+        _output.WriteLine("Stale save: Succeeded=" + result.Succeeded + ", codes=" + string.Join(",", result.Errors.Select(error => error.Code)));
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Errors, error => error.Code == nameof(IdentityErrorDescriber.ConcurrencyFailure));
+    }
+
     private static string NewEmail(string name) =>
         "adm04-" + name + "-" + Guid.NewGuid().ToString("N")[..8] + "@digitalhub.test";
 
