@@ -51,8 +51,8 @@ needed, quoting the file, and wait.
 
 ## Stop for the owner
 
-After step 8, stop. Do not push, open a pull request or merge until the owner
-confirms, as `AGENTS.md` requires. Report:
+After step 8, stop. Do not push or open a pull request until the owner
+confirms, as `AGENTS.md` requires. Never merge. Report:
 
 - the change, branch and head commit
 - each step's verdict, with the number of rounds
@@ -62,5 +62,5 @@ confirms, as `AGENTS.md` requires. Report:
 
 When the owner confirms, push with `git push -u origin change/<id>` and open the
 pull request with the description the tech lead drafted, which follows
-`.github/pull_request_template.md`. Merging stays with the integrator named for
-the section.
+`.github/pull_request_template.md`. The owner squash-merges it into
+`rebuild/dotnet-platform`; never merge it yourself (`AGENTS.md`).
