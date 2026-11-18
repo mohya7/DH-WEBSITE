@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { checkOutput, checkStaticPage, expectedSections, htmlFileFor } from "../scripts/check-output";
+import { checkOutput, checkScriptIntegrity, checkStaticPage, expectedSections, htmlFileFor, integrityOutcome, SRI_BLOCKING_FROM } from "../scripts/check-output";
 import { createSite } from "../src/content/site";
 import { snapshotContent } from "./helpers";
 import type { Manifest } from "../src/content/prepared";
@@ -160,5 +160,46 @@ describe("static page content", () => {
     const empty = createSite({ ...content, collections: { ...content.collections, "case-studies": [] } });
     const emptyCases = empty.routes.find((route) => route.path === "/cases")!;
     expect(expectedSections(empty, emptyCases.item, "page")).toBe(emptyCases.item!.sections.filter((section) => section.type !== "case_cards").length);
+  });
+});
+
+describe("external script integrity check (GAP-11)", () => {
+  const sri = 'integrity="sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt" crossorigin="anonymous"';
+  const cases = [
+    { name: "https", src: "https://cdn.example/x.js" },
+    { name: "http", src: "http://cdn.example/x.js" },
+    { name: "protocol-relative", src: "//cdn.example/x.js" },
+  ];
+
+  for (const { name, src } of cases) {
+    it(`rejects a bare ${name} external script and accepts it with integrity and crossorigin`, () => {
+      expect(checkScriptIntegrity("index.html", page(`<script src="${src}"></script>`))).toEqual([
+        `index.html: external script without integrity: ${src}`,
+      ]);
+      expect(checkScriptIntegrity("index.html", page(`<script src="${src}" ${sri}></script>`))).toEqual([]);
+    });
+  }
+
+  it("rejects integrity without crossorigin, and an integrity that is not sha384", () => {
+    const noCors = page('<script src="https://cdn.example/x.js" integrity="sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt"></script>');
+    const sha256 = page('<script src="https://cdn.example/x.js" integrity="sha256-abc" crossorigin="anonymous"></script>');
+    expect(checkScriptIntegrity("a.html", noCors)).toEqual(["a.html: external script without integrity: https://cdn.example/x.js"]);
+    expect(checkScriptIntegrity("a.html", sha256)).toEqual(["a.html: external script without integrity: https://cdn.example/x.js"]);
+  });
+
+  it("leaves the site's own scripts alone", () => {
+    expect(checkScriptIntegrity("index.html", page('<script src="/design/abc123/js/main.js"></script><script src="/behaviors/consent.1.js"></script>'))).toEqual([]);
+  });
+
+  it("warns and exits 0 before SRI_BLOCKING_FROM, fails with exit 1 on and after it", () => {
+    expect(SRI_BLOCKING_FROM).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    const problems = checkScriptIntegrity("index.html", page('<script src="//cdn.example/x.js"></script>'));
+    expect(problems).toHaveLength(1);
+    const before = integrityOutcome(problems, "2026-11-25", "2026-11-26");
+    expect(before).toEqual({ mode: "warn", warnings: problems, failures: [], exitCode: 0 });
+    const on = integrityOutcome(problems, "2026-11-26", "2026-11-26");
+    expect(on).toEqual({ mode: "fail", warnings: [], failures: problems, exitCode: 1 });
+    expect(integrityOutcome(problems, "2027-01-01", "2026-11-26").exitCode).toBe(1);
+    expect(integrityOutcome([], "2027-01-01", "2026-11-26").exitCode).toBe(0);
   });
 });
