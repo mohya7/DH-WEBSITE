@@ -244,7 +244,7 @@ npm run compare:screenshots
 | Variable | Meaning |
 |---|---|
 | `SCREENSHOT_BROWSERS` | Comma list of `chromium`, `firefox`, `webkit`. A browser that is asked for and cannot launch stops the run before any page is served; one that is not asked for is never launched. WebKit cannot run on the Windows development machines (Application Control). |
-| `SCREENSHOT_PORT`, `SCREENSHOT_CANDIDATE_PORT` | Any two different ports from 1024 to 65535. Use your own range (Codex 41xx, Claude Code 42xx, Cursor 43xx). |
+| `SCREENSHOT_PORT`, `SCREENSHOT_CANDIDATE_PORT` | Any two different ports from 1024 to 65535. Use the agents' range, 42xx (`AGENTS.md`). |
 | `SCREENSHOT_OLD_ROOT`, `SCREENSHOT_NEW_ROOT` | The old site (default the local `DH-WEBSITE-main` checkout, only read) and the build (default `out/`). |
 | `SCREENSHOT_OUT` | Where `report.html`, `results.json`, and the failing captures go (default `tools/screenshot-parity/output/`). |
 
