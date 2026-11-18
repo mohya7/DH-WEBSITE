@@ -2,6 +2,8 @@
 
 Developer, 12 November 2026. Plan: `docs/changes/ADM-04/plan.md` round 3 at `59e1269`,
 gate 1 `plan-approval.md` at `33b3efc` (`Verdict: APPROVED`, conditions C1 to C12).
+**Rework round 2 (19 November): see section 4b, which supersedes the PENDING and "not pushed" statements below.**
+
 Branch `change/ADM-04`, worktree `/home/user/dh-change-adm04`. Nothing is pushed (C4: the
 coordinator pushes).
 
@@ -225,6 +227,125 @@ $ cd studio && npm test                                      exit 0
       Tests  105 passed (105)
 $ cd studio && VITE_PUBLIC_SITE_URL=https://website.ci.invalid npm run build    exit 0
 Preview design: /website-design/d1ebe4132f8cfa8e/ matches website/design/ byte for byte.
+```
+
+## 4b. Rework round 2 (`test-report.md` round 2, committed as `fba1836`)
+
+Developer, 19 November 2026, in `D:\work\DigitalHub\dh-platform-claude-adm-04`. **This
+section supersedes every "PENDING", "Nothing is pushed" and "not compiled" statement
+above and in sections 7, 10 and 11:** the branch is pushed, every C# file compiles
+(Release, `0 Error(s)`, `13 Warning(s)`, equal to the base's 13), and CI has run on
+`75ec041`, `ca39aab` and `5c314a6` (2.1 to 2.5 of `test-report.md` round 2 and below).
+
+### Commits added since round 1
+
+| SHA | Subject | Files |
+| --- | --- | --- |
+| `75ec041` | ADM-04: Use a secure random suffix for the E1 test account | `studio/e2e/users.spec.ts` (`crypto.randomUUID()` in place of `Math.random()`, CodeQL alert 1) |
+| `ca39aab` | Merge rebuild/dotnet-platform into change/ADM-04 to pick up #62, #63 and #64 | merge of base `793c43e`, no conflicts; `git diff --stat 75ec041 ca39aab -- api` empty |
+| `fba1836` | ADM-04: Test report round 2 | `docs/changes/ADM-04/test-report.md` |
+| `5c314a6` | ADM-04: Test anonymous callers and stale concurrency stamps | `UserRoleAndReactivationTests.cs` (T18, T19; test only) |
+| this commit | ADM-04: Record rework round 2 | `docs/changes/ADM-04/implementation.md` |
+
+### Findings and answers
+
+| Finding | Answer | Evidence |
+| --- | --- | --- |
+| R2-1 T17 never shown red | Pushed `diag/ADM-04-t17-red` at `deff0ce` (test only, before fix `81b951b`), draft PR #66 "diag: ADM-04 T17 red (do not merge)" | CI run `44420391530`, job `api` `135211492167`: failure. `Failed ...An_admin_cannot_change_their_own_role_through_another_spelling_of_their_id [204 ms]` / `change own role as D505EBEE-6294-4A1C-ABC1-FF9FBBBCBB12: 200 {"id":"d505ebee-...","role":"editor","active":true,...}` (the planned reason: 200 for the upper-case spelling, the admin demoted). `Total tests: 562, Passed: 561, Failed: 1`, T17 the only failure. Green at the head: job `135212098998` line 651 `Passed ...through_another_spelling_of_their_id [208 ms]` |
+| R2-2 C5 third run | Third consecutive CI run, at `5c314a6` (API source identical to `75ec041` and `ca39aab`: `5c314a6` changes a test file only) | Job `135212098998`, artifact `14480963258` TRX StdOut, T15: `23:26:49.870 warm-up: 2 authenticated requests, Matched 0` / `49.871 sent: A demotes B` / `49.873 sent: B demotes A` / `49.886`, `49.892 users lock requested (sp_getapplock)` / `49.896 matched [@userId=dd340600-...]: SELECT [a0].[Name] FROM [AspNetUserRoles] ... WHERE [a].[UserId] = @userId` / `51.980 answered: B demotes A: 200` / `51.997 answered: A demotes B: 403` / `Matched 1; gate cap 2000 ms.` Both requests reached the store within the cap. T16: `52.389 warm-up ... Matched 0`, `52.393 users lock requested`, `52.394 matched` (same SQL), `52.447 B deactivated in the database while held`, `52.450 answered: B changes X to hr: 403`, `Matched 1`. Runs 1 and 2 are quoted in `test-report.md` 2.4 |
+| R2-3 C7 item 3 | No test existed; the plan (C7) requires test output. Added T19 `A_stale_concurrency_stamp_yields_ConcurrencyFailure`: two scopes load the same user, one rotates the stamp, the stale one then saves | TRX StdOut at `5c314a6`: `Stale save: Succeeded=False, codes=ConcurrencyFailure`; console line 611 `Passed ...A_stale_concurrency_stamp_yields_ConcurrencyFailure [71 ms]`. The assumption behind `UserAccessStore.Failed` (409 `concurrency_conflict`) holds. **Not red first:** it tests Identity's own behaviour, which no ADM-04 code changes, so it cannot fail without changing Identity |
+| R2-4 PR body | Drafted below (section 4c), for the orchestrator to put on PR #58 after gate 2. I did not edit the PR | Quoted from `plan.md` section 9 (B1 to B10, Known exposure) and `plan-approval.md` lines 85 to 92 (owner answers) |
+| R2-5 record out of date | This section; commit table above; CI results below | Runs listed below |
+| R2-6 anonymous callers | Added T18 `An_anonymous_caller_cannot_change_a_role_or_reactivate`: a client with no token sends `PUT /api/v1/users/{id}/role` and `POST /api/v1/users/{id}/reactivate`; expects 401 `application/problem+json` on each, the role unchanged, the user still deactivated, no audit rows | Console line 610 `Passed ...An_anonymous_caller_cannot_change_a_role_or_reactivate [214 ms]`. **Not red first:** the routes already carry the class-level `[Authorize(Policy = "studio-admin")]` with no `AllowAnonymous`, so it can only fail if production code is changed, which is out of scope |
+
+### CI on the head `5c314a6` (all green)
+
+| Workflow | Run | Result |
+| --- | --- | --- |
+| CI | `44420549874` | success: `api` `135212098998` (`Total tests: 564, Passed: 564`; build `13 Warning(s)`), `studio` `135212099399`, `website` `135212099499`, `website-browser` `135212099716`, `section-compare` `135212403078`; screenshot parity skipped (optional, label only) |
+| CodeQL | `44420549854` | success |
+| Security | `44420549820` | success |
+| Workflow lint | `44420549782` | success |
+
+The record commit after `5c314a6` changes this file only; its runs are quoted in the
+reply to the orchestrator.
+
+### Second session's work in this worktree (coordinator's note, 19 November)
+
+- Another developer session ran round 2 in this worktree at the same time. I checked the
+  branch: `fba1836` and `5c314a6` on `origin/change/ADM-04` are the two commits I made
+  and checked in this session (above). `5c314a6` changes one test file only, adds T18
+  and T19 and nothing outside R2-3 and R2-6.
+- `git status` was clean after the other session stopped: no uncommitted edits were left,
+  in `implementation.md` or elsewhere. Nothing was discarded.
+- Branch `change/ADM-04-red-t17` (the other session's, at `deff0ce`) has **PR #65**, open,
+  "ADM-04 red evidence: T17 at deff0ce (do not merge)", with CI run `44420392788`:
+  failure (the same T17 red), plus CodeQL `44420392664`, Security `44420392825` and
+  Workflow lint `44420392749`, all success. It duplicates my PR #66. I did not close,
+  delete or push anything for it; the owner decides. PR #66 and `diag/ADM-04-t17-red`
+  are also left open for the owner to close.
+
+## 4c. PR #58 description (C10), for the orchestrator after gate 2
+
+```markdown
+## What and why
+ADM-04: an admin can change a Studio user's role and reactivate a deactivated user,
+keeping the last-admin guard (audit Fix 1, 2 and 4; FR-S-02).
+
+## Scope and boundaries
+New `UserAccessController`, `UserAccessStore`, `TemporaryPassword`, one line in
+`Program.cs`, and `UsersPage.tsx`; tests. No migration. Deactivate is unchanged
+(ADM-04b). Behaviour changes, for the owner:
+- B1: An admin can change any other active user's role between admin, editor and HR,
+  from User Management, after a confirmation.
+- B2: A role change signs the user out everywhere. They sign in again with the new role.
+- B3: An admin cannot change their own role (another admin does it), just as they cannot
+  deactivate themselves today.
+- B4: A deactivated user's role cannot be changed until they are reactivated.
+- B5: The last active admin cannot be made editor or HR (`last_admin`).
+- B6: A deactivated user can be reactivated. They keep their role, get a new temporary
+  password shown once to the admin, and must change it at sign-in.
+- B7: Creating a user with a deactivated user's email still fails. The screen now offers
+  "Reactivate instead".
+- B8: Two new audit actions: `change_user_role` and `reactivate_user`.
+- B9: A role change or reactivation can answer "Another change to the users is in
+  progress. Try again." (503, after 5 s at most) if another admin's change holds the lock.
+- B10: A request from an admin who was demoted or deactivated while it was in flight is
+  refused (403), even though it started with a valid token.
+
+**Known exposure until ADM-04b:** a demotion racing a deactivate, or two deactivates, can
+still leave no active admin (plan 4.2).
+
+## Security impact
+Both routes require the `studio-admin` policy: anonymous 401 (T18), editor, HR,
+deactivated and must-change users 403 (T11, `CareersTests`). The temporary password is
+in no log or audit row (T10) and its answer is `Cache-Control: no-store` (T4).
+
+## Owner decisions
+By card tap, Mohamed Elbadry, 12 November 2026, 12:09 UTC, as relayed by the coordinator:
+- O-ADM04-1 (O-15): "No, deactivate is enough"
+- O-ADM04-2: "New temporary password"
+- O-ADM04-3: "Yes, red tests first"
+
+## Tests and evidence
+Red: CI at `bf634e2` (T1 to T11, T13 to T16, E1), `486588c` (S1, S2, S4 to S6),
+`deff0ce` (T17, run 44420391530). Green on the final head in every workflow: see
+`docs/changes/ADM-04/implementation.md` 4b and `test-report.md`.
+
+## Definition of Done
+See the coverage table in `implementation.md` section 10 as updated by 4b.
+
+## Review findings accepted
+Test report rounds 1 and 2: every finding answered in `implementation.md` 4a and 4b.
+
+## Governance
+No migration. No database written outside DigitalHubContent_Test / _E2e. The owner
+squash-merges.
+
+## Also covers
+Nothing else.
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
 ```
 
 ## 5. Migrations
@@ -505,5 +626,7 @@ plan and gate 1 require:
 - Read section 3.1 item 1: two small additions to the screen that only the test
   environment needed. Judge whether they are acceptable under 3.2 "Nothing else on the
   screen changes"; the create modal's behaviour for a user is unchanged.
+
+- Round 2: T17 red at `deff0ce` (4b, R2-1), C5 run 3 (R2-2), T19 for C7 item 3 (R2-3), T18 for anonymous callers (R2-6). T18 and T19 cannot be red first (4b says why). PR #65 (other session) and #66 (mine) are diagnostic duplicates left open for the owner.
 
 Status: READY FOR TEST
