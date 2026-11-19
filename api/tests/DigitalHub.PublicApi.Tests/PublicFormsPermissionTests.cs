@@ -111,7 +111,7 @@ public sealed class PublicFormsPermissionTests : IClassFixture<PublicApiFactory>
     public async Task It_cannot_read_users_roles_sessions_or_audit(string table)
     {
         await using var connection = await OpenHostAsync();
-        var error = await RunRolledBackAsync(connection, $"SELECT TOP (1) 1 FROM dbo.{Quote(table)}");
+        var error = await RunRolledBackAsync(connection, "SELECT", table);
         Assert.True(error == PermissionDenied, $"SELECT on {table}: expected error {PermissionDenied}, got {Describe(error)}.");
     }
 
@@ -138,14 +138,9 @@ public sealed class PublicFormsPermissionTests : IClassFixture<PublicApiFactory>
 
         await using var connection = await OpenHostAsync();
         var failures = new List<string>();
-        foreach (var (operation, sql) in new[]
+        foreach (var operation in new[] { "INSERT", "UPDATE", "DELETE" })
         {
-            ("INSERT", $"INSERT INTO dbo.{Quote(table)} DEFAULT VALUES"),
-            ("UPDATE", $"UPDATE dbo.{Quote(table)} SET [id] = [id] WHERE 1 = 0"),
-            ("DELETE", $"DELETE FROM dbo.{Quote(table)} WHERE 1 = 0"),
-        })
-        {
-            var error = await RunRolledBackAsync(connection, sql);
+            var error = await RunRolledBackAsync(connection, operation, table, "id");
             if (error != PermissionDenied)
                 failures.Add($"{operation} on {table}: expected error {PermissionDenied}, got {Describe(error)}");
         }
@@ -195,17 +190,11 @@ public sealed class PublicFormsPermissionTests : IClassFixture<PublicApiFactory>
                 continue;
             }
 
-            foreach (var (operation, sql) in new[]
-            {
-                ("SELECT", $"SELECT TOP (1) 1 FROM dbo.{Quote(name)}"),
-                ("INSERT", $"INSERT INTO dbo.{Quote(name)} DEFAULT VALUES"),
-                ("UPDATE", $"UPDATE dbo.{Quote(name)} SET {Quote(probe)} = {Quote(probe)} WHERE 1 = 0"),
-                ("DELETE", $"DELETE FROM dbo.{Quote(name)} WHERE 1 = 0"),
-            })
+            foreach (var operation in new[] { "SELECT", "INSERT", "UPDATE", "DELETE" })
             {
                 if (Granted.Contains($"{name}:{operation}"))
                     continue;
-                var error = await RunRolledBackAsync(connection, sql);
+                var error = await RunRolledBackAsync(connection, operation, name, probe);
                 if (error != PermissionDenied)
                     failures.Add($"{name} {operation}: expected error {PermissionDenied}, got {Describe(error)}");
             }
@@ -223,7 +212,7 @@ public sealed class PublicFormsPermissionTests : IClassFixture<PublicApiFactory>
         var probe = "iso3_probe_" + Guid.NewGuid().ToString("N")[..8];
 
         await using var elevated = await OpenElevatedAsync(pooling: false);
-        await ExecuteAsync(elevated, $"CREATE USER {Quote(probe)} WITHOUT LOGIN;");
+        await ProbeUserAsync(elevated, probe, create: true);
         try
         {
             var host = await EffectivePermissionsAsync(elevated, hostUser);
@@ -241,7 +230,7 @@ public sealed class PublicFormsPermissionTests : IClassFixture<PublicApiFactory>
         }
         finally
         {
-            await ExecuteAsync(elevated, $"DROP USER {Quote(probe)};");
+            await ProbeUserAsync(elevated, probe, create: false);
         }
     }
 
@@ -253,24 +242,26 @@ public sealed class PublicFormsPermissionTests : IClassFixture<PublicApiFactory>
         await using var connection = await OpenHostAsync();
         try
         {
-            var create = await RunRolledBackAsync(connection, "CREATE TABLE dbo.iso3_probe (id int)");
+            var create = await RunRolledBackAsync(connection, "CREATE TABLE");
             Assert.True(create == DatabasePermissionDenied, $"CREATE TABLE: expected error {DatabasePermissionDenied}, got {Describe(create)}.");
 
-            var alter = await RunRolledBackAsync(connection, "ALTER TABLE dbo.vacancies ADD iso3_probe int NULL");
+            var alter = await RunRolledBackAsync(connection, "ALTER TABLE");
             _output.WriteLine($"ALTER TABLE dbo.vacancies ADD: {Describe(alter)}");
             Assert.NotNull(alter);
 
-            var truncate = await RunRolledBackAsync(connection, "TRUNCATE TABLE dbo.contact_requests");
+            var truncate = await RunRolledBackAsync(connection, "TRUNCATE TABLE");
             _output.WriteLine($"TRUNCATE TABLE dbo.contact_requests: {Describe(truncate)}");
             Assert.NotNull(truncate);
         }
         finally
         {
             await using var elevated = await OpenElevatedAsync();
-            await ExecuteAsync(elevated, """
+            await using var cleanup = elevated.CreateCommand();
+            cleanup.CommandText = """
                 IF OBJECT_ID(N'dbo.iso3_probe', N'U') IS NOT NULL DROP TABLE dbo.iso3_probe;
                 IF COL_LENGTH(N'dbo.vacancies', N'iso3_probe') IS NOT NULL ALTER TABLE dbo.vacancies DROP COLUMN iso3_probe;
-                """);
+                """;
+            await cleanup.ExecuteNonQueryAsync();
         }
 
         await using (var elevated = await OpenElevatedAsync())
@@ -374,10 +365,18 @@ public sealed class PublicFormsPermissionTests : IClassFixture<PublicApiFactory>
         return connection;
     }
 
-    private static async Task ExecuteAsync(SqlConnection connection, string sql)
+    /// <summary>Creates (WITHOUT LOGIN) or drops T-5's probe user; the name is quoted by the server.</summary>
+    private static async Task ProbeUserAsync(SqlConnection elevated, string probe, bool create)
     {
-        await using var command = connection.CreateCommand();
-        command.CommandText = sql;
+        await using var command = elevated.CreateCommand();
+        command.CommandText = """
+            DECLARE @sql nvarchar(400) = CASE WHEN @create = 1
+                THEN N'CREATE USER ' + QUOTENAME(@probe) + N' WITHOUT LOGIN;'
+                ELSE N'DROP USER ' + QUOTENAME(@probe) + N';' END;
+            EXEC (@sql);
+            """;
+        command.Parameters.Add(new SqlParameter("@probe", SqlDbType.NVarChar, 128) { Value = probe });
+        command.Parameters.Add(new SqlParameter("@create", SqlDbType.Bit) { Value = create });
         await command.ExecuteNonQueryAsync();
     }
 
@@ -385,23 +384,46 @@ public sealed class PublicFormsPermissionTests : IClassFixture<PublicApiFactory>
     {
         await using var connection = await OpenElevatedAsync();
         await using var command = connection.CreateCommand();
-        command.CommandText = $"SELECT COUNT_BIG(*) FROM dbo.{Quote(table)}";
+        command.CommandText = """
+            DECLARE @sql nvarchar(400) = N'SELECT COUNT_BIG(*) FROM dbo.' + QUOTENAME(@table) + N';';
+            EXEC (@sql);
+            """;
+        command.Parameters.Add(new SqlParameter("@table", SqlDbType.NVarChar, 128) { Value = table });
         return Convert.ToInt64(await command.ExecuteScalarAsync());
     }
 
     /// <summary>
-    /// Runs one statement in a transaction that is always rolled back, so even a
-    /// wrongly granted login changes nothing. Returns the SQL error number, or null
-    /// when the statement ran.
+    /// Runs one probe statement in a transaction that is always rolled back, so even
+    /// a wrongly granted login changes nothing. Returns the SQL error number, or null
+    /// when the statement ran. The command text is a literal: the statement is built
+    /// on the server, with the table and column names passed as parameters and
+    /// quoted by QUOTENAME, and run with EXEC under the caller's own permissions.
     /// </summary>
-    private static async Task<int?> RunRolledBackAsync(SqlConnection connection, string sql)
+    private static async Task<int?> RunRolledBackAsync(SqlConnection connection, string operation,
+        string? table = null, string? column = null)
     {
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync();
         try
         {
             await using var command = connection.CreateCommand();
             command.Transaction = transaction;
-            command.CommandText = sql;
+            command.CommandText = """
+                DECLARE @sql nvarchar(max) = CASE @operation
+                    WHEN N'SELECT' THEN N'SELECT TOP (1) 1 FROM dbo.' + QUOTENAME(@table)
+                    WHEN N'INSERT' THEN N'INSERT INTO dbo.' + QUOTENAME(@table) + N' DEFAULT VALUES'
+                    WHEN N'UPDATE' THEN N'UPDATE dbo.' + QUOTENAME(@table) + N' SET ' + QUOTENAME(@column)
+                        + N' = ' + QUOTENAME(@column) + N' WHERE 1 = 0'
+                    WHEN N'DELETE' THEN N'DELETE FROM dbo.' + QUOTENAME(@table) + N' WHERE 1 = 0'
+                    WHEN N'CREATE TABLE' THEN N'CREATE TABLE dbo.iso3_probe (id int)'
+                    WHEN N'ALTER TABLE' THEN N'ALTER TABLE dbo.vacancies ADD iso3_probe int NULL'
+                    WHEN N'TRUNCATE TABLE' THEN N'TRUNCATE TABLE dbo.contact_requests'
+                END;
+                IF @sql IS NULL THROW 50000, N'Unknown probe operation, or a missing table or column name.', 1;
+                EXEC (@sql);
+                """;
+            command.Parameters.Add(new SqlParameter("@operation", SqlDbType.NVarChar, 32) { Value = operation });
+            command.Parameters.Add(new SqlParameter("@table", SqlDbType.NVarChar, 128) { Value = (object?)table ?? DBNull.Value });
+            command.Parameters.Add(new SqlParameter("@column", SqlDbType.NVarChar, 128) { Value = (object?)column ?? DBNull.Value });
             await command.ExecuteNonQueryAsync();
             return null;
         }
@@ -465,8 +487,6 @@ public sealed class PublicFormsPermissionTests : IClassFixture<PublicApiFactory>
     }
 
     private sealed record Permissions(List<string> Objects, List<string> Schema, List<string> Database);
-
-    private static string Quote(string name) => "[" + name.Replace("]", "]]") + "]";
 
     private static int? NullableInt(SqlDataReader reader, int index) =>
         reader.IsDBNull(index) ? null : Convert.ToInt32(reader.GetValue(index));
