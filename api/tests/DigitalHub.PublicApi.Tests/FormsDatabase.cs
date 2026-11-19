@@ -21,28 +21,38 @@ internal static class FormsDatabase
     {
         var id = Guid.NewGuid();
         var now = DateTime.UtcNow;
-        await ExecuteAsync(
-            """
+        await using var connection = new SqlConnection(Connection);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
             INSERT INTO vacancies (id, slug, title, status, summary, department, location, employment_type,
                 about_role, key_responsibilities, required_skills, nice_to_have, role_offers, interview_stages,
                 featured, no_index, sort_order, version, created_at, updated_at, published_at, ended_at)
             VALUES (@id, @slug, @title, @status, N'A role.', N'', N'', N'',
                 N'', N'', N'', N'', N'', N'[]',
                 0, 0, 0, 1, @now, @now, @published, @ended)
-            """,
-            ("@id", id),
-            ("@slug", "public-api-" + id.ToString("N")),
-            ("@title", "Public API " + id.ToString("N")[..8]),
-            ("@status", status),
-            ("@now", now),
-            ("@published", status == "draft" ? DBNull.Value : now),
-            ("@ended", status == "ended" ? now : DBNull.Value));
+            """;
+        command.Parameters.AddWithValue("@id", id);
+        command.Parameters.AddWithValue("@slug", "public-api-" + id.ToString("N"));
+        command.Parameters.AddWithValue("@title", "Public API " + id.ToString("N")[..8]);
+        command.Parameters.AddWithValue("@status", status);
+        command.Parameters.AddWithValue("@now", now);
+        command.Parameters.AddWithValue("@published", status == "draft" ? DBNull.Value : now);
+        command.Parameters.AddWithValue("@ended", status == "ended" ? now : DBNull.Value);
+        await command.ExecuteNonQueryAsync();
         return id;
     }
 
     /// <summary>Removes a fixture vacancy; the cascade removes its application_counts rows.</summary>
-    public static Task DeleteVacancyAsync(Guid id) =>
-        ExecuteAsync("DELETE FROM vacancies WHERE id = @id", ("@id", id));
+    public static async Task DeleteVacancyAsync(Guid id)
+    {
+        await using var connection = new SqlConnection(Connection);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "DELETE FROM vacancies WHERE id = @id";
+        command.Parameters.AddWithValue("@id", id);
+        await command.ExecuteNonQueryAsync();
+    }
 
     /// <summary>Today's (UTC) count for the vacancy, or for general applications when null.</summary>
     public static async Task<int> CountAsync(Guid? vacancyId)
@@ -94,9 +104,12 @@ internal static class FormsDatabase
     /// Sets the careers mailbox on the first settings row, and the main email when
     /// one is given; inserts a row when there is none, as CareersTests does.
     /// </summary>
-    public static Task SetMailboxAsync(string? careers, string? email) =>
-        ExecuteAsync(
-            """
+    public static async Task SetMailboxAsync(string? careers, string? email)
+    {
+        await using var connection = new SqlConnection(Connection);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
             IF EXISTS (SELECT 1 FROM site_settings)
                 UPDATE site_settings
                 SET careers_email = @careers, email = COALESCE(@email, email)
@@ -104,20 +117,11 @@ internal static class FormsDatabase
             ELSE
                 INSERT INTO site_settings (id, version, careers_email, email)
                 VALUES (NEWID(), 0, @careers, @email);
-            """,
-            ("@careers", (object?)careers ?? DBNull.Value),
-            ("@email", (object?)email ?? DBNull.Value));
-
-    public static Task EnsureCareersAddressAsync() => SetMailboxAsync(CareersAddress, null);
-
-    private static async Task ExecuteAsync(string sql, params (string Name, object Value)[] parameters)
-    {
-        await using var connection = new SqlConnection(Connection);
-        await connection.OpenAsync();
-        await using var command = connection.CreateCommand();
-        command.CommandText = sql;
-        foreach (var (name, value) in parameters)
-            command.Parameters.AddWithValue(name, value);
+            """;
+        command.Parameters.Add(new SqlParameter("@careers", System.Data.SqlDbType.NVarChar, 320) { Value = (object?)careers ?? DBNull.Value });
+        command.Parameters.Add(new SqlParameter("@email", System.Data.SqlDbType.NVarChar, 320) { Value = (object?)email ?? DBNull.Value });
         await command.ExecuteNonQueryAsync();
     }
+
+    public static Task EnsureCareersAddressAsync() => SetMailboxAsync(CareersAddress, null);
 }
