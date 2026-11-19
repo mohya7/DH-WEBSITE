@@ -2,9 +2,11 @@
   <Folder Name="/src/">
     <Project Path="src/DigitalHub.Api/DigitalHub.Api.csproj" />
     <Project Path="src/DigitalHub.Forms/DigitalHub.Forms.csproj" />
+    <Project Path="src/DigitalHub.PublicApi/DigitalHub.PublicApi.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/DigitalHub.Api.Tests/DigitalHub.Api.Tests.csproj" />
+    <Project Path="tests/DigitalHub.PublicApi.Tests/DigitalHub.PublicApi.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/DigitalHub.ContentImport/DigitalHub.ContentImport.csproj" />

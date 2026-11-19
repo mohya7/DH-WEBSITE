@@ -23,7 +23,7 @@ is named. **N/A** — does not apply until the named phase.
 | P-2 | Gates land before refactors. Existing debt is baselined and may only shrink. | Each gate's baseline file (section 6) | Partial: security gate only |
 | P-3 | Strangler, never big-bang. The old site stays deployable until the new one has run without incident. | `docs/business-analysis.md` section 16 | Met |
 | P-4 | A failing test exists before the fix. Attack tests come from the design, before the code. | Review; red-test commit before its fix (B-6) | Partial: by review only |
-| P-5 | Fail closed. A check that cannot decide blocks. | Security gate (`gate.mjs` fails on unknown or malformed input); API fallback policy requires an authenticated user | Met |
+| P-5 | Fail closed. A check that cannot decide blocks. | Security gate (`gate.mjs` fails on unknown or malformed input); admin API fallback policy requires an authenticated user; the public forms API answers only its two routes (`PublicRouteGate`, `PublicRouteTests`, ADR 0001) | Met |
 | P-6 | Never weaken a gate, guard or test to make something pass. A conflict is resolved by a recorded decision. | Review; golden copies of the security workflow | Partial |
 | P-7 | Only the owner decides exceptions and behaviour changes. Their words are quoted exactly, with the date. | `docs/deferred-items.md`; PR template | Met from this change |
 | P-8 | Evidence, not claims. Anything not verified is written NOT RUN, with the reason and the CI job that covers it. | PR template; `AGENTS.md` coverage tables | Met |
@@ -53,7 +53,7 @@ exact version or checksum. Each gate has a test that proves it still fires.
 |---|---|---|---|---|
 | G-1 | Secrets scan | 0 findings | gitleaks 8.30.1 (sha256-checked) on pull request commits and full history, `security.yml` | Partial: the weekly run never fires (baseline F2) |
 | G-2 | Build and unit tests, every package | 0 failures | `ci.yml`: API Release build and tests; website and Studio Vitest; Studio Playwright | Met |
-| G-3 | Database tests on the production SQL Server version | 0 failures | `ci.yml` SQL Server service | Partial: production version not recorded; image tag floats |
+| G-3 | Database tests on the production SQL Server version | 0 failures | `ci.yml` SQL Server service | Partial: production version not recorded |
 | G-4 | Migrations apply from empty and from the previous schema | exit 0 | `ci.yml` applies from empty | Partial: previous schema not tested |
 | G-5 | Lint (TypeScript, C#) | 0 new issues; existing in a shrink-only baseline | — | Gap: step 4a, 4b |
 | G-6 | Type check | 0 errors | `tsc` strict in website and Studio; C# nullable | Partial: C# warnings not counted (step 4b) |
@@ -65,7 +65,7 @@ exact version or checksum. Each gate has a test that proves it still fires.
 | G-12 | Container images | 0 unlisted High or Critical | — | N/A: no images; IIS |
 | G-13 | Workflow lint | 0 findings | Golden copies for `security.yml` | Gap: actionlint on every workflow, step 3 |
 | G-14 | Deploy guard self-test | all pass | — | N/A until Phase D |
-| G-15 | Tools and actions pinned exactly | — | gitleaks, Semgrep exact | Partial: actions on major tags, `mssql/server:2022-latest` (step 3) |
+| G-15 | Tools and actions pinned exactly | — | gitleaks, Semgrep exact; every action by commit SHA, the SQL Server image by digest, Node 22.23.4 and .NET SDK 10.0.404 (GAP-09, #68) | Partial: `runs-on: ubuntu-latest` in `security.yml` and `codeql.yml`, `python-version: "3.12"` in `security.yml`; no CI check enforces pinning |
 
 Project gates kept as stricter rules: design check against
 `feature/interviewer-portal`, section comparison (blocking once its
@@ -77,7 +77,7 @@ website output and CSP checks, Studio preview design check.
 | Id | Rule | Enforced by | Status |
 |---|---|---|---|
 | S-1 | The API is the only boundary. The website and Studio reach data only through it. | Architecture; `docs/business-analysis.md` | Met |
-| S-2 | Every route has a policy; the fallback requires an authenticated user. | `Program.cs` fallback policy; role matrix in `CareersTests` | Met |
+| S-2 | Every route has a policy; the fallback requires an authenticated user. | Admin API: `Program.cs` fallback policy; role matrix in `CareersTests`. Public forms API, which has no authentication by ADR 0001: `PublicRouteGate` denies every route but its two; `PublicRouteTests` | Met |
 | S-3 | Every security fix ships with its regression test, written red first, and a role-matrix entry when a route is involved. | Review | Partial |
 | S-4 | Parameterised data access only (EF Core); validation before the store; redirect paths checked by one rule shared by the API and the website build; no internals in error bodies. | `RedirectPathRuleTests`, Semgrep | Met |
 | S-5 | Sessions: the refresh cookie is HttpOnly, Secure, SameSite=Strict; sessions can be revoked; a password reset ends every session. | `TokenService`; `SessionRevocationTests`, `SessionLimitTests`, `SessionCheckTests` | Met |

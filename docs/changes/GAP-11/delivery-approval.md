@@ -103,3 +103,32 @@ Relayed by the orchestrator session (local_23423d93), on 2026-11-19. The questio
 ```
 
 Verdict: APPROVED
+
+## Round 2
+
+Held after the fact: PR #69 was squash-merged into rebuild/dotnet-platform (merge `71b7541`) before this gate ran. This approval records that the merged head met the gate; it does not stand in for the owner's merge decision, which the owner has already made. The owner chose "Gate 2 on CI evidence" for this round.
+
+Scope: commits `333b275` (failing tests), `d2e9ef1` (fix), `8979481` (implementation note), `c0504a2` (round-2 test report). The fix answers the CodeQL "Bad HTML filtering regexp" alerts and the tester's round-1 Minor 1. Owner's request: "GAP-11 give every third-party script, starting with GSAP from cdn.jsdelivr.net, an integrity hash or a local fallback".
+
+### Verified myself
+
+- `gh pr view 69`: head `c0504a27094d33bee1c5c31a63c0e8658f94edb7` equals the branch head; state MERGED.
+- `gh pr checks 69`: 16 passed, 1 skipped (optional screenshot parity, label-gated), 0 failed. Run IDs: CI `44513425845` (API, Studio e2e, Website tests/design/snapshot build, Website browser tests, Section comparison), Security `44513425873` (npm audit website and studio, NuGet, gitleaks x2, Semgrep, gate self-test), CodeQL `44513425881` (csharp, javascript-typescript), Workflow lint `44513425834` (actionlint). The Website jobs built with Next 16.4.6 from the base after PR #72, which clears the tester's only block.
+- Both CodeQL review threads (github-advanced-security) are resolved and each has a reply.
+- Failing-test-first: `333b275` precedes `d2e9ef1`; the tester recorded red (4 failed) at `333b275`.
+- Re-ran `npx vitest run test/output.test.ts test/design.test.ts` at `c0504a2`: exit 0, `Tests 48 passed (48)`.
+- Diff of the fix: `website/scripts/check-output.ts` and `website/test/design.test.ts` only; in scope, no rendering file touched.
+- Commit subjects are `GAP-11: <imperative>` with the Co-Authored-By trailer on all four commits (B-4).
+
+### Tester's round-2 Minors
+
+1. Checker misses `>` inside a quoted attribute, a leading-space src, a backslash src and an entity-encoded src. Accepted for now: none of these forms is produced by React/Next, and the check guards our own build output, not hostile input. Follow-up: **GAP-11c**, harden `checkScriptIntegrity` with a real HTML tokenizer (or parse5) and src normalisation (trim, backslash, entity decode), and add the four probes as tests.
+2. Multi-hash integrity rejected. Accepted: it fails closed. Fold into GAP-11c (accept a space-separated list when one token is a full sha384).
+
+### Open items
+
+- GAP-11b (stylesheet SRI, O-1) and GAP-11c (above) are not yet filed.
+- `SRI_BLOCKING_FROM` 2026-11-26 stands; confirm the gate flips to blocking on that date on the base.
+- DoD "changed-line coverage" and "PR checks green with run IDs" are now satisfied by the runs above. The `AGENTS.md` coverage table update remains open.
+
+Verdict: APPROVED

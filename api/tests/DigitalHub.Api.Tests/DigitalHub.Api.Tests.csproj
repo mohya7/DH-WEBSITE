@@ -21,6 +21,7 @@
   <ItemGroup>
     <Using Include="Xunit" />
     <Using Include="DigitalHub.Forms" />
+    <Compile Include="..\Shared\ReferenceGuard.cs" Link="Shared\ReferenceGuard.cs" />
   </ItemGroup>
 
   <ItemGroup>

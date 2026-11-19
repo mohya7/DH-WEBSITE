@@ -111,7 +111,7 @@ function textOf(absolute: string): string | null {
 }
 
 function inModel(normalized: string) {
-  return normalized.startsWith('api/src/DigitalHub.Api/Data/') && normalized.endsWith('.cs');
+  return (normalized.startsWith('api/src/DigitalHub.Api/Data/') || normalized.startsWith('api/src/DigitalHub.PublicApi/Data/')) && normalized.endsWith('.cs');
 }
 
 function names(source: string): string[] {
