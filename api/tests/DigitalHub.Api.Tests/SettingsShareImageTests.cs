@@ -156,6 +156,216 @@ public sealed class SettingsShareImageTests : IClassFixture<ApiFactory>
         }
     }
 
+    /* ADM-12c: the default share image needs alt text of its own, its library alt or
+       a non-blank override (AltText.Effective), whether or not the asset is decorative.
+       The save checks the values it would store ("sent ? request : stored") and refuses
+       a bad pair with a field error on defaultShareImageAltOverride. */
+
+    [Fact]
+    public async Task A_decorative_image_with_blank_alt_and_no_override_is_refused_and_changes_nothing()
+    {
+        var admin = await AdminAsync();
+        var media = await SeedMediaAsync("c1", alt: "", decorative: true);
+        try
+        {
+            var before = await ReadAsync(admin);
+            var version = before.GetProperty("version").GetInt32();
+
+            var refused = await PutAsync(admin, new { version, defaultShareImageId = media, defaultShareImageAltOverride = (string?)null });
+            Assert.Equal(HttpStatusCode.BadRequest, refused.Status);
+            Assert.True(HasError(refused.Body, "defaultShareImageAltOverride"), refused.Body);
+
+            var after = await ReadAsync(admin);
+            Assert.Equal(version, after.GetProperty("version").GetInt32());
+            Assert.Equal(ShareImageId(before), ShareImageId(after));
+        }
+        finally
+        {
+            await CleanUpAsync(media);
+        }
+    }
+
+    [Fact]
+    public async Task A_whitespace_override_does_not_count_as_alt()
+    {
+        var admin = await AdminAsync();
+        var media = await SeedMediaAsync("c2", alt: "", decorative: true);
+        try
+        {
+            var before = await ReadAsync(admin);
+            var version = before.GetProperty("version").GetInt32();
+
+            var refused = await PutAsync(admin, new { version, defaultShareImageId = media, defaultShareImageAltOverride = "   " });
+            Assert.Equal(HttpStatusCode.BadRequest, refused.Status);
+            Assert.True(HasError(refused.Body, "defaultShareImageAltOverride"), refused.Body);
+
+            var after = await ReadAsync(admin);
+            Assert.Equal(version, after.GetProperty("version").GetInt32());
+            Assert.Equal(ShareImageId(before), ShareImageId(after));
+        }
+        finally
+        {
+            await CleanUpAsync(media);
+        }
+    }
+
+    [Fact]
+    public async Task Clearing_the_stored_override_of_a_blank_alt_image_is_refused()
+    {
+        var admin = await AdminAsync();
+        var media = await SeedMediaAsync("c3", alt: "", decorative: true);
+        try
+        {
+            var set = await PutAsync(admin, new { version = (await ReadAsync(admin)).GetProperty("version").GetInt32(), defaultShareImageId = media, defaultShareImageAltOverride = "Logo" });
+            Assert.Equal(HttpStatusCode.OK, set.Status);
+            var version = VersionOf(set.Body);
+
+            // The body leaves out the image id, so the save would keep the stored blank-alt image.
+            var refused = await PutAsync(admin, new { version, defaultShareImageAltOverride = (string?)null });
+            Assert.Equal(HttpStatusCode.BadRequest, refused.Status);
+            Assert.True(HasError(refused.Body, "defaultShareImageAltOverride"), refused.Body);
+
+            var after = await ReadAsync(admin);
+            Assert.Equal(version, after.GetProperty("version").GetInt32());
+            Assert.Equal(media, ShareImageId(after));
+            Assert.Equal("Logo", after.GetProperty("defaultShareImageAltOverride").GetString());
+        }
+        finally
+        {
+            await CleanUpAsync(media);
+        }
+    }
+
+    [Fact]
+    public async Task A_non_decorative_image_with_blank_alt_is_refused_too()
+    {
+        // Only direct writes and the content import store such an asset; the rule ignores Decorative.
+        var admin = await AdminAsync();
+        var media = await SeedMediaAsync("c4", alt: "", decorative: false);
+        try
+        {
+            var before = await ReadAsync(admin);
+            var version = before.GetProperty("version").GetInt32();
+
+            var refused = await PutAsync(admin, new { version, defaultShareImageId = media, defaultShareImageAltOverride = (string?)null });
+            Assert.Equal(HttpStatusCode.BadRequest, refused.Status);
+            Assert.True(HasError(refused.Body, "defaultShareImageAltOverride"), refused.Body);
+
+            var after = await ReadAsync(admin);
+            Assert.Equal(version, after.GetProperty("version").GetInt32());
+            Assert.Equal(ShareImageId(before), ShareImageId(after));
+        }
+        finally
+        {
+            await CleanUpAsync(media);
+        }
+    }
+
+    [Fact]
+    public async Task A_save_without_share_fields_over_a_stored_bad_pair_is_refused()
+    {
+        var admin = await AdminAsync();
+        var media = await SeedMediaAsync("c5", alt: "", decorative: true);
+        try
+        {
+            // An ordinary save first, so the settings row exists whatever order the facts run in.
+            var ensured = await PutAsync(admin, new { version = (await ReadAsync(admin)).GetProperty("version").GetInt32(), email = "adm12c-before@digitalhub.test" });
+            Assert.Equal(HttpStatusCode.OK, ensured.Status);
+
+            // The bad pair, as an import before this change could have stored it.
+            int updated;
+            await using (var scope = _factory.Services.CreateAsyncScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<ContentDbContext>();
+                updated = await db.SiteSettings.ExecuteUpdateAsync(setters => setters
+                    .SetProperty(settings => settings.DefaultShareImageId, (Guid?)media)
+                    .SetProperty(settings => settings.DefaultShareImageAltOverride, (string?)null));
+            }
+
+            Assert.Equal(1, updated);
+
+            var version = VersionOf(ensured.Body);
+            var refused = await PutAsync(admin, new { version, email = "changed@example.com" });
+            Assert.Equal(HttpStatusCode.BadRequest, refused.Status);
+            Assert.True(HasError(refused.Body, "defaultShareImageAltOverride"), refused.Body);
+
+            var after = await ReadAsync(admin);
+            Assert.Equal(version, after.GetProperty("version").GetInt32());
+            Assert.Equal("adm12c-before@digitalhub.test", after.GetProperty("email").GetString());
+            Assert.Equal(media, ShareImageId(after));
+            Assert.Equal(JsonValueKind.Null, after.GetProperty("defaultShareImageAltOverride").ValueKind);
+        }
+        finally
+        {
+            await CleanUpAsync(media);
+        }
+    }
+
+    [Fact]
+    public async Task A_blank_alt_image_with_an_override_is_accepted()
+    {
+        var admin = await AdminAsync();
+        var media = await SeedMediaAsync("c6", alt: "", decorative: true);
+        try
+        {
+            var saved = await PutAsync(admin, new { version = (await ReadAsync(admin)).GetProperty("version").GetInt32(), defaultShareImageId = media, defaultShareImageAltOverride = "Digital Hub logo" });
+            Assert.Equal(HttpStatusCode.OK, saved.Status);
+
+            var after = await ReadAsync(admin);
+            Assert.Equal(media, ShareImageId(after));
+            Assert.Equal("Digital Hub logo", after.GetProperty("defaultShareImageAltOverride").GetString());
+        }
+        finally
+        {
+            await CleanUpAsync(media);
+        }
+    }
+
+    [Fact]
+    public async Task Choosing_a_blank_alt_image_keeps_the_stored_override()
+    {
+        var admin = await AdminAsync();
+        var withAlt = await SeedMediaAsync("c7a");
+        var blankAlt = await SeedMediaAsync("c7b", alt: "", decorative: true);
+        try
+        {
+            var first = await PutAsync(admin, new { version = (await ReadAsync(admin)).GetProperty("version").GetInt32(), defaultShareImageId = withAlt, defaultShareImageAltOverride = "Logo" });
+            Assert.Equal(HttpStatusCode.OK, first.Status);
+
+            // The body leaves out the override, so the stored "Logo" stays and is the new image's alt.
+            var second = await PutAsync(admin, new { version = VersionOf(first.Body), defaultShareImageId = blankAlt });
+            Assert.Equal(HttpStatusCode.OK, second.Status);
+
+            var after = await ReadAsync(admin);
+            Assert.Equal(blankAlt, ShareImageId(after));
+            Assert.Equal("Logo", after.GetProperty("defaultShareImageAltOverride").GetString());
+        }
+        finally
+        {
+            await CleanUpAsync(withAlt, blankAlt);
+        }
+    }
+
+    [Fact]
+    public async Task A_decorative_image_with_library_alt_is_accepted()
+    {
+        var admin = await AdminAsync();
+        var media = await SeedMediaAsync("c8", alt: "Logo", decorative: true);
+        try
+        {
+            var saved = await PutAsync(admin, new { version = (await ReadAsync(admin)).GetProperty("version").GetInt32(), defaultShareImageId = media, defaultShareImageAltOverride = (string?)null });
+            Assert.Equal(HttpStatusCode.OK, saved.Status);
+            Assert.Equal(media, ShareImageId(await ReadAsync(admin)));
+        }
+        finally
+        {
+            await CleanUpAsync(media);
+        }
+    }
+
+    private static bool HasError(string body, string field) =>
+        JsonDocument.Parse(body).RootElement.TryGetProperty("errors", out var errors) && errors.TryGetProperty(field, out _);
+
     private static Guid? ShareImageId(JsonElement settings)
     {
         var value = settings.GetProperty("defaultShareImageId");
@@ -164,7 +374,8 @@ public sealed class SettingsShareImageTests : IClassFixture<ApiFactory>
 
     private static int VersionOf(string body) => JsonDocument.Parse(body).RootElement.GetProperty("version").GetInt32();
 
-    private async Task<Guid> SeedMediaAsync(string name)
+    /// <summary>Alt and decorative default to what the ADM-10 facts seed; the ADM-12c facts pass a blank alt.</summary>
+    private async Task<Guid> SeedMediaAsync(string name, string? alt = null, bool decorative = false)
     {
         var asset = new MediaAsset
         {
@@ -174,7 +385,8 @@ public sealed class SettingsShareImageTests : IClassFixture<ApiFactory>
             ContentType = "image/webp",
             GeneratedSizes = "[]",
             ContentHash = Guid.NewGuid().ToString("N"),
-            Alt = "ADM-10 " + name,
+            Alt = alt ?? "ADM-10 " + name,
+            Decorative = decorative,
             CreatedAt = DateTime.UtcNow,
         };
         await using var scope = _factory.Services.CreateAsyncScope();
@@ -185,14 +397,14 @@ public sealed class SettingsShareImageTests : IClassFixture<ApiFactory>
     }
 
     /// <summary>Written directly, as SettingsVersionTests.SetVersionAsync writes the row, so it runs after a failed assertion too.</summary>
-    private async Task CleanUpAsync(Guid media)
+    private async Task CleanUpAsync(params Guid[] media)
     {
         await using var scope = _factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<ContentDbContext>();
         await db.SiteSettings.ExecuteUpdateAsync(setters => setters
             .SetProperty(settings => settings.DefaultShareImageId, (Guid?)null)
             .SetProperty(settings => settings.DefaultShareImageAltOverride, (string?)null));
-        await db.Media.Where(asset => asset.Id == media).ExecuteDeleteAsync();
+        await db.Media.Where(asset => media.Contains(asset.Id)).ExecuteDeleteAsync();
     }
 
     private async Task<AuthSession> AdminAsync()
