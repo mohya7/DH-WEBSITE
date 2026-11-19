@@ -131,8 +131,10 @@ can recover from it.
 
 ## Security impact
 Two new routes, both under the `studio-admin` policy, each carrying a user id. Anonymous
-callers get 401 (T18). Editor, HR, no-role, must-change and deactivated users get 403
-(T11, `CareersTests`). An admin's own record is refused in any spelling of the id (T8,
+callers get 401 (T18). Editor, HR, no-role and must-change users get 403 (T11,
+`CareersTests`). Deactivated users get 401: `SessionCheck` fails the token before the
+route runs (`CareersTests`, and T14 for an admin deactivated before the request). An
+admin deactivated while the request waits for the lock gets 403 (T16). An admin's own record is refused in any spelling of the id (T8,
 T17). The actor is re-read inside an exclusive app lock (T14 to T16). A role change
 revokes refresh tokens and rotates the security stamp (T2, T13). The temporary password
 is in no log or audit row (T10), and its response is `Cache-Control: no-store` (T4).
