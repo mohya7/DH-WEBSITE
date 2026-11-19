@@ -26,6 +26,9 @@ on:
 permissions:
   contents: read
 
+# Pinned (G-15, GAP-09): actions by commit SHA, the SQL Server image by digest,
+# Node and .NET by exact version. Dependabot moves the action pins; move Node,
+# .NET and the image by hand, each in its own pull request.
 jobs:
   analyze:
     name: CodeQL (${{ matrix.language }})
