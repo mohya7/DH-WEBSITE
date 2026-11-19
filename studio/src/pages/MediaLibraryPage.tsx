@@ -103,7 +103,10 @@ export function MediaLibraryPage() {
     if (selected === null) return;
     const result = await request(`/api/v1/media/${selected.id}`, jsonInit("PUT", { alt, caption, decorative }));
     if (!result.ok) {
-      setMessage(result.problem?.title ?? "The image was not saved.");
+      // A 409 alt_in_use names the places that rely on this image's alt text.
+      const places = result.problem?.code === "alt_in_use" ? result.problem.usages ?? [] : [];
+      const title = result.problem?.title ?? "The image was not saved.";
+      setMessage(places.length > 0 ? `${title} ${places.join("; ")}` : title);
       return;
     }
     setMessage("Saved.");
