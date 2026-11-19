@@ -197,11 +197,14 @@
     "reason": "Marketing lead decision: the apply hero asks for a CV and a short note about the role. Only this lead is replaced; the rest of the hero must match."
   },
   {
-    "id": "apply-by-email",
+    "id": "apply-form",
     "pages": ["/careers/apply.html"],
     "sections": ["section"],
-    "kind": "apply-by-email",
+    "kind": "apply-form",
     "selector": "section.section.careers-detail",
-    "reason": "Marketing lead decision: the apply page links to the careers email; the website has no hiring system."
+    "action": "/api/v1/public/apply",
+    "heading": "Apply",
+    "fields": ["name", "email", "phone", "message", "cv", "consent", "website"],
+    "reason": "Owner decision O-11: \"(a) Accept current form\" (owner, 2026-11-19, via the orchestrator; GAP-05). Inside the outer section only the old form section becomes exactly the apply form the site renders, posting to the public apply API; the breadcrumb and everything else must match."
   }
 ]

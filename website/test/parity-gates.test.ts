@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * GAP-05: the two parity comparisons in ci.yml are real gates. The section
  * comparison blocks; the screenshot comparison blocks or cites an unexpired
@@ -9,7 +10,6 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { JSDOM } from 'jsdom';
 import { describe, expect, it } from 'vitest';
 import { ApplyForm } from '../src/components/ApplyForm';
 
@@ -35,6 +35,7 @@ function step(lines: string[], name: string): string[] {
   return lines.slice(start, end === -1 ? undefined : end);
 }
 const hasContinueOnError = (lines: string[]) => lines.some((line) => /^\s+continue-on-error:/.test(line));
+const parse = (html: string) => new DOMParser().parseFromString(html, 'text/html');
 const normalise = (text: string) => text.replace(/\s+/g, ' ').trim();
 
 describe('parity gates (GAP-05)', () => {
@@ -64,7 +65,7 @@ describe('parity gates (GAP-05)', () => {
   it.skipIf(oldPage === null)('the apply-form selector matches the old compared section (skipped: feature/interviewer-portal not available)', () => {
     const entry = register.find((rule) => rule.kind === 'apply-form')!;
     expect(entry).toBeDefined();
-    const doc = new JSDOM(oldPage!).window.document;
+    const doc = parse(oldPage!);
     const sections = [...(doc.querySelector('main')?.children ?? [])].filter((el) => el.tagName === 'SECTION');
     const matching = sections.filter((el) => el.matches(entry.selector));
     expect(matching).toHaveLength(1);
@@ -74,12 +75,12 @@ describe('parity gates (GAP-05)', () => {
   it('the apply-form acceptance names the form the site renders', () => {
     const entry = register.find((rule) => rule.kind === 'apply-form');
     expect(entry, 'apply-form entry').toBeDefined();
-    const rendered = new JSDOM(renderToStaticMarkup(createElement(ApplyForm, { email: 'careers@example.test' }))).window.document;
+    const rendered = parse(renderToStaticMarkup(createElement(ApplyForm, { email: 'careers@example.test' })));
     const form = rendered.querySelector('form')!;
     expect(entry!.action).toBe(form.getAttribute('action'));
     expect(entry!.heading).toBe(rendered.querySelector('h2')!.textContent);
     expect(entry!.fields).toEqual([...form.querySelectorAll('[name]')].map((el) => el.getAttribute('name')));
-    const template = new JSDOM(compareHtml).window.document.querySelector('template#apply-form-markup') as HTMLTemplateElement | null;
+    const template = parse(compareHtml).querySelector('template#apply-form-markup') as HTMLTemplateElement | null;
     expect(template, 'template#apply-form-markup in compare.html').not.toBeNull();
     const style = template!.content.querySelector('style');
     expect(style, 'style in the template').not.toBeNull();
