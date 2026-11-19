@@ -203,3 +203,37 @@ describe("external script integrity check (GAP-11)", () => {
     expect(integrityOutcome([], "2027-01-01", "2026-11-26").exitCode).toBe(0);
   });
 });
+
+describe("external script integrity check, round 2 (GAP-11)", () => {
+  const full = "sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt";
+  const bad = (tag: string, src = "https://cdn.example/x.js") =>
+    expect(checkScriptIntegrity("a.html", page(tag)), tag).toEqual([`a.html: external script without integrity: ${src}`]);
+  const good = (tag: string) => expect(checkScriptIntegrity("a.html", page(tag)), tag).toEqual([]);
+
+  it("matches script tags and attributes in any case", () => {
+    bad('<SCRIPT SRC="https://cdn.example/x.js"></SCRIPT>');
+    bad('<Script src="https://cdn.example/x.js"></Script>');
+    bad('<script src="HTTPS://cdn.example/x.js"></script>', "HTTPS://cdn.example/x.js");
+    good(`<SCRIPT SRC="https://cdn.example/x.js" INTEGRITY="${full}" CROSSORIGIN="anonymous"></SCRIPT>`);
+  });
+
+  it("reads single-quoted and unquoted src", () => {
+    bad("<script src='https://cdn.example/x.js'></script>");
+    bad("<script src=https://cdn.example/x.js></script>");
+    bad("<script src=//cdn.example/x.js></script>", "//cdn.example/x.js");
+    good(`<script src='https://cdn.example/x.js' integrity='${full}' crossorigin='anonymous'></script>`);
+    good(`<script src=https://cdn.example/x.js integrity=${full} crossorigin=anonymous></script>`);
+  });
+
+  it("requires a full-length sha384 value", () => {
+    bad('<script src="https://cdn.example/x.js" integrity="sha384-abc" crossorigin="anonymous"></script>');
+    bad(`<script src="https://cdn.example/x.js" integrity="${full.slice(0, -1)}" crossorigin="anonymous"></script>`);
+  });
+
+  it("counts crossorigin only as an attribute name", () => {
+    bad(`<script src="https://cdn.example/x.js?crossorigin" integrity="${full}"></script>`, "https://cdn.example/x.js?crossorigin");
+    bad(`<script src="https://cdn.example/x.js" data-note="crossorigin" integrity="${full}"></script>`);
+    bad(`<script src="https://cdn.example/x.js" data-crossorigin="anonymous" integrity="${full}"></script>`);
+    good(`<script src="https://cdn.example/x.js" integrity="${full}" crossorigin></script>`);
+  });
+});
