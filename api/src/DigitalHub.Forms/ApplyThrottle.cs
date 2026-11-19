@@ -1,6 +1,6 @@
 using System.Threading.RateLimiting;
 
-namespace DigitalHub.Api.Content;
+namespace DigitalHub.Forms;
 
 /// <summary>
 /// Apply attempts, counted inside the action after the form is parsed.

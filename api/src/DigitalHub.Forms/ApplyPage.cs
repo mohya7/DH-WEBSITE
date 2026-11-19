@@ -1,4 +1,4 @@
-namespace DigitalHub.Api.Content;
+namespace DigitalHub.Forms;
 
 /// <summary>The small HTML page every apply refusal and acceptance uses.</summary>
 public static class ApplyPage

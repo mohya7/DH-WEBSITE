@@ -13,7 +13,7 @@
  */
 import { DesignHeadItems } from "./DesignHeadItems";
 import { designUrl } from "./folder";
-import { designSets, type DesignSetName, type ScriptSlot } from "./sets";
+import { designSets, type DesignSetName, type ScriptItem, type ScriptSlot } from "./sets";
 
 export function DesignHead({ set }: { set: DesignSetName }) {
   // URLs are resolved here, on the server, where the design folder's hash is known.
@@ -22,11 +22,17 @@ export function DesignHead({ set }: { set: DesignSetName }) {
 }
 
 export function DesignScripts({ set, slot }: { set: DesignSetName; slot: ScriptSlot }) {
-  const scripts: { src: string; module?: true }[] = (designSets[set].scripts as Partial<Record<ScriptSlot, { src: string; module?: true }[]>>)[slot] ?? [];
+  const scripts: ScriptItem[] = (designSets[set].scripts as Partial<Record<ScriptSlot, ScriptItem[]>>)[slot] ?? [];
   return (
     <>
       {scripts.map((script) => (
-        <script key={script.src} src={designUrl(script.src)} type={script.module ? "module" : undefined} />
+        <script
+          key={script.src}
+          src={designUrl(script.src)}
+          type={script.module ? "module" : undefined}
+          integrity={script.integrity}
+          crossOrigin={script.integrity ? "anonymous" : undefined}
+        />
       ))}
     </>
   );
