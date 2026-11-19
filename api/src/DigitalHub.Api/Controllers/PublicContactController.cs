@@ -1,5 +1,6 @@
 using DigitalHub.Api.Content;
 using DigitalHub.Api.Infrastructure;
+using DigitalHub.Forms;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -18,7 +19,7 @@ public sealed class PublicContactController(PublicContactStore store) : Controll
     public const long BodyLimit = 16 * 1024;
 
     [HttpPost]
-    [EnableRateLimiting("public-contact")]
+    [EnableRateLimiting(ContactRateLimit.PolicyName)]
     [RequestBodyLimit(BodyLimit)]
     public async Task<IActionResult> Post([FromBody] PublicContactRequest request, CancellationToken cancellationToken)
     {

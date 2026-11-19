@@ -2,15 +2,13 @@ using System.Net.Mail;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
-using DigitalHub.Api.Data;
+using DigitalHub.Forms;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Data.SqlClient;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace DigitalHub.Api.Content;
 
-public sealed class ApplicationIntake(ContentDbContext db, IEmailSender email, ApplyThrottle throttle, ApplyDedupe dedupe, ILogger<ApplicationIntake> logger)
+public sealed class ApplicationIntake(IFormsData data, IEmailSender email, ApplyThrottle throttle, ApplyDedupe dedupe, ILogger<ApplicationIntake> logger)
 {
     public const string Accepted = "accepted";
     public const string Rejected = "The form could not be accepted.";
@@ -59,8 +57,8 @@ public sealed class ApplicationIntake(ContentDbContext db, IEmailSender email, A
         {
             if (!Guid.TryParse(vacancyText, out var parsed))
                 return Problem(StatusCodes.Status400BadRequest, "closed", "This position is no longer open.");
-            var vacancy = await db.Vacancies.AsNoTracking().FirstOrDefaultAsync(item => item.Id == parsed, cancellationToken);
-            if (vacancy is null || vacancy.Status != ContentStatus.Published)
+            var vacancy = await data.FindVacancyAsync(parsed, cancellationToken);
+            if (vacancy is null || !vacancy.Published)
                 return Problem(StatusCodes.Status400BadRequest, "closed", "This position is no longer open.");
             vacancyId = vacancy.Id;
             vacancyTitle = vacancy.Title.Replace("\r", " ").Replace("\n", " ");
@@ -142,9 +140,9 @@ public sealed class ApplicationIntake(ContentDbContext db, IEmailSender email, A
             dedupe.Remember(dedupeKey);
             try
             {
-                await IncrementAsync(vacancyId, DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
+                await data.IncrementApplicationCountAsync(vacancyId, DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
             }
-            catch (Exception exception) when (CountFailed(exception))
+            catch (Exception exception) when (ApplicationCountSql.CountFailed(exception))
             {
                 logger.LogWarning("application count was not recorded");
                 return Page(StatusCodes.Status201Created, "accepted", "Your application has been sent.");
@@ -214,46 +212,12 @@ public sealed class ApplicationIntake(ContentDbContext db, IEmailSender email, A
 
     private async Task<string?> CareersAddressAsync(CancellationToken cancellationToken)
     {
-        var settings = await db.SiteSettings.AsNoTracking().OrderBy(item => item.Id).FirstOrDefaultAsync(cancellationToken);
+        var settings = await data.MailboxesAsync(cancellationToken);
         var address = settings?.CareersEmail?.Trim();
         if (string.IsNullOrEmpty(address))
             address = settings?.Email?.Trim();
         return string.IsNullOrEmpty(address) ? null : address;
     }
-
-    private async Task IncrementAsync(Guid? vacancyId, DateOnly day, CancellationToken cancellationToken)
-    {
-        var vacancy = new SqlParameter("@vacancy", (object?)vacancyId ?? DBNull.Value) { SqlDbType = System.Data.SqlDbType.UniqueIdentifier };
-        var applied = new SqlParameter("@day", day.ToDateTime(TimeOnly.MinValue)) { SqlDbType = System.Data.SqlDbType.Date };
-        var id = new SqlParameter("@id", Guid.NewGuid());
-        for (var attempt = 0; attempt < 2; attempt++)
-        {
-            try
-            {
-                await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, cancellationToken);
-                await db.Database.ExecuteSqlRawAsync(
-                    """
-                    MERGE application_counts WITH (HOLDLOCK) AS target
-                    USING (SELECT @vacancy AS vacancy_id, @day AS applied_on) AS source
-                    ON target.applied_on = source.applied_on
-                     AND ((target.vacancy_id = source.vacancy_id) OR (target.vacancy_id IS NULL AND source.vacancy_id IS NULL))
-                    WHEN MATCHED THEN UPDATE SET [count] = target.[count] + 1
-                    WHEN NOT MATCHED THEN INSERT (id, vacancy_id, applied_on, [count]) VALUES (@id, source.vacancy_id, source.applied_on, 1);
-                    """,
-                    [vacancy, applied, id],
-                    cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
-                return;
-            }
-            catch (Exception exception) when (attempt == 0 && CountFailed(exception))
-            {
-                id.Value = Guid.NewGuid();
-            }
-        }
-    }
-
-    private static bool CountFailed(Exception exception) =>
-        exception is SqlException or DbUpdateException || exception.InnerException is SqlException or DbUpdateException;
 
     private static IResult Problem(int status, string code, string title) => Page(status, code, title);
 
