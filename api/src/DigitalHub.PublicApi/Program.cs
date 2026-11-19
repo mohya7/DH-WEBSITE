@@ -137,6 +137,8 @@ app.UseSerilogRequestLogging(options =>
     options.MessageTemplate = "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms";
 });
 app.UseMiddleware<ExceptionShieldMiddleware>();
+// Deny by default: 404 for everything but POST on the two form routes.
+app.UseMiddleware<PublicRouteGate>();
 app.UseMiddleware<RequestBodyLimitMiddleware>();
 app.UseRateLimiter();
 
