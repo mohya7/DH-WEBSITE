@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace DigitalHub.Api.Content;
+namespace DigitalHub.Forms;
 
 /// <summary>
 /// Remembers a hash of an application for two minutes so a double submit does not

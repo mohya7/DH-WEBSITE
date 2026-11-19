@@ -6,7 +6,7 @@ using DigitalHub.Forms;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
-namespace DigitalHub.Api.Content;
+namespace DigitalHub.Forms;
 
 public sealed class ApplicationIntake(IFormsData data, IEmailSender email, ApplyThrottle throttle, ApplyDedupe dedupe, ILogger<ApplicationIntake> logger)
 {

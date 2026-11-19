@@ -1,4 +1,3 @@
-using DigitalHub.Api.Content;
 using DigitalHub.Api.Infrastructure;
 using DigitalHub.Forms;
 using Microsoft.AspNetCore.Authorization;

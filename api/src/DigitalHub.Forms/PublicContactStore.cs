@@ -2,7 +2,7 @@ using System.Net.Mail;
 using System.Text.RegularExpressions;
 using DigitalHub.Forms;
 
-namespace DigitalHub.Api.Content;
+namespace DigitalHub.Forms;
 
 public sealed class PublicContactStore(IFormsData data)
 {
