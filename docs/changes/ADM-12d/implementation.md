@@ -214,4 +214,106 @@ None.
   13.
 - `npm ci` in `website/` is needed before the full API suite.
 
+Round 1 ended at `7206872` with READY FOR TEST. Gate 2 sent it back (Round 2, below).
+
+## Round 2 (2026-11-19): answering `delivery-approval.md` round 1
+
+Gate 2, round 1 returned `Verdict: CHANGES NEEDED` and sent back tester Finding 1
+(`test-report.md`, Round 1): **probe mutant M4, which refuses every decorative card
+image, survived the full suite (595 of 595)**, because Fact B stopped at the refused
+publish. This round answers only that finding.
+
+### Answers to the conditions
+
+| Condition | Answer |
+| --- | --- |
+| 1. Extend Fact B with Fact A's steps 4-5 | Done. After the refused publish and the `draft` check, Fact B now PUTs `/api/v1/team-members/{id}` with the create version, `slug`, `title` and `fields = { imageId, imageAltOverride = "Abstract pattern behind the team member" }`. It asserts 200, and asserts `content.fields.imageId` equals the seeded `mediaId` and `content.fields.imageAltOverride` equals the text sent, with `Text(body, "content", "fields", ...)`. Then it publishes with the new version and asserts 200 (line 865) and `state` `published`. The `finally` block and its item-before-asset order are unchanged. |
+| 2. Name | Renamed to `Publish_blocks_a_decorative_card_image_without_alt_text_until_it_has_an_override`. The step 3 filter still matches it (R2-2). |
+| 3. Mutants M1-M4 | Done, one at a time, with the same build-then-test rule (R2-mutants). Each build exited 0 with `0 Error(s)`. Each mutant matched the updated expected-failure table. `git diff --exit-code -- api/src` exited 0 after each restore. M4 now fails Fact B at its second publish. |
+| 4. Suites | Class: exit 0, 34 of 34. Full suite: exit 0, 595 of 595 (unchanged: no fact added). Warnings: 13, the same lines as the base. |
+| 5. Scope | Only Fact B in `ContentPublishTests.cs` changes (19 lines added, name changed), plus this record. No helper changed, added or removed. No product file (R2-7). |
+| 6. Records | This section and the new coverage row below. **I did not commit `test-report.md`.** The coordinator's round 2 instruction says to leave `test-report.md` and `delivery-approval.md` uncommitted, because the coordinator commits the records. That instruction came after condition 6, so I followed it. The tech lead should know that the coordinator now carries the last sentence of condition 6. |
+| 7. Commits | New commits on top of `7206872`. `01bd0b2` and `7206872` are not amended or rebased. |
+
+### Commits
+
+| SHA | Subject |
+| --- | --- |
+| `491b00c` | ADM-12d: Prove an override lets a decorative card image publish |
+| (this commit) | ADM-12d: Record round 2 of the implementation |
+
+`491b00c` was committed after the green run on unchanged product code (R2-2) and
+before the mutants.
+
+### Commands (from `api/`, Release, `DigitalHubContent_Test` only)
+
+| # | Command | Exit | Relevant output |
+| --- | --- | --- | --- |
+| R2-1 | `dotnet build DigitalHub.slnx -c Release --no-incremental` (Fact B extended, product unchanged) | 0 | `13 Warning(s)`, `0 Error(s)` |
+| R2-2 | Step 3 filter: `dotnet test tests/DigitalHub.Api.Tests/DigitalHub.Api.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~ContentPublishTests.Publish_blocks_a_card_image\|FullyQualifiedName~ContentPublishTests.Publish_blocks_a_decorative_card_image"` | 0 | `Passed ...Publish_blocks_a_decorative_card_image_without_alt_text_until_it_has_an_override`, `Passed ...Publish_blocks_a_card_image_without_alt_text_until_it_has_an_override`. Passes against unchanged product code; coverage for existing behaviour |
+| R2-3 | M1-M4 | see below | |
+| R2-4 | After M4: `git diff --exit-code -- api/src` | 0 | No output |
+| R2-5 | `dotnet build DigitalHub.slnx -c Release --no-incremental` | 0 | `13 Warning(s)`, `0 Error(s)`. The sorted warning lines are the same as round 1's base build (`diff` exit 0) |
+| R2-6a | Step 3 filter again | 0 | `Passed! - Failed: 0, Passed: 2, Skipped: 0, Total: 2` |
+| R2-6b | `--filter "FullyQualifiedName~ContentPublishTests"` | 0 | `Passed! - Failed: 0, Passed: 34, Skipped: 0, Total: 34` |
+| R2-6c | Full suite, no filter | 0 | `Passed! - Failed: 0, Passed: 595, Skipped: 0, Total: 595, Duration: 1 m 48 s`; `[FAIL]` count 0. `website/node_modules` is the round 1 `npm ci` install (row 6a). `website/package-lock.json` has not changed on this branch since, so I did not reinstall |
+| R2-7 | `git diff --name-only 8027e87..HEAD`, before this record's commit | 0 | `api/tests/DigitalHub.Api.Tests/ContentPublishTests.cs` and `docs/changes/ADM-12d/{implementation,plan,plan-approval,plan-review}.md`. `git diff --exit-code 8027e87..HEAD -- api/src`: exit 0 |
+
+**One procedural slip, reported.** When I wrote the mutant runner script
+(`mutants.sh` in my scratchpad), I started it once by mistake with its output
+discarded, before the green run in R2-2. That run applied the same four mutants and
+restored `PublishChecks.cs` after each one. Afterwards, `git diff --exit-code -- api/src`
+exited 0 and `git status` showed only the intended test edit. I do not use that run as
+evidence. Every result below comes from the second run, which was recorded and came
+after commit `491b00c`. The facts clean up in `finally`, and the later full suite
+(R2-6c) passed 595 of 595.
+
+### R2-mutants
+
+Same procedure as round 1, run by script for each mutant:
+
+1. Check that `api/src` is clean.
+2. Apply the exact one-line replacement. The old text must occur exactly once.
+3. Print the changed lines of `git diff -- api/src`.
+4. Run `dotnet build DigitalHub.slnx -c Release`. The script stops if the exit code is
+   not 0 or `0 Error(s)` is missing.
+5. Run the step 3 filter with `--no-build`.
+6. Run `git restore`, then `git diff --exit-code -- api/src`.
+
+Fact B's lines are now 842 (the first publish, `Assert.Equal(HttpStatusCode.BadRequest, blocked.Status);`)
+and 865 (the second publish, `Assert.Equal(HttpStatusCode.OK, published.Status);`).
+Fact A's are still 777 and 800. Each failure has a second stack frame, at line 808 for A
+and 873 for B. That is the last line of `finally`, where the async method rethrows after
+cleanup has run. No failure is a cleanup failure.
+
+| Mutant | Diff (`-` / `+`) | Build | Test exit, totals | First failing assertion | Expected (gate 2 table) | Restore |
+| --- | --- | --- | --- | --- | --- | --- |
+| M1 | `-                Add(errors, "image", "Add alt text for the image.");` / `+                { }` | exit 0, `13 Warning(s)`, `0 Error(s)` | 1, `Failed: 2, Passed: 0` | A: line 777, `Expected: BadRequest`, `Actual: OK`. B: line 842, `Expected: BadRequest`, `Actual: OK` | A and B fail at their first publish | `git diff --exit-code` 0 |
+| M2 | `-            if (EffectiveAlt(over, fieldAsset.Alt) is null)` / `+            if (EffectiveAlt(null, fieldAsset.Alt) is null)` | exit 0, `0 Warning(s)` (incremental), `0 Error(s)` | 1, `Failed: 2, Passed: 0` | A: line 800, `Expected: OK`, `Actual: BadRequest`. B: line 865, `Expected: OK`, `Actual: BadRequest` | A and B fail at their second publish | `git diff --exit-code` 0 |
+| M3 | `-            if (EffectiveAlt(over, fieldAsset.Alt) is null)` / `+            if (!fieldAsset.Decorative && EffectiveAlt(over, fieldAsset.Alt) is null)` | exit 0, `0 Warning(s)` (incremental), `0 Error(s)` | 1, `Failed: 1, Passed: 1` | B: line 842, `Expected: BadRequest`, `Actual: OK`. A passed | B fails at its first publish; A passes | `git diff --exit-code` 0 |
+| M4 | `-            if (EffectiveAlt(over, fieldAsset.Alt) is null)` / `+            if (fieldAsset.Decorative \|\| EffectiveAlt(over, fieldAsset.Alt) is null)` | exit 0, `0 Warning(s)` (incremental), `0 Error(s)` | 1, `Failed: 1, Passed: 1` | B: line 865, `Expected: OK`, `Actual: BadRequest`. A passed | B fails at its second publish; A passes | `git diff --exit-code` 0 |
+
+Every mutant matched the table, and M4 no longer survives. No test was changed to fit
+a mutant. No mutant was staged or committed.
+
+### Coverage table, round 2
+
+The round 1 table (section 7) still applies, with these changes:
+
+| Item | Source | Status | Evidence |
+| --- | --- | --- | --- |
+| A decorative card image with an override publishes (mutant M4) | `test-report.md` Round 1, Finding 1; `delivery-approval.md` round 1, conditions 1-3 | Done | `491b00c`: Fact B's PUT (200, `content.fields.imageId` = seeded id, `content.fields.imageAltOverride` = text sent) and second publish (200, `published`). Passes on unchanged code (R2-2, R2-6a). M4 fails it at line 865, `Expected: OK`, `Actual: BadRequest` (R2-mutants) |
+| A decorative asset with no alt and no override is still refused | As round 1 | Done | Fact B's first publish. M3 fails it at line 842 (R2-mutants) |
+| The tests catch a broken check (M1-M4) | As round 1, plus Finding 1 | Done | R2-mutants: four builds exit 0 with `0 Error(s)`, four expected failures, and `git diff --exit-code -- api/src` exit 0 after each and at the end (R2-4) |
+| Full API suite green in Release | As round 1 | Done | R2-6c: exit 0, 595 of 595, the base's 593 plus 2 |
+| No build warning added | `plan-approval.md` condition 8 | Done | R2-1, R2-5: 13 warnings, the same lines as the base |
+| `test-report.md` committed | `delivery-approval.md` condition 6 | Moved | To the coordinator, who commits the records (coordinator's round 2 instruction) |
+| CI, Security (with gitleaks) and Workflow lint; Studio, website and e2e suites | As round 1 | Open | NOT RUN: the branch is not pushed. Run ids are quoted at gate 2 |
+
+### For the tester, round 2
+
+- Repeat M4 and M1 with the build-then-test steps. Expected: M4 fails only Fact B, at
+  line 865. M1 fails both facts, at lines 777 and 842.
+- The incremental mutant builds show `0 Warning(s)`. Use `--no-incremental` to see all 13.
+
 Status: READY FOR TEST
