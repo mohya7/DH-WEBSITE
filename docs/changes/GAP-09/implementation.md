@@ -47,3 +47,65 @@ Run on the unchanged base, before any edit.
 
 These checks are read-only and not committed as a gate (plan section 3), so the
 red evidence is this record, committed before the edit commit.
+
+## What changed (plan section 4)
+
+Commits: `d8cc541` (red record), `c8cd307` (the edit).
+
+| File | Change |
+| --- | --- |
+| `.github/workflows/ci.yml` | 21 `uses:` lines to `<sha> # vX.Y.Z`; image at old 46 and 199 to `mcr.microsoft.com/mssql/server:2022-CU28-ubuntu-22.04@sha256:4525e3ef…7b7f`; `NODE_VERSION: "22.23.4"`; `dotnet-version: "10.0.404"` twice; 3-line pin comment above `env:` |
+| `.github/workflows/security.yml` | 13 `uses:` lines; `NODE_VERSION: "22.23.4"`; `dotnet-version: "10.0.404"`; pin comment above `env:` |
+| `.github/security/security.expected.yml` | Same content edits; stays LF (C-1). `diff <(tr -d '\r' < security.yml) security.expected.yml` prints nothing |
+| `.github/security/semgrep-job.expected.yml` | 4 `uses:` lines, same as the semgrep job |
+| `.github/workflows/codeql.yml` | 4 `uses:` lines; `dotnet-version: "10.0.404"`; pin comment |
+
+The five already-pinned lines were left as they are. Edits were made with
+`perl -pi` substitutions anchored on `@<major>` followed by whitespace, so CRLF and
+LF endings are kept per file (`file` confirms CRLF for the workflows, LF for the
+golden copies).
+
+**One placement note, not a design change.** Plan 3.5 puts the comment "above
+`env:`" in `codeql.yml`, but `codeql.yml` has no top-level `env:`. The comment is
+placed above `jobs:` there. Same text as the other files; contains no `node -e`,
+`python -c` or `--input-type`.
+
+## Commands run after the edit
+
+| Command | Exit | Result |
+| --- | --- | --- |
+| P-1 grep (unpinned `uses:`) | 1 | no output (green) |
+| P-2 grep (image without digest) | 1 | no output (green) |
+| P-3 `NODE_VERSION` exact | 0 | `ci.yml:33`, `security.yml:64`, `security.expected.yml:64`, all `"22.23.4"`; non-variable `node-version:` grep exit 1, no output |
+| P-4 grep (inexact `dotnet-version`) | 1 | no output (green) |
+| P-6 `git diff origin/rebuild/dotnet-platform -- .github/workflows/ci.yml \| grep -n continue-on-error` | 1 | no output |
+| C-3 `diff <(base ci.yml lines 291-296,326,398) <(head lines 294-299,329,401)` (CR stripped) | 0 | identical (shift +3 from the pin comment); `git diff -U0` hunks are at 26/30/46/70/…/298/301/…/411 only, none on 291-296, 326 or 398 |
+| `node --test .github/security/gate.test.mjs` | 0 | `tests 86`, `pass 86`, `fail 0` |
+| `git diff --name-only origin/rebuild/dotnet-platform...HEAD` | 0 | the five files above plus `docs/changes/GAP-09/*` (C-5) |
+| `bash .github/lint/self-test.sh` | 1 | `actionlint gate self-test: 5 failed`, the same 5 that fail on the base on this machine; case 17 `workflow-lint.yml shape` ok. CI job "actionlint (every workflow)" is the evidence |
+
+NOT RUN locally: .NET build/tests, Vitest, Playwright, Studio e2e. No code changed,
+and the local e2e harness is broken. Covered by CI on the pull request head (jobs
+API, Website, Studio, Security, CodeQL, Workflow lint), pending the push.
+
+## Migrations
+
+None.
+
+## Coverage table
+
+| Item | Source | Status | Evidence |
+| --- | --- | --- | --- |
+| Every `uses:` in `ci.yml` names a 40-character SHA | GAP-09 Done when | Done | P-1 exit 1, no output; `c8cd307` |
+| Every `uses:` in `security.yml` and both golden copies names a 40-character SHA | GAP-09 Done when | Done | P-1; gate test 86/86 |
+| Every `uses:` in `codeql.yml` names a 40-character SHA | GAP-09 Done when | Done | P-1 |
+| Each pinned SHA is the commit of the tag named in its comment | GAP-09; P-8 | Done | P-5 output above (codeql on `^{}`) |
+| The SQL Server image reference carries `@sha256:` (both jobs) | GAP-09 Done when | Done | P-2 exit 1 |
+| `node-version` is exact in every workflow | GAP-09 Done when | Done | P-3 |
+| `dotnet-version` is exact in every workflow | GAP-09 Done when | Done | P-4 exit 1 |
+| The golden copies match and the gate self-test passes | G1 checklist; golden rule | Done locally; CI pending | gate.test.mjs 86/86; CRLF-stripped diff empty; Security "gate self-test" job pending push |
+| CI (API, Website, Studio, section compare) green on PR head, pinned values in logs | G1 checklist; P-8 | Pending CI | Not pushed (owner confirms push); tester checks logs for digest, `10.0.404`, `v22.23.4` |
+| Security, CodeQL and Workflow lint finish as on the base | G1 checklist; C-2 | Pending CI | CodeQL on `pull_request`; expect `Download action repository 'github/codeql-action@9418214d…'` |
+| The GAP-05 lines in `ci.yml` are unchanged | Change context; C-3 | Done | P-6 and C-3 rows above |
+
+Status: READY FOR TEST
