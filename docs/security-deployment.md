@@ -30,6 +30,37 @@ DENY UPDATE, DELETE ON dbo.audit_log TO [dh_content_app];
   `DigitalHubContent_Test`, `DigitalHubContent_Studio`) need the `DENY` line run
   once with the elevated account. Until then `AuditLogPermissionTests` fails there.
 
+## Database: the public forms login
+
+The public forms API (`src/DigitalHub.PublicApi`, ADR 0001) connects with its own SQL
+login, `dh_public_forms`. Its grants come from the migration
+`AddPublicFormsRole`, which creates the role `dh_public_forms_role` with exactly:
+INSERT on `contact_requests`; SELECT, INSERT, UPDATE on `application_counts`; SELECT on
+`vacancies` and `site_settings`. The login and its membership are not in a migration,
+because the password is a secret. After the migration, the elevated account runs:
+
+```sql
+-- master, once per server; the password comes from the server's secret store
+CREATE LOGIN [dh_public_forms] WITH PASSWORD = N'<from the secret store>', CHECK_POLICY = ON;
+-- each catalog the public forms API uses
+CREATE USER [dh_public_forms] FOR LOGIN [dh_public_forms];
+ALTER ROLE [dh_public_forms_role] ADD MEMBER [dh_public_forms];
+```
+
+- **Never** add this login to `db_datareader`, `db_datawriter` or any other role. Its
+  only role is `dh_public_forms_role`.
+- `PublicFormsPermissionTests` fails on a catalog where the login holds more or less
+  than the four grants, or is in any other role.
+- CI (`.github/workflows/ci.yml`, job `api`) runs the same lines with a workflow-only
+  password. Locally the test login lives in `DigitalHubContent_Test` only, and its
+  connection string is the user-secret `ConnectionStrings:PublicForms`.
+- **Re-applying the migration after its `Down`:** `Down` removes the role's members and
+  drops the role; the user `dh_public_forms` stays, with no permissions, which is
+  harmless. A later `Up` creates the role with no member, so every form fails on that
+  catalog until the elevated account runs the `ALTER ROLE ... ADD MEMBER` line again.
+- The admin API's copies of the two form routes still run on `dh_content_app` until
+  ISO-4 removes them.
+
 ## Sessions and passwords
 
 Configuration (`appsettings.json`, override per environment):
