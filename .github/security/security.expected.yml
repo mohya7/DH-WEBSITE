@@ -57,8 +57,11 @@ concurrency:
   group: security-${{ github.ref }}
   cancel-in-progress: true
 
+# Pinned (G-15, GAP-09): actions by commit SHA, the SQL Server image by digest,
+# Node and .NET by exact version. Dependabot moves the action pins; move Node,
+# .NET and the image by hand, each in its own pull request.
 env:
-  NODE_VERSION: "22"
+  NODE_VERSION: "22.23.4"
   GITLEAKS_VERSION: "8.30.1"
   # sha256 of gitleaks_8.30.1_linux_x64.tar.gz, from the release's checksums.txt.
   GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
@@ -68,9 +71,9 @@ jobs:
     name: Security gate self-test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -89,9 +92,9 @@ jobs:
       run:
         working-directory: ${{ matrix.app }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -107,11 +110,11 @@ jobs:
       run:
         working-directory: api
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: "10.0.404"
 
       - run: dotnet restore DigitalHub.slnx
 
@@ -124,7 +127,7 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
 
@@ -139,7 +142,7 @@ jobs:
     needs: gate-self-test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
 
@@ -151,7 +154,7 @@ jobs:
 
       - name: Upload the redacted report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: gitleaks-history-redacted
           path: ${{ runner.temp }}/gitleaks-history.json
@@ -162,13 +165,13 @@ jobs:
     needs: gate-self-test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -182,7 +185,7 @@ jobs:
         run: node .github/security/redact-report.mjs "$RUNNER_TEMP/semgrep.json" "$RUNNER_TEMP/semgrep-redacted.json"
 
       - name: Upload the redacted report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: semgrep-redacted
           path: ${{ runner.temp }}/semgrep-redacted.json
