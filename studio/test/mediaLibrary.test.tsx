@@ -86,7 +86,8 @@ describe("media library save", () => {
     fireEvent.change(screen.getByDisplayValue("Harbour"), { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    await waitFor(() => expect(screen.getByText(new RegExp(title.replace(/[.:]/g, "\\$&")))).toBeTruthy());
-    for (const place of places) expect(screen.getAllByText(new RegExp(place)).length).toBeGreaterThan(0);
+    // Plain-text matching: no pattern is built from the strings under test.
+    await waitFor(() => expect(screen.getByText(title, { exact: false })).toBeTruthy());
+    for (const place of places) expect(screen.getAllByText(place, { exact: false }).length).toBeGreaterThan(0);
   });
 });

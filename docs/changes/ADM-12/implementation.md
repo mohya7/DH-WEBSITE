@@ -96,3 +96,26 @@ The orchestrator session (`local_23423d93-6e78-4e5d-8d70-f7daa2f37ea4`) relayed 
 | "Library edits go live without publishing" | Audit ADM-12 title, line 203 | Closed by owner decision O-1 (live-on-save accepted) | Relayed decision quoted above. No ADM-12b. |
 
 Status: READY FOR TEST
+
+## Round 2
+
+Sent back by the owner via the coordinator, as a delivery finding on PR #70. The finding: CI CodeQL alert 4, `js/incomplete-sanitization` (high), at `studio/test/mediaLibrary.test.tsx:89`. `new RegExp(title.replace(/[.:]/g, "\$&"))` does not escape backslashes. Line 90 built `new RegExp(place)` from data the same way.
+
+**Merge.** `git merge origin/rebuild/dotnet-platform` at 1f8de7a gave merge commit `97da2a6`. It merged cleanly (ADM-04, ADR 0001 and GAP-11, #69 `71b7541`), with no rebase and no conflicts.
+
+**Answer to the finding.** Both assertions now match plain text, `screen.getByText(title, { exact: false })` and `screen.getAllByText(place, { exact: false })`, so no regex is built from data. `grep -c RegExp studio/test/mediaLibrary.test.tsx` returns 0. No other file changed.
+
+**Commands, on the merged tree with the fix:**
+- `cd studio && npm ci`: exit 0. The lockfile is unchanged; this only restores node_modules after the merge.
+- `npm test`: exit 0, "Test Files 16 passed, Tests 117 passed". The counts grew with the merged ADM-04 tests.
+- `VITE_PUBLIC_SITE_URL=https://website.ci.invalid npm run build`: exit 0, "built".
+- `cd api && dotnet build DigitalHub.slnx -c Release`: exit 0, 0 errors, 13 warnings.
+- `dotnet test tests/DigitalHub.Api.Tests -c Release --no-build --filter FullyQualifiedName~MediaLibraryTests`, run five times:
+  - first, before the test edit applied (it was refused because the file had not been read): exit 0, 19 of 19;
+  - second, after the edit: exit 1, "Failed: 1, Passed: 18". I did not capture which test failed or why;
+  - third, fourth and fifth, after the edit: exit 0, 19 of 19 each.
+
+  The round-2 change touches only the Studio test file, which the .NET tests do not use, so the one failure came from the API test run itself. It is not reproduced and its cause is unknown. Candidate causes are shared state in DigitalHubContent_Test (another worktree's run) or timing in the rate limiter. The tester should run MediaLibraryTests repeatedly and report any failure with its message.
+- NOT RUN: Playwright e2e (broken local harness; CI) and CodeQL (CI only; it runs on the pull request after the push).
+
+Status: READY FOR TEST
