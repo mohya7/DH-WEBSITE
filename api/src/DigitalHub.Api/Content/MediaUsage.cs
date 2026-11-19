@@ -109,6 +109,188 @@ public static class MediaUsage
             places.Add(collection + " " + id.ToString("D") + " image");
     }
 
+    /// <summary>
+    /// ADM-12: the places that rely on the asset's own alt text. It mirrors the publish
+    /// check's alt rule: a share or card image with no override, and a mediaId object
+    /// that is neither decorative nor carries alt of its own. Built from the same
+    /// sources as <see cref="FindPlacesAsync"/>, so a source added there belongs here too.
+    /// </summary>
+    public static async Task<IReadOnlyList<string>> FindPlacesWithoutOwnAltAsync(ContentDbContext db, Guid mediaId, CancellationToken cancellationToken)
+    {
+        var places = new List<string>();
+        var text = mediaId.ToString();
+        await AddSharesWithoutAltAsync(db.Pages, "pages", mediaId, places, cancellationToken);
+        await AddSharesWithoutAltAsync(db.Services, "services", mediaId, places, cancellationToken);
+        await AddSharesWithoutAltAsync(db.Partners, "partners", mediaId, places, cancellationToken);
+        await AddSharesWithoutAltAsync(db.CaseStudies, "case-studies", mediaId, places, cancellationToken);
+        await AddSharesWithoutAltAsync(db.BlogPosts, "blog-posts", mediaId, places, cancellationToken);
+        await AddSharesWithoutAltAsync(db.Vacancies, "vacancies", mediaId, places, cancellationToken);
+        await AddSharesWithoutAltAsync(db.TeamMembers, "team-members", mediaId, places, cancellationToken);
+        await AddSharesWithoutAltAsync(db.NewsItems, "news-items", mediaId, places, cancellationToken);
+        await AddImagesWithoutAltAsync(db.Partners, "partners", mediaId, places, cancellationToken);
+        await AddImagesWithoutAltAsync(db.CaseStudies, "case-studies", mediaId, places, cancellationToken);
+        await AddImagesWithoutAltAsync(db.BlogPosts, "blog-posts", mediaId, places, cancellationToken);
+        await AddImagesWithoutAltAsync(db.TeamMembers, "team-members", mediaId, places, cancellationToken);
+        await AddImagesWithoutAltAsync(db.NewsItems, "news-items", mediaId, places, cancellationToken);
+
+        foreach (var id in await db.SiteSettings.AsNoTracking()
+                     .Where(item => item.DefaultShareImageId == mediaId && (item.DefaultShareImageAltOverride == null || item.DefaultShareImageAltOverride.Trim() == ""))
+                     .Select(item => item.Id).ToListAsync(cancellationToken))
+            places.Add("site-settings " + id.ToString("D") + " default share image");
+
+        // Defence in depth: the body save already refuses an image with no alt.
+        foreach (var post in await db.BlogPosts.AsNoTracking().Where(item => item.Body.Contains(text)).Select(item => new { item.Id, item.Body }).ToListAsync(cancellationToken))
+        {
+            if (JsonReliesOnAssetAlt(post.Body, mediaId, false))
+                places.Add("blog-posts " + post.Id.ToString("D") + " body");
+        }
+
+        var sections = await db.Sections.AsNoTracking()
+            .Where(section => section.Fields.Contains(text))
+            .Select(section => new { section.Id, section.PageId, section.ServiceId, section.PartnerId, section.CaseStudyId, section.Fields })
+            .ToListAsync(cancellationToken);
+        foreach (var section in sections)
+        {
+            if (!JsonReliesOnAssetAlt(section.Fields, mediaId, false))
+                continue;
+            var owner = section.PageId ?? section.ServiceId ?? section.PartnerId ?? section.CaseStudyId;
+            var collection = section.PageId is not null ? "pages"
+                : section.ServiceId is not null ? "services"
+                : section.PartnerId is not null ? "partners"
+                : "case-studies";
+            if (owner is Guid ownerId)
+                places.Add(collection + " " + ownerId.ToString("D") + " section " + section.Id.ToString("D"));
+        }
+
+        var copies = await db.WorkingCopies.AsNoTracking()
+            .Where(copy => copy.Document.Contains(text))
+            .Select(copy => new
+            {
+                copy.PageId,
+                copy.ServiceId,
+                copy.PartnerId,
+                copy.CaseStudyId,
+                copy.BlogPostId,
+                copy.VacancyId,
+                copy.TeamMemberId,
+                copy.NewsItemId,
+                copy.Document,
+            })
+            .ToListAsync(cancellationToken);
+        foreach (var copy in copies)
+        {
+            if (!JsonReliesOnAssetAlt(copy.Document, mediaId, true))
+                continue;
+            var (collection, owner) = copy.PageId is Guid page ? ("pages", page)
+                : copy.ServiceId is Guid service ? ("services", service)
+                : copy.PartnerId is Guid partner ? ("partners", partner)
+                : copy.CaseStudyId is Guid study ? ("case-studies", study)
+                : copy.BlogPostId is Guid blog ? ("blog-posts", blog)
+                : copy.VacancyId is Guid vacancy ? ("vacancies", vacancy)
+                : copy.TeamMemberId is Guid member ? ("team-members", member)
+                : copy.NewsItemId is Guid news ? ("news-items", news)
+                : ("", Guid.Empty);
+            if (collection.Length > 0)
+                places.Add(collection + " " + owner.ToString("D") + " working copy");
+        }
+
+        return places;
+    }
+
+    private static async Task AddSharesWithoutAltAsync<T>(DbSet<T> set, string collection, Guid mediaId, List<string> places, CancellationToken cancellationToken)
+        where T : ContentRecord
+    {
+        foreach (var id in await set.AsNoTracking()
+                     .Where(item => item.ShareImageId == mediaId && (item.ShareImageAltOverride == null || item.ShareImageAltOverride.Trim() == ""))
+                     .Select(item => item.Id).ToListAsync(cancellationToken))
+            places.Add(collection + " " + id.ToString("D") + " share image");
+    }
+
+    private static async Task AddImagesWithoutAltAsync<T>(DbSet<T> set, string collection, Guid mediaId, List<string> places, CancellationToken cancellationToken)
+        where T : ContentRecord
+    {
+        foreach (var id in await set.AsNoTracking()
+                     .Where(item => EF.Property<Guid?>(item, "ImageId") == mediaId
+                         && (EF.Property<string?>(item, "ImageAltOverride") == null || EF.Property<string?>(item, "ImageAltOverride")!.Trim() == ""))
+                     .Select(item => item.Id).ToListAsync(cancellationToken))
+            places.Add(collection + " " + id.ToString("D") + " image");
+    }
+
+    /// <summary>
+    /// True when the JSON uses the image without alt of its own. A working-copy document
+    /// also carries shareImageId and fields.imageId with their override fields.
+    /// </summary>
+    private static bool JsonReliesOnAssetAlt(string? json, Guid mediaId, bool document)
+    {
+        if (!TryParse(json, out var parsed))
+            return false;
+        using (parsed)
+        {
+            var root = parsed.RootElement;
+            if (document && root.ValueKind == JsonValueKind.Object)
+            {
+                if (IsId(root, "shareImageId", mediaId) && !HasText(root, "shareImageAltOverride"))
+                    return true;
+                if (root.TryGetProperty("fields", out var fields) && fields.ValueKind == JsonValueKind.Object
+                    && IsId(fields, "imageId", mediaId) && !HasText(fields, "imageAltOverride"))
+                    return true;
+            }
+
+            return WalkReliesOnAssetAlt(root, mediaId);
+        }
+    }
+
+    private static bool WalkReliesOnAssetAlt(JsonElement element, Guid mediaId)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Object:
+                if (IsId(element, "mediaId", mediaId))
+                {
+                    var decorative = element.TryGetProperty("decorative", out var flag) && flag.ValueKind == JsonValueKind.True;
+                    if (!decorative && !HasText(element, "alt"))
+                        return true;
+                }
+
+                foreach (var property in element.EnumerateObject())
+                {
+                    if (WalkReliesOnAssetAlt(property.Value, mediaId))
+                        return true;
+                }
+
+                return false;
+            case JsonValueKind.Array:
+                foreach (var item in element.EnumerateArray())
+                {
+                    if (WalkReliesOnAssetAlt(item, mediaId))
+                        return true;
+                }
+
+                return false;
+            case JsonValueKind.String:
+                if (TryParse(element.GetString(), out var nested))
+                {
+                    using (nested)
+                        return WalkReliesOnAssetAlt(nested.RootElement, mediaId);
+                }
+
+                return false;
+            default:
+                return false;
+        }
+    }
+
+    private static bool IsId(JsonElement element, string name, Guid mediaId) =>
+        element.TryGetProperty(name, out var value)
+        && value.ValueKind == JsonValueKind.String
+        && Guid.TryParse(value.GetString(), out var id)
+        && id == mediaId;
+
+    private static bool HasText(JsonElement element, string name) =>
+        element.TryGetProperty(name, out var value)
+        && value.ValueKind == JsonValueKind.String
+        && !string.IsNullOrWhiteSpace(value.GetString());
+
     public static async Task<IReadOnlyList<Guid>> MissingAsync(ContentDbContext db, string snapshot, CancellationToken cancellationToken)
     {
         var referenced = ReferencedIds(snapshot);

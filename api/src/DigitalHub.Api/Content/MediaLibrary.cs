@@ -123,6 +123,14 @@ public sealed class MediaLibrary(ContentDbContext db, IConfiguration configurati
         if (captionError is not null)
             return MediaOutcome.Fail(StatusCodes.Status400BadRequest, "validation_failed", captionError, new Dictionary<string, string[]> { ["caption"] = [captionError] });
 
+        // ADM-12: an edit that leaves no default alt is refused while any use relies on it.
+        if (decorative && string.IsNullOrWhiteSpace(alt))
+        {
+            var places = await MediaUsage.FindPlacesWithoutOwnAltAsync(db, id, cancellationToken);
+            if (places.Count > 0)
+                return MediaOutcome.AltInUse(places);
+        }
+
         asset.Alt = decorative ? alt?.Trim() ?? "" : alt!.Trim();
         asset.Decorative = decorative;
         asset.Caption = string.IsNullOrWhiteSpace(caption) ? null : caption.Trim();
@@ -302,6 +310,14 @@ public sealed class MediaOutcome
         Status = StatusCodes.Status409Conflict,
         Code = "in_use",
         Title = "This image is used, so it was not deleted.",
+        Usages = usages,
+    };
+
+    public static MediaOutcome AltInUse(IReadOnlyList<string> usages) => new()
+    {
+        Status = StatusCodes.Status409Conflict,
+        Code = "alt_in_use",
+        Title = "Add alt text: this image is used without alt text of its own.",
         Usages = usages,
     };
 }
