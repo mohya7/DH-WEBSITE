@@ -32,11 +32,13 @@ class NoResizeObserver {
 }
 Object.defineProperty(window, "ResizeObserver", { writable: true, configurable: true, value: NoResizeObserver });
 
-type Reply = { ok: boolean; status: number; body: unknown; problem: { title?: string } | null };
+type Reply = { ok: boolean; status: number; body: unknown; problem: { title?: string; errors?: Record<string, string[]> } | null };
 
 const api = vi.hoisted(() => ({
   calls: [] as Array<{ path: string; method: string }>,
   saved: [] as Array<Record<string, unknown>>,
+  // ADM-12c: replies a test queues for its next saves; a save with none queued succeeds.
+  putReplies: [] as Array<{ ok: boolean; status: number; body: unknown; problem: { title?: string; errors?: Record<string, string[]> } | null }>,
 }));
 
 vi.mock("../src/api/http", () => ({
@@ -100,6 +102,8 @@ async function handler(path: string, init?: RequestInit): Promise<Reply> {
   if (path === "/api/v1/settings" && method === "PUT") {
     const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
     api.saved.push(body);
+    const queued = api.putReplies.shift();
+    if (queued !== undefined) return queued;
     return ok({ ...stored, ...body, version: 5 });
   }
   if (path.startsWith("/api/v1/media?") && method === "GET") return ok(pagedBody(images, path));
@@ -131,6 +135,7 @@ async function clickSave() {
 beforeEach(() => {
   api.calls.length = 0;
   api.saved.length = 0;
+  api.putReplies.length = 0;
   auth.role = "admin";
   toast.success.mockClear();
 });
@@ -184,6 +189,33 @@ describe("settings default share image", () => {
     const body = lastSave();
     expect("defaultShareImageId" in body).toBe(true);
     expect(body.defaultShareImageId).toBeNull();
+  });
+
+  it("a refused save shows the field error under the default share image alt text", async () => {
+    // ADM-12c: the API's field errors show at their fields; a key with no field (version) is skipped.
+    const altMessage = "This image has no alt text of its own. Add alt text for the default share image.";
+    const problem = {
+      code: "validation_failed",
+      title: "One or more fields are invalid.",
+      errors: { defaultShareImageAltOverride: [altMessage], version: ["Version is required."] },
+    };
+    api.putReplies.push({ ok: false, status: 400, body: problem, problem });
+    await renderLoaded();
+
+    await clickSave();
+
+    const altItem = screen.getByLabelText("Default share image alt text").closest<HTMLElement>(".ant-form-item");
+    expect(altItem).not.toBeNull();
+    await within(altItem!).findByText(altMessage);
+    // The title paragraph still shows for the failed save.
+    expect(screen.getByText("One or more fields are invalid.")).toBeTruthy();
+    expect(screen.queryByText("Version is required.")).toBeNull();
+
+    // The next save succeeds and clears the field error.
+    await clickSave();
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Settings saved."));
+    await waitFor(() => expect(within(altItem!).queryByText(altMessage)).toBeNull());
+    expect(screen.queryByText("One or more fields are invalid.")).toBeNull();
   });
 
   it("an editor sees the share image but cannot change it", async () => {

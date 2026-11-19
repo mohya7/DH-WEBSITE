@@ -455,6 +455,16 @@ static class ContentBundle
         {
             var settings = row!.Deserialize<SiteSettings>(Json)!;
             Report(problems, "settings", settings.Id, AdminStore.CheckSettings(SettingsRequest(settings)));
+            // ADM-12c: the settings save's alt rule for the default share image. Every table is
+            // imported and saved before this check, so db.Media already holds the bundle's assets
+            // as the bundle states them (a --force overwrite included), and the target's own
+            // assets otherwise. A problem, not a warning: --force never bypasses it.
+            if (settings.DefaultShareImageId is { } shareImageId)
+            {
+                var asset = await db.Media.AsNoTracking().FirstOrDefaultAsync(media => media.Id == shareImageId, cancellationToken);
+                if (AdminStore.DefaultShareImageAltError(settings.DefaultShareImageAltOverride, asset) is { } altError)
+                    Report(problems, "settings", settings.Id, new() { ["defaultShareImageAltOverride"] = [altError] });
+            }
         }
 
         var menus = bundle.Tables["navigation"].Select(row => row!["menu"]!.GetValue<string>()).Distinct(StringComparer.Ordinal);

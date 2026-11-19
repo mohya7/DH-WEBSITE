@@ -439,6 +439,69 @@ public sealed class ContentBundleTests : IClassFixture<ApiFactory>, IDisposable
     }
 
     [Fact]
+    public async Task A_default_share_image_without_alt_text_of_its_own_is_not_imported()
+    {
+        // ADM-12c: the settings save's rule (AdminStore.DefaultShareImageAltError) applies to the import too.
+        await InTransactionAsync(async db =>
+        {
+            await SeedAsync(db);
+            var exported = await ExportAsync(db, _source);
+            byte[] Bad(bool decorative) => Edit(exported, root =>
+            {
+                root["tables"]!["media"]![0]!["alt"] = "";
+                root["tables"]!["media"]![0]!["decorative"] = decorative;
+                root["tables"]!["settings"]![0]!["defaultShareImageId"] = MediaId.ToString();
+                root["tables"]!["settings"]![0]!["defaultShareImageAltOverride"] = null;
+            });
+            const string Refusal = "settings 80000000-0000-0000-0000-000000000001: defaultShareImageAltOverride";
+
+            // Existing rows, with --force: the bundle's media and settings rows differ from the
+            // target's, --force overwrites them, and the check still refuses.
+            var forced = await ImportAsync(db, _source, Bad(decorative: true), force: true);
+            Assert.False(forced.Ok);
+            Assert.NotEmpty(forced.Conflicts);
+            Assert.Contains(forced.Problems, problem => problem.StartsWith(Refusal, StringComparison.Ordinal));
+            Assert.Equal("The team at work", (await db.Media.AsNoTracking().SingleAsync()).Alt);
+            Assert.Null((await db.SiteSettings.AsNoTracking().SingleAsync()).DefaultShareImageId);
+
+            // New rows, without --force: decorative, and not decorative (the old site's images without alt text).
+            foreach (var decorative in new[] { true, false })
+            {
+                await EmptyAsync(db);
+                var refused = await ImportAsync(db, _target, Bad(decorative));
+                Assert.False(refused.Ok);
+                Assert.Contains(refused.Problems, problem => problem.StartsWith(Refusal, StringComparison.Ordinal));
+                Assert.Equal(0, await db.SiteSettings.CountAsync());
+                Assert.Equal(0, await db.Media.CountAsync());
+                Assert.Empty(Directory.GetFiles(_target));
+            }
+        });
+    }
+
+    [Fact]
+    public async Task A_default_share_image_with_an_override_imports()
+    {
+        await InTransactionAsync(async db =>
+        {
+            await SeedAsync(db);
+            var bundle = Edit(await ExportAsync(db, _source), root =>
+            {
+                root["tables"]!["media"]![0]!["alt"] = "";
+                root["tables"]!["media"]![0]!["decorative"] = true;
+                root["tables"]!["settings"]![0]!["defaultShareImageId"] = MediaId.ToString();
+                root["tables"]!["settings"]![0]!["defaultShareImageAltOverride"] = "Digital Hub logo";
+            });
+            await EmptyAsync(db);
+
+            var result = await ImportAsync(db, _target, bundle);
+            Assert.True(result.Ok, string.Join("\n", result.Problems));
+            var settings = await db.SiteSettings.AsNoTracking().SingleAsync();
+            Assert.Equal(MediaId, settings.DefaultShareImageId);
+            Assert.Equal("Digital Hub logo", settings.DefaultShareImageAltOverride);
+        });
+    }
+
+    [Fact]
     public async Task A_credential_key_inside_json_text_is_refused_with_and_without_force()
     {
         await InTransactionAsync(async db =>

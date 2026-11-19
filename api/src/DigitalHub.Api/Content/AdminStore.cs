@@ -245,6 +245,17 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
         if (request.DefaultShareImageIdSent && request.DefaultShareImageId is { } shareImageId
             && !await db.Media.AnyAsync(asset => asset.Id == shareImageId, cancellationToken))
             Add(errors, "defaultShareImageId", "Choose an image from the media library.");
+        // ADM-12c: the image the save would store needs alt text of its own. Each field is
+        // the body's value when sent and the stored one when left out (ADM-10), so a save that
+        // sends neither is refused too while the stored pair has no alt.
+        var storedShareImageId = request.DefaultShareImageIdSent ? request.DefaultShareImageId : settings?.DefaultShareImageId;
+        var storedAltOverride = request.DefaultShareImageAltOverrideSent ? request.DefaultShareImageAltOverride : settings?.DefaultShareImageAltOverride;
+        if (storedShareImageId is { } storedId)
+        {
+            var asset = await db.Media.AsNoTracking().FirstOrDefaultAsync(media => media.Id == storedId, cancellationToken);
+            if (DefaultShareImageAltError(storedAltOverride, asset) is { } altError)
+                Add(errors, "defaultShareImageAltOverride", altError);
+        }
         if (errors.Count > 0)
             return Validation(errors);
 
@@ -823,6 +834,17 @@ public sealed class AdminStore(ContentDbContext db, UserManager<ApplicationUser>
 
     /// <summary>The checks UpdateSettingsAsync applies.</summary>
     public static Dictionary<string, List<string>> CheckSettings(SiteSettingsUpdate request) => ValidateSettings(request);
+
+    /// <summary>
+    /// ADM-12c: the default share image needs alt text of its own, the library alt or a
+    /// non-blank override. The publish rule for page share images (AltText.Effective); it
+    /// ignores Decorative. A missing asset is null here: each caller reports it its own way.
+    /// Used by UpdateSettingsAsync and by the content bundle import.
+    /// </summary>
+    public static string? DefaultShareImageAltError(string? altOverride, MediaAsset? asset) =>
+        asset is not null && AltText.Effective(altOverride, asset) is null
+            ? "This image has no alt text of its own. Add alt text for the default share image."
+            : null;
 
     /// <summary>The checks ReplaceNavigationAsync applies to one menu, including that internal targets exist.</summary>
     public static async Task<Dictionary<string, List<string>>> CheckNavigationAsync(ContentDbContext db, string menu, IReadOnlyList<NavigationNode> items, CancellationToken cancellationToken)

@@ -1,5 +1,5 @@
 import { Alert, Button, Form, Input, Space, Typography, message } from "antd";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../auth/AuthProvider";
 import { jsonInit, request } from "../api/http";
 import { MediaPicker, type MediaChoice } from "../content/MediaPicker";
@@ -91,6 +91,8 @@ export function SettingsPage() {
   // when someone else saved in between.
   const [version, setVersion] = useState<number | null>(null);
   const [picker, setPicker] = useState(false);
+  // The fields a refused save marked, so the next save clears them.
+  const shownErrors = useRef<Array<keyof Settings>>([]);
 
   useEffect(() => {
     void load();
@@ -106,10 +108,33 @@ export function SettingsPage() {
     setVersion((result.body as { version: number }).version);
   }
 
+  /*
+   * ADM-12c: a refused save's field errors show under their fields. Only keys that
+   * are a field on this form are shown there; any other key (version, for example)
+   * is skipped, and the title paragraph above the form still shows.
+   */
+  function showFieldErrors(errors: Record<string, string[]> | undefined) {
+    if (errors === undefined) return;
+    const names = new Set(Object.keys(form.getFieldsValue()));
+    const fields = Object.entries(errors)
+      .filter(([name]) => names.has(name))
+      .map(([name, messages]) => ({ name: name as keyof Settings, errors: messages }));
+    shownErrors.current = fields.map((field) => field.name);
+    form.setFields(fields);
+  }
+
+  function clearFieldErrors() {
+    form.setFields(shownErrors.current.map((name) => ({ name, errors: [] })));
+    shownErrors.current = [];
+  }
+
   async function save(values: Settings) {
     const result = await request("/api/v1/settings", jsonInit("PUT", { ...values, version }));
+    clearFieldErrors();
     if (!result.ok) {
+      // The title always shows, so a refusal never looks like nothing happened.
       setError(result.problem?.title ?? "Settings were not saved.");
+      showFieldErrors(result.problem?.errors);
       return;
     }
     setError(null);
@@ -142,7 +167,7 @@ export function SettingsPage() {
         <Form.Item label="Default meta title" name="defaultMetaTitle"><Input /></Form.Item>
         <Form.Item label="Default meta description" name="defaultMetaDescription"><Input.TextArea rows={3} /></Form.Item>
         <Form.Item label="Default share image" name="defaultShareImageId"><ShareImageField onChoose={() => setPicker(true)} /></Form.Item>
-        <Form.Item label="Default share image alt text" name="defaultShareImageAltOverride" extra="The alt text for the default share image, on pages that use it. Empty uses the page title."><Input maxLength={300} /></Form.Item>
+        <Form.Item label="Default share image alt text" name="defaultShareImageAltOverride" extra="The alt text for the default share image, on pages that use it. Required when the image has no alt text in the media library; otherwise empty uses the page title."><Input maxLength={300} /></Form.Item>
         <Form.Item label="Analytics container ID" name="analyticsContainerId" extra="Google Tag Manager, GTM- followed by at least seven letters or digits. Empty means the site loads no tag, banner, or cookie."><Input placeholder="GTM-XXXXXXX" /></Form.Item>
         <Form.Item label="Cookie banner title" name="cookieBannerTitle" extra="Empty uses “Cookies on this site”."><Input /></Form.Item>
         <Form.Item label="Cookie banner text" name="cookieBannerText" extra="The banner body. Empty uses the built-in English sentence."><Input.TextArea rows={3} /></Form.Item>
