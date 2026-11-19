@@ -23,7 +23,7 @@ is named. **N/A** — does not apply until the named phase.
 | P-2 | Gates land before refactors. Existing debt is baselined and may only shrink. | Each gate's baseline file (section 6) | Partial: security gate only |
 | P-3 | Strangler, never big-bang. The old site stays deployable until the new one has run without incident. | `docs/business-analysis.md` section 16 | Met |
 | P-4 | A failing test exists before the fix. Attack tests come from the design, before the code. | Review; red-test commit before its fix (B-6) | Partial: by review only |
-| P-5 | Fail closed. A check that cannot decide blocks. | Security gate (`gate.mjs` fails on unknown or malformed input); API fallback policy requires an authenticated user | Met |
+| P-5 | Fail closed. A check that cannot decide blocks. | Security gate (`gate.mjs` fails on unknown or malformed input); admin API fallback policy requires an authenticated user; the public forms API answers only its two routes (`PublicRouteGate`, `PublicRouteTests`, ADR 0001) | Met |
 | P-6 | Never weaken a gate, guard or test to make something pass. A conflict is resolved by a recorded decision. | Review; golden copies of the security workflow | Partial |
 | P-7 | Only the owner decides exceptions and behaviour changes. Their words are quoted exactly, with the date. | `docs/deferred-items.md`; PR template | Met from this change |
 | P-8 | Evidence, not claims. Anything not verified is written NOT RUN, with the reason and the CI job that covers it. | PR template; `AGENTS.md` coverage tables | Met |
@@ -77,7 +77,7 @@ website output and CSP checks, Studio preview design check.
 | Id | Rule | Enforced by | Status |
 |---|---|---|---|
 | S-1 | The API is the only boundary. The website and Studio reach data only through it. | Architecture; `docs/business-analysis.md` | Met |
-| S-2 | Every route has a policy; the fallback requires an authenticated user. | `Program.cs` fallback policy; role matrix in `CareersTests` | Met |
+| S-2 | Every route has a policy; the fallback requires an authenticated user. | Admin API: `Program.cs` fallback policy; role matrix in `CareersTests`. Public forms API, which has no authentication by ADR 0001: `PublicRouteGate` denies every route but its two; `PublicRouteTests` | Met |
 | S-3 | Every security fix ships with its regression test, written red first, and a role-matrix entry when a route is involved. | Review | Partial |
 | S-4 | Parameterised data access only (EF Core); validation before the store; redirect paths checked by one rule shared by the API and the website build; no internals in error bodies. | `RedirectPathRuleTests`, Semgrep | Met |
 | S-5 | Sessions: the refresh cookie is HttpOnly, Secure, SameSite=Strict; sessions can be revoked; a password reset ends every session. | `TokenService`; `SessionRevocationTests`, `SessionLimitTests`, `SessionCheckTests` | Met |
