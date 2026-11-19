@@ -33,13 +33,15 @@
  *   - every page has one JSON-LD script, and it matches the structured data
  *   - Next's _not-found export is not in the output
  *   - every external script (an http://, https:// or protocol-relative //
- *     src) carries integrity="sha384-..." and crossorigin (GAP-11). Before
+ *     src, as a browser parses it) carries integrity="sha384-..." and
+ *     crossorigin (GAP-11, GAP-11c). Before
  *     SRI_BLOCKING_FROM it is reported as a warning only; from that date a
  *     problem fails the build
  */
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { parse } from "parse5";
 import type { AnyContentItem, BuildContent, Redirect } from "../src/content/build-content";
 import type { Manifest } from "../src/content/prepared";
 import { sectionRenders } from "@digitalhub/blocks/select";
@@ -329,28 +331,49 @@ export function checkDesignLoading(file: string, html: string): string[] {
  */
 export const SRI_BLOCKING_FROM = "2026-11-26";
 
-/**
- * A tag's attributes by lower-cased name, as HTML parses them: double-quoted,
- * single-quoted, unquoted, or bare (a bare name has the value "").
- */
-function scriptAttributes(text: string): Map<string, string> {
-  const attrs = new Map<string, string>();
-  for (const match of text.matchAll(/([^\s"'>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g)) {
-    const name = match[1].toLowerCase();
-    if (!attrs.has(name)) attrs.set(name, match[2] ?? match[3] ?? match[4] ?? "");
+type ParsedNode = { tagName?: string; attrs?: { name: string; value: string }[]; childNodes?: ParsedNode[]; content?: ParsedNode };
+
+/** Every <script> element's attributes, as a browser's HTML parser reads them (parse5, the WHATWG tokenizer; GAP-11c). */
+function scriptElements(html: string): Map<string, string>[] {
+  const found: Map<string, string>[] = [];
+  const walk = (node: ParsedNode) => {
+    if (node.tagName === "script") {
+      // parse5 lower-cases names, decodes character references, and already drops a duplicate attribute after the first.
+      const attrs = new Map<string, string>();
+      for (const attr of node.attrs ?? []) if (!attrs.has(attr.name)) attrs.set(attr.name, attr.value);
+      found.push(attrs);
+    }
+    for (const child of node.childNodes ?? []) walk(child);
+    if (node.content) walk(node.content);
+  };
+  walk(parse(html) as unknown as ParsedNode);
+  return found;
+}
+
+/** A sentinel origin no real site has: a src that resolves to it is the site's own. */
+const OWN_BASE = "https://own.invalid/";
+
+/** True when the browser would load src from another host over http(s); an unparsable src fails closed. */
+function isExternalSrc(src: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(src, OWN_BASE);
+  } catch {
+    return true;
   }
-  return attrs;
+  return (url.protocol === "http:" || url.protocol === "https:") && url.origin !== new URL(OWN_BASE).origin;
 }
 
 /** Every external <script src> must carry a sha384 integrity and crossorigin (GAP-11). */
 export function checkScriptIntegrity(file: string, html: string): string[] {
   const problems: string[] = [];
-  for (const match of html.matchAll(/<script\b([^>]*)>/gi)) {
-    const attrs = scriptAttributes(match[1]);
+  for (const attrs of scriptElements(html)) {
     const src = attrs.get("src");
-    if (!src || !/^(?:https?:)?\/\//i.test(src)) continue;
-    // A sha384 digest is 48 bytes: exactly 64 base64 characters, no padding.
-    const hashed = /^sha384-[A-Za-z0-9+/]{64}$/.test(attrs.get("integrity") ?? "");
+    if (src === undefined || !isExternalSrc(src)) continue;
+    // A sha384 digest is 48 bytes: exactly 64 base64 characters, no padding. The value is a
+    // whitespace-separated list; one full sha384 is enough (a stronger junk hash makes the browser refuse).
+    const tokens = (attrs.get("integrity") ?? "").split(/[\t\n\f\r ]+/);
+    const hashed = tokens.some((token) => /^sha384-[A-Za-z0-9+/]{64}$/.test(token));
     const cors = attrs.has("crossorigin");
     if (!hashed || !cors) problems.push(`${file}: external script without integrity: ${src}`);
   }
