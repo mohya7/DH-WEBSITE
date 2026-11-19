@@ -747,6 +747,134 @@ public sealed class ContentPublishTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task Publish_blocks_a_card_image_without_alt_text_until_it_has_an_override()
+    {
+        var editor = await Editor();
+        var slug = Slug();
+        var mediaId = Guid.NewGuid();
+        Guid? itemId = null;
+        try
+        {
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var database = scope.ServiceProvider.GetRequiredService<ContentDbContext>();
+                database.Media.Add(BareImage(mediaId));
+                await database.SaveChangesAsync();
+            }
+
+            var created = await SendAsync(editor, HttpMethod.Post, "/api/v1/team-members", new
+            {
+                slug,
+                title = "Card image",
+                fields = new { imageId = mediaId.ToString() },
+            });
+            Assert.Equal(HttpStatusCode.Created, created.Status);
+            var draft = ReadPage(created.Body, slug);
+            itemId = draft.Id;
+
+            // The card image has no alt of its own and no override: "image" is the only error.
+            var blocked = await SendAsync(editor, HttpMethod.Post, "/api/v1/team-members/" + draft.Id + "/publish", new { version = draft.Version });
+            Assert.Equal(HttpStatusCode.BadRequest, blocked.Status);
+            Assert.Equal("publish_blocked", Code(blocked.Body));
+            var errors = JsonDocument.Parse(blocked.Body).RootElement.GetProperty("errors");
+            Assert.Equal(new[] { "image" }, errors.EnumerateObject().Select(property => property.Name).ToArray());
+            Assert.Equal(new[] { "Add alt text for the image." }, errors.GetProperty("image").EnumerateArray().Select(message => message.GetString()).ToArray());
+            var stored = await SendAsync(editor, HttpMethod.Get, "/api/v1/team-members/" + draft.Id);
+            Assert.Equal("draft", Text(stored.Body, "status"));
+
+            // An override on the card is enough; the image itself stays on the draft.
+            const string alt = "Portrait of the team member";
+            var updated = await SendAsync(editor, HttpMethod.Put, "/api/v1/team-members/" + draft.Id, new
+            {
+                version = draft.Version,
+                slug,
+                title = "Card image",
+                fields = new { imageId = mediaId.ToString(), imageAltOverride = alt },
+            });
+            Assert.Equal(HttpStatusCode.OK, updated.Status);
+            Assert.Equal(mediaId, Guid.Parse(Text(updated.Body, "content", "fields", "imageId")));
+            Assert.Equal(alt, Text(updated.Body, "content", "fields", "imageAltOverride"));
+            var ready = ReadPage(updated.Body, slug);
+
+            var published = await SendAsync(editor, HttpMethod.Post, "/api/v1/team-members/" + draft.Id + "/publish", new { version = ready.Version });
+            Assert.Equal(HttpStatusCode.OK, published.Status);
+            Assert.Equal("published", Text(published.Body, "state"));
+        }
+        finally
+        {
+            // The item first: its image has a NoAction foreign key to the asset.
+            if (itemId is Guid id)
+                await RemoveItemAsync("team-members", id);
+            await RemoveMediaAsync(mediaId);
+        }
+    }
+
+    [Fact]
+    public async Task Publish_blocks_a_decorative_card_image_without_alt_text_until_it_has_an_override()
+    {
+        var editor = await Editor();
+        var slug = Slug();
+        var mediaId = Guid.NewGuid();
+        Guid? itemId = null;
+        try
+        {
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var database = scope.ServiceProvider.GetRequiredService<ContentDbContext>();
+                var asset = BareImage(mediaId);
+                asset.Decorative = true;
+                database.Media.Add(asset);
+                await database.SaveChangesAsync();
+            }
+
+            var created = await SendAsync(editor, HttpMethod.Post, "/api/v1/team-members", new
+            {
+                slug,
+                title = "Decorative card image",
+                fields = new { imageId = mediaId.ToString() },
+            });
+            Assert.Equal(HttpStatusCode.Created, created.Status);
+            var draft = ReadPage(created.Body, slug);
+            itemId = draft.Id;
+
+            // Marked decorative, but with no alt of its own and no override, a card image is still refused.
+            var blocked = await SendAsync(editor, HttpMethod.Post, "/api/v1/team-members/" + draft.Id + "/publish", new { version = draft.Version });
+            Assert.Equal(HttpStatusCode.BadRequest, blocked.Status);
+            Assert.Equal("publish_blocked", Code(blocked.Body));
+            var errors = JsonDocument.Parse(blocked.Body).RootElement.GetProperty("errors");
+            Assert.Equal(new[] { "image" }, errors.EnumerateObject().Select(property => property.Name).ToArray());
+            Assert.Equal(new[] { "Add alt text for the image." }, errors.GetProperty("image").EnumerateArray().Select(message => message.GetString()).ToArray());
+            var stored = await SendAsync(editor, HttpMethod.Get, "/api/v1/team-members/" + draft.Id);
+            Assert.Equal("draft", Text(stored.Body, "status"));
+
+            // Decorative does not block either: with an override, the same card image publishes.
+            const string alt = "Abstract pattern behind the team member";
+            var updated = await SendAsync(editor, HttpMethod.Put, "/api/v1/team-members/" + draft.Id, new
+            {
+                version = draft.Version,
+                slug,
+                title = "Decorative card image",
+                fields = new { imageId = mediaId.ToString(), imageAltOverride = alt },
+            });
+            Assert.Equal(HttpStatusCode.OK, updated.Status);
+            Assert.Equal(mediaId, Guid.Parse(Text(updated.Body, "content", "fields", "imageId")));
+            Assert.Equal(alt, Text(updated.Body, "content", "fields", "imageAltOverride"));
+            var ready = ReadPage(updated.Body, slug);
+
+            var published = await SendAsync(editor, HttpMethod.Post, "/api/v1/team-members/" + draft.Id + "/publish", new { version = ready.Version });
+            Assert.Equal(HttpStatusCode.OK, published.Status);
+            Assert.Equal("published", Text(published.Body, "state"));
+        }
+        finally
+        {
+            // The item first: its image has a NoAction foreign key to the asset.
+            if (itemId is Guid id)
+                await RemoveItemAsync("team-members", id);
+            await RemoveMediaAsync(mediaId);
+        }
+    }
+
+    [Fact]
     public async Task Publish_warns_for_an_unpublished_reference_and_still_publishes()
     {
         var editor = await Editor();
