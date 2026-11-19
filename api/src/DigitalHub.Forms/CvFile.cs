@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace DigitalHub.Api.Content;
+namespace DigitalHub.Forms;
 
 /// <summary>
 /// Header checks for a CV. The file is never opened as a document.

@@ -7,6 +7,7 @@ using DigitalHub.Api.Conventions;
 using DigitalHub.Api.Data;
 using DigitalHub.Api.Identity;
 using DigitalHub.Api.Infrastructure;
+using DigitalHub.Forms;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -75,11 +76,8 @@ builder.Services.AddScoped<ContentStore>();
 builder.Services.AddScoped<MediaLibrary>();
 builder.Services.AddScoped<AdminStore>();
 builder.Services.AddScoped<UserAccessStore>();
-builder.Services.AddScoped<PublicContactStore>();
-builder.Services.AddScoped<ApplicationIntake>();
-builder.Services.AddSingleton<ApplyThrottle>();
-builder.Services.AddSingleton<ApplyDedupe>();
-builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
+builder.Services.AddDigitalHubForms();
+builder.Services.AddScoped<IFormsData, ContentFormsData>();
 builder.Services.AddScoped<BuildContentStore>();
 builder.Services.AddSingleton<BuildToken>();
 builder.Services.AddHostedService<IdentitySeeder>();
@@ -126,7 +124,7 @@ builder.Services.AddRateLimiter(options =>
         var title = policy switch
         {
             "media-upload" => "Too many uploads.",
-            "public-contact" => "Too many contact submissions.",
+            ContactRateLimit.PolicyName => "Too many contact submissions.",
             _ => "Too many requests.",
         };
         context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
@@ -149,16 +147,8 @@ builder.Services.AddRateLimiter(options =>
             QueueLimit = 0,
         });
     });
-    options.AddPolicy("public-contact", httpContext =>
-    {
-        var ip = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-        return RateLimitPartition.GetFixedWindowLimiter("contact\n" + ip, _ => new FixedWindowRateLimiterOptions
-        {
-            PermitLimit = contactPermitLimit,
-            Window = TimeSpan.FromHours(contactWindowHours),
-            QueueLimit = 0,
-        });
-    });
+    options.AddPolicy(ContactRateLimit.PolicyName, httpContext =>
+        ContactRateLimit.Partition(httpContext, contactPermitLimit, contactWindowHours));
     /* A build reads this a handful of times, so a low ceiling per address is
        ample and keeps the endpoint from being used to guess the token. */
     options.AddPolicy("build-content", httpContext =>
