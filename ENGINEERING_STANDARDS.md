@@ -53,7 +53,7 @@ exact version or checksum. Each gate has a test that proves it still fires.
 |---|---|---|---|---|
 | G-1 | Secrets scan | 0 findings | gitleaks 8.30.1 (sha256-checked) on pull request commits and full history, `security.yml` | Partial: the weekly run never fires (baseline F2) |
 | G-2 | Build and unit tests, every package | 0 failures | `ci.yml`: API Release build and tests; website and Studio Vitest; Studio Playwright | Met |
-| G-3 | Database tests on the production SQL Server version | 0 failures | `ci.yml` SQL Server service | Partial: production version not recorded; image tag floats |
+| G-3 | Database tests on the production SQL Server version | 0 failures | `ci.yml` SQL Server service | Partial: production version not recorded |
 | G-4 | Migrations apply from empty and from the previous schema | exit 0 | `ci.yml` applies from empty | Partial: previous schema not tested |
 | G-5 | Lint (TypeScript, C#) | 0 new issues; existing in a shrink-only baseline | — | Gap: step 4a, 4b |
 | G-6 | Type check | 0 errors | `tsc` strict in website and Studio; C# nullable | Partial: C# warnings not counted (step 4b) |
@@ -65,7 +65,7 @@ exact version or checksum. Each gate has a test that proves it still fires.
 | G-12 | Container images | 0 unlisted High or Critical | — | N/A: no images; IIS |
 | G-13 | Workflow lint | 0 findings | Golden copies for `security.yml` | Gap: actionlint on every workflow, step 3 |
 | G-14 | Deploy guard self-test | all pass | — | N/A until Phase D |
-| G-15 | Tools and actions pinned exactly | — | gitleaks, Semgrep exact | Partial: actions on major tags, `mssql/server:2022-latest` (step 3) |
+| G-15 | Tools and actions pinned exactly | — | gitleaks, Semgrep exact; every action by commit SHA, the SQL Server image by digest, Node 22.23.4 and .NET SDK 10.0.404 (GAP-09, #68) | Partial: `runs-on: ubuntu-latest` in `security.yml` and `codeql.yml`, `python-version: "3.12"` in `security.yml`; no CI check enforces pinning |
 
 Project gates kept as stricter rules: design check against
 `feature/interviewer-portal`, section comparison (blocking once its
