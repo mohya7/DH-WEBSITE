@@ -138,7 +138,7 @@ describe("design sets", () => {
 
   it("never load a script async or deferred", () => {
     for (const set of Object.values(designSets)) {
-      for (const script of Object.values(set.scripts).flat()) expect(Object.keys(script!).sort()).toEqual(script!.src.endsWith("hero-fluid.js") ? ["module", "src"] : ["src"]);
+      for (const script of Object.values(set.scripts).flat()) expect(Object.keys(script!).sort()).toEqual(script!.src.endsWith("hero-fluid.js") ? ["module", "src"] : /^https:\/\//.test(script!.src) ? ["integrity", "src"] : ["src"]);
     }
   });
 });
