@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\DigitalHub.Forms\DigitalHub.Forms.csproj" />
     <ProjectReference Include="..\DigitalHub.Images\DigitalHub.Images.csproj" />
   </ItemGroup>
 

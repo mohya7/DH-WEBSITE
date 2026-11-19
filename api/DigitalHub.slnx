@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/DigitalHub.Api/DigitalHub.Api.csproj" />
+    <Project Path="src/DigitalHub.Forms/DigitalHub.Forms.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/DigitalHub.Api.Tests/DigitalHub.Api.Tests.csproj" />

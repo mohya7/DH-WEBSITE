@@ -32,6 +32,10 @@
  *   - out/sitemap.xml, out/robots.txt, and out/llms.txt match the content
  *   - every page has one JSON-LD script, and it matches the structured data
  *   - Next's _not-found export is not in the output
+ *   - every external script (an http://, https:// or protocol-relative //
+ *     src) carries integrity="sha384-..." and crossorigin (GAP-11). Before
+ *     SRI_BLOCKING_FROM it is reported as a warning only; from that date a
+ *     problem fails the build
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -318,6 +322,47 @@ export function checkDesignLoading(file: string, html: string): string[] {
   return problems;
 }
 
+/**
+ * The first day the "external script without integrity" check fails the build
+ * (GAP-11). Before it, the check reports each problem as a warning and passes,
+ * as the G1 rule asks of a new gate: seven days of reporting first.
+ */
+export const SRI_BLOCKING_FROM = "2026-11-26";
+
+/**
+ * A tag's attributes by lower-cased name, as HTML parses them: double-quoted,
+ * single-quoted, unquoted, or bare (a bare name has the value "").
+ */
+function scriptAttributes(text: string): Map<string, string> {
+  const attrs = new Map<string, string>();
+  for (const match of text.matchAll(/([^\s"'>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g)) {
+    const name = match[1].toLowerCase();
+    if (!attrs.has(name)) attrs.set(name, match[2] ?? match[3] ?? match[4] ?? "");
+  }
+  return attrs;
+}
+
+/** Every external <script src> must carry a sha384 integrity and crossorigin (GAP-11). */
+export function checkScriptIntegrity(file: string, html: string): string[] {
+  const problems: string[] = [];
+  for (const match of html.matchAll(/<script\b([^>]*)>/gi)) {
+    const attrs = scriptAttributes(match[1]);
+    const src = attrs.get("src");
+    if (!src || !/^(?:https?:)?\/\//i.test(src)) continue;
+    // A sha384 digest is 48 bytes: exactly 64 base64 characters, no padding.
+    const hashed = /^sha384-[A-Za-z0-9+/]{64}$/.test(attrs.get("integrity") ?? "");
+    const cors = attrs.has("crossorigin");
+    if (!hashed || !cors) problems.push(`${file}: external script without integrity: ${src}`);
+  }
+  return problems;
+}
+
+/** Warn before SRI_BLOCKING_FROM, fail on and after it. Dates are YYYY-MM-DD, so they compare as strings. */
+export function integrityOutcome(problems: string[], today: string, blockingFrom = SRI_BLOCKING_FROM): { mode: "warn" | "fail"; warnings: string[]; failures: string[]; exitCode: 0 | 1 } {
+  if (today < blockingFrom) return { mode: "warn", warnings: problems, failures: [], exitCode: 0 };
+  return { mode: "fail", warnings: [], failures: problems, exitCode: problems.length > 0 ? 1 : 0 };
+}
+
 /** out/design/<hash>/ is exactly website/design/, byte for byte, under its current hash. */
 export function checkDesignOutput(outDir: string, files: string[], designDir: string): string[] {
   const problems: string[] = [];
@@ -435,6 +480,17 @@ function main(): void {
         report.problems.push(`${file.path} JSON-LD is not valid JSON.`);
       }
     }
+  }
+
+  const integrity = integrityOutcome(
+    html.flatMap((file) => checkScriptIntegrity(file.path, file.html)),
+    new Date().toISOString().slice(0, 10),
+  );
+  report.problems.push(...integrity.failures);
+  if (integrity.warnings.length > 0) {
+    console.warn(`Script integrity: ${integrity.warnings.length} external script(s) without integrity (a warning until ${SRI_BLOCKING_FROM}):\n  ${integrity.warnings.join("\n  ")}`);
+  } else if (integrity.failures.length === 0) {
+    console.log(`Script integrity: every external script carries a sha384 integrity and crossorigin (${integrity.mode === "warn" ? `warning only until ${SRI_BLOCKING_FROM}` : "blocking"}).`);
   }
 
   if (report.problems.length > 0) {

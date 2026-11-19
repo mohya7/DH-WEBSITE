@@ -20,10 +20,12 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <Using Include="DigitalHub.Forms" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\DigitalHub.Api\DigitalHub.Api.csproj" />
+    <ProjectReference Include="..\..\src\DigitalHub.Forms\DigitalHub.Forms.csproj" />
     <ProjectReference Include="..\..\src\DigitalHub.Images\DigitalHub.Images.csproj" />
     <!-- Aliased: the importer has its own top-level Program. -->
     <ProjectReference Include="..\..\tools\DigitalHub.ContentImport\DigitalHub.ContentImport.csproj" Aliases="importer" />

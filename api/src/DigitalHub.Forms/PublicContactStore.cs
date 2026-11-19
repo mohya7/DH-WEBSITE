@@ -1,11 +1,9 @@
 using System.Net.Mail;
 using System.Text.RegularExpressions;
-using DigitalHub.Api.Data;
-using Microsoft.EntityFrameworkCore;
 
-namespace DigitalHub.Api.Content;
+namespace DigitalHub.Forms;
 
-public sealed class PublicContactStore(ContentDbContext db)
+public sealed class PublicContactStore(IFormsData data)
 {
     public static readonly HashSet<string> Situations = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -23,10 +21,10 @@ public sealed class PublicContactStore(ContentDbContext db)
     public const int MaxMessage = 4000;
     public const int MinMessage = 10;
 
-    public async Task<ContentOutcome> SubmitAsync(PublicContactRequest request, CancellationToken cancellationToken)
+    public async Task<FormOutcome> SubmitAsync(PublicContactRequest request, CancellationToken cancellationToken)
     {
         if (!string.IsNullOrWhiteSpace(request.Website))
-            return ContentOutcome.Ok(new { ok = true }, StatusCodes.Status201Created);
+            return FormOutcome.Ok(new { ok = true }, StatusCodes.Status201Created);
 
         var errors = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         var situation = (request.Situation ?? "").Trim().ToLowerInvariant();
@@ -61,27 +59,17 @@ public sealed class PublicContactStore(ContentDbContext db)
 
         if (errors.Count > 0)
         {
-            return ContentOutcome.Fail(
+            return FormOutcome.Fail(
                 StatusCodes.Status400BadRequest,
                 "validation_failed",
                 "One or more fields are invalid.",
                 errors.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray()));
         }
 
-        db.ContactRequests.Add(new ContactRequest
-        {
-            Id = Guid.NewGuid(),
-            Name = name,
-            Organization = organization,
-            Role = role,
-            Email = email,
-            Situation = situation,
-            Message = message,
-            Status = "new",
-            CreatedAt = DateTime.UtcNow,
-        });
-        await db.SaveChangesAsync(cancellationToken);
-        return ContentOutcome.Ok(new { ok = true }, StatusCodes.Status201Created);
+        await data.AddContactRequestAsync(
+            new ContactSubmission(Guid.NewGuid(), name, organization, role, email, situation, message, "new", DateTime.UtcNow),
+            cancellationToken);
+        return FormOutcome.Ok(new { ok = true }, StatusCodes.Status201Created);
     }
 
     private static bool IsEmail(string value)
