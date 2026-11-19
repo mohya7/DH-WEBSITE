@@ -1,7 +1,13 @@
 # ADR 0001: Split the public forms into their own API
 
-- Status: Proposed. The direction is decided (owner decision below); the
-  details here are for review before any code is written.
+- Status: Accepted. Owner's words: "accepted" (19 November 2026, in a Claude
+  Code session, reply to "ADR 0001 | Accept it, so G2 (ISO-1 to ISO-5) can
+  start").
+- Note, recorded with the acceptance and not the owner's words: O-13 (point
+  5) is not decided by the acceptance and stays open for ISO-6; see
+  `ENGINEERING_STANDARDS.md` section 9, O-13.
+- Proposed 28 October 2026: "The direction is decided (owner decision below);
+  the details here are for review before any code is written."
 - Date: 28 October 2026
 - Replaces: the approach in GAP-36 and GAP-38 of
   `docs/quality/refinement-plan-2026-10-28.md` (one API, kept apart by host
