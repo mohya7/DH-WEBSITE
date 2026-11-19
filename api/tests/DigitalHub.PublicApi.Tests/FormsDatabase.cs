@@ -3,9 +3,10 @@ using Microsoft.Data.SqlClient;
 namespace DigitalHub.PublicApi.Tests;
 
 /// <summary>
-/// Test fixtures for the forms' four tables, in parameterised ADO.NET on the same
-/// restricted test login. They never go through the host's context, so they keep
-/// working in ISO-3, when the host's own login can no longer read contact_requests.
+/// Test fixtures for the forms' four tables, in parameterised ADO.NET on the
+/// restricted test login (ConnectionStrings:Content, dh_content_app). They never go
+/// through the host's context, which since ISO-3 runs as dh_public_forms and cannot
+/// read contact_requests.
 /// </summary>
 internal static class FormsDatabase
 {
