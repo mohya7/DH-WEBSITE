@@ -101,7 +101,7 @@ Status: READY FOR TEST
 
 Sent back by the owner via the coordinator, as a delivery finding on PR #70. The finding: CI CodeQL alert 4, `js/incomplete-sanitization` (high), at `studio/test/mediaLibrary.test.tsx:89`. `new RegExp(title.replace(/[.:]/g, "\$&"))` does not escape backslashes. Line 90 built `new RegExp(place)` from data the same way.
 
-**Merge.** `git merge origin/rebuild/dotnet-platform` at 1f8de7a gave merge commit `97da2a6`. It merged cleanly (ADM-04, ADR 0001 and GAP-11, #69 `71b7541`), with no rebase and no conflicts.
+**Merge.** `git merge origin/rebuild/dotnet-platform` at 1f8de7a gave merge commit `97da2a6`. It merged cleanly (ADM-04, ADR 0001 and GAP-11, #69 `71b7541`; ISO-1, #71 `522b175`), with no rebase and no conflicts.
 
 **Answer to the finding.** Both assertions now match plain text, `screen.getByText(title, { exact: false })` and `screen.getAllByText(place, { exact: false })`, so no regex is built from data. `grep -c RegExp studio/test/mediaLibrary.test.tsx` returns 0. No other file changed.
 
