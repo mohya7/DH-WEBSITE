@@ -99,3 +99,40 @@ These match what is implemented: scripts only, and `SRI_BLOCKING_FROM` seven day
 | O-1 and O-2 answered in the owner's words | P-7 | Done | Owner decisions section, quoted with provenance |
 
 Status: READY FOR TEST
+
+## Round 2: CI CodeQL finding on PR #69 (tester's Minor 1)
+
+Finding, relayed by the coordinator: CodeQL reported "Bad HTML filtering regexp: does not match upper case <SCRIPT> tags" at `website/scripts/check-output.ts:335` and `website/test/design.test.ts:298`. The coordinator asked for:
+- case-insensitive tag matching;
+- single-quoted and unquoted src;
+- a full-length sha384 value;
+- crossorigin matched only as an attribute name.
+
+Commits:
+- `333b275` GAP-11: Add failing tests for case, quoting and strict SRI matching (red).
+- `d2e9ef1` GAP-11: Match script tags in any case and parse their attributes (fix).
+
+How each point is answered:
+- **Case:** the tag regexp in `checkScriptIntegrity` is now `/<script\b([^>]*)>/gi`, and attribute names are lower-cased. The test regexp in `design.test.ts` is `/gi` too.
+- **Quoting:** a new `scriptAttributes()` reads attributes as HTML parses them: double-quoted, single-quoted, unquoted, or bare. The first occurrence of a name wins.
+- **Full-length sha384:** the integrity value must match `^sha384-[A-Za-z0-9+/]{64}$`, the 48-byte digest with no padding. Before, `+` accepted a truncated value.
+- **crossorigin:** `attrs.has("crossorigin")`. Text in a src (`?crossorigin`), in another attribute's value, or in `data-crossorigin` no longer counts. A bare `crossorigin` does count.
+- `pageLoads` (line 286) has the same lower-case-only pattern, but CodeQL did not flag it and the finding did not name it. It existed before this change, so I left it alone.
+
+Commands (in `website/`):
+
+| Command | Exit | Key output |
+| --- | --- | --- |
+| `npx vitest run test/output.test.ts` (red, before the fix) | 1 | `Tests 4 failed \| 20 passed (24)`: all four new round-2 tests fail |
+| `npx vitest run test/output.test.ts test/design.test.ts` (after) | 0 | `Tests 48 passed (48)` |
+| `npx tsc --noEmit` | 0 | |
+| `npm test`, first run | 1 | `1 failed \| 472 passed \| 1 skipped`. `no-hiring-system.test.ts` found `/api/careers` in `website/artifacts/section-compare/*` and `artifacts/section-comparison.json`. My round-1 `compare:sections` run left those files (git-ignored), copied from the reference. I deleted them. Nothing in the code changed for this. |
+| `npm test`, second run | 0 | `Test Files 24 passed (24)`, `Tests 473 passed \| 1 skipped (474)` |
+| `CONTENT_SOURCE=snapshot PUBLIC_SITE_URL=https://digitalhub.com.eg npm run build` (twice) | 1 | **Blocked inside `next build`**: `Error [SecurityFatalError]: Your version of Next.js is affected by a known security vulnerability.` Installed: Next.js v16.4.3. The same lockfile built in round 1 earlier today, so a new advisory now stops `next build`. Clearing it needs a Next.js upgrade, a dependency change outside this finding and the plan. Not bypassed (P-6). |
+| `npx tsx scripts/check-output.ts` on the complete round-1 build output, with the round-2 checker | 0 | `Script integrity: every external script carries a sha384 integrity and crossorigin (warning only until 2026-11-26).` `Build output checks passed.` |
+
+Rendered output: round 2 changes only `scripts/check-output.ts`, which runs after the build and renders nothing, and a test regexp. `sets.ts` and `Design.tsx` are untouched since round 1, so the pages are the same as round 1's. Because `next build` is blocked, a fresh build in this round was NOT RUN. The CI `website` build job on the pull request covers it, and it will hit the same Next.js advisory if CI's Next version is affected.
+
+Needs a decision outside this change: the Next.js `SecurityFatalError` blocks every website build on this base, not only GAP-11. It needs its own change to upgrade Next.js.
+
+Status: READY FOR TEST
