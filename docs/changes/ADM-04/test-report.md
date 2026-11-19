@@ -641,4 +641,109 @@ run (R2-2) and C7 item 3 (R2-3). The PR body that C10 requires is also missing (
 These go back to the developer, together with R2-5 and R2-6. Nothing here needs an owner
 exception.
 
-Verdict: CHANGES NEEDED
+Round 2 verdict, superseded by Round 3: CHANGES NEEDED.
+
+## Round 3
+
+Tester, 19 November 2026. **Commit tested: `aa6ada9d19fce6ddc8ec4ad46863939ea2b76f80`**,
+the head of `change/ADM-04` (`git rev-parse origin/change/ADM-04`). It merges base
+`8b5d6a5` (ADM-05, #59) into `399c4e0` (rework round 2 record). New since round 2:
+`5c314a6` (T18, T19, test only), `399c4e0` (`implementation.md` 4b, 4c), and the GAP-07
+and ADM-05 base commits. I worked on the detached worktree
+`D:\work\DigitalHub\dh-platform-claude-adm-04-test` (`git worktree add --detach ... aa6ada9`)
+and removed it afterwards. No local database was touched: the API and e2e suites are
+NOT RUN locally, and CI covers them. I read the job logs through
+`gh api --allow-escape-sequences .../actions/jobs/<id>/logs` and read the TRX artifacts.
+
+### 1. The round 2 findings, checked
+
+| Finding | Answer | My check | Result |
+| --- | --- | --- | --- |
+| R2-1 T17 red | Branch `diag/ADM-04-t17-red` at `deff0ce`, draft PR #66 | Run `44420391530`: `head_sha` `deff0ce`, CI failure. Job `135211492167`: build `13 Warning(s)` `0 Error(s)`; `Total tests: 562` `Passed: 561` `Failed: 1`; `Failed ...An_admin_cannot_change_their_own_role_through_another_spelling_of_their_id [204 ms]`, `change own role as D505EBEE-6294-4A1C-ABC1-FF9FBBBCBB12: 200 {..."role":"editor",...}`. So T17 fails at the upper-case spelling and the admin is demoted, which is the planned reason; every other test passes. The duplicate on PR #65 (run `44420392788`, `deff0ce`) also fails | Closed |
+| R2-2 C5 third run | CI at `5c314a6` | Job `135212098998` (run `44420549874`, `5c314a6`, success). From the TRX in artifact `14480963258`, T15: `49.886` and `49.892 users lock requested (sp_getapplock)`, `49.896 matched [@userId=...]: SELECT [a0].[Name] FROM [AspNetUserRoles] ...`, then `51.980 answered: B demotes A: 200` and `51.997 answered: A demotes B: 403`, `Matched 1; gate cap 2000 ms.` Both lock requests come before the match is released, so the run counts as evidence. T16: `Matched 0` warm-up, the match at `52.394`, `B deactivated ... while held`, then `403`. `git diff --stat ca39aab 5c314a6 -- api/src` is empty. With `75ec041` and `ca39aab` that makes three valid runs on the same API source | Closed |
+| R2-3 C7 item 3 | T19 `A_stale_concurrency_stamp_yields_ConcurrencyFailure` | TRX StdOut: `Stale save: Succeeded=False, codes=ConcurrencyFailure`; Passed at `5c314a6` and at the head | Closed |
+| R2-4 PR body | Drafted in `implementation.md` 4c, to be applied by the orchestrator after gate 2 | The draft carries B1 to B10, the Known exposure line and the owner answers. The PR #58 body is still the placeholder (`gh pr view 58`) | Answered. It must be on the PR before the owner merges (gate 2 condition) |
+| R2-5 record out of date | `implementation.md` 4b | The commits up to `399c4e0` are recorded. There is no row for the ADM-05 merge `aa6ada9` (Finding R3-1) | Partly |
+| R2-6 anonymous | T18 `An_anonymous_caller_cannot_change_a_role_or_reactivate` | It sends no token and asserts 401 and `application/problem+json` on `PUT .../role` and `POST .../reactivate`; the role stays `["editor"]`. Passed at `5c314a6` and at the head | Closed |
+
+T18 and T19 pin behaviour that already works, so a red is not expected for either.
+
+### 2. CI on the head `aa6ada9`
+
+- Runs: CI `44424309403` success, CodeQL `44424309387` success, Security `44424309415`
+  success, Workflow lint `44424309393` success. Screenshot parity was skipped (optional).
+- **Job `api`: `135225062513`**, not `135219510828`. The id the coordinator gave belongs
+  to run `44422704054` on `399c4e0`, where it shows `564/564`. On the head the result is
+  `Total tests: 576` `Passed: 576` (564 plus ADM-05's tests), with build `13 Warning(s)`
+  and `0 Error(s)` (C9). All 19 ADM-04 API tests (T1 to T19) and
+  `CareersTests.Authorization_matches_for_every_endpoint` are listed `Passed` (T18 [205 ms],
+  T19 [68 ms], T17 [202 ms], T15 [4 s], T16 [415 ms]).
+- Job `studio` `135225062779`: `Tests 116 passed (116)`; Playwright `34 passed (2.7m)`,
+  including `✓ 22 e2e/users.spec.ts:34:1 › ADM-04 users: change a role, deactivate, reactivate (5.1s)`.
+- Jobs `website`, `website-browser` and `section-compare`: success.
+
+### 3. The ADM-05 merge (C2)
+
+- Parents: `399c4e0` and `8b5d6a5`. The files `git diff --name-only 399c4e0 aa6ada9`
+  changes are all base files (`comm -23` against the base's own diff: 0 lines).
+- `git diff --stat 8b5d6a5 aa6ada9 -- <base files>` is empty. `git diff --name-only 8b5d6a5 aa6ada9`
+  lists only ADM-04's 10 code files and its docs. ADM-05 edits `AdminStore.cs`,
+  `AdminControllers.cs` and `ErrorPagesPage.tsx`, none of which ADM-04 touches, and
+  there were no conflicts.
+- C2 says to re-run every 5.3 suite after the merge. CI did, on the head (section 2).
+  Locally on `aa6ada9`: `studio` `npm ci` exit 0, `npx tsc -b` exit 0, `npm test` exit 0
+  (`Test Files 15 passed (15)`, `Tests 116 passed (116)`), and `npm audit --audit-level=high`
+  `found 0 vulnerabilities`. This change does not touch the website, and CI shows it green.
+- **C8 line numbers are stale.** The copied helpers' sources in `AdminStore.cs` at
+  `aa6ada9` are `IsDeactivated` 787, `Audit` 959, `Validation(string)` 974,
+  `Validation(Dictionary)` 977, `Missing` 984, `NewAcceptedTemporaryPasswordAsync` 452 and
+  `NewTemporaryPassword` 790. `implementation.md` section 6 still gives the `804e85f`
+  lines (858, 1064, 1079, 1082, 1089, 448-464, 861) (Finding R3-2).
+
+### 4. Security
+
+Security run `44424309415` and CodeQL `44424309387` both succeeded on the head (npm audit
+for both apps, NuGet, Semgrep, and gitleaks for the PR and the full history). The diff
+since round 2 adds test code only, plus base files that are not in ADM-04's scope. The role
+matrix is now complete by test: anonymous (T18) 401; editor and HR (T11), no-role,
+must-change and deactivated (`CareersTests`), in-flight demoted or deactivated (T14 to T16),
+and the admin's own record in any spelling (T8, T17). No secret appears in
+`git diff ca39aab aa6ada9 -- api/tests studio`, and this report quotes none.
+
+### Findings
+
+No Blocker, no Major.
+
+**R3-1. Minor. `implementation.md` has no row for the ADM-05 merge `aa6ada9`, and no
+record of the post-merge re-run that C2 requires.** Expected: a commit-table row and the
+head CI results (the job `api` id `135225062513`, `576/576`). Actual: 4b stops at
+`399c4e0`, and the head job id the coordinator gave (`135219510828`) belongs to `399c4e0`.
+This is a record fix, not a code fix.
+
+**R3-2. Minor. The C8 source lines in `implementation.md` section 6 are stale after
+ADM-05.** Expected: lines at the merged base. Actual: the old lines (see section 3 for the
+current ones). ADM-04b relies on this list to remove the copies.
+
+### Coverage rows verified this round
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| T17 red at `deff0ce`, green at head | Verified | Job `135211492167`; head job `135225062513` |
+| C5 three consecutive valid runs | Verified | `75ec041`, `ca39aab`, `5c314a6` (artifact `14480963258`) |
+| C7 item 3, stale stamp gives `ConcurrencyFailure` | Verified | T19 StdOut |
+| Anonymous refused on both routes | Verified | T18 |
+| All suites green on the head after the ADM-05 merge | Verified | CI `44424309403`, `576/576`, Studio `34 passed` |
+| The merge touches no ADM-04 file | Verified | Section 3 |
+| C8 helper list current | Not met | R3-2 |
+| PR body (C10) | Drafted, not on the PR | `implementation.md` 4c; gate 2 to apply before the owner merges |
+
+### Verdict reasoning
+
+Every planned check now has run evidence. R2-1 to R2-3 and R2-6 are closed by CI output I
+read myself, and every workflow is green on `aa6ada9`. What remains is two record errors
+in `implementation.md` (R3-1, R3-2), both Minor and neither affecting behaviour or tests.
+The PR body must be applied before the owner merges; that is for gate 2 and the
+orchestrator. Under the verdict rule (every planned check passes, no Blocker or Major),
+this round approves. R3-1 and R3-2 go back to the developer to fix in the record.
+
+Verdict: APPROVED
