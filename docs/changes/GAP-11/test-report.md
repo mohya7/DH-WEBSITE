@@ -104,3 +104,58 @@ API (`dotnet test -c Release`), studio `npm test`, studio `npm run build` and `t
 | O-1 and O-2 in the owner's words | Present | `implementation.md`, relayed by the orchestrator; not verified first-hand by the tester |
 
 Verdict: APPROVED
+
+## Round 2
+
+Commit tested: `8979481` (fix `d2e9ef1`, red `333b275`), on a detached worktree `../dh-platform-claude-test-gap11r2`, since removed. `node_modules` was borrowed by a junction to the change worktree's tree; nothing was installed or upgraded.
+
+Scope: the CodeQL "Bad HTML filtering regexp" alerts (`check-output.ts:335`, `design.test.ts:298`) and round-1 Minor 1.
+
+### Checks (in `website/`)
+
+| Check | Command | Exit | Output |
+| --- | --- | --- | --- |
+| Red at `333b275` | `npx vitest run test/output.test.ts` | 1 | `Tests 4 failed \| 20 passed (24)`. The four new tests fail for the reasons the plan gives: `<SCRIPT SRC=...>`, single-quoted src, `integrity="sha384-abc"`, and `?crossorigin` in src are all accepted (`expected [] to deeply equal [ Array(1) ]`) |
+| Green at `8979481` | `npx vitest run test/output.test.ts test/design.test.ts` | 0 | `Tests 48 passed (48)` |
+| Typecheck | `npx tsc --noEmit` | 0 | |
+| Unit suite | `npm test` | 0 | `Test Files 24 passed (24)`, `Tests 473 passed \| 1 skipped (474)` |
+| Build | `CONTENT_SOURCE=snapshot PUBLIC_SITE_URL=https://digitalhub.com.eg npm run build` | 1 | `▲ Next.js 16.4.3 (Turbopack)` then `⨯ Your version of Next.js is affected by a known security vulnerability.` The developer's report is confirmed. Not bypassed and Next was not upgraded |
+| Checker on the round-1 output | `out/` copied from the change worktree, then `CONTENT_SOURCE=snapshot PUBLIC_SITE_URL=https://digitalhub.com.eg npx tsx scripts/check-output.ts` | 0 | `Script integrity: every external script carries a sha384 integrity and crossorigin (warning only until 2026-11-26).` `Build output checks passed.` |
+| Audit | `npm audit --audit-level=high` | 0 | `2 moderate severity vulnerabilities`: `next 16.2.0 - 16.4.4` (GHSA-mfr8-8qww-v76h, GHSA-vc7v-qv4w-wrv8), fix in `next@16.4.6`. Nothing high, so the audit gate passes, but these are the advisories behind the build block |
+| design:check, compare:sections, browser suites | | NOT RUN | They need a fresh `next build`, which is blocked. Round 2 does not change rendered output (`sets.ts` and `Design.tsx` are untouched). CI `website` job |
+| Semgrep, gitleaks | | NOT RUN | Not installed. `security.yml` semgrep and gitleaks jobs |
+| Routes and roles | | N/A | No route changed |
+
+### Adversarial probes of `checkScriptIntegrity` (throwaway test file, deleted)
+
+| Input | Result |
+| --- | --- |
+| `<script/src="https://evil/x.js">` | flagged (correct) |
+| newline between `script` and `src` | flagged (correct) |
+| `integrity="bad" integrity="<valid>"` (first wins, as in HTML) | flagged (correct) |
+| `data-crossorigin` with no `crossorigin` | flagged (correct) |
+| upper-case `SCRIPT SRC INTEGRITY CROSSORIGIN`, all valid | passes (correct) |
+| `<script data-x="a>b" src="https://evil/x.js">` | **not flagged** |
+| `src=" https://evil/x.js"` (leading space) | **not flagged** |
+| `src="\evil/x.js"` (browsers treat it as `//evil/`) | **not flagged** |
+| `src="https:&#x2F;&#x2F;evil/x.js"` (entity-encoded) | **not flagged** |
+| `integrity="<valid sha384> sha512-abc"` (valid multi-hash SRI) | flagged (false positive; fails closed) |
+
+### Findings
+
+1. **Minor: the checker can still miss an external script in four HTML forms.** Steps: call `checkScriptIntegrity("f", html)` with each of the four rows marked "not flagged" above. Expected: one problem each, because a browser loads each one as an external script. Actual: `[]`. Causes: the tag regexp `[^>]*` ends at a `>` inside a quoted value; the src test `^(?:https?:)?\/\/` does not trim leading whitespace, accept backslashes, or decode entities. None of these forms comes out of React or Next today, so the round-1 output is not affected. The gate is weaker than it says only against hand-written or injected HTML.
+2. **Minor: valid multi-hash integrity is rejected.** `integrity="sha384-... sha512-..."` is valid SRI but fails `^sha384-[A-Za-z0-9+/]{64}$`. This fails closed, so it is safe, but a later change that adds a second hash will trip the gate.
+3. **Not a finding against GAP-11; needs an owner decision:** Next.js 16.4.3 is affected by GHSA-mfr8-8qww-v76h and GHSA-vc7v-qv4w-wrv8 (moderate). `next build` now stops with `SecurityFatalError`, which blocks every website build on this base. The fix needs its own change to upgrade to `next@16.4.6` or later. Until then, round 2 cannot get a fresh build, design check, section comparison or browser run.
+
+Round-1 Minor 1 and both CodeQL alerts are resolved: case, single-quoted and unquoted src, bare attributes, a full-length sha384, and crossorigin as an attribute name are each proven by a red-then-green test and by probe.
+
+### Coverage rows verified this round
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| Build fails or warns on an external script without integrity; canary rejected | Verified, with Minor 1 | red 4 failed, green 48 passed; probes |
+| Every external script in the built pages carries integrity | Verified on round-1 output | checker exit 0 |
+| Rendering unchanged | NOT RUN this round (build blocked) | no rendering file changed; CI `website` |
+| API and e2e | NOT RUN locally | CI `api` and `e2e` |
+
+Verdict: BLOCKED ON OWNER (Next.js SecurityFatalError from GHSA-mfr8-8qww-v76h and GHSA-vc7v-qv4w-wrv8 blocks `next build`, so the planned build, design:check, compare:sections and browser checks cannot run. It needs an owner decision on a separate Next.js upgrade change. GAP-11 round 2 itself has no Blocker or Major.)
