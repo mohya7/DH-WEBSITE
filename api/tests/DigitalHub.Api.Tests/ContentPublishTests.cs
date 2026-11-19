@@ -810,7 +810,7 @@ public sealed class ContentPublishTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
-    public async Task Publish_blocks_a_decorative_card_image_without_alt_text()
+    public async Task Publish_blocks_a_decorative_card_image_without_alt_text_until_it_has_an_override()
     {
         var editor = await Editor();
         var slug = Slug();
@@ -846,6 +846,24 @@ public sealed class ContentPublishTests : IClassFixture<ApiFactory>
             Assert.Equal(new[] { "Add alt text for the image." }, errors.GetProperty("image").EnumerateArray().Select(message => message.GetString()).ToArray());
             var stored = await SendAsync(editor, HttpMethod.Get, "/api/v1/team-members/" + draft.Id);
             Assert.Equal("draft", Text(stored.Body, "status"));
+
+            // Decorative does not block either: with an override, the same card image publishes.
+            const string alt = "Abstract pattern behind the team member";
+            var updated = await SendAsync(editor, HttpMethod.Put, "/api/v1/team-members/" + draft.Id, new
+            {
+                version = draft.Version,
+                slug,
+                title = "Decorative card image",
+                fields = new { imageId = mediaId.ToString(), imageAltOverride = alt },
+            });
+            Assert.Equal(HttpStatusCode.OK, updated.Status);
+            Assert.Equal(mediaId, Guid.Parse(Text(updated.Body, "content", "fields", "imageId")));
+            Assert.Equal(alt, Text(updated.Body, "content", "fields", "imageAltOverride"));
+            var ready = ReadPage(updated.Body, slug);
+
+            var published = await SendAsync(editor, HttpMethod.Post, "/api/v1/team-members/" + draft.Id + "/publish", new { version = ready.Version });
+            Assert.Equal(HttpStatusCode.OK, published.Status);
+            Assert.Equal("published", Text(published.Body, "state"));
         }
         finally
         {
