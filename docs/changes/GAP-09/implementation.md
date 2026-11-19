@@ -108,4 +108,13 @@ None.
 | Security, CodeQL and Workflow lint finish as on the base | G1 checklist; C-2 | Pending CI | CodeQL on `pull_request`; expect `Download action repository 'github/codeql-action@9418214d…'` |
 | The GAP-05 lines in `ci.yml` are unchanged | Change context; C-3 | Done | P-6 and C-3 rows above |
 
+## Rework round 1 (delivery-approval.md D-1)
+
+- **D-1:** the pin comment was missing from `codeql.yml` (my substitution
+  script tested `$1` after a second match had reset it). Fixed in `df97f14`: the
+  3-line comment is now above `jobs:` (lines 29-31), CRLF kept.
+  `grep -n Pinned .github/workflows/*.yml` lists `ci.yml:27`, `codeql.yml:29`
+  and `security.yml:60`. `gate.test.mjs` still 86 of 86. No other file
+  changed; test-report.md and delivery-approval.md left uncommitted.
+
 Status: READY FOR TEST
