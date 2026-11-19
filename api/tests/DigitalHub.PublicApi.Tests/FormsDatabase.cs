@@ -54,6 +54,17 @@ internal static class FormsDatabase
         await command.ExecuteNonQueryAsync();
     }
 
+    /// <summary>Removes a fixture contact request by id (ISO-3's permission test cleans up with it).</summary>
+    public static async Task DeleteContactAsync(Guid id)
+    {
+        await using var connection = new SqlConnection(Connection);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "DELETE FROM contact_requests WHERE id = @id";
+        command.Parameters.Add(new SqlParameter("@id", System.Data.SqlDbType.UniqueIdentifier) { Value = id });
+        await command.ExecuteNonQueryAsync();
+    }
+
     /// <summary>Today's (UTC) count for the vacancy, or for general applications when null.</summary>
     public static async Task<int> CountAsync(Guid? vacancyId)
     {
