@@ -295,7 +295,7 @@ describe("third-party script integrity (GAP-11)", () => {
 
   it("DesignScripts renders integrity and crossorigin on external scripts", () => {
     const html = renderToStaticMarkup(createElement(DesignScripts, { set: "home", slot: "body-end" }));
-    const tags = html.match(/<script\b[^>]*>/g) ?? [];
+    const tags = html.match(/<script\b[^>]*>/gi) ?? [];
     const gsap = tags.find((tag) => tag.includes("gsap.min.js"));
     expect(gsap).toContain('integrity="sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt"');
     expect(gsap).toContain('crossorigin="anonymous"');

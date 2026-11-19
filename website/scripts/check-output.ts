@@ -329,15 +329,29 @@ export function checkDesignLoading(file: string, html: string): string[] {
  */
 export const SRI_BLOCKING_FROM = "2026-11-26";
 
+/**
+ * A tag's attributes by lower-cased name, as HTML parses them: double-quoted,
+ * single-quoted, unquoted, or bare (a bare name has the value "").
+ */
+function scriptAttributes(text: string): Map<string, string> {
+  const attrs = new Map<string, string>();
+  for (const match of text.matchAll(/([^\s"'>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g)) {
+    const name = match[1].toLowerCase();
+    if (!attrs.has(name)) attrs.set(name, match[2] ?? match[3] ?? match[4] ?? "");
+  }
+  return attrs;
+}
+
 /** Every external <script src> must carry a sha384 integrity and crossorigin (GAP-11). */
 export function checkScriptIntegrity(file: string, html: string): string[] {
   const problems: string[] = [];
-  for (const match of html.matchAll(/<script\b([^>]*)>/g)) {
-    const attrs = match[1];
-    const src = /\bsrc="([^"]+)"/.exec(attrs)?.[1];
+  for (const match of html.matchAll(/<script\b([^>]*)>/gi)) {
+    const attrs = scriptAttributes(match[1]);
+    const src = attrs.get("src");
     if (!src || !/^(?:https?:)?\/\//i.test(src)) continue;
-    const hashed = /\bintegrity="sha384-[A-Za-z0-9+/]+={0,2}"/.test(attrs);
-    const cors = /\bcrossorigin\b/i.test(attrs);
+    // A sha384 digest is 48 bytes: exactly 64 base64 characters, no padding.
+    const hashed = /^sha384-[A-Za-z0-9+/]{64}$/.test(attrs.get("integrity") ?? "");
+    const cors = attrs.has("crossorigin");
     if (!hashed || !cors) problems.push(`${file}: external script without integrity: ${src}`);
   }
   return problems;
