@@ -89,3 +89,86 @@ No Blocker or Major.
 | API and e2e on CI, final head | plan-approval condition 6 | CI-pending | Not pushed |
 
 Verdict: APPROVED
+
+## Round 2
+
+Commit tested: `b514d17` (head, `change/ADM-12`). It holds the CodeQL fix (`js/incomplete-sanitization`, `studio/test/mediaLibrary.test.tsx:89`, PR #70) on top of merge `97da2a6`, which merged `origin/rebuild/dotnet-platform` at `522b175`. The merge brings in ADM-04 `bf87bc3`, ADR 0001 `cdef7c9`, GAP-11 `71b7541` and ISO-1 `522b175`. `git merge-base --is-ancestor 522b175 97da2a6` succeeds.
+
+I tested on a detached worktree, `D:\work\DigitalHub\dh-platform-claude-adm-12-test-r2`, and removed and pruned it when I finished. The requested path `D:\work\DigitalHub\dh-platform-claude-adm-12-test` was not a registered worktree. It still held a stub, `studio/node_modules/@digitalhub`, left over from round 1, so `worktree add` refused it. I left that stub in place and used the `-r2` path. All builds ran in Release. The API tests used `DigitalHubContent_Test` only. Before the runs, no `testhost.exe` was running and the only `dotnet.exe` processes were idle MSBuild nodes. I did not write `DigitalHubContent` and did not open DH-WEBSITE-main. No ports were opened.
+
+### 1. The fix: no RegExp built from data
+
+- `git show b514d17 -- studio/`: the two assertions changed from `new RegExp(title.replace(/[.:]/g, "\\$&"))` and `new RegExp(place)` to `screen.getByText(title, { exact: false })` and `screen.getAllByText(place, { exact: false })`.
+- `grep -c RegExp studio/test/mediaLibrary.test.tsx`: `0`.
+- The check still has teeth. The title (`"Add alt text: this image is used without alt text of its own."`) and both place strings (`"blog-posts 1111...1111 image"`, `"pages 2222...2222 share image"`) are unique. The mocked detail returns `usages: []`, and the page shows "This image is not used." before Save. So the places can only appear from the 409 `alt_in_use` body. A substring match on them is as strict as the old regexes, which had no anchors.
+- Other `new RegExp` uses in Studio tests: `studio/test/webConfig.test.ts:63,70`. These lines have been on the base since #31 (`76d0f69`); this change did not touch them. They are out of scope and are not a new CodeQL surface.
+
+### 2. Test plan, at `b514d17`
+
+| Command | Exit | Output |
+| --- | --- | --- |
+| `cd website && npm ci` | 0 | Restored node_modules for the API suite's website-dependent tests. |
+| `cd studio && npm ci` | 0 | Lockfile unchanged. |
+| `cd studio && npm test` | 0 | `Test Files 16 passed (16)`, `Tests 117 passed (117)` |
+| `cd studio && npx vitest run test/mediaLibrary.test.tsx` | 0 | `Tests 1 passed (1)` |
+| `cd studio && VITE_PUBLIC_SITE_URL=https://website.ci.invalid npm run build` | 0 | `built in 1.04s`, "Preview design: /website-design/d1ebe4132f8cfa8e/ matches website/design/ byte for byte." |
+| `cd api && dotnet build DigitalHub.slnx -c Release` | 0 | `13 Warning(s)`, `0 Error(s)` (the same as round 1) |
+| `cd api && dotnet test -c Release --no-build` (full suite, merged tree) | 0 | `Passed! - Failed: 0, Passed: 583, Skipped: 0, Total: 583, Duration: 1 m 50 s` |
+| `dotnet test tests/DigitalHub.Api.Tests -c Release --no-build --filter FullyQualifiedName~MediaLibraryTests`, 8 sequential runs | 0 each | Runs 1 to 8: `Failed: 0, Passed: 19, Total: 19` each (4 to 9 s) |
+| `website` `npm test`, `typecheck`, `build`, `design:check`, `compare:sections` | NOT RUN | The ADM-12 diff against the base (`git diff 522b175 b514d17`) does not touch `website/`. The merge's website changes belong to the base. Covered by the CI Website job. |
+| Studio `npm run test:e2e` | CI-pending | The local Playwright harness is broken. This is recorded as pending on CI, not as a failure. Covered by the CI Studio e2e job. |
+| CodeQL | CI-pending | Runs only on the pull request after the push. It should confirm that alert 4 is closed. |
+
+The merge does not touch ADM-12's files: `git diff --stat 1f8de7a 97da2a6` on `MediaLibrary.cs`, `MediaUsage.cs`, `MediaLibraryTests.cs`, `MediaLibraryPage.tsx` and `mediaLibrary.test.tsx` is empty. The ADM-12 diff against the base, `git diff --name-only 522b175 b514d17`, lists only the eleven ADM-12 files (the API, Studio and test files, plus `docs/changes/ADM-12/`).
+
+### 3. Cause of the developer's 1-of-19 failure (beyond the plan)
+
+I ran MediaLibraryTests in two processes at once, twice (A and B in parallel, on `DigitalHubContent_Test`):
+
+- Round 1: A exit 1, B exit 0. Round 2: A exit 1, B exit 0. Each failing run showed `Failed: 1, Passed: 18, Total: 19`.
+- The failing test both times: `MediaLibraryTests.Marking_a_used_image_decorative_with_no_alt_is_refused_while_a_use_relies_on_it`.
+  - Run A1: `Assert.Equal() Failure: Values differ / Expected: Created / Actual: OK` at `MediaLibraryTests.cs:line 328` (the upload).
+  - Run A2: `Expected: Created / Actual: BadRequest` at `MediaLibraryTests.cs:line 340` (the blog-post create).
+
+Mechanism: the test runs `RemoveAsync(bytes)` and then uploads fixed pixels (`Encode(Png, 19, 17, 141)`). The API deduplicates uploads by content hash. When two processes run at once, the second upload finds the first one's asset and returns 200, not 201. Or the other process's `finally` (`ClearUsesAsync`/`DeleteMediaAsync`) removes the asset before the blog post is created, which gives 400. Each sequential run passed (8 of 8). This matches the developer's hypothesis of a concurrent run from another worktree on the shared database. It is a test-isolation limit, not a product defect. CI runs one process per database. See finding 1.
+
+### 4. Security
+
+| Check | Exit | Output |
+| --- | --- | --- |
+| `cd studio && npm audit --audit-level=high` | 0 | `found 0 vulnerabilities` |
+| `cd website && npm audit --audit-level=high` | 0 | `2 moderate severity vulnerabilities` (`fast-uri` 3.0.0-3.1.8, `next` 16.2.0-16.4.4), below the gate |
+| `cd website && RUNNER_TEMP=<scratch> bash ../.github/security/run-npm-audit.sh website` | 0 | `website: 0 finding(s) at the gate's level; 0 known, 0 new.` |
+| `cd studio && RUNNER_TEMP=<scratch> bash ../.github/security/run-npm-audit.sh studio` | 0 | `studio: 0 finding(s) at the gate's level; 0 known, 0 new.` |
+| `cd api && RUNNER_TEMP=<scratch> bash ../.github/security/run-dotnet-audit.sh` | 0 | `dotnet: 0 finding(s) at the gate's level; 0 known, 0 new.` |
+| `RUNNER_TEMP=<scratch> bash .github/security/run-semgrep.sh` | 0 | `semgrep: 1 finding(s) at the gate's level; 1 known, 0 new.` (the known `AuditRollbackTests.cs:78`; also the known warning at `ContentImport/Catalog.cs:84`) |
+| gitleaks | NOT RUN | Not installed locally. Covered by the `security.yml` jobs `gitleaks-pr` and the full-history gitleaks job. |
+
+- Routes: round 2 adds no route and changes no route. The only code change is a Studio test assertion. The round 1 route review of `PUT /api/v1/media/{id}` (role matrix, RFC 7807 409 shape, no internals) still holds, because the merge does not touch `MediaLibrary.cs` or `MediaUsage.cs`.
+- Secrets: I grepped the `git diff 522b175 b514d17` additions for password, secret, apikey, token, connection strings, `Server=` and private keys. There were no hits. No secret appears in any output.
+
+### Findings
+
+1. **Minor: MediaLibraryTests fails when two runs share `DigitalHubContent_Test` at the same time.**
+   - Steps: in `api/`, start `dotnet test tests/DigitalHub.Api.Tests -c Release --no-build --filter FullyQualifiedName~MediaLibraryTests` in two shells at once.
+   - Expected: both runs pass, or the suite documents that it needs a database to itself.
+   - Actual: one run fails `Marking_a_used_image_decorative_with_no_alt_is_refused_while_a_use_relies_on_it`, with `Expected: Created, Actual: OK` (line 328) or `Actual: BadRequest` (line 340). It reproduced 2 of 2 times. The cause is fixed image bytes plus content-hash deduplication and a cross-process `RemoveAsync`/`finally` cleanup. This explains the developer's unexplained 1-of-19 failure. Sequential runs pass 8 of 8 and the full suite passes. CI is not affected.
+2. **Minor (record): `implementation.md` round 2 lists the merge as "ADM-04, ADR 0001 and GAP-11" and omits ISO-1 (#71, `522b175`).** `97da2a6` contains `522b175`. The record should name all four.
+3. Round 1 findings 1 (the site settings default share image can point at a decorative, blank-alt asset) and 2 (existing data is not repaired) are unchanged by round 2 and remain open as Minor.
+
+No Blocker or Major.
+
+### Coverage rows verified (round 2)
+
+| Item | Source | Status | Evidence |
+| --- | --- | --- | --- |
+| CodeQL js/incomplete-sanitization at `mediaLibrary.test.tsx:89`: no RegExp from data | PR #70 alert 4 | Verified | `grep -c RegExp` = 0; diff in section 1 |
+| The Studio test still proves the places are shown | Design, section 3 | Verified | Unique strings, `usages: []` pre-save; `npx vitest run test/mediaLibrary.test.tsx` 1 passed |
+| Studio npm test and build on the merged tree | Test plan | Verified | 117/117; build exit 0 |
+| Full API suite on the merged tree, Release | Test plan | Verified | 583/583 |
+| MediaLibraryTests stable on at least 5 separate runs | Coordinator, round 2 | Verified | 8 of 8 sequential runs, 19/19 each; concurrent failure explained (finding 1) |
+| Merge does not alter ADM-12 behaviour | Merge `97da2a6` | Verified | Empty diff on ADM-12 files `1f8de7a..97da2a6` |
+| Security audits, semgrep | README checklist | Verified | Section 4; gitleaks NOT RUN (CI `gitleaks-pr`) |
+| API and e2e and CodeQL on CI, final head | plan-approval condition 6 | CI-pending | Not pushed |
+
+Verdict: APPROVED
