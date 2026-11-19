@@ -10,6 +10,11 @@
  * content loader; content is rendered at build instead), js/webgl-fluid.mjs
  * (unused), and the contact page's inline script (the old contact form handler;
  * Section 5.4 builds the form).
+ *
+ * Each third-party script carries a sha384 integrity hash (GAP-11), so the
+ * browser refuses a tampered or substituted CDN file. The hashes were derived
+ * twice, from the CDN and from the npm package or GitHub tag, and must change
+ * together with the version in the URL.
  */
 
 export const GOOGLE_FONTS = "https://fonts.googleapis.com";
@@ -19,6 +24,9 @@ export const TABLER_ICONS = "https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@
 export const GSAP = "https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js";
 export const SCROLL_TRIGGER = "https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js";
 export const LENIS = "https://cdn.jsdelivr.net/gh/studio-freight/lenis@1.0.23/bundled/lenis.min.js";
+export const GSAP_INTEGRITY = "sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt";
+export const SCROLL_TRIGGER_INTEGRITY = "sha384-Z3REaz79l2IaAZqJsSABtTbhjgOUYyV3p90XNnAPCSHg3EMTz1fouunq9WZRtj3d";
+export const LENIS_INTEGRITY = "sha384-GuiQQtSonx5JfFrW04viv7KCVyTAZZKHCXVtcve0DYt8fUPKLdigmPuBh9XBEUD+";
 
 export type HeadItem =
   | { rel: "preconnect"; href: string; crossOrigin?: true }
@@ -28,6 +36,8 @@ export type HeadItem =
 export interface ScriptItem {
   src: string;
   module?: true;
+  /** Subresource integrity for a third-party script; rendered with crossorigin="anonymous". */
+  integrity?: string;
 }
 
 /**
@@ -55,7 +65,11 @@ const fonts: HeadItem[] = [
 
 const css = (...names: string[]): HeadItem[] => names.map((name) => ({ rel: "stylesheet", href: `css/${name}.css` }));
 const js = (...names: string[]): ScriptItem[] => names.map((name) => ({ src: `js/${name}.js` }));
-const motion: ScriptItem[] = [{ src: GSAP }, { src: SCROLL_TRIGGER }, { src: LENIS }];
+const motion: ScriptItem[] = [
+  { src: GSAP, integrity: GSAP_INTEGRITY },
+  { src: SCROLL_TRIGGER, integrity: SCROLL_TRIGGER_INTEGRITY },
+  { src: LENIS, integrity: LENIS_INTEGRITY },
+];
 
 export const designSets = {
   home: {

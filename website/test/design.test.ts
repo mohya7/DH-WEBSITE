@@ -1,3 +1,6 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { DesignScripts } from "../src/design/Design";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -135,7 +138,7 @@ describe("design sets", () => {
 
   it("never load a script async or deferred", () => {
     for (const set of Object.values(designSets)) {
-      for (const script of Object.values(set.scripts).flat()) expect(Object.keys(script!).sort()).toEqual(script!.src.endsWith("hero-fluid.js") ? ["module", "src"] : ["src"]);
+      for (const script of Object.values(set.scripts).flat()) expect(Object.keys(script!).sort()).toEqual(script!.src.endsWith("hero-fluid.js") ? ["module", "src"] : /^https:\/\//.test(script!.src) ? ["integrity", "src"] : ["src"]);
     }
   });
 });
@@ -273,5 +276,32 @@ describe("links", () => {
     walk(path.join(process.cwd(), "src"));
     walk(path.join(process.cwd(), "..", "packages", "blocks", "src"));
     for (const file of sources) expect(fs.readFileSync(file, "utf8"), file).not.toMatch(/from ["']next\/link["']/);
+  });
+});
+
+describe("third-party script integrity (GAP-11)", () => {
+  it("every external script in a design set has a sha384 integrity", () => {
+    const external: string[] = [];
+    for (const [name, set] of Object.entries(designSets)) {
+      for (const scripts of Object.values(set.scripts as Record<string, { src: string; integrity?: string }[]>)) {
+        for (const script of scripts.filter((item) => /^https:\/\//.test(item.src))) {
+          external.push(script.src);
+          expect(script.integrity, `${name}: ${script.src}`).toMatch(/^sha384-[A-Za-z0-9+/]{64}$/);
+        }
+      }
+    }
+    expect(external.length).toBeGreaterThan(0);
+  });
+
+  it("DesignScripts renders integrity and crossorigin on external scripts", () => {
+    const html = renderToStaticMarkup(createElement(DesignScripts, { set: "home", slot: "body-end" }));
+    const tags = html.match(/<script\b[^>]*>/gi) ?? [];
+    const gsap = tags.find((tag) => tag.includes("gsap.min.js"));
+    expect(gsap).toContain('integrity="sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt"');
+    expect(gsap).toContain('crossorigin="anonymous"');
+    const local = tags.find((tag) => /src="\/design\/[0-9a-f]+\/js\//.test(tag));
+    expect(local).toBeDefined();
+    expect(local).not.toContain("integrity");
+    expect(local).not.toContain("crossorigin");
   });
 });
