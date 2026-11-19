@@ -167,7 +167,7 @@ export function SettingsPage() {
         <Form.Item label="Default meta title" name="defaultMetaTitle"><Input /></Form.Item>
         <Form.Item label="Default meta description" name="defaultMetaDescription"><Input.TextArea rows={3} /></Form.Item>
         <Form.Item label="Default share image" name="defaultShareImageId"><ShareImageField onChoose={() => setPicker(true)} /></Form.Item>
-        <Form.Item label="Default share image alt text" name="defaultShareImageAltOverride" extra="The alt text for the default share image, on pages that use it. Empty uses the page title."><Input maxLength={300} /></Form.Item>
+        <Form.Item label="Default share image alt text" name="defaultShareImageAltOverride" extra="The alt text for the default share image, on pages that use it. Required when the image has no alt text in the media library; otherwise empty uses the page title."><Input maxLength={300} /></Form.Item>
         <Form.Item label="Analytics container ID" name="analyticsContainerId" extra="Google Tag Manager, GTM- followed by at least seven letters or digits. Empty means the site loads no tag, banner, or cookie."><Input placeholder="GTM-XXXXXXX" /></Form.Item>
         <Form.Item label="Cookie banner title" name="cookieBannerTitle" extra="Empty uses “Cookies on this site”."><Input /></Form.Item>
         <Form.Item label="Cookie banner text" name="cookieBannerText" extra="The banner body. Empty uses the built-in English sentence."><Input.TextArea rows={3} /></Form.Item>

@@ -169,3 +169,44 @@ None. No schema or data change.
 - The two owner choices in plan section 9 (refusing every save while a bad pair is stored; the importer refusing even with `--force`) are implemented as planned and must be listed in the PR description at gate 2 (condition 11).
 
 Status: READY FOR TEST
+
+## Round 2
+
+This round answers `delivery-approval.md` Round 1 (`Verdict: CHANGES NEEDED`), which sent back test-report Round 1, Minor 1.
+
+### Finding and answer
+
+**Test report Minor 1: the alt field's help text contradicts the rule.**
+- The finding: the help text (`SettingsPage.tsx:170`) said "Empty uses the page title.", but the save now refuses an empty override when the image has no alt text in the library.
+- The answer: I changed only the `extra` string of the `defaultShareImageAltOverride` `Form.Item`, using the tech lead's suggested wording:
+  - From: "The alt text for the default share image, on pages that use it. Empty uses the page title."
+  - To: "The alt text for the default share image, on pages that use it. Required when the image has no alt text in the media library; otherwise empty uses the page title."
+- The new text says that an image with no library alt needs alt text here.
+- It does not claim that the library alt is used on the site. The website uses the page override, then this field, then the page title (`website/src/seo/head.ts:90-93`), so "otherwise empty uses the page title" stays true.
+- No test was added. The ruling says a copy change needs none, and no existing test asserts the old text.
+
+### Scope
+
+- `git diff --stat 67ecaa5` lists `studio/src/pages/SettingsPage.tsx | 2 +-` (one line) and this file.
+- No API file changed.
+- `test-report.md` and `delivery-approval.md` are left untracked for the records commit (push condition P2). I did not stage them.
+
+### Commands (Studio only, from `studio/`, after the edit)
+
+| Command | Exit | Result |
+| --- | --- | --- |
+| `npx tsc -b` | 0 | no output |
+| `npm test` | 0 | `Test Files 15 passed (15)`, `Tests 117 passed (117)` |
+| `VITE_PUBLIC_SITE_URL=https://website.ci.invalid npm run build` | 0 | `built in 880ms`; "Preview design: ... matches website/design/ byte for byte." |
+
+API suites: NOT RUN in this round. The coordinator said `DigitalHubContent_Test` is in use by another agent, and no API file changed. The Round 1 evidence (586/586 at `67ecaa5`) stands for them. Merge condition M2 and the CI API job on the PR head cover the merged head.
+
+I did not merge the base and did not push, as the coordinator asked.
+
+### Coverage table update
+
+| Item | Source | Status | Evidence |
+| --- | --- | --- | --- |
+| The alt field's help text matches the rule | test-report Round 1 Minor 1; delivery-approval Round 1 ruling | Done | `SettingsPage.tsx:170` has the new `extra` text. `tsc`, `npm test` (117/117) and the Studio build pass, each exit 0 |
+
+Status: READY FOR TEST
