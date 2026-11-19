@@ -137,12 +137,21 @@ below only as the record of what was rejected.
   with the listed fields, the action `/api/v1/public/apply`, and the `mailto:`
   fallback built from `settings.careersEmail || settings.email`), and drops the
   `careers-apply--form` modifier class. Anything else in the section must match.
-  The entry's `selector` is `section#apply.careers-apply.careers-apply--form`,
-  which matches the old section (`feature/interviewer-portal:careers/apply.html:231`).
-  The handler, like `apply-by-email` at `compare.html:196`, checks
-  `copy.matches(rule.selector)` against the old section. The stale entry's
-  `section.section.careers-detail` matched neither side, so it never applied,
-  even before #33. Test 2 asserts that the selector matches the old section.
+  The compared element is a direct child of `main` (`sectionsOf` in
+  `compare.html`). On `/careers/apply.html`, the row `#section` is the outer
+  `<section class="section careers-detail hub-section--tight">` (old
+  `careers/apply.html:221`; new `HowToApply.tsx:8` renders the same classes).
+  The form section `section#apply.careers-apply.careers-apply--form` is nested
+  inside it, under `div.careers-detail__inner` (old line 231). So the entry
+  keeps `selector: "section.section.careers-detail"`, and the handler works
+  in two steps, as `apply-by-email` does:
+  1. it checks `copy.matches(rule.selector)` on the outer compared section;
+  2. it finds the inner section with
+     `copy.querySelector('section#apply.careers-apply.careers-apply--form')`,
+     skips the rule if that is missing, and replaces only that element with
+     the expected current markup.
+  The stale entry's selector did match the outer section on both sides. It
+  stopped accepting only because #33 replaced the email block it rebuilt.
   The entry's `reason` quotes the owner's O-11 words. The handler for
   `apply-by-email` and its entry are removed, since nothing renders that block.
 - **O-11 = (b) restore the locked design.** That is a design change to
@@ -219,8 +228,8 @@ Files (O-11 = (a)):
 | File | Change |
 | --- | --- |
 | `.github/workflows/ci.yml` | Remove `continue-on-error: true` from "Compare sections" (line 338); rewrite comment 304-308. Rewrite comment 369-371 to cite the D-NNN and its expiry 2026-12-14; line 410 stays until then. Nothing else in the file changes. |
-| `website/tools/section-compare/accepted-differences.json` | Remove `apply-by-email`; add `apply-form` with page `/careers/apply.html`, section `section`, selector, and a reason quoting O-11 verbatim: "(a) Accept current form" (owner, 2026-11-19, via the orchestrator). |
-| `website/tools/section-compare/compare.html` | Remove the `apply-by-email` branch (193-215); add the `apply-form` branch that builds the exact expected section. |
+| `website/tools/section-compare/accepted-differences.json` | Remove `apply-by-email`; add `apply-form` with page `/careers/apply.html`, section `section`, `selector: "section.section.careers-detail"` (the outer compared section), and a reason quoting O-11 verbatim: "(a) Accept current form" (owner, 2026-11-19, via the orchestrator). |
+| `website/tools/section-compare/compare.html` | Remove the `apply-by-email` branch (193-215); add the `apply-form` branch: `copy.matches(rule.selector)` on the outer section, then `copy.querySelector('section#apply.careers-apply.careers-apply--form')`, replacing only that inner element with the exact expected markup, then an exact `same(copy, now)` check. |
 | `website/test/parity-gates.test.ts` (new) | The tests in section 5. |
 | `docs/deferred-items.md` | One D-NNN entry for the screenshot comparison, Owner decision: "Exception, expires 14 Dec" (2026-11-19, via the orchestrator); Follow-up owner: "The /change pipeline"; Expires: 2026-12-14. |
 | `docs/changes/GAP-05/*` | Pipeline records. |
@@ -266,11 +275,15 @@ shown failing before the fix:
    `accepted-differences.json`, asserts `compare.html` contains
    `rule.kind === '<kind>'`, and that the `apply-form` entry exists for
    `/careers/apply.html` section `section` and its reason is not empty, and
-   that its `selector` matches the old section. It parses the old
-   `careers/apply.html` read with `git show feature/interviewer-portal:careers/apply.html`,
-   or, where the branch is not fetched, a copy committed under `website/test/fixtures/`
-   and checked against `ci.yml`'s old-site checkout in CI. Fails today (no
-   `apply-form`).
+   that, in the old `careers/apply.html`, (i) its `selector`
+   (`section.section.careers-detail`) matches a direct child of `main`, and
+   (ii) exactly one `section#apply.careers-apply.careers-apply--form` is inside
+   that child. Source (C-3): `git show feature/interviewer-portal:careers/apply.html`
+   only; no fixture copy. When the ref is absent (for example the shallow CI
+   checkout of the `website` job), the old-page assertions are skipped with
+   the reason "feature/interviewer-portal not available", and the
+   `section-compare` CI job, which checks out that branch, is the backstop.
+   The kind and handler assertions always run. Fails today (no `apply-form`).
 3. `the apply-form acceptance names the form the site renders`: renders
    `ApplyForm` (as `pages.test.tsx` renders components) and asserts that the
    action, the field names and the `h2` text listed in the entry equal those in
@@ -298,14 +311,24 @@ shown failing before the fix:
   the summary showing "0 failures"; the pull request carries the `screenshots`
   label once so `screenshot-parity` runs, its regression step passes, and its
   report is reviewed by hand and quoted.
-- Proof the gate fires: on the change branch, a throwaway commit that changes
-  one word in the apply hero makes `section-compare` fail; quote the run, then
-  drop the commit before review. (Stands in for the GAP-21 canary.)
+- Proof the gate fires (C-6), locally, with nothing pushed before the owner
+  confirms the push. Copy the built `website/out` to the scratchpad, change
+  one word inside the apply form section of the copy's `careers/apply.html`,
+  and run `npm run compare:sections` with `SECTION_COMPARE_NEW` set to that
+  copy, `SECTION_COMPARE_OLD` set to a `git archive feature/interviewer-portal`
+  export in the scratchpad, and `SECTION_COMPARE_PORT=4291`. Expected: exit 1
+  and `differs: /careers/apply.html #section`. Then run it on the unchanged
+  build: exit 0, `0 failures`. Quote both. No commit is made, so none can
+  remain in the history. If the tool cannot run locally (the local harness is
+  broken), record it as NOT RUN in `implementation.md`, with the reason, as
+  "pending on the pull request". The proof then runs only after the owner has
+  confirmed the push, and gate 2 states it is outstanding. (Stands in for the
+  GAP-21 canary.)
 
 **Track checklist, G1 Waves 1 to 3:** one gate per pull request (the parity
 comparisons, B-8). Report period: not applied to the section comparison, with
 the reason in section 3; the screenshot comparison is excepted by D-NNN, not
-blocking. Canary fixture: deferred to GAP-21, proof-by-throwaway-commit above.
+blocking. Canary fixture: deferred to GAP-21; the local proof above stands in.
 Actions stay pinned by 40-character SHA, image by digest, Node and .NET exact
 (no `uses:`, `image:` or version line changes; reviewer checks the diff).
 Baselines only shrink: section failures 1 to 0; accepted entries change by one
@@ -389,7 +412,7 @@ orchestrator:
 | Screenshot step has a D-NNN entry expiring 2026-12-14 (O-21) | Register line 69; plan line 155 | Planned | |
 | Report-mode rule stated and applied | Standard section 3; README G1 checklist | Planned | |
 | Failing tests 1-4 committed first and shown failing | README; B-6 style | Planned | |
-| Gate shown to fire (throwaway commit) | README G1 checklist (canary, GAP-21) | Planned | |
+| Gate shown to fire (local proof, C-6) | README G1 checklist (canary, GAP-21) | Planned | |
 | No overlap with PR #78; `ci.yml` edit committed only after ISO-3 merged; no other `ci.yml` line changed | Caller; plan review F-1; GAP-09 C-3 | Planned | |
 
 ## 12. Revision log
@@ -421,3 +444,24 @@ orchestrator:
     selector never matched.
   - F-5: added the 2026-12-15 `npm test` failure as a risk, with its owner.
   - F-6: test 3 also compares the inline `<style>` text; risk added.
+- Developer return A-1 (`implementation.md` at `7cd890e`, BACK TO ARCHITECT):
+  - A-1: accepted. The row `#section` is the outer `section.section.careers-detail`
+    (old line 221), not the nested form section (old line 231). Section 3 now
+    keeps `selector: "section.section.careers-detail"` with `copy.matches`,
+    then finds the inner `section#apply.careers-apply.careers-apply--form` with
+    `querySelector` and replaces only that, as `apply-by-email` does.
+  - The F-4 note is corrected: the stale selector matched the outer section on
+    both sides (`HowToApply.tsx:8`), and broke only because #33 replaced the
+    email block.
+  - Test 2 is restated to assert (i) the selector matches a direct child of
+    `main` in the old page and (ii) that child holds exactly one inner form
+    section.
+  - C-3: test 2 reads the old page only with `git show feature/interviewer-portal:careers/apply.html`,
+    skipped with a stated reason when the ref is absent, and the
+    `section-compare` job is the backstop. The fixture option is removed.
+  - C-6: the throwaway commit is replaced by a local proof on a scratchpad
+    copy of the build. If it cannot run locally, it is recorded as pending on
+    the pull request, and nothing is pushed before the owner confirms.
+  - C-2 stands: ISO-3 is still unmerged; the `ci.yml` edit waits.
+  - The Scope row for `accepted-differences.json` and `compare.html` is
+    unchanged in files, now stated with the outer selector and the inner lookup.

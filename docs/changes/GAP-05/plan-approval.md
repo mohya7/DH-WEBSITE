@@ -72,4 +72,69 @@ Approved, with the conditions below. `plan-review.md` Round 2 ends
 - F-3 (resolved): the "Rule waived" field cites the rule by location, because
   that rule has no G-n id.
 
+## Round 2
+
+Re-approval after the developer returned the plan with A-1
+(`implementation.md` at `7cd890e`). The plan was revised, and `plan-review.md`
+Round 3 is `Verdict: APPROVED`, with one Minor, F-8.
+
+### What I checked myself
+
+- **A-1 is real and the fix is right.** `git show
+  origin/feature/interviewer-portal:careers/apply.html | grep -n "<section"`
+  shows the outer `section.section.careers-detail` at line 221 and the nested
+  `section#apply.careers-apply.careers-apply--form` at line 231. `sectionsOf`
+  (`compare.html:64`) compares only the direct children of `main`. The revised
+  design matches `copy.matches("section.section.careers-detail")` on the outer
+  section, then finds the inner section with `querySelector`, replaces only that
+  element, and requires an exact `same(copy, now)`. This is the stricter and
+  correct form, and it accepts nothing beyond O-11.
+- **My Round 1 statement is corrected.** In Round 1 I approved the inner
+  selector on the reviewer's F-4 without checking the page myself. That was my
+  error. Round 2 rests on the page lines quoted above.
+- **ISO-3.** I re-ran `git fetch`. There is still no `origin/change/ISO-3`, and
+  the last `ci.yml` commit on `origin/rebuild/dotnet-platform` is still `0a55da4`
+  (ISO-2). ISO-3 has not merged, so the order stands: ISO-3 goes first.
+- **O-21** is unchanged and free. The owner's words are unchanged.
+
+### Developer conditions (these replace Round 1's)
+
+- **C-1.** Commit tests 1 to 4 first and show them failing (command, exit code,
+  output) before the fix.
+- **C-2.** Do not commit the `ci.yml` edit until ISO-3 has merged into
+  `origin/rebuild/dotnet-platform`. Then `git fetch origin` and `git merge
+  origin/rebuild/dotnet-platform` (not a rebase), and quote the three checks
+  from plan section 4. If ISO-3 is unmerged when the rest is ready, stop and
+  report.
+- **C-3.** Test 2 reads the old page only with `git show
+  feature/interviewer-portal:careers/apply.html`, with no fixture copy. It
+  asserts that the outer selector matches a direct child of `main` and that
+  exactly one inner form section is inside it.
+- **C-4.** Take the next free D-NNN id at commit time and quote the grep over
+  every branch.
+- **C-5.** In `ci.yml`, change only line 338 and the comments at 304-308 and
+  369-371. Line 410 stays. Make no `uses:`, `image:` or version change.
+- **C-6. Proof that the gate fires, locally, with nothing pushed.**
+  1. Copy the built output to the scratchpad and change one word there.
+  2. Run `npm run compare:sections` against the copy with
+     `SECTION_COMPARE_NEW`, `SECTION_COMPARE_OLD` and `SECTION_COMPARE_PORT=4291`.
+  3. Quote the non-zero exit code and the failure line.
+
+  Do not push `change/GAP-05` or any throwaway branch, and do not open a pull
+  request: the push waits for the owner's confirmation after gate 2. Do not
+  commit any proof artefact. If the tool cannot run locally, record it as NOT
+  RUN with the reason. Gate 2 will then list it as open, to be proven by the CI
+  `section-compare` run after the owner confirms the push.
+- **C-7.** Quote O-11 and O-21 verbatim in the entry `reason` and in the D-NNN
+  entry.
+- **C-8 (F-8).** State in `implementation.md` whether test 2's old-page
+  assertions ran or were skipped in each run you quote. A skip is accepted only
+  where `feature/interviewer-portal` is absent, as in the shallow `website` CI
+  checkout. Locally, they must run.
+
+### Reviewer Minors accepted
+
+- F-8, resolved by C-8.
+- F-7, now settled by C-3.
+
 Verdict: APPROVED

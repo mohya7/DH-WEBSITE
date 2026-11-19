@@ -119,4 +119,50 @@ because test 2 fails today either way.
 
 Everything recorded as sound in Round 1 is still sound.
 
+## Round 3
+
+I re-reviewed the revised `plan.md` after the developer's finding A-1
+(`implementation.md` at `7cd890e`).
+
+### Correction to my Round 1 finding F-4
+
+F-4 was wrong, and I approved the bad selector in Round 2.
+`git show feature/interviewer-portal:careers/apply.html` shows that the compared
+`#section` is the outer `<section class="section careers-detail hub-section--tight">`
+(line 221). `section.careers-apply.careers-apply--form#apply` is nested inside
+it (line 231). The old selector `section.section.careers-detail` was right.
+Because of my F-4, the plan named the inner section as the selector, so the
+acceptance could never match. That is the defect A-1 reports.
+
+### Findings
+
+None at Blocker or Major.
+
+**F-8 (Minor). Section 5, test 2. The old-page checks are skipped in CI.**
+In the shallow `website` checkout, test 2 skips its old-page assertions. That
+is acceptable, because the `section-compare` job checks out
+`feature/interviewer-portal` and blocks. The developer should state in
+`implementation.md` whether the skip was taken in the local run.
+
+### Checked and found sound
+
+- A-1: the entry keeps `selector: "section.section.careers-detail"` with
+  `copy.matches` on the outer section. The handler finds the inner
+  `section#apply.careers-apply.careers-apply--form` with `querySelector`,
+  replaces only that element, and requires an exact `same(copy, now)`. This is
+  the pattern `apply-by-email` used (`compare.html:193-215`), and it accepts
+  nothing more than the owner did.
+- Test 2: it asserts that the outer selector matches a direct child of `main`
+  and that exactly one inner form section is inside it. It still fails today
+  because there is no `apply-form` entry.
+- C-3: test 2 reads the old page only with `git show`, with no fixture copy.
+  This also settles my Round 2 F-7.
+- C-6: the gate is shown to fire locally, with nothing pushed.
+  `SECTION_COMPARE_NEW`, `SECTION_COMPARE_OLD` and `SECTION_COMPARE_PORT` exist
+  in `run.mjs:37-42`. Port 4291 is in the agents' 42xx range. If the tool
+  cannot run locally, the plan records the proof as NOT RUN with the reason,
+  and gate 2 must state it is outstanding.
+- My Round 1 and 2 findings (ISO-3 sequencing, O-21, the cited rule, the expiry
+  risk, the style check) are unchanged and still resolved.
+
 Verdict: APPROVED
