@@ -257,8 +257,8 @@ describe("external script integrity check, parsed (GAP-11c)", () => {
   });
 
   it("treats a backslash like a slash, as the browser does", () => {
-    bad('<script src="\\cdn.example/x.js"></script>', "\\cdn.example/x.js");
-    good('<script src="\cdn.example/x.js"></script>');
+    bad('<script src="\\\\cdn.example/x.js"></script>', "\\\\cdn.example/x.js");
+    good('<script src="\\cdn.example/x.js"></script>');
   });
 
   it("decodes character references in src", () => {
