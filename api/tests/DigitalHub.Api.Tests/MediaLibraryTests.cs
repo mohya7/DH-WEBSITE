@@ -20,6 +20,7 @@ public sealed class MediaLibraryTests : IClassFixture<ApiFactory>
     private static readonly SemaphoreSlim Gate = new(1, 1);
     private static AuthSession? _editor;
     private static AuthSession? _admin;
+    private static AuthSession? _altEditor;
     private static readonly Regex HashPath = new("^/media/[0-9a-f]{64}\\.webp$", RegexOptions.CultureInvariant);
 
     private readonly ApiFactory _factory;
@@ -314,6 +315,286 @@ public sealed class MediaLibraryTests : IClassFixture<ApiFactory>
         Assert.False(File.Exists(Path.Combine(_factory.MediaRoot, Text(uploaded.Body, "contentHash") + ".webp")));
         Assert.Equal(HttpStatusCode.NotFound, (await SendAsync(admin, HttpMethod.Get, "/api/v1/media/" + mediaId)).Status);
     }
+
+    // ADM-12: an image used without alt text of its own cannot be made decorative with
+    // no alt in the library; the build would ship that use with empty alt.
+    [Fact]
+    public async Task Marking_a_used_image_decorative_with_no_alt_is_refused_while_a_use_relies_on_it()
+    {
+        var editor = await AltEditor();
+        var bytes = Encode(SKEncodedImageFormat.Png, 19, 17, 141);
+        await RemoveAsync(bytes);
+        var uploaded = await UploadAsync(editor, bytes, "card.png", "image/png", "Harbour card");
+        Assert.Equal(HttpStatusCode.Created, uploaded.Status);
+        var mediaId = Id(uploaded.Body);
+        try
+        {
+            var body = "{\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"Article text.\"}]}]}";
+            var blog = await SendAsync(editor, HttpMethod.Post, "/api/v1/blog-posts", new
+            {
+                slug = "alt-card-" + Guid.NewGuid().ToString("N")[..8],
+                title = "Alt card",
+                metaDescription = "A description for the card.",
+                fields = new { body, imageId = mediaId.ToString() },
+            });
+            Assert.Equal(HttpStatusCode.Created, blog.Status);
+            var blogId = Id(blog.Body);
+            var version = JsonDocument.Parse(blog.Body).RootElement.GetProperty("version").GetInt32();
+            var published = await SendAsync(editor, HttpMethod.Post, "/api/v1/blog-posts/" + blogId + "/publish", new { version });
+            Assert.True(published.Status == HttpStatusCode.OK, published.Status + " " + published.Body);
+
+            var refused = await SendAsync(editor, HttpMethod.Put, "/api/v1/media/" + mediaId, new { alt = "", decorative = true });
+            Assert.Equal(HttpStatusCode.Conflict, refused.Status);
+            Assert.Equal("alt_in_use", Code(refused.Body));
+            Assert.Contains("blog-posts " + blogId.ToString("D") + " image", Usages(refused.Body));
+
+            var stored = JsonDocument.Parse((await SendAsync(editor, HttpMethod.Get, "/api/v1/media/" + mediaId)).Body).RootElement.GetProperty("image");
+            Assert.Equal("Harbour card", stored.GetProperty("alt").GetString());
+            Assert.False(stored.GetProperty("decorative").GetBoolean());
+        }
+        finally
+        {
+            await ClearUsesAsync(mediaId);
+            await DeleteMediaAsync(mediaId);
+        }
+    }
+
+    [Fact]
+    public async Task Each_kind_of_use_without_its_own_alt_blocks_the_edit()
+    {
+        var editor = await AltEditor();
+        byte red = 150;
+        var missed = new List<string>();
+        foreach (var kind in new[] { "page share", "site settings", "section", "blog body", "working copy" })
+        {
+            var bytes = Encode(SKEncodedImageFormat.Png, 21, 15, red++);
+            await RemoveAsync(bytes);
+            var uploaded = await UploadAsync(editor, bytes, "kind.png", "image/png", "Kind " + kind);
+            Assert.Equal(HttpStatusCode.Created, uploaded.Status);
+            var mediaId = Id(uploaded.Body);
+            Guid? settingsId = null;
+            Guid? previousDefault = null;
+            string? previousOverride = null;
+            try
+            {
+                string place;
+                switch (kind)
+                {
+                    case "page share":
+                    {
+                        var page = await SendAsync(editor, HttpMethod.Post, "/api/v1/pages", new { slug = "alt-share-" + Guid.NewGuid().ToString("N")[..8], title = "Alt share", shareImageId = mediaId });
+                        Assert.Equal(HttpStatusCode.Created, page.Status);
+                        place = "pages " + Id(page.Body).ToString("D") + " share image";
+                        break;
+                    }
+                    case "site settings":
+                    {
+                        using var scope = _factory.Services.CreateScope();
+                        var database = scope.ServiceProvider.GetRequiredService<ContentDbContext>();
+                        var settings = await database.SiteSettings.FirstAsync();
+                        settingsId = settings.Id;
+                        previousDefault = settings.DefaultShareImageId;
+                        previousOverride = settings.DefaultShareImageAltOverride;
+                        settings.DefaultShareImageId = mediaId;
+                        settings.DefaultShareImageAltOverride = null;
+                        await database.SaveChangesAsync();
+                        place = "site-settings " + settings.Id.ToString("D") + " default share image";
+                        break;
+                    }
+                    case "section":
+                    {
+                        var (pageId, sectionId) = await PageWithHeroAsync(editor, mediaId);
+                        await SetSectionImageAsync(sectionId, "{\"mediaId\":\"" + mediaId + "\",\"decorative\":false}");
+                        place = "pages " + pageId.ToString("D") + " section " + sectionId.ToString("D");
+                        break;
+                    }
+                    case "blog body":
+                    {
+                        var blogId = await BlogAsync(editor);
+                        using var scope = _factory.Services.CreateScope();
+                        var database = scope.ServiceProvider.GetRequiredService<ContentDbContext>();
+                        var post = await database.BlogPosts.SingleAsync(item => item.Id == blogId);
+                        // Seeded through the db context: the save would refuse a body image with no alt.
+                        post.Body = "{\"type\":\"doc\",\"content\":[{\"type\":\"image\",\"attrs\":{\"mediaId\":\"" + mediaId + "\"}}]}";
+                        await database.SaveChangesAsync();
+                        place = "blog-posts " + blogId.ToString("D") + " body";
+                        break;
+                    }
+                    default:
+                    {
+                        var blogId = await BlogAsync(editor);
+                        using var scope = _factory.Services.CreateScope();
+                        var database = scope.ServiceProvider.GetRequiredService<ContentDbContext>();
+                        database.WorkingCopies.Add(new WorkingCopy
+                        {
+                            Id = Guid.NewGuid(),
+                            BlogPostId = blogId,
+                            Document = "{\"slug\":\"alt-copy\",\"title\":\"Alt copy\",\"fields\":{\"imageId\":\"" + mediaId + "\"}}",
+                            SavedAt = DateTime.UtcNow,
+                        });
+                        await database.SaveChangesAsync();
+                        place = "blog-posts " + blogId.ToString("D") + " working copy";
+                        break;
+                    }
+                }
+
+                var refused = await SendAsync(editor, HttpMethod.Put, "/api/v1/media/" + mediaId, new { alt = "", decorative = true });
+                // Every kind is tried, so a run names each one that is not refused.
+                if (refused.Status != HttpStatusCode.Conflict || Code(refused.Body) != "alt_in_use" || !Usages(refused.Body).Contains(place))
+                    missed.Add(kind + ": " + (int)refused.Status + " " + refused.Body);
+            }
+            finally
+            {
+                if (settingsId is Guid settingsKey)
+                {
+                    using var scope = _factory.Services.CreateScope();
+                    var database = scope.ServiceProvider.GetRequiredService<ContentDbContext>();
+                    var settings = await database.SiteSettings.SingleAsync(item => item.Id == settingsKey);
+                    settings.DefaultShareImageId = previousDefault;
+                    settings.DefaultShareImageAltOverride = previousOverride;
+                    await database.SaveChangesAsync();
+                }
+
+                await ClearUsesAsync(mediaId);
+                await DeleteMediaAsync(mediaId);
+            }
+        }
+
+        Assert.True(missed.Count == 0, string.Join("; ", missed));
+    }
+
+    [Fact]
+    public async Task Uses_with_their_own_alt_or_marked_decorative_do_not_block_the_edit()
+    {
+        var editor = await AltEditor();
+        var bytes = Encode(SKEncodedImageFormat.Png, 23, 13, 171);
+        await RemoveAsync(bytes);
+        var uploaded = await UploadAsync(editor, bytes, "own.png", "image/png", "Own alt");
+        Assert.Equal(HttpStatusCode.Created, uploaded.Status);
+        var mediaId = Id(uploaded.Body);
+        try
+        {
+            var page = await SendAsync(editor, HttpMethod.Post, "/api/v1/pages", new { slug = "alt-own-" + Guid.NewGuid().ToString("N")[..8], title = "Alt own", shareImageId = mediaId, shareImageAltOverride = "Share alt" });
+            Assert.Equal(HttpStatusCode.Created, page.Status);
+            var (_, withAlt) = await PageWithHeroAsync(editor, mediaId);
+            await SetSectionImageAsync(withAlt, "{\"mediaId\":\"" + mediaId + "\",\"alt\":\"Hero\",\"decorative\":false}");
+            var (_, decorativeUse) = await PageWithHeroAsync(editor, mediaId);
+            await SetSectionImageAsync(decorativeUse, "{\"mediaId\":\"" + mediaId + "\",\"decorative\":true}");
+
+            var saved = await SendAsync(editor, HttpMethod.Put, "/api/v1/media/" + mediaId, new { alt = "", decorative = true });
+            Assert.True(saved.Status == HttpStatusCode.OK, saved.Status + " " + saved.Body);
+        }
+        finally
+        {
+            await ClearUsesAsync(mediaId);
+            await DeleteMediaAsync(mediaId);
+        }
+    }
+
+    [Fact]
+    public async Task An_unused_image_can_be_marked_decorative_with_no_alt()
+    {
+        var editor = await AltEditor();
+        var bytes = Encode(SKEncodedImageFormat.Png, 25, 11, 181);
+        await RemoveAsync(bytes);
+        var uploaded = await UploadAsync(editor, bytes, "unused.png", "image/png", "Unused");
+        Assert.Equal(HttpStatusCode.Created, uploaded.Status);
+        var mediaId = Id(uploaded.Body);
+        var saved = await SendAsync(editor, HttpMethod.Put, "/api/v1/media/" + mediaId, new { alt = "", decorative = true });
+        Assert.Equal(HttpStatusCode.OK, saved.Status);
+        await DeleteMediaAsync(mediaId);
+    }
+
+    [Fact]
+    public async Task A_refused_edit_writes_no_audit_entry()
+    {
+        var editor = await AltEditor();
+        var bytes = Encode(SKEncodedImageFormat.Png, 27, 9, 191);
+        await RemoveAsync(bytes);
+        var uploaded = await UploadAsync(editor, bytes, "audit.png", "image/png", "Audited");
+        Assert.Equal(HttpStatusCode.Created, uploaded.Status);
+        var mediaId = Id(uploaded.Body);
+        try
+        {
+            var page = await SendAsync(editor, HttpMethod.Post, "/api/v1/pages", new { slug = "alt-audit-" + Guid.NewGuid().ToString("N")[..8], title = "Alt audit", shareImageId = mediaId });
+            Assert.Equal(HttpStatusCode.Created, page.Status);
+            var refused = await SendAsync(editor, HttpMethod.Put, "/api/v1/media/" + mediaId, new { alt = "", decorative = true });
+            Assert.Equal(HttpStatusCode.Conflict, refused.Status);
+
+            using var scope = _factory.Services.CreateScope();
+            var database = scope.ServiceProvider.GetRequiredService<ContentDbContext>();
+            var text = mediaId.ToString();
+            Assert.False(await database.AuditLog.AnyAsync(entry => entry.EntityType == "media" && entry.Action == "update" && entry.EntityId == text));
+        }
+        finally
+        {
+            await ClearUsesAsync(mediaId);
+            await DeleteMediaAsync(mediaId);
+        }
+    }
+
+    private static string Heading() =>
+        JsonSerializer.Serialize(new { type = "doc", content = new object[] { new { type = "paragraph", content = new object[] { new { type = "text", text = "Hello" } } } } });
+
+    private async Task<(Guid PageId, Guid SectionId)> PageWithHeroAsync(AuthSession editor, Guid mediaId)
+    {
+        var page = await SendAsync(editor, HttpMethod.Post, "/api/v1/pages", new { slug = "alt-hero-" + Guid.NewGuid().ToString("N")[..8], title = "Alt hero" });
+        Assert.Equal(HttpStatusCode.Created, page.Status);
+        var pageId = Id(page.Body);
+        var version = JsonDocument.Parse(page.Body).RootElement.GetProperty("version").GetInt32();
+        var section = await SendAsync(editor, HttpMethod.Post, "/api/v1/pages/" + pageId + "/sections", new
+        {
+            version,
+            type = "hero",
+            fields = new { heading = Heading(), image = new { mediaId = mediaId.ToString(), alt = "Hero", decorative = false } },
+        });
+        Assert.Equal(HttpStatusCode.OK, section.Status);
+        var sectionId = JsonDocument.Parse(section.Body).RootElement.GetProperty("content").GetProperty("sections")[0].GetProperty("id").GetGuid();
+        return (pageId, sectionId);
+    }
+
+    // Seeded through the db context: the section save would refuse an image with no alt.
+    private async Task SetSectionImageAsync(Guid sectionId, string image)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var database = scope.ServiceProvider.GetRequiredService<ContentDbContext>();
+        var section = await database.Sections.SingleAsync(item => item.Id == sectionId);
+        section.Fields = "{\"heading\":" + JsonSerializer.Serialize(Heading()) + ",\"image\":" + image + "}";
+        await database.SaveChangesAsync();
+    }
+
+    private async Task<Guid> BlogAsync(AuthSession editor)
+    {
+        var blog = await SendAsync(editor, HttpMethod.Post, "/api/v1/blog-posts", new
+        {
+            slug = "alt-blog-" + Guid.NewGuid().ToString("N")[..8],
+            title = "Alt blog",
+            metaDescription = "A description for the blog.",
+        });
+        Assert.Equal(HttpStatusCode.Created, blog.Status);
+        return Id(blog.Body);
+    }
+
+    private async Task ClearUsesAsync(Guid mediaId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var database = scope.ServiceProvider.GetRequiredService<ContentDbContext>();
+        var text = mediaId.ToString();
+        database.WorkingCopies.RemoveRange(await database.WorkingCopies.Where(item => item.Document.Contains(text)).ToListAsync());
+        database.Sections.RemoveRange(await database.Sections.Where(item => item.Fields.Contains(text)).ToListAsync());
+        foreach (var page in await database.Pages.Where(item => item.ShareImageId == mediaId).ToListAsync())
+            page.ShareImageId = null;
+        foreach (var post in await database.BlogPosts.Where(item => item.ImageId == mediaId || item.Body.Contains(text)).ToListAsync())
+        {
+            post.ImageId = null;
+            post.Body = "";
+        }
+
+        await database.SaveChangesAsync();
+    }
+
+    private static List<string?> Usages(string body) =>
+        JsonDocument.Parse(body).RootElement.GetProperty("usages").EnumerateArray().Select(item => item.GetString()).ToList();
 
     [Fact]
     public async Task A_second_upload_of_the_same_bytes_returns_the_existing_image()
@@ -672,6 +953,9 @@ public sealed class MediaLibraryTests : IClassFixture<ApiFactory>
     private static Guid Id(string body) => JsonDocument.Parse(body).RootElement.GetProperty("id").GetGuid();
 
     private async Task<AuthSession> Editor() => await Session("media-editor@digitalhub.test", "editor", static () => _editor, value => _editor = value);
+
+    // ADM-12's tests upload under their own editor: uploads are limited per user per hour.
+    private async Task<AuthSession> AltEditor() => await Session("media-alt-editor@digitalhub.test", "editor", static () => _altEditor, value => _altEditor = value);
 
     private async Task<AuthSession> Admin() => await Session(ApiFactory.AdminEmail, "admin", static () => _admin, value => _admin = value, ApiFactory.AdminPassword);
 
