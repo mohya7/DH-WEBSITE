@@ -55,4 +55,28 @@ public sealed class FormsLibraryTests
         foreach (var forbidden in ForbiddenReferences)
             Assert.DoesNotContain(forbidden, referenced);
     }
+
+    /// <summary>
+    /// ISO-2 (ISO-1 gate 2, F1): the guard must reject the authentication and
+    /// Identity assemblies the tester's F1 reproduction brought in. GuardCanary
+    /// compiles that reproduction into this test assembly.
+    /// </summary>
+    [Fact]
+    public void The_guard_rejects_the_authentication_and_identity_assemblies()
+    {
+        var violations = typeof(GuardCanary).Assembly
+            .GetReferencedAssemblies()
+            .Select(reference => reference.Name ?? "")
+            .Where(reference => ForbiddenReferences.Contains(reference))
+            .ToList();
+
+        foreach (var name in new[]
+                 {
+                     "Microsoft.AspNetCore.Identity",
+                     "Microsoft.AspNetCore.Authentication",
+                     "Microsoft.AspNetCore.Authentication.BearerToken",
+                     "Microsoft.AspNetCore.Authentication.Cookies",
+                 })
+            Assert.Contains(name, violations);
+    }
 }
