@@ -10,18 +10,18 @@ public sealed class PublicFormsSqlCollection;
 /// <summary>
 /// The public forms API under test (ISO-2). Its one connection setting is
 /// ConnectionStrings:PublicForms, pointed at DigitalHubContent_Test with the
-/// restricted login. It is given no Auth setting. The user-secrets store is read
-/// into a standalone configuration here and only the rewritten connection
-/// string reaches the host.
+/// dh_public_forms login (ISO-3), a member of dh_public_forms_role only. It is
+/// given no Auth setting. The user-secrets store is read into a standalone
+/// configuration here and only the rewritten connection string reaches the host.
 /// </summary>
 public class PublicApiFactory : WebApplicationFactory<Program>
 {
-    private readonly string _connectionString = TestConnectionString();
+    private readonly string _connectionString = PublicFormsTestConnectionString();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
-        // ISO-3 changes this one setting to the dh_public_forms login.
+        // ISO-3: the host runs as dh_public_forms; the fixtures keep the restricted test login.
         builder.UseSetting("ConnectionStrings:PublicForms", _connectionString);
         builder.UseSetting("Apply:IpPermitLimit", "1000");
         builder.UseSetting("Apply:EmailPermitLimit", "1000");
@@ -94,6 +94,33 @@ public class PublicApiFactory : WebApplicationFactory<Program>
         }
 
         return stripped + ";Integrated Security=true";
+    }
+
+    /// <summary>
+    /// The public forms login, dh_public_forms, on DigitalHubContent_Test (ISO-3).
+    /// Read from ConnectionStrings:PublicForms; there is no fallback to
+    /// ConnectionStrings:Content, which would quietly run the suite on the wide
+    /// login (P-5). Windows authentication and any other login are refused.
+    /// </summary>
+    internal static string PublicFormsTestConnectionString()
+    {
+        var forms = TestConfiguration().GetConnectionString("PublicForms");
+        if (string.IsNullOrWhiteSpace(forms))
+        {
+            throw new InvalidOperationException("ConnectionStrings:PublicForms is not configured (the dh_public_forms login).");
+        }
+
+        var test = ToTestCatalog(forms);
+        var builder = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(test);
+        if (builder.IntegratedSecurity
+            || test.Contains("Trusted_Connection=true", StringComparison.OrdinalIgnoreCase)
+            || string.IsNullOrEmpty(builder.UserID)
+            || !string.Equals(builder.UserID, "dh_public_forms", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("The public forms tests must connect as the dh_public_forms SQL login.");
+        }
+
+        return test;
     }
 
     /// <summary>The restricted login on DigitalHubContent_Test; Windows authentication is refused.</summary>

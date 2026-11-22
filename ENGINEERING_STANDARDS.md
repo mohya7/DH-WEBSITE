@@ -83,7 +83,7 @@ website output and CSP checks, Studio preview design check.
 | S-5 | Sessions: the refresh cookie is HttpOnly, Secure, SameSite=Strict; sessions can be revoked; a password reset ends every session. | `TokenService`; `SessionRevocationTests`, `SessionLimitTests`, `SessionCheckTests` | Met |
 | S-6 | Secrets only in user-secrets locally and on the host in production; never committed or logged. | gitleaks; `AGENTS.md` | Met |
 | S-7 | A Critical or High finding, reachable or not, is fixed within 7 days of being known, or the owner records an exception with an expiry in `docs/deferred-items.md`. | `known-findings.json` (owner, reason) | Gap: no expiry or owner decision recorded (baseline F3) |
-| S-8 | The application login reads and writes rows only; the audit log is append-only for it. | `AuditLogPermissionTests`; `docs/security-deployment.md` | Met |
+| S-8 | The application login reads and writes rows only; the audit log is append-only for it. | `AuditLogPermissionTests`; `docs/security-deployment.md`; the public forms login holds only its four grants (`PublicFormsPermissionTests`, ADR 0001) | Met |
 
 ## 5. API
 

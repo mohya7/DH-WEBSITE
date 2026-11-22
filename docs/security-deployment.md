@@ -30,6 +30,66 @@ DENY UPDATE, DELETE ON dbo.audit_log TO [dh_content_app];
   `DigitalHubContent_Test`, `DigitalHubContent_Studio`) need the `DENY` line run
   once with the elevated account. Until then `AuditLogPermissionTests` fails there.
 
+## Database: the public forms login
+
+The public forms API (`src/DigitalHub.PublicApi`, ADR 0001) connects with its own SQL
+login, `dh_public_forms`. Its grants come from the migration
+`AddPublicFormsRole`, which creates the role `dh_public_forms_role` with exactly:
+INSERT on `contact_requests`; SELECT, INSERT, UPDATE on `application_counts`; SELECT on
+`vacancies` and `site_settings`. The login and its membership are not in a migration,
+because the password is a secret. After the migration, the elevated account runs:
+
+```sql
+-- master, once per server; the password comes from the server's secret store
+CREATE LOGIN [dh_public_forms] WITH PASSWORD = N'<from the secret store>', CHECK_POLICY = ON;
+-- each catalog the public forms API uses
+CREATE USER [dh_public_forms] FOR LOGIN [dh_public_forms];
+ALTER ROLE [dh_public_forms_role] ADD MEMBER [dh_public_forms];
+```
+
+- **Never** add this login to `db_datareader`, `db_datawriter` or any other role. Its
+  only role is `dh_public_forms_role`.
+- **What `PublicFormsPermissionTests` checks**, as the login the public API runs on.
+  It proves these checks, and only these:
+  - **Object grants.** The object-level permissions on every user object, in any schema,
+    are exactly the six above. Objects that have a parent object, such as constraints and
+    triggers, are not measured.
+  - **Schema and database permissions.** The permissions on schema `dbo` and on the
+    database are the same as those of a fresh user created without a login.
+  - **Roles.** The login is not `sysadmin`. It is not in `db_owner`, `db_datareader`,
+    `db_datawriter`, `db_ddladmin`, `db_securityadmin` or `db_accessadmin`. Its only
+    database role is `dh_public_forms_role`.
+  - **Every other table operation is refused.** SELECT, INSERT, UPDATE and DELETE on
+    every `dbo` table, outside the six granted pairs, fail with error 229.
+  - **Schema changes probed.** CREATE TABLE is refused with error 262. ALTER TABLE is
+    refused on one table, `vacancies`, and TRUNCATE on one table, `contact_requests`.
+- **What it does not check.** The test proves only the checks above. An administrator must
+  not make any grant beyond the six, because many mistaken grants would leave the test
+  green. These are examples, not a complete list:
+  - IMPERSONATE grants on a user or a login;
+  - ALTER, CONTROL or TAKE OWNERSHIP on a user or a role. CONTROL on a user reaches as
+    far as impersonating it, for example CONTROL on `dh_content_app`;
+  - grants on securables that are not objects: types, XML schema collections,
+    assemblies, certificates and keys;
+  - server roles other than `sysadmin`;
+  - server-level permissions;
+  - permissions on schemas other than `dbo`;
+  - column-level grants. The object check ignores them, and it is not verified whether
+    the table-wide probes catch a column-only grant.
+
+  Follow-up F-ISO3-2 widens the test. Its exact assertion of the login's permissions would
+  replace these examples.
+- CI (`.github/workflows/ci.yml`, job `api`) runs the same statements, with two
+  differences: a workflow-only password, and `CHECK_POLICY = OFF` on `CREATE LOGIN`,
+  for its throwaway container. Locally the test login lives in `DigitalHubContent_Test`
+  only, and its connection string is the user-secret `ConnectionStrings:PublicForms`.
+- **Re-applying the migration after its `Down`:** `Down` removes the role's members and
+  drops the role; the user `dh_public_forms` stays, with no permissions, which is
+  harmless. A later `Up` creates the role with no member, so every form fails on that
+  catalog until the elevated account runs the `ALTER ROLE ... ADD MEMBER` line again.
+- The admin API's copies of the two form routes still run on `dh_content_app` until
+  ISO-4 removes them.
+
 ## Sessions and passwords
 
 Configuration (`appsettings.json`, override per environment):

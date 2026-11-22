@@ -3,9 +3,10 @@ using Microsoft.Data.SqlClient;
 namespace DigitalHub.PublicApi.Tests;
 
 /// <summary>
-/// Test fixtures for the forms' four tables, in parameterised ADO.NET on the same
-/// restricted test login. They never go through the host's context, so they keep
-/// working in ISO-3, when the host's own login can no longer read contact_requests.
+/// Test fixtures for the forms' four tables, in parameterised ADO.NET on the
+/// restricted test login (ConnectionStrings:Content, dh_content_app). They never go
+/// through the host's context, which since ISO-3 runs as dh_public_forms and cannot
+/// read contact_requests.
 /// </summary>
 internal static class FormsDatabase
 {
@@ -51,6 +52,17 @@ internal static class FormsDatabase
         await using var command = connection.CreateCommand();
         command.CommandText = "DELETE FROM vacancies WHERE id = @id";
         command.Parameters.AddWithValue("@id", id);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>Removes a fixture contact request by id (ISO-3's permission test cleans up with it).</summary>
+    public static async Task DeleteContactAsync(Guid id)
+    {
+        await using var connection = new SqlConnection(Connection);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "DELETE FROM contact_requests WHERE id = @id";
+        command.Parameters.Add(new SqlParameter("@id", System.Data.SqlDbType.UniqueIdentifier) { Value = id });
         await command.ExecuteNonQueryAsync();
     }
 

@@ -237,3 +237,45 @@ describe("external script integrity check, round 2 (GAP-11)", () => {
     good(`<script src="https://cdn.example/x.js" integrity="${full}" crossorigin></script>`);
   });
 });
+
+describe("external script integrity check, parsed (GAP-11c)", () => {
+  const full = "sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt";
+  const bad = (tag: string, src = "https://cdn.example/x.js") =>
+    expect(checkScriptIntegrity("a.html", page(tag)), tag).toEqual([`a.html: external script without integrity: ${src}`]);
+  const good = (tag: string) => expect(checkScriptIntegrity("a.html", page(tag)), tag).toEqual([]);
+
+  it("sees a src after a quoted '>' in another attribute", () => {
+    bad('<script data-x="a>b" src="https://cdn.example/x.js"></script>');
+  });
+
+  it("trims whitespace around src as the browser does", () => {
+    bad('<script src=" https://cdn.example/x.js"></script>', " https://cdn.example/x.js");
+    bad('<script src="\n\thttps://cdn.example/x.js"></script>', "\n\thttps://cdn.example/x.js");
+    expect(checkScriptIntegrity("a.html", page('<script src="\n\thttps://cdn.example/x.js"></script>'))).toEqual([
+      "a.html: external script without integrity: \n\thttps://cdn.example/x.js",
+    ]);
+  });
+
+  it("treats a backslash like a slash, as the browser does", () => {
+    bad('<script src="\\\\cdn.example/x.js"></script>', "\\\\cdn.example/x.js");
+    good('<script src="\\cdn.example/x.js"></script>');
+  });
+
+  it("decodes character references in src", () => {
+    bad('<script src="https:&#x2F;&#x2F;cdn.example/x.js"></script>');
+    bad('<script src="&#104;ttps://cdn.example/x.js"></script>');
+  });
+
+  it("accepts an integrity list when one token is a full sha384", () => {
+    good(`<script src="https://cdn.example/x.js" integrity="${full} sha512-abc" crossorigin="anonymous"></script>`);
+    good(`<script src="https://cdn.example/x.js" integrity="sha512-abc ${full}" crossorigin="anonymous"></script>`);
+    bad('<script src="https://cdn.example/x.js" integrity="sha256-abc sha512-abc" crossorigin="anonymous"></script>');
+  });
+
+  it("still skips an empty or whitespace-only src", () => {
+    good('<script src=""></script>');
+    good("<script src></script>");
+    good('<script src="   "></script>');
+    good('<script src="\n\t"></script>');
+  });
+});
