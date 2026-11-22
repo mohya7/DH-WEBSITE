@@ -49,11 +49,32 @@ ALTER ROLE [dh_public_forms_role] ADD MEMBER [dh_public_forms];
 
 - **Never** add this login to `db_datareader`, `db_datawriter` or any other role. Its
   only role is `dh_public_forms_role`.
-- `PublicFormsPermissionTests` fails on a catalog where the login holds more or less
-  than the four grants, or is in any other role.
-- CI (`.github/workflows/ci.yml`, job `api`) runs the same lines with a workflow-only
-  password. Locally the test login lives in `DigitalHubContent_Test` only, and its
-  connection string is the user-secret `ConnectionStrings:PublicForms`.
+- **What `PublicFormsPermissionTests` checks**, as the login the public API runs on.
+  It fails when any of these is wrong:
+  - **Object grants.** The object-level permissions on every user object (any schema;
+    constraints and triggers excluded) are exactly the six above.
+  - **Schema and database permissions.** The permissions on schema `dbo` and on the
+    database are no more than a fresh user holds.
+  - **Roles.** The login is not `sysadmin`. It is not in `db_owner`, `db_datareader`,
+    `db_datawriter`, `db_ddladmin`, `db_securityadmin` or `db_accessadmin`. Its only
+    database role is `dh_public_forms_role`.
+  - **Every other table operation is refused.** SELECT, INSERT, UPDATE and DELETE on
+    every `dbo` table, outside the six granted pairs, fail with error 229.
+  - **No schema changes.** CREATE TABLE, ALTER TABLE and TRUNCATE are refused.
+- **What it does not check.** A mistaken grant of any of these kinds would leave the test
+  green, so an administrator must not make one:
+  - IMPERSONATE grants on a user or a login;
+  - server roles other than `sysadmin`;
+  - server-level permissions;
+  - permissions on schemas other than `dbo`;
+  - column-level grants. The object check ignores them, and it is not verified whether
+    the table-wide probes catch a column-only grant.
+
+  Widening the test to cover these is follow-up F-ISO3-2.
+- CI (`.github/workflows/ci.yml`, job `api`) runs the same statements, with two
+  differences: a workflow-only password, and `CHECK_POLICY = OFF` on `CREATE LOGIN`,
+  for its throwaway container. Locally the test login lives in `DigitalHubContent_Test`
+  only, and its connection string is the user-secret `ConnectionStrings:PublicForms`.
 - **Re-applying the migration after its `Down`:** `Down` removes the role's members and
   drops the role; the user `dh_public_forms` stays, with no permissions, which is
   harmless. A later `Up` creates the role with no member, so every form fails on that
