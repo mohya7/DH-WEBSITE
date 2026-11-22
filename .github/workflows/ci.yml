@@ -35,6 +35,9 @@ env:
   SA_PASSWORD: CiOnlySa2026Passw0rd
   APP_LOGIN: dh_content_app
   APP_PASSWORD: CiOnlyApp2026Passw0rd
+  # The public forms API's login (ISO-3, ADR 0001 point 3): a member of dh_public_forms_role only.
+  FORMS_LOGIN: dh_public_forms
+  FORMS_PASSWORD: CiOnlyForms2026Passw0rd
 
 # Every job runs on ubuntu-24.04, not ubuntu-latest. ubuntu-latest moved to Ubuntu 26.04,
 # where Playwright 1.56.1 cannot install its browsers, so the end-to-end and comparison jobs fail.
@@ -62,10 +65,13 @@ jobs:
     env:
       # What the integration tests read in place of user-secrets. Both name
       # DigitalHubContent and the tests rewrite them to DigitalHubContent_Test.
-      # The tests themselves use the restricted login; only AuditRollbackTests
-      # uses the administrator connection, to create and drop a trigger.
+      # The tests themselves use the restricted login; the administrator
+      # connection is only for what that login may not do (a trigger, an audit
+      # clean-up, the permission tests' inspection). The public API's host runs
+      # as dh_public_forms (ISO-3); its fixtures keep the restricted login.
       ConnectionStrings__Content: Server=localhost,1433;Database=DigitalHubContent;User ID=dh_content_app;Password=CiOnlyApp2026Passw0rd;Encrypt=True;TrustServerCertificate=True
       ConnectionStrings__ContentAdmin: Server=localhost,1433;Database=DigitalHubContent;User ID=sa;Password=CiOnlySa2026Passw0rd;Encrypt=True;TrustServerCertificate=True
+      ConnectionStrings__PublicForms: Server=localhost,1433;Database=DigitalHubContent;User ID=dh_public_forms;Password=CiOnlyForms2026Passw0rd;Encrypt=True;TrustServerCertificate=True
     defaults:
       run:
         working-directory: api
@@ -82,12 +88,13 @@ jobs:
       - name: Build (Release)
         run: dotnet build DigitalHub.slnx -c Release
 
-      - name: Create the test database and the restricted login
+      - name: Create the test database and the restricted logins
         run: |
           docker exec ${{ job.services.mssql.id }} /opt/mssql-tools18/bin/sqlcmd \
             -S localhost -U sa -P "$SA_PASSWORD" -C -b -Q "
               CREATE DATABASE [DigitalHubContent_Test];
-              CREATE LOGIN [$APP_LOGIN] WITH PASSWORD = N'$APP_PASSWORD', CHECK_POLICY = OFF;"
+              CREATE LOGIN [$APP_LOGIN] WITH PASSWORD = N'$APP_PASSWORD', CHECK_POLICY = OFF;
+              CREATE LOGIN [$FORMS_LOGIN] WITH PASSWORD = N'$FORMS_PASSWORD', CHECK_POLICY = OFF;"
 
       - name: Apply migrations to the fresh database (dotnet-ef, administrator login)
         run: >-
@@ -113,6 +120,15 @@ jobs:
               ALTER ROLE db_datareader ADD MEMBER [$APP_LOGIN];
               ALTER ROLE db_datawriter ADD MEMBER [$APP_LOGIN];
               DENY UPDATE, DELETE ON dbo.audit_log TO [$APP_LOGIN];"
+
+      - name: Add the public forms login to its role, and nothing else
+        # The role and its four grants come from the AddPublicFormsRole migration
+        # (ISO-3); PublicFormsPermissionTests fails if the login holds more.
+        run: |
+          docker exec ${{ job.services.mssql.id }} /opt/mssql-tools18/bin/sqlcmd \
+            -S localhost -U sa -P "$SA_PASSWORD" -C -b -d DigitalHubContent_Test -Q "
+              CREATE USER [$FORMS_LOGIN] FOR LOGIN [$FORMS_LOGIN];
+              ALTER ROLE [dh_public_forms_role] ADD MEMBER [$FORMS_LOGIN];"
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:

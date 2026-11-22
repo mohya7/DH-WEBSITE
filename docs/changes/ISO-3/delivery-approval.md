@@ -1,0 +1,613 @@
+# ISO-3 delivery approval (gate 2)
+
+- Role: technical lead, gate 2. This is a pipeline role. It is not the owner's
+  confirmation that `AGENTS.md` requires, and it is not an owner decision (P-7).
+- Date: 22 November 2026 (review started 19 November 2026).
+- Change: ISO-3, Track G2 (isolation), ADR 0001 point 3, part of GAP-38.
+- Branch `change/ISO-3`, worktree `D:\work\DigitalHub\dh-platform-claude-iso-3`, head
+  `6ffff507dfe00a61f583dd0e7ca50e15e698fb68`, merge base `0488d89`.
+- Records read: `plan.md` (round 2), `plan-review.md` (Round 2, `Verdict: APPROVED`),
+  `plan-approval.md` (`Verdict: APPROVED`), `implementation.md` (`Status: READY FOR TEST`),
+  `test-report.md` (Round 1, uncommitted, `Verdict: APPROVED`, Minors m-1 to m-4 and the
+  observations on table-wide INSERT/UPDATE). Also `docs/changes/README.md`, `AGENTS.md`,
+  `ENGINEERING_STANDARDS.md` (B-4, B-6, P-6 to P-8, S-8), `.github/pull_request_template.md`.
+
+## Decision
+
+**Changes needed, for documentation only.** The code, the migration, the tests and the
+evidence are sound and I would approve them as they stand. Two sentences in
+`docs/security-deployment.md` are untrue as written (test-report m-1, documentation part,
+and m-4). A security deployment note that claims more than the test proves would be merged
+into the base as a false statement (P-8), and the fix is small and inside the developer's
+approved scope (plan 4.2 names that file). So the change goes back to the developer for
+one documentation commit, then to the tester for a short Round 2, then to gate 2 again.
+
+The test does **not** need to be widened before merge (decision on m-1 below). Nothing in
+this file asks for an owner decision.
+
+## What I verified myself
+
+| Check | Command / method | Result |
+|---|---|---|
+| Base, re-fetched 22 Nov 2026 | `git fetch origin`; `git rev-parse origin/rebuild/dotnet-platform`; `git log 1a2fe2e..origin/rebuild/dotnet-platform` | Base is still `1a2fe2e` (GAP-11c, #78). **It has not moved since the tester's round.** No new commit |
+| Base overlap and migrations | `git diff --name-only 0488d89 origin/rebuild/dotnet-platform` | Only `website/package.json`, `website/package-lock.json`, `website/scripts/check-output.ts`, `website/test/output.test.ts`, `docs/changes/GAP-11c/*`. **No ISO-3 path, no migration.** Newest base migration is still `20261020113912_AddApplicationCounts`, so `20261119155407_AddPublicFormsRole` still sorts last |
+| Open work | `gh pr list --state open`; every unmerged remote branch's diff filtered on ISO-3's paths | Only #60 (draft, `studio/e2e/redirects.spec.ts`). The unmerged remote branches that touch `ci.yml`, `Migrations/`, `security-deployment.md` or the public tests are old branches already squash-merged (as gate 1 found); none carries a migration newer than the base. No `change/ISO-3` or `change/ADM-12e` on the remote |
+| Scope | `git diff --stat origin/rebuild/dotnet-platform...HEAD` | 13 files: the plan's section 4 files (migration + Designer, `PublicFormsPermissionTests.cs`, `FormsDatabase.cs`, `PublicApiFactory.cs`, `ci.yml`, `docs/security-deployment.md`, `api/README.md`, `ENGINEERING_STANDARDS.md`) and four ISO-3 records. Nothing else |
+| Diff against plan | read the non-generated diffs | Migration equals plan 7.1 verbatim. `ci.yml`: only job `api`, items (a)-(d) of plan 4.2, no `uses:`. `PublicApiFactory`: `PublicFormsTestConnectionString()` with no fallback, refuses Windows auth and any login but `dh_public_forms`; line 19 uses it. `FormsDatabase`: `DeleteContactAsync` (parameterised) and the comment. S-8 "Enforced by" only. README line 5 only |
+| Red test first (B-6) | `git log --format=... 0488d89..HEAD` | `d174aee` (test) precedes `8e162f8` (migration) and `65cc420` (switch). Red run at `d174aee`, 29 fail / 2 pass, is recorded by the developer and reproduced independently by the tester |
+| Commit subjects and trailers (B-4) | same | All seven: `ISO-3:` prefix, imperative, `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Six have a body saying why; `83c0958 ISO-3: Plan` has no body (records-only commit; accepted, the squash-merge commit takes the PR description) |
+| L0 before each run | `Get-CimInstance Win32_Process` (testhost/vstest) and `sys.dm_exec_sessions` on `DigitalHubContent_Test` | `0` and `0` before each run |
+| Build | `dotnet build tests/DigitalHub.PublicApi.Tests/DigitalHub.PublicApi.Tests.csproj -c Release` (`api/`) | exit 0, `0 Warning(s)`, `0 Error(s)` |
+| Fastest covering suite | `dotnet test api/tests/DigitalHub.PublicApi.Tests/DigitalHub.PublicApi.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~PublicFormsPermissionTests"` | exit 0, `Passed!  - Failed: 0, Passed: 31, Skipped: 0, Total: 31` |
+| Full public suite | same project, no filter | exit 0, `Passed!  - Failed: 0, Passed: 102, Skipped: 0, Total: 102, Duration: 2 m 21 s` |
+| Admin suite | NOT RUN by me | Run by the developer and the tester (596 of 596; tester diffed the sorted names against base CI run 44554202307: identical). Covered again by CI `api` on the PR head |
+| Tester's evidence | read `test-report.md` Round 1 | Real commands, exit codes and output lines throughout; scripts hashed against the H-1 hashes (`3dca1411…`, `efa55d9f…`); every NOT RUN names its reason and the CI job that covers it |
+| Coverage table | `implementation.md` section 11 and `test-report.md` rows | Every row has evidence. The one Partial row (CI migration checks and `studio`) is open item O-1 below |
+| Owner words | `implementation.md` sections 4-6 | Quoted verbatim with date and place: "Seen, apply it" (H-1), "you run it" (L6/L7), "Yes, reset it" (password reset), "Yes, run them" (C-W, C-N). Also, as relayed to me: "ADM-12e waits" |
+
+## Decisions on the tester's Minors
+
+**m-1 (test cannot see IMPERSONATE, non-sysadmin server roles, other schemas, column-level
+grants; the deployment note overstates).**
+
+- **A documentation correction is enough for this merge; the test is not widened now.**
+  Reasons:
+  - The owner's "Done when" is met: the test, like `AuditLogPermissionTests`, proves the
+    login cannot read users, roles, sessions or audit, or change content, on the catalog as
+    it is, red then green, with controls C-W and C-N failing as planned. The tester verified
+    read-only that none of the unseen grant classes exists today.
+  - m-1 is about catching a *future* mistaken grant of a kind an administrator would have to
+    make by hand. `AuditLogPermissionTests`, the owner's model, does not check those classes
+    either.
+  - Widening the assertions goes beyond plan 5.1. It would need the architect (P-6/P-8
+    loop), not a quiet developer change. I do not ask for that before merge.
+- **But the false sentence must be fixed before push (condition D-1).**
+- **Follow-up F-ISO3-2** (named below) carries the widening. It is not an exception to any
+  rule, so no D-NNN entry is created by me; if the owner prefers to record one, only the
+  owner can (P-7).
+
+**m-2 (Down's member-removal loop never exercised).** Accepted for this merge. The code is
+correct by reading (tester, section 4), CI runs Down/Up on empty scratch catalogs, and the
+path matters only for a Phase D rollback. Follow-up **F-ISO3-3**.
+
+**m-3 (default `public`/`guest` surface: `VIEW ANY DATABASE`, guest in master/msdb/tempdb,
+`msdb` backup history, `xp_dirtree`/`xp_fileexist`/`xp_instance_regread`/`xp_msver`).**
+Accepted as not ISO-3's: SQL Server defaults, not added by this change. Follow-up
+**F-ISO3-4**, destination Phase D.
+
+**m-4 (doc says CI "runs the same lines", but CI uses `CHECK_POLICY = OFF`).** In scope for
+the developer; condition D-1.
+
+**Observations for the owner (table-wide INSERT on `contact_requests`, UPDATE on
+`application_counts`).** Recorded with F-ISO3-1 for the owner; they follow from the owner's
+grants as worded, and no agent narrows them.
+
+## Conditions for the developer (round 2)
+
+- **D-1.** One commit, `ISO-3: Say what the public forms permission test does and does not
+  catch` (or similar, `ISO-3:` prefix, body says why, attribution trailer), changing only
+  `docs/security-deployment.md`, section "Database: the public forms login":
+  - the bullet "fails on a catalog where the login holds more or less than the four grants,
+    or is in any other role" says exactly what is checked: object-level grants on every
+    `dbo` object, schema `dbo` and database-level permissions compared with a fresh user,
+    fixed database roles and the catalog's role list, and `sysadmin`; and says what it does
+    not check: IMPERSONATE grants, server roles other than `sysadmin`, server permissions,
+    other schemas, column-level grants (follow-up F-ISO3-2);
+  - the CI bullet says CI runs the same statements with a workflow-only password and
+    `CHECK_POLICY = OFF`.
+- **D-2.** No other file changes, except a short round-2 note in `implementation.md` (may be
+  the same commit or a records commit). No code, test, migration or workflow change.
+- **D-3.** Commit the tester's `test-report.md` (Round 1) unchanged, in a records commit.
+- **Then the tester, Round 2:** confirm by `git diff 6ffff50..<new head> --stat` that only
+  those files changed, that both sentences are now true against `PublicFormsPermissionTests.cs`
+  and `ci.yml`, and that `PublicFormsPermissionTests` still passes (31) on the new head.
+  End with a verdict line.
+- **Then gate 2, Round 2.** If only D-1 to D-3 changed, I expect to approve on that evidence.
+
+## Push conditions (after gate 2 approves, and only when the owner confirms the push)
+
+1. The head pushed is the one gate 2 approved, with `test-report.md` and
+   `delivery-approval.md` committed (records commit, B-4 subject and trailer).
+2. Re-fetch `origin/rebuild/dotnet-platform` just before the push. If it moved: if it adds a
+   migration, or touches any ISO-3 path (section "Scope" above), stop and report; the
+   migration timestamp order, L4 and the admin-names baseline must be re-checked, which is
+   a new round. If it moved without overlap, merge or rebase per the pipeline's usual
+   practice and record the new base in the PR.
+3. `git grep -n CiOnlyForms2026Passw0rd` shows only `ci.yml` and the plan records; no
+   `secrets.json` or user-secrets value in the tree.
+4. No force-push to `rebuild/dotnet-platform`; push `change/ISO-3` only.
+
+## Merge conditions (on the PR-head CI; the owner squash-merges)
+
+All on the final PR head, run IDs quoted in the PR:
+
+1. `api`, "Public API integration tests (Release)": `public-api-tests.trx` `total="102"`,
+   `failed="0"`, including the 31 `PublicFormsPermissionTests`, **run as `dh_public_forms`**
+   (the new membership step "Add the public forms login to its role, and nothing else"
+   exits 0, and T-1 passes, which asserts `SUSER_SNAME()` is `dh_public_forms`).
+2. `api`, "Integration tests (Release)": `failed="0"`, and the sorted admin test names equal
+   the base CI run's `api-test-report` names (596 on `0488d89`/`1a2fe2e`; if the base moved,
+   that base's run).
+3. `studio` end-to-end: 34 of 34 passed (the job applies every migration, this one included,
+   to its throwaway `DigitalHubContent_E2e`).
+4. Warnings: no new build warnings against the base (the public test project builds with 0).
+5. `api`, "Migration checks" (blocking since 2026-11-18): green, including the idempotent
+   script twice, from N-1 and from the base, and step 5 down to N-1 (this migration's
+   `Down`) and up again.
+6. Security: `gitleaks-pr` (and `gitleaks-history`) pass; Semgrep 0 new.
+7. Workflow lint: `actionlint` passes on `ci.yml`.
+8. `website`, CodeQL and the remaining required checks green.
+9. Merge slot 2 (G2/G3): not on the same day as another slot-2 merge.
+
+**Merge note.** `DigitalHubContent_Test` is held at the ISO-3 migration until ISO-3 merges
+(owner, 19 Nov 2026: "ADM-12e waits"). After the owner merges ISO-3, **the ADM-12 session
+must be told**, so ADM-12e can merge the new base (which now carries
+`20261119155407_AddPublicFormsRole`) and re-run its suites. Until then ADM-12e does not use
+`DigitalHubContent_Test`.
+
+## Open items
+
+- **O-1.** CI on the final PR head (merge conditions 1-8): not yet run; nothing pushed.
+- **O-2.** Conditions D-1 to D-3 and tester Round 2.
+- **O-3.** End-to-end not run locally (harness fails at "Release migrations", plan 2.8);
+  CI `studio` covers it.
+- **O-4.** gitleaks and actionlint not run locally (not installed); CI covers them.
+
+## Follow-ups (not in ISO-3; each for the owner to schedule or decline)
+
+| Id | What | Source | Suggested destination |
+|---|---|---|---|
+| F-ISO3-1 | Column-level grants: SELECT `vacancies (id, title, status)` and `site_settings (id, email, careers_email)`; and, per the tester's observations, column-level INSERT on `contact_requests` and UPDATE on `application_counts (count)` | Plan R-6; test-report observations | Owner decision; a new change if scheduled |
+| F-ISO3-2 | Widen `PublicFormsPermissionTests`: exact elevated assertion of `sys.database_permissions` (CONNECT plus the six, `minor_id = 0`), `sys.server_permissions` (CONNECT SQL only), no `sys.server_role_members`, no IMPERSONATE; then revert the D-1 "does not check" list | test-report m-1 | New change through `/change` (architect), before Phase D |
+| F-ISO3-3 | Exercise `Down` with a real member: add a member before migration-checks step 5, or a recorded Phase D rehearsal | test-report m-2 | Migration-checks change, or Phase D |
+| F-ISO3-4 | Production instance hardening: revoke `public` EXECUTE on `xp_dirtree`, `xp_fileexist`, `xp_instance_regread`, `xp_msver`; decide `VIEW ANY DATABASE`; review guest in `msdb` | test-report m-3 | Phase D, `docs/security-deployment.md` |
+| — | ISO-5: `dh_public_forms` user and membership in `DigitalHubContent_E2e`; ISO-4: remove the admin copies on `dh_content_app` | `implementation.md` section 10 | ISO-5, ISO-4 (ISO-4 after ISO-5) |
+
+## Draft pull request description
+
+> Title: `ISO-3: Give the public forms API its own dh_public_forms login, limited to four tables`
+
+```markdown
+## What and why
+
+ISO-3 of Track G2 (ADR 0001, point 3; closes part of GAP-38). The public forms API gets
+its own SQL login, `dh_public_forms`, whose only permissions are the owner's four grants:
+INSERT on `contact_requests`; SELECT, INSERT, UPDATE on `application_counts`; SELECT on
+`vacancies` and `site_settings`. A flaw in the public forms code can then no longer read
+users, roles, sessions, audit or the contact inbox, or change content.
+
+- Migration `20261119155407_AddPublicFormsRole` creates `dh_public_forms_role` with exactly
+  those grants. The login, its user and its membership are an elevated environment step,
+  because the password is a secret (`docs/security-deployment.md`).
+- The public API's test suite now runs as `dh_public_forms`; its fixtures keep `dh_content_app`.
+- `PublicFormsPermissionTests` (31 cases) proves what the login cannot do.
+
+## Scope and boundaries
+
+In scope: the migration and its Designer; `PublicFormsPermissionTests.cs`;
+`PublicApiFactory.cs` (`PublicFormsTestConnectionString`, no fallback); `FormsDatabase.cs`
+(`DeleteContactAsync`); `ci.yml` job `api` (second login, membership step);
+`docs/security-deployment.md`, `api/README.md`, S-8 "Enforced by"; `docs/changes/ISO-3/*`.
+
+Out of scope: the admin API's copies of the two routes, still on `dh_content_app` (ISO-4);
+the website form tests against the public API and the `_E2e` membership (ISO-5); the
+production login and secret store (Phase D). No change to `api/src/**` beyond the two
+migration files, to the admin tests, `studio/`, `website/`, `packages/`, `api/tools/` or
+`.github/security/`. The model snapshot is unchanged.
+
+## Security impact
+
+- Data: the public forms process is limited to six operations on four tables (in tests and
+  CI now; in service at Phase D).
+- Logins: new SQL login `dh_public_forms` (user only in `DigitalHubContent_Test`, locally
+  and in CI); new role `dh_public_forms_role`, inert where it has no member.
+  `DigitalHubContent` has neither.
+- Secrets: local password random, never printed, only in user-secrets. CI value
+  `CiOnlyForms2026Passw0rd` is workflow-only, for a discarded container.
+- Routes, policies, dependencies: none changed. Workflows: `ci.yml` job `api` only, no new action.
+
+## Tests and evidence
+
+- Red first: `d174aee`, `PublicFormsPermissionTests` on `dh_content_app`: exit 1,
+  `Failed: 29, Passed: 2, Total: 31`, each for the planned reason (developer and tester).
+- Green, local Release, head `<final head>`:
+  - `dotnet test ...PublicApi.Tests -c Release --filter PublicFormsPermissionTests`: 31 of 31, exit 0
+  - full public suite: `Passed: 102, Total: 102`, exit 0
+  - admin suite: `Passed: 596, Total: 596`, exit 0; sorted names identical to base CI run 44554202307
+- Controls (owner: "Yes, run them"): C-W (`db_datareader` added) 14 failed as planned;
+  C-N (contact INSERT revoked) T-5, T-7 and 5 `PublicContactTests` failed as planned; both undone, 31 of 31 after.
+- Migration: idempotent Up/Down scripts equal the ones shown at H-1 (sha256 `3dca1411…`,
+  `efa55d9f…`); `has-pending-model-changes`: no changes; Designer target model equals the snapshot.
+- Semgrep 1.180.0: `1 known, 0 new` (after `dd9a1f3`, which made every `CommandText` literal).
+- npm and dotnet audit gate scripts: 0 at the gate's level.
+- NOT RUN locally: end-to-end (harness fails at "Release migrations"; CI `studio`),
+  gitleaks (CI `gitleaks-pr`), actionlint (CI Workflow lint), Down/Up on a database (CI "Migration checks").
+- CI on the PR head: CI run `<id>`, Security run `<id>`, Workflow lint run `<id>`, CodeQL run `<id>`:
+  public 102 / admin names equal base / studio 34 / Migration checks incl. Down/Up / gitleaks / actionlint.
+
+## Owner decisions
+
+All 19 November 2026, in the Claude Code session:
+- Request: "ISO-3 dh_public_forms login: INSERT on contact_requests; SELECT, INSERT, UPDATE
+  on application_counts; SELECT on vacancies and site_settings. Refinement plan Track G2,
+  ISO-3, closes part of GAP-38; ADR 0001 (accepted 19 November 2026, owner's words:
+  "accepted"). Migration shown first. Done when a permission test, like
+  AuditLogPermissionTests, proves it cannot read users, roles, sessions or audit, or change content."
+- Go-ahead, replying to "Should I start ISO-3 through /change?": "Yes, start ISO-3"
+- H-1, after seeing the committed migration and the generated Up/Down scripts: "Seen, apply it"
+- On who runs the two database steps: "you run it"
+- On resetting the login password: "Yes, reset it"
+- On the two controls: "Yes, run them"
+- On ADM-12e and `DigitalHubContent_Test`: "ADM-12e waits"
+
+## Definition of Done
+
+- [x] Requirement and acceptance criteria are stated and met (in service only at Phase D, and only fully after ISO-4)
+- [x] Code follows the engineering standards
+- [x] No new prohibited constructs in touched code
+- [x] Every new or changed route has a guard and, when it carries a record id, a record scope (no route changed)
+- [x] Tests exist for the behaviour changed; every security fix has a regression test (red at `d174aee`)
+- [ ] PR checks are green on the final head (run IDs quoted) — open until CI finishes
+- [x] Independent code review was run and its findings are fixed or explicitly accepted below
+- [x] Reviewed by someone other than the author (plan-reviewer, tester, tech lead; AI governance followed)
+- [x] Rollback is understood: revert this PR; schema: `database update 20261020113912_AddApplicationCounts` removes members and drops the role; the orphan user is harmless; re-`Up` needs the membership line again
+- [x] Deployment note: nothing deploys until Phase D; the owner squash-merges into rebuild/dotnet-platform and CI, Security and Workflow lint re-run there
+
+## Review findings accepted
+
+- Test-report m-1 (test cannot see IMPERSONATE, server roles beyond sysadmin, other schemas,
+  column grants): the deployment note now says so; widening is follow-up F-ISO3-2.
+- m-2 (Down's member removal not exercised): follow-up F-ISO3-3.
+- m-3 (SQL Server default public/guest surface): Phase D hardening, F-ISO3-4.
+- m-4: fixed in the deployment note.
+- Plan-review m-6 (H-1 wording): followed the stricter 5.3 text.
+- Table-wide SELECT/INSERT/UPDATE as the owner worded them: F-ISO3-1, for the owner.
+
+## Governance
+
+- [x] Coverage table updated (`docs/changes/ISO-3/implementation.md` section 11)
+- [x] `docs/deferred-items.md`: no exception taken, nothing to add
+- [x] Documentation updated (`docs/security-deployment.md`, `api/README.md`, S-8)
+
+After merge: tell the ADM-12 session, so ADM-12e can merge this base and re-run.
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+```
+
+Round 1 outcome (note, not a verdict line): CHANGES NEEDED, for D-1 to D-3. Superseded by
+Round 2 below.
+
+## Round 2
+
+- Date: 22 November 2026.
+- Head reviewed: `550868878f40da8a6a16444020c078ef699acfdc`, which adds two commits on `6ffff50`:
+  - `14c6221 ISO-3: Say what the public forms permission test does and does not catch`,
+    which changes `docs/security-deployment.md` only;
+  - `5508688 ISO-3: Record test round 1, gate 2 return 1 and the developer's answer`, the
+    records commit, with this file's Round 1 committed unchanged.
+- Tester: `test-report.md` Round 2 (uncommitted) ends `Verdict: APPROVED`, with one new Minor,
+  m-5.
+
+### What I verified myself
+
+| Check | Command / method | Result |
+|---|---|---|
+| Files changed since Round 1 | `git diff --stat 6ffff50..HEAD` | Only `docs/security-deployment.md` (+26 −5), `implementation.md` (+17), and the committed `test-report.md` and `delivery-approval.md`. No code, test, migration or workflow change, so my Round 1 runs still cover the head: 31 of 31 and 102 of 102, both exit 0 |
+| Commits (B-4) | `git log 6ffff50..HEAD` | Both have the `ISO-3:` prefix, an imperative subject, a body that says why, and the attribution trailer |
+| The doc diff | `git diff 6ffff50..HEAD -- docs/security-deployment.md`, read against `PublicFormsPermissionTests.cs` | The "checks" list is true. It covers T-5 (a) on every user object in every schema (`sys.objects`, `is_ms_shipped = 0`, `parent_object_id = 0`, line 456), T-5 (b), T-1, the T-4 sweep and T-6. The CI bullet is now true: the CI `CREATE LOGIN` uses `CHECK_POLICY = OFF`. Round 1 m-4 is resolved |
+| Base, re-fetched just before writing | `git fetch origin`; `git rev-parse origin/rebuild/dotnet-platform`; `git log 1a2fe2e..origin/rebuild/dotnet-platform` | Still `1a2fe2e`, so the base has not moved. No new commit, no overlap with ISO-3's files and no new migration. The merge base is still `0488d89`, and the only commit between the two is GAP-11c (website files only) |
+
+### Decision on m-5 (P-8)
+
+**The wording needs one more fix. This is the last return allowed.**
+
+The doc says **"What it does not check. A mistaken grant of any of these kinds would leave
+the test green, so an administrator must not make one:"** and then names five classes. An
+administrator reads that as the full list, and so as a promise that any other mistaken
+grant turns the test red. That promise is false. For example, `GRANT CONTROL ON
+USER::dh_content_app TO dh_public_forms` gives the same reach as IMPERSONATE, is not in the
+list, and leaves all 31 tests green (T-5 does not measure the `DATABASE_PRINCIPAL` scope).
+Under P-8 a security deployment note must not claim more than the test proves. The same
+holds, in a smaller way, for the bullet titled **"No schema changes"**: T-6 probes ALTER
+TABLE on `vacancies` only and TRUNCATE on `contact_requests` only.
+
+The tester is right that a complete list belongs to F-ISO3-2. So I do not ask for every
+class to be listed. I ask only that the note stop implying it is complete. That is a
+wording change of a few lines, inside `docs/security-deployment.md`, in scope.
+
+### Conditions for the developer (round 3, the last)
+
+- **D-4.** One commit (`ISO-3:` prefix, a body saying why, the attribution trailer) that
+  changes only the section "Database: the public forms login" of
+  `docs/security-deployment.md`:
+  - **(a)** Replace the lead-in of "What it does not check" so it says the test proves only
+    the checks listed above, and that the list below gives **examples, not a complete
+    list**, of mistaken grants that would leave it green. Keep "an administrator must not
+    make one", applied to any grant beyond the six.
+  - **(b)** Add m-5's examples to that list:
+    - ALTER, CONTROL or TAKE OWNERSHIP on a user or a role (CONTROL on a user carries
+      impersonation);
+    - grants on non-object securables: types, XML schema collections, assemblies,
+      certificates and keys.
+  - **(c)** Make the "No schema changes" bullet say what is probed: CREATE TABLE is refused,
+    and ALTER TABLE and TRUNCATE are refused on one table each (`vacancies`,
+    `contact_requests`).
+  - **(d)** Keep the pointer to F-ISO3-2. Say there that F-ISO3-2's exact assertion would
+    replace the examples.
+- **D-5.** `implementation.md` gets a short round-3 note. Commit the tester's Round 2
+  `test-report.md` and this file unchanged, in a records commit. Nothing else changes.
+- **Tester, Round 3:**
+  - `git diff <550868878f40…>..<new head> --stat` shows only those files;
+  - the three wording points (a) to (c) are present and true against the test;
+  - `PublicFormsPermissionTests` gives 31 of 31 on the new head.
+- **Gate 2, Round 3:** if only D-4 and D-5 changed, I approve on that evidence. If this
+  delivery is rejected again, the pipeline stops and goes to the owner (README, Loops).
+
+### Changes to the follow-ups and the PR draft
+
+- **F-ISO3-2** now also covers m-5:
+  - ALTER, CONTROL and TAKE OWNERSHIP on database principals;
+  - non-object securables (types, XML schema collections, assemblies, certificates, keys);
+  - ALTER and TRUNCATE probed on every table.
+
+  The intended form is still one exact, elevated assertion over `sys.database_permissions`
+  (every class), `sys.server_permissions` and `sys.server_role_members`.
+- **F-ISO3-1, F-ISO3-3 and F-ISO3-4** are unchanged.
+- **Merge note unchanged:** after the owner merges ISO-3, tell the ADM-12 session, so
+  ADM-12e can merge the new base and re-run ("ADM-12e waits").
+- **Push and merge conditions** are unchanged from Round 1, on the round-3 head.
+- **PR draft (Round 1 text above) changes:**
+  - "Tests and evidence": `<final head>` is the round-3 head.
+  - "Review findings accepted" adds: "m-5 (the doc's 'does not check' list was incomplete):
+    the note now gives examples, says the list is not complete, and says what the schema
+    probes cover; the complete check is F-ISO3-2."
+  - The m-1 line there reads: "the deployment note now says what the test checks and gives
+    examples of what it does not; widening is F-ISO3-2."
+  - Everything else stands. The "PR checks are green on the final head" box stays unticked
+    until CI finishes on the round-3 head.
+
+### Open items
+
+- O-1: CI on the final PR head (merge conditions), not yet run; nothing is pushed.
+- O-2: D-4 and D-5, tester Round 3, gate 2 Round 3.
+- O-3 and O-4 as in Round 1: local end-to-end, gitleaks and actionlint are NOT RUN locally;
+  CI covers them.
+
+Round 2 outcome (note, not a verdict line): CHANGES NEEDED, for D-4 and D-5. Superseded by
+Round 3 below.
+
+## Round 3 (final)
+
+- Date: 22 November 2026.
+- Head reviewed: `0ead226ec7702989813aa55caeb90d7ae179b707`, which adds two commits on
+  `5508688`:
+  - `764578a ISO-3: Say the permission test's blind spots are examples, not a full list`,
+    which changes `docs/security-deployment.md` only;
+  - `0ead226 ISO-3: Record test round 2, gate 2 return 2 and the developer's answer`, the
+    records commit.
+- Tester: `test-report.md` Round 3 (uncommitted) ends `Verdict: APPROVED`, with one new Minor,
+  m-6. The tester's checks:
+  - scope by `git diff --stat 5508688..0ead226` (only the four files);
+  - `git diff --quiet 5508688 HEAD -- api .github studio website packages`, exit 0;
+  - each sentence of the note checked against the test;
+  - `PublicFormsPermissionTests`, `Passed: 31, Total: 31`, exit 0.
+
+### What I verified myself
+
+| Check | Command / method | Result |
+|---|---|---|
+| Files changed since Round 2 | `git diff --stat 5508688..HEAD` | `docs/security-deployment.md` (+16 −8), `implementation.md` (+25), and the committed `test-report.md` (Round 2) and `delivery-approval.md` (Round 2). No code, test, migration or workflow change, so my Round 1 runs (31 of 31 and 102 of 102, exit 0) still cover the code at this head |
+| D-4 (a) | the doc diff | "The test proves only the checks above ... These are examples, not a complete list". Met |
+| D-4 (b) | same | ALTER, CONTROL or TAKE OWNERSHIP on a user or a role (with the CONTROL-on-`dh_content_app` example), and the non-object securables, are added. Met |
+| D-4 (c) | same, against T-6 (`PublicFormsPermissionTests.cs:245-253`, `:417-419`) | "CREATE TABLE is refused with error 262. ALTER TABLE is refused on one table, `vacancies`, and TRUNCATE on one table, `contact_requests`." True. Met |
+| D-4 (d) | same | "Follow-up F-ISO3-2 widens the test. Its exact assertion ... would replace these examples." Met |
+| Other reworded lines | same | "Objects that have a parent object ... are not measured" matches `parent_object_id = 0` (line 456). "The same as those of a fresh user created without a login" matches T-5 (b), an equality check. Both true |
+| D-5 and B-4 | `git log 5508688..HEAD` | The records commit carries the Round 2 files and the round-3 note. Both commits have the `ISO-3:` prefix, an imperative subject, a body that says why, and the attribution trailer |
+| Base, re-fetched just before writing | `git fetch origin`; `git rev-parse origin/rebuild/dotnet-platform`; `git log 1a2fe2e..origin/rebuild/dotnet-platform` | Still `1a2fe2e`, so the base has not moved. No new commit, no overlap with ISO-3's files and no new migration. The merge base is still `0488d89`, and the only commit between the two is GAP-11c (website files only) |
+
+### Decision on m-6 (P-8)
+
+**Approved, with m-6 as a named follow-up, F-ISO3-5.**
+
+- **The defect.** `docs/security-deployment.md:86-89` says that after `Down` the user
+  `dh_public_forms` "stays, with no permissions, which is harmless".
+  - That is not exact. The user keeps the database-level `CONNECT` that `CREATE USER`
+    grants. It can connect, and it can read or write nothing.
+  - Plan section 8 says this correctly: "it can connect but reads and writes nothing".
+  - The sentence has been in the diff since `ba948b1`. I did not catch it in Round 1 or 2.
+- **Why it does not stop ISO-3:**
+  - The error does not lead an administrator to an unsafe action. The conclusion,
+    "harmless", is true. The action it asks for, the `ADD MEMBER` line, is correct.
+  - It is in a rollback note for a case that arises only after a `Down`, and in production
+    only from Phase D.
+  - It makes no claim about what the permission test proves. That was the claim that made
+    m-1 and m-5 blocking, because an administrator could rely on it.
+  - It is disclosed in the PR description, under "Review findings accepted", so the merged
+    record states it openly.
+  - Stopping the change for the owner over one word in a rollback note costs more than it
+    protects.
+- **The fix,** as F-ISO3-5: change "with no permissions" to "with only its database-level
+  CONNECT: it can connect but reads and writes nothing". It may go in any later change that
+  touches `docs/security-deployment.md`, for example F-ISO3-2 or F-ISO3-4.
+- **No owner exception is needed.** No rule is waived. Gate 2 may accept a reviewer's Minor,
+  and this is not an owner decision (P-7).
+
+### Follow-ups, final list
+
+| Id | What | Source | Suggested destination |
+|---|---|---|---|
+| F-ISO3-1 | Column-level grants: SELECT on `vacancies (id, title, status)` and `site_settings (id, email, careers_email)`, column-level INSERT on `contact_requests`, UPDATE on `application_counts (count)` | Plan R-6; test-report observations | Owner decision |
+| F-ISO3-2 | Widen `PublicFormsPermissionTests` to one exact elevated assertion over `sys.database_permissions` (every class, including database principals and non-object securables), `sys.server_permissions` and `sys.server_role_members`, with ALTER and TRUNCATE on every table. Then replace the doc's examples | m-1, m-5 | New `/change`, before Phase D |
+| F-ISO3-3 | Exercise `Down` with a real member | m-2 | Migration-checks change, or a Phase D rehearsal |
+| F-ISO3-4 | Production instance hardening: `public` EXECUTE on `xp_dirtree`, `xp_fileexist`, `xp_instance_regread` and `xp_msver`; `VIEW ANY DATABASE`; guest in `msdb` | m-3 | Phase D |
+| F-ISO3-5 | The rollback bullet: "with no permissions" becomes "with only its database-level CONNECT" | m-6 | Next change touching `docs/security-deployment.md` |
+| — | The `_E2e` membership for the website tests (ISO-5); removing the admin API's copies of the two routes (ISO-4, after ISO-5) | `implementation.md` section 10 | ISO-5, ISO-4 |
+
+### Push and merge conditions
+
+- **Unchanged from Round 1,** applied to the head that is pushed. That head is `0ead226`
+  plus one records commit, which adds the tester's Round 3 `test-report.md` and this file
+  unchanged. Nothing else may change.
+- **Re-fetch the base just before the push.** If it adds a migration or touches an ISO-3
+  path, stop and report.
+- **Merge** needs green PR-head CI, with run IDs quoted:
+  - the public suite, 102 tests, including the 31 permission tests run as `dh_public_forms`;
+  - the admin test names equal to the base CI run's;
+  - `studio`, 34 end-to-end tests;
+  - no new warnings;
+  - Migration checks, including Down/Up;
+  - gitleaks and actionlint;
+  - the remaining required checks;
+  - merge slot 2.
+- **Merge note:** after the owner merges, tell the ADM-12 session, so ADM-12e can merge the
+  new base (which carries `20261119155407_AddPublicFormsRole`) and re-run. Until then
+  ADM-12e stays off `DigitalHubContent_Test` (owner: "ADM-12e waits").
+
+### Open items
+
+- **O-1.** CI on the final PR head. Not run yet; nothing is pushed.
+- **O-3.** Local end-to-end is NOT RUN; the CI `studio` job covers it.
+- **O-4.** gitleaks and actionlint are NOT RUN locally; the CI Security workflow and Workflow
+  lint cover them.
+- **The records commit.** The final records commit (D-5 pattern) is still to be made.
+
+### Final drafted pull request description
+
+> Title: `ISO-3: Give the public forms API its own dh_public_forms login, limited to four tables`
+
+```markdown
+## What and why
+
+ISO-3 of Track G2 (ADR 0001, point 3; closes part of GAP-38). The public forms API gets
+its own SQL login, `dh_public_forms`, whose only permissions are the owner's four grants:
+INSERT on `contact_requests`; SELECT, INSERT, UPDATE on `application_counts`; SELECT on
+`vacancies` and `site_settings`. A flaw in the public forms code can then no longer read
+users, roles, sessions, audit or the contact inbox, or change content.
+
+- Migration `20261119155407_AddPublicFormsRole` creates `dh_public_forms_role` with exactly
+  those grants. The login, its user and its membership are an elevated environment step,
+  because the password is a secret (`docs/security-deployment.md`).
+- The public API's test suite now runs as `dh_public_forms`; its fixtures keep `dh_content_app`.
+- `PublicFormsPermissionTests` (31 cases) proves what the login cannot do. The deployment
+  note states what the test proves and gives examples of what it does not.
+
+## Scope and boundaries
+
+In scope:
+- the migration and its Designer;
+- `PublicFormsPermissionTests.cs`;
+- `PublicApiFactory.cs` (`PublicFormsTestConnectionString`, no fallback);
+- `FormsDatabase.cs` (`DeleteContactAsync`);
+- `ci.yml`, job `api` (the second login and the membership step);
+- `docs/security-deployment.md`, `api/README.md`, and S-8's "Enforced by";
+- `docs/changes/ISO-3/*`.
+
+Out of scope:
+- the admin API's copies of the two routes, still on `dh_content_app` (ISO-4);
+- the website form tests against the public API, and the `_E2e` membership (ISO-5);
+- the production login and its secret store (Phase D).
+
+No other `api/src/**` file changes; nor do the admin tests, `studio/`, `website/`,
+`packages/`, `api/tools/` or `.github/security/`. The model snapshot is unchanged.
+
+## Security impact
+
+- **Data:** the public forms process is limited to six operations on four tables. That holds
+  in tests and CI now, and in service from Phase D.
+- **Logins:**
+  - a new SQL login, `dh_public_forms`, with a user only in `DigitalHubContent_Test`
+    (locally and in CI);
+  - a new role, `dh_public_forms_role`, inert where it has no member;
+  - `DigitalHubContent` has neither.
+- **Secrets:**
+  - the local password is random, never printed, and kept only in user-secrets;
+  - the CI value `CiOnlyForms2026Passw0rd` is workflow-only, for a discarded container.
+- **Routes, policies, dependencies:** none changed.
+- **Workflows:** `ci.yml` job `api` only, with no new action.
+
+## Tests and evidence
+
+- **Red first:** at `d174aee`, `PublicFormsPermissionTests` on `dh_content_app`: exit 1,
+  `Failed: 29, Passed: 2, Total: 31`, each for the planned reason (developer and tester).
+- **Green, local Release.** The code is unchanged since `6ffff50`; the later commits are docs
+  and records only.
+  - `dotnet test ...PublicApi.Tests -c Release --filter PublicFormsPermissionTests`: 31 of 31,
+    exit 0. Re-run on `550868878f40` and on `0ead226` by the tester.
+  - The full public suite: `Passed: 102, Total: 102`, exit 0.
+  - The admin suite: `Passed: 596, Total: 596`, exit 0. The sorted names are identical to
+    base CI run 44554202307.
+- **Controls** (owner: "Yes, run them"), both undone, 31 of 31 afterwards:
+  - C-W (`db_datareader` added): 14 failed, as planned.
+  - C-N (the contact INSERT revoked): T-5, T-7 and 5 `PublicContactTests` failed, as planned.
+- **Migration:**
+  - the idempotent Up and Down scripts equal the ones shown at H-1 (sha256 `3dca1411…` and
+    `efa55d9f…`);
+  - `has-pending-model-changes` reports no changes;
+  - the Designer's target model equals the snapshot.
+- **Semgrep 1.180.0:** `1 known, 0 new`, after `dd9a1f3` made every `CommandText` a literal.
+- **npm and dotnet audit gate scripts:** 0 at the gate's level.
+- **NOT RUN locally:**
+  - end-to-end (the harness fails at "Release migrations"); covered by CI `studio`;
+  - gitleaks; covered by CI `gitleaks-pr`;
+  - actionlint; covered by CI Workflow lint;
+  - Down/Up on a database; covered by CI "Migration checks".
+- **CI on the PR head `<final head>`:** CI run `<id>`, Security run `<id>`, Workflow lint run
+  `<id>`, CodeQL run `<id>`. Results: public 102, admin names equal to the base, studio 34,
+  Migration checks including Down/Up, gitleaks, actionlint.
+
+## Owner decisions
+
+All on 19 November 2026, in the Claude Code session:
+
+- **Request:** "ISO-3 dh_public_forms login: INSERT on contact_requests; SELECT, INSERT, UPDATE
+  on application_counts; SELECT on vacancies and site_settings. Refinement plan Track G2,
+  ISO-3, closes part of GAP-38; ADR 0001 (accepted 19 November 2026, owner's words:
+  "accepted"). Migration shown first. Done when a permission test, like
+  AuditLogPermissionTests, proves it cannot read users, roles, sessions or audit, or change content."
+- **Go-ahead,** replying to "Should I start ISO-3 through /change?": "Yes, start ISO-3"
+- **H-1,** after seeing the committed migration and the generated Up/Down scripts: "Seen, apply it"
+- **On who runs the two database steps:** "you run it"
+- **On resetting the login password:** "Yes, reset it"
+- **On the two controls:** "Yes, run them"
+- **On ADM-12e and `DigitalHubContent_Test`:** "ADM-12e waits"
+
+## Definition of Done
+
+- [x] Requirement and acceptance criteria are stated and met (in service only at Phase D, and only fully after ISO-4)
+- [x] Code follows the engineering standards
+- [x] No new prohibited constructs in touched code
+- [x] Every new or changed route has a guard and, when it carries a record id, a record scope (no route changed)
+- [x] Tests exist for the behaviour changed; every security fix has a regression test (red at `d174aee`)
+- [ ] PR checks are green on the final head (run IDs quoted). Open until CI finishes
+- [x] Independent code review was run and its findings are fixed or explicitly accepted below
+- [x] Reviewed by someone other than the author (plan-reviewer, tester, tech lead; AI governance followed)
+- [x] Rollback is understood: revert this PR. For the schema, `database update 20261020113912_AddApplicationCounts` removes the members and drops the role. The orphaned user keeps only CONNECT, which is harmless. A later `Up` needs the membership line run again
+- [x] Deployment note: nothing deploys until Phase D. The owner squash-merges into rebuild/dotnet-platform, and CI, Security and Workflow lint re-run there
+
+## Review findings accepted
+
+- Test-report m-1 and m-5: the test cannot see IMPERSONATE, CONTROL, ALTER or TAKE OWNERSHIP
+  on principals, non-object securables, server roles beyond sysadmin, server permissions,
+  other schemas or column grants. The deployment note now says the test proves only what it
+  lists, and gives these as examples. Widening the test is follow-up F-ISO3-2.
+- m-2: Down's member removal is not exercised. Follow-up F-ISO3-3.
+- m-3: the SQL Server default public/guest surface. Phase D hardening, F-ISO3-4.
+- m-4: fixed in the deployment note (CI uses `CHECK_POLICY = OFF`).
+- m-6: the rollback bullet in `docs/security-deployment.md` says the orphaned user has "no
+  permissions"; it keeps database-level CONNECT (it can connect, and read or write nothing).
+  Not fixed here. Follow-up F-ISO3-5.
+- Plan-review m-6 (the H-1 wording): the developer followed the stricter text of 5.3.
+- Table-wide SELECT, INSERT and UPDATE, as the owner worded them: F-ISO3-1, for the owner.
+
+## Governance
+
+- [x] Coverage table updated (`docs/changes/ISO-3/implementation.md` section 11)
+- [x] `docs/deferred-items.md`: no exception taken, nothing to add
+- [x] Documentation updated (`docs/security-deployment.md`, `api/README.md`, S-8)
+
+After the merge, tell the ADM-12 session, so ADM-12e can merge this base and re-run.
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+```
+
+Verdict: APPROVED
