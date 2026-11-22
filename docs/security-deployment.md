@@ -50,27 +50,35 @@ ALTER ROLE [dh_public_forms_role] ADD MEMBER [dh_public_forms];
 - **Never** add this login to `db_datareader`, `db_datawriter` or any other role. Its
   only role is `dh_public_forms_role`.
 - **What `PublicFormsPermissionTests` checks**, as the login the public API runs on.
-  It fails when any of these is wrong:
-  - **Object grants.** The object-level permissions on every user object (any schema;
-    constraints and triggers excluded) are exactly the six above.
+  It proves these checks, and only these:
+  - **Object grants.** The object-level permissions on every user object, in any schema,
+    are exactly the six above. Objects that have a parent object, such as constraints and
+    triggers, are not measured.
   - **Schema and database permissions.** The permissions on schema `dbo` and on the
-    database are no more than a fresh user holds.
+    database are the same as those of a fresh user created without a login.
   - **Roles.** The login is not `sysadmin`. It is not in `db_owner`, `db_datareader`,
     `db_datawriter`, `db_ddladmin`, `db_securityadmin` or `db_accessadmin`. Its only
     database role is `dh_public_forms_role`.
   - **Every other table operation is refused.** SELECT, INSERT, UPDATE and DELETE on
     every `dbo` table, outside the six granted pairs, fail with error 229.
-  - **No schema changes.** CREATE TABLE, ALTER TABLE and TRUNCATE are refused.
-- **What it does not check.** A mistaken grant of any of these kinds would leave the test
-  green, so an administrator must not make one:
+  - **Schema changes probed.** CREATE TABLE is refused with error 262. ALTER TABLE is
+    refused on one table, `vacancies`, and TRUNCATE on one table, `contact_requests`.
+- **What it does not check.** The test proves only the checks above. An administrator must
+  not make any grant beyond the six, because many mistaken grants would leave the test
+  green. These are examples, not a complete list:
   - IMPERSONATE grants on a user or a login;
+  - ALTER, CONTROL or TAKE OWNERSHIP on a user or a role. CONTROL on a user reaches as
+    far as impersonating it, for example CONTROL on `dh_content_app`;
+  - grants on securables that are not objects: types, XML schema collections,
+    assemblies, certificates and keys;
   - server roles other than `sysadmin`;
   - server-level permissions;
   - permissions on schemas other than `dbo`;
   - column-level grants. The object check ignores them, and it is not verified whether
     the table-wide probes catch a column-only grant.
 
-  Widening the test to cover these is follow-up F-ISO3-2.
+  Follow-up F-ISO3-2 widens the test. Its exact assertion of the login's permissions would
+  replace these examples.
 - CI (`.github/workflows/ci.yml`, job `api`) runs the same statements, with two
   differences: a workflow-only password, and `CHECK_POLICY = OFF` on `CREATE LOGIN`,
   for its throwaway container. Locally the test login lives in `DigitalHubContent_Test`
