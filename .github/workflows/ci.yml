@@ -317,11 +317,9 @@ jobs:
     name: Section comparison against feature/interviewer-portal
     runs-on: ubuntu-24.04
     needs: website
-    # Non-blocking until Section 5 has merged. This branch's comparison is the
-    # website's current section tool. When Section 5 is on
-    # rebuild/dotnet-platform, remove continue-on-error from the compare step
-    # so a difference that is not in
-    # website/tools/section-compare/accepted-differences.json fails the workflow.
+    # Blocking (GAP-05). A section difference fails the workflow. Fix it, or add
+    # it to website/tools/section-compare/accepted-differences.json with the
+    # owner's decision quoted in the entry's reason.
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
@@ -351,7 +349,6 @@ jobs:
           npx playwright install --with-deps chromium
 
       - name: Compare sections
-        continue-on-error: true
         working-directory: website
         env:
           SECTION_COMPARE_OLD: ${{ github.workspace }}/old-site
@@ -383,8 +380,9 @@ jobs:
     runs-on: ubuntu-24.04
     needs: website
     # Optional and manual: runs only on a pull request labelled "screenshots".
-    # The comparison does not fail the workflow while the screenshot register waits
-    # for its first approved entries. The Chromium regression tests do fail the job.
+    # The comparison does not fail the workflow under D-001 in docs/deferred-items.md
+    # (GAP-05, O-21), which expires 2026-12-14; then it must block or be renewed.
+    # The Chromium regression tests do fail the job.
     # Chromium, Firefox, and WebKit; WebKit cannot run on the Windows development
     # machines (Application Control). See website/README.md.
     if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'screenshots')
