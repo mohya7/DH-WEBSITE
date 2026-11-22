@@ -19,6 +19,15 @@
 <p class="sub">Every <code>main &gt; section</code> on the built site against the same page on
 feature/interviewer-portal, plus each page's desktop/mobile header and footer. Only the old content runtime runs.</p>
 <div id="out">Running…</div>
+<!-- The careers apply form exactly as website/src/components/ApplyForm.tsx renders it on /careers/apply.html (no vacancy). Used only by the apply-form acceptance; test/parity-gates.test.ts checks its style against the component. -->
+<template id="apply-form-markup"><section class="careers-apply" id="apply" data-reveal=""><style>
+        .apply-form { display: flex; flex-direction: column; gap: 0.85rem; max-width: 36rem; }
+        .apply-form label { display: flex; flex-direction: column; gap: 0.3rem; }
+        .apply-form input, .apply-form textarea { font: inherit; color: inherit; padding: 0.65rem 0.8rem; border: 1px solid #d5dbe3; border-radius: 0.6rem; background: #fff; }
+        .apply-form input[type="file"] { padding: 0.45rem; }
+        .apply-consent { flex-direction: row; align-items: flex-start; gap: 0.5rem; }
+        .apply-honeypot { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+      </style><h2>Apply</h2><form class="apply-form" action="/api/v1/public/apply" encType="multipart/form-data" method="post"><label>Name<input required="" maxLength="200" autoComplete="name" name="name"/></label><label>Email<input type="email" required="" maxLength="200" autoComplete="email" name="email"/></label><label>Phone <span>(optional)</span><input maxLength="40" autoComplete="tel" name="phone"/></label><label>Message <span>(optional)</span><textarea name="message" maxLength="1000" rows="4"></textarea></label><label>CV <span>(PDF or Word, up to 5 MB)</span><input type="file" required="" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" name="cv"/></label><label class="apply-consent"><input type="checkbox" required="" name="consent" value="yes"/> I have read the <a href="/privacy-careers">privacy notice</a> and agree to this use.</label><label class="apply-honeypot" aria-hidden="true">Website<input tabindex="-1" autoComplete="off" name="website"/></label><button class="btn-pill" type="submit">Send application</button><p>If this form cannot be sent, email us at <a href="mailto:"></a>.</p></form></section></template>
 
 <script type="module">
 /*
@@ -190,29 +199,24 @@ function accepted(page, id, old, now, absentPage, chrome = false) {
       list.replaceChildren(paragraph);
       if (same(copy, now)) return rule;
     }
-    if (rule.kind === 'apply-by-email') {
-      const form = copy.querySelector('section.careers-apply');
+    if (rule.kind === 'apply-form') {
+      // O-11: the old form section inside the outer compared section becomes exactly the current form.
+      if (!copy.matches(rule.selector)) continue;
+      const inner = copy.querySelectorAll('section#apply.careers-apply.careers-apply--form');
+      if (inner.length !== 1) continue;
+      const block = document.getElementById('apply-form-markup').content.firstElementChild.cloneNode(true);
+      const form = block.querySelector('form');
+      // The template must be the form the entry names, or the rule does not apply.
+      if (form.getAttribute('action') !== rule.action || block.querySelector('h2')?.textContent !== rule.heading) continue;
+      if (JSON.stringify([...form.querySelectorAll('[name]')].map((el) => el.getAttribute('name'))) !== JSON.stringify(rule.fields)) continue;
       const email = String(settings.careersEmail || settings.email || '').trim();
-      if (!form || !email || (rule.selector && !copy.matches(rule.selector))) continue;
-      const doc = copy.ownerDocument;
-      const block = doc.createElement('section');
-      block.className = 'careers-apply';
-      block.id = 'apply';
-      block.setAttribute('data-reveal', '');
-      const heading = doc.createElement('h2');
-      heading.textContent = 'How to apply';
-      const first = doc.createElement('p');
-      first.textContent = 'Email your CV, your LinkedIn profile and your availability to';
-      const link = doc.createElement('a');
-      link.className = 'btn-pill';
-      link.setAttribute('href', `mailto:${email}`);
-      link.textContent = email;
-      const second = doc.createElement('p');
-      second.textContent = 'Put the role you are applying for in the subject line.';
-      block.append(heading, first, link, second);
-      form.replaceWith(block);
-      const actual = now.querySelector('a.btn-pill');
-      if (!actual || actual.getAttribute('href') !== `mailto:${email}`) continue;
+      const fallback = [...form.querySelectorAll(':scope > p')].find((p) => p.querySelector('a[href^="mailto:"]'));
+      if (email) {
+        const link = fallback.querySelector('a');
+        link.setAttribute('href', `mailto:${email}`);
+        link.textContent = email;
+      } else fallback.remove();
+      inner[0].replaceWith(copy.ownerDocument.importNode(block, true));
       if (same(copy, now)) return rule;
     }
   }
