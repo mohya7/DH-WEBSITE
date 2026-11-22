@@ -179,7 +179,7 @@ Do these steps in order, on staging first, then on production.
   section, a slug already used by another item, or a link to a missing page.
 - **Removing alt text the target relies on:** an import that removes the alt
   text of an image the target already has, while any place uses the image
-  without alt text of its own. See the next paragraph.
+  without alt text of its own. See the paragraph after this list.
 - **Newer edits on the target:** an item that was edited on the target after the
   bundle was made, or a row that differs and has no edit time (settings,
   navigation, redirects, images). The list says what would be overwritten.

@@ -173,3 +173,27 @@ None.
   run still fails on its conflict, as before.
 
 Status: READY FOR TEST
+
+## Round 2
+
+Gate 2 (`delivery-approval.md`, CHANGES NEEDED) sent back one item: tester Minor 2, round 2
+condition 1. The "Removing alt text the target relies on" bullet in `docs/content-bundle.md`
+ended "See the next paragraph.". The next item in the list is the "Newer edits on the target"
+bullet, which is the one check `--force` overrides, so the pointer led to the wrong text.
+
+- **Fix.** Only that sentence changed. The bullet's last sentence is now:
+  > See the paragraph after this list.
+
+  That paragraph is the one that starts "Images without alt text are **listed as notes**". It
+  states the exception and "`--force` does not override this". Nothing else in the file changed.
+- **Scope (condition 2).** `git diff --stat 7a14b83 HEAD` lists only `docs/content-bundle.md` and
+  `docs/changes/ADM-12e/implementation.md`. `git diff --exit-code 7a14b83 HEAD -- api/` exits 0,
+  so the round 1 test evidence still holds for the code. Both commands ran after this round's
+  commit; their output is in the developer's reply.
+- **Base (condition 3).** I did not merge the base. The coordinator merges
+  `origin/rebuild/dotnet-platform` (`aca11b0`) before the push.
+- **Tests.** NOT RUN in this round: the change is documentation only and `api/` is unchanged.
+  Round 1 evidence stands (602 of 602, public 102 of 102).
+- `test-report.md` and `delivery-approval.md` are left uncommitted, for the coordinator.
+
+Status: READY FOR TEST
