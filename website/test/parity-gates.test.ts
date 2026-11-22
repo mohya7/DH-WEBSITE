@@ -62,7 +62,7 @@ describe('parity gates (GAP-05)', () => {
   }
   // Skipped when feature/interviewer-portal is not available. The shallow CI checkout of the website job has no feature/interviewer-portal; the
   // section-compare job, which checks that branch out, is the backstop there.
-  it.skipIf(oldPage === null)('the apply-form selector matches the old compared section (skipped: feature/interviewer-portal not available)', () => {
+  it.skipIf(oldPage === null)('the apply-form selector matches the old compared section', () => {
     const entry = register.find((rule) => rule.kind === 'apply-form')!;
     expect(entry).toBeDefined();
     const doc = parse(oldPage!);

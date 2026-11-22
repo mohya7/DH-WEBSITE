@@ -334,4 +334,71 @@ Run in `website/`, after `rm -rf artifacts`.
 | Gate shown to fire | C-6 | Done locally | Round 2 broken copy: exit 1. CI is pending the push |
 | `ci.yml` edited only after ISO-3 merged, with no other line changed; no overlap with #78 | C-2, C-5 | Done | Merge `afac55f`, three checks above, 6+/8- diff in `74fd862` |
 
+Status (round 3): READY FOR TEST
+
+---
+
+# Round 4: rework after gate 2 round 1 (`delivery-approval.md`, CHANGES NEEDED)
+
+## D-1: merge conflict in `docs/deferred-items.md`
+
+I ran `git fetch origin` and `git merge --no-edit origin/rebuild/dotnet-platform`,
+a merge, not a rebase, with the base at `aca11b0` (#80). The merge reported
+`CONFLICT (content): Merge conflict in docs/deferred-items.md`. In the
+conflict hunk, my side held D-001 up to its `Expires:` line. The base's side
+held D-002 and D-003 up to D-003's `Expires:` line. The line
+`- Follow-up pull request: not opened` was common to both sides, after the
+hunk.
+
+I resolved it as follows: D-001 complete, with its own
+`- Follow-up pull request: not opened` line, then a blank line, then D-002 and
+D-003 exactly as the base has them. No conflict markers remain. Merge commit:
+`79169c5`. How I checked the result:
+
+- `git diff origin/rebuild/dotnet-platform -- docs/deferred-items.md` shows
+  only added lines, and they are exactly the D-001 entry. So D-002 and D-003
+  are unchanged.
+- D-001 is unchanged from `74fd862` apart from its position. The base holds
+  only D-002 and D-003, so D-001 is still free.
+
+## D-2: re-run on the merged head
+
+Run in `website/`, after `rm -rf artifacts`.
+
+- **Parity-gates tests:** `npx vitest run test/parity-gates.test.ts` gave
+  exit 0, `Tests 5 passed (5)`. The old-page test ran; it was not skipped
+  (C-8).
+- **Typecheck:** `npm run typecheck` gave exit 0.
+- **Build:** `CONTENT_SOURCE=snapshot PUBLIC_SITE_URL=https://digitalhub.com.eg npm run build`
+  gave exit 0, "Build output checks passed."
+- **Section comparison, on port 4291:** I ran `SECTION_COMPARE_OLD=<scratch>/old-site`
+  (the `git archive feature/interviewer-portal` export from Round 2),
+  `SECTION_COMPARE_NEW=$PWD/out` and `SECTION_COMPARE_PORT=4291`. Result:
+  exit 0, `104/119 sections match; 15 accepted; 0 failures (including chrome).`
+  and `accepted: /careers/apply.html #section (apply-form)`. I deleted
+  `artifacts/` afterwards.
+- **Full suite:** `npx vitest run` gave exit 1, `Test Files 1 failed | 24 passed (25)`,
+  `Tests 1 failed | 483 passed | 1 skipped (485)`.
+  - The one failure is `design.test.ts` "match origin/feature/interviewer-portal
+    ...": `Test timed out in 5000ms`.
+  - Re-run alone, `npx vitest run test/design.test.ts` gave
+    `Tests 24 passed (24)`. The failure was a timeout under load, and GAP-05
+    does not touch that test.
+  - Port 4284 was free this time, so `screenshot-parity-browser.test.ts` ran
+    and passed: no `EADDRINUSE` in the log. The NOT RUN from Round 3 is
+    therefore closed.
+- **actionlint:** NOT RUN, because it is not installed. The CI job "Workflow
+  lint" covers it. `ci.yml` is unchanged since `74fd862`.
+
+## D-3: tester F-2, the misleading test title
+
+Fixed. The old-page test was titled "the apply-form selector matches the old
+compared section (skipped: feature/interviewer-portal not available)", even
+when it ran. The suffix is removed from the title. The skip reason stays in the
+comment above the test. The assertions are unchanged. My Round 2 record said
+that I had removed the suffix before the red commit. That was wrong: the `sed`
+did not match.
+
+`test-report.md` and `delivery-approval.md` are left uncommitted and untouched.
+
 Status: READY FOR TEST
