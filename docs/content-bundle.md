@@ -177,6 +177,9 @@ Do these steps in order, on staging first, then on production.
   other scripts and other names (such as `apikey`) are not checked.
 - **A document the Studio would refuse:** for example a wrong theme, an invalid
   section, a slug already used by another item, or a link to a missing page.
+- **Removing alt text the target relies on:** an import that removes the alt
+  text of an image the target already has, while any place uses the image
+  without alt text of its own. See the paragraph after this list.
 - **Newer edits on the target:** an item that was edited on the target after the
   bundle was made, or a row that differs and has no edit time (settings,
   navigation, redirects, images). The list says what would be overwritten.
@@ -184,7 +187,13 @@ Do these steps in order, on staging first, then on production.
   overrides this; it never skips any other check.
 
 Images without alt text are **listed as notes**, not refused, because the Studio
-only checks alt text when an image is uploaded or edited.
+only checks alt text when an image is uploaded or edited. One exception: an
+import that removes the alt text of an image the target already has is an edit
+of that image. It is refused, whether or not the bundle marks the image
+decorative, while any place uses the image without alt text of its own: a page,
+card or share image, a section, an article body, a draft, or the settings row's
+default share image. The Studio refuses the same edit. `--force` does not
+override this.
 
 A missing setting, a database that cannot be reached, or a login that fails is
 reported in one line, with a non-zero exit code, and changes nothing.
