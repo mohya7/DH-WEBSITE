@@ -215,6 +215,8 @@ static class ContentBundle
         try
         {
             var owners = await OwnerDecisionsAsync(db, bundle, cancellationToken);
+            // ADM-12e: read before any row is written, so it holds the target's alt, not the bundle's.
+            var withAlt = await TargetAssetsWithAltAsync(db, bundle, cancellationToken);
             foreach (var table in Tables)
             {
                 var count = await table.ImportAsync(db, bundle.Tables[table.Name], owners, conflicts, problems, cancellationToken);
@@ -229,7 +231,7 @@ static class ContentBundle
 
             var warnings = new List<string>();
             if (problems.Count == 0)
-                problems.AddRange(await CheckAsync(db, bundle, warnings, cancellationToken));
+                problems.AddRange(await CheckAsync(db, bundle, withAlt, warnings, cancellationToken));
 
             if (problems.Count == 0)
             {
@@ -347,6 +349,17 @@ static class ContentBundle
         return removed;
     }
 
+    /// <summary>The bundle's media ids that the target already has with alt text of their own.</summary>
+    private static async Task<HashSet<Guid>> TargetAssetsWithAltAsync(ContentDbContext db, Bundle bundle, CancellationToken cancellationToken)
+    {
+        var ids = bundle.Tables["media"].Select(row => row!["id"]!.GetValue<Guid>()).ToList();
+        var rows = await db.Media.AsNoTracking()
+            .Where(asset => ids.Contains(asset.Id))
+            .Select(asset => new { asset.Id, asset.Alt })
+            .ToListAsync(cancellationToken);
+        return rows.Where(row => !string.IsNullOrWhiteSpace(row.Alt)).Select(row => row.Id).ToHashSet();
+    }
+
     /// <summary>
     /// Whether each owner in the bundle may be updated: it is new on the target, or
     /// the target's copy was not edited after the bundle's. Sections follow their owner.
@@ -369,7 +382,7 @@ static class ContentBundle
     }
 
     /// <summary>Every imported document through the checks the Studio's own writes apply.</summary>
-    private static async Task<List<string>> CheckAsync(ContentDbContext db, Bundle bundle, List<string> warnings, CancellationToken cancellationToken)
+    private static async Task<List<string>> CheckAsync(ContentDbContext db, Bundle bundle, HashSet<Guid> withAlt, List<string> warnings, CancellationToken cancellationToken)
     {
         var problems = new List<string>();
         var store = new ContentStore(db, new SectionSchemaSet(), new CollectionSchemaSet());
@@ -432,11 +445,23 @@ static class ContentBundle
         foreach (var row in bundle.Tables["media"])
         {
             var asset = row!.Deserialize<MediaAsset>(Json)!;
-            // A warning, not a refusal: the Studio applies this check when an image is uploaded or
-            // edited, and keeps rows that predate it (the old site's images without alt text).
+            // A warning here: the Studio applies this check when an image is uploaded or edited, and
+            // keeps rows that predate it (the old site's images without alt text). The one refusal,
+            // an import that removes alt the target's image had, is the ADM-12e block below.
             var error = MediaLibrary.MetadataError(asset.Alt, asset.Decorative, asset.Caption);
             if (error is not null)
                 warnings.Add($"media {asset.Id} ({asset.OriginalName}): {error}");
+            // ADM-12e: the media library's alt-in-use rule (ADM-12). An import that removes alt the
+            // target's image had is an edit of it: refused while any use relies on that alt. The
+            // places are read after every table is saved, so they include the bundle's own rows.
+            // A problem, not a warning: --force never bypasses it. New assets, and target assets
+            // that already had no alt, keep the warning above.
+            if (string.IsNullOrWhiteSpace(asset.Alt) && withAlt.Contains(asset.Id))
+            {
+                var places = await MediaUsage.FindPlacesWithoutOwnAltAsync(db, asset.Id, cancellationToken);
+                if (places.Count > 0)
+                    problems.Add($"media {asset.Id} ({asset.OriginalName}): alt: the bundle removes this image's alt text, and it is used without alt text of its own: {string.Join("; ", places)}.");
+            }
             // Safety checks, for new and existing rows alike; --force never bypasses them.
             if (asset.ContentType != ImageFiles.StoredContentType)
                 problems.Add($"media {asset.Id}: content type {asset.ContentType} is not {ImageFiles.StoredContentType}, the only type the upload stores.");
