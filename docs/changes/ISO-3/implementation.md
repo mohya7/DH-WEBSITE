@@ -271,4 +271,21 @@ Run 3, complete:
 | GAP-38, part | Refinement plan line 114 | Done (part) | Sections 1 and 10 |
 | Hand-off for ISO-5 and Phase D | 4.4 | Done | Section 10 |
 
+## 12. Round 2 (gate 2 return 1: `delivery-approval.md`, `Verdict: CHANGES NEEDED`, docs only)
+
+| Finding | Answer |
+|---|---|
+| D-1 / test-report m-1 (the note claimed the test catches any extra grant or role) | `14c6221` changes only `docs/security-deployment.md`. It lists what `PublicFormsPermissionTests` checks: object-level grants on every user object, which must be exactly the six; schema `dbo` and database permissions compared with a fresh user; `sysadmin`, the six named fixed roles and the only-role check; the 229 sweep; no DDL. It also lists what the test does not check: IMPERSONATE, server roles other than `sysadmin`, server-level permissions, other schemas, column-level grants. Widening is follow-up F-ISO3-2 |
+| D-1 / test-report m-4 (CI "runs the same lines") | Same commit. CI runs the same statements with a workflow-only password and `CHECK_POLICY = OFF` (`ci.yml`: `CREATE LOGIN [$FORMS_LOGIN] WITH PASSWORD = N'$FORMS_PASSWORD', CHECK_POLICY = OFF;`) |
+| D-2 (no other change) | This note only. No code, test, migration or workflow change |
+| D-3 (records) | `test-report.md` (Round 1) and `delivery-approval.md` committed unchanged, with this note, in the records commit |
+| m-2, m-3 | Accepted by gate 2 as follow-ups F-ISO3-3 and F-ISO3-4; nothing to do here |
+
+Evidence at `14c6221` (22 Nov 2026 10:26 +02:00):
+- **L0:** 0 testhost/vstest processes and 0 other sessions on `DigitalHubContent_Test`.
+- **Build:** `dotnet build api/tests/DigitalHub.PublicApi.Tests/... -c Release` exit 0, 0 warnings.
+- **Permission tests:** `dotnet test ... --filter "FullyQualifiedName~PublicFormsPermissionTests"` exit 0,
+  `Passed! - Failed: 0, Passed: 31, Skipped: 0, Total: 31`.
+- **Database:** no database changes in this round.
+
 Status: READY FOR TEST
