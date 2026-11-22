@@ -274,4 +274,103 @@ After merge: tell the ADM-12 session, so ADM-12e can merge this base and re-run.
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 ```
 
+Round 1 outcome (note, not a verdict line): CHANGES NEEDED, for D-1 to D-3. Superseded by
+Round 2 below.
+
+## Round 2
+
+- Date: 22 November 2026.
+- Head reviewed: `550868878f40da8a6a16444020c078ef699acfdc`, which adds two commits on `6ffff50`:
+  - `14c6221 ISO-3: Say what the public forms permission test does and does not catch`,
+    which changes `docs/security-deployment.md` only;
+  - `5508688 ISO-3: Record test round 1, gate 2 return 1 and the developer's answer`, the
+    records commit, with this file's Round 1 committed unchanged.
+- Tester: `test-report.md` Round 2 (uncommitted) ends `Verdict: APPROVED`, with one new Minor,
+  m-5.
+
+### What I verified myself
+
+| Check | Command / method | Result |
+|---|---|---|
+| Files changed since Round 1 | `git diff --stat 6ffff50..HEAD` | Only `docs/security-deployment.md` (+26 −5), `implementation.md` (+17), and the committed `test-report.md` and `delivery-approval.md`. No code, test, migration or workflow change, so my Round 1 runs still cover the head: 31 of 31 and 102 of 102, both exit 0 |
+| Commits (B-4) | `git log 6ffff50..HEAD` | Both have the `ISO-3:` prefix, an imperative subject, a body that says why, and the attribution trailer |
+| The doc diff | `git diff 6ffff50..HEAD -- docs/security-deployment.md`, read against `PublicFormsPermissionTests.cs` | The "checks" list is true. It covers T-5 (a) on every user object in every schema (`sys.objects`, `is_ms_shipped = 0`, `parent_object_id = 0`, line 456), T-5 (b), T-1, the T-4 sweep and T-6. The CI bullet is now true: the CI `CREATE LOGIN` uses `CHECK_POLICY = OFF`. Round 1 m-4 is resolved |
+| Base, re-fetched just before writing | `git fetch origin`; `git rev-parse origin/rebuild/dotnet-platform`; `git log 1a2fe2e..origin/rebuild/dotnet-platform` | Still `1a2fe2e`, so the base has not moved. No new commit, no overlap with ISO-3's files and no new migration. The merge base is still `0488d89`, and the only commit between the two is GAP-11c (website files only) |
+
+### Decision on m-5 (P-8)
+
+**The wording needs one more fix. This is the last return allowed.**
+
+The doc says **"What it does not check. A mistaken grant of any of these kinds would leave
+the test green, so an administrator must not make one:"** and then names five classes. An
+administrator reads that as the full list, and so as a promise that any other mistaken
+grant turns the test red. That promise is false. For example, `GRANT CONTROL ON
+USER::dh_content_app TO dh_public_forms` gives the same reach as IMPERSONATE, is not in the
+list, and leaves all 31 tests green (T-5 does not measure the `DATABASE_PRINCIPAL` scope).
+Under P-8 a security deployment note must not claim more than the test proves. The same
+holds, in a smaller way, for the bullet titled **"No schema changes"**: T-6 probes ALTER
+TABLE on `vacancies` only and TRUNCATE on `contact_requests` only.
+
+The tester is right that a complete list belongs to F-ISO3-2. So I do not ask for every
+class to be listed. I ask only that the note stop implying it is complete. That is a
+wording change of a few lines, inside `docs/security-deployment.md`, in scope.
+
+### Conditions for the developer (round 3, the last)
+
+- **D-4.** One commit (`ISO-3:` prefix, a body saying why, the attribution trailer) that
+  changes only the section "Database: the public forms login" of
+  `docs/security-deployment.md`:
+  - **(a)** Replace the lead-in of "What it does not check" so it says the test proves only
+    the checks listed above, and that the list below gives **examples, not a complete
+    list**, of mistaken grants that would leave it green. Keep "an administrator must not
+    make one", applied to any grant beyond the six.
+  - **(b)** Add m-5's examples to that list:
+    - ALTER, CONTROL or TAKE OWNERSHIP on a user or a role (CONTROL on a user carries
+      impersonation);
+    - grants on non-object securables: types, XML schema collections, assemblies,
+      certificates and keys.
+  - **(c)** Make the "No schema changes" bullet say what is probed: CREATE TABLE is refused,
+    and ALTER TABLE and TRUNCATE are refused on one table each (`vacancies`,
+    `contact_requests`).
+  - **(d)** Keep the pointer to F-ISO3-2. Say there that F-ISO3-2's exact assertion would
+    replace the examples.
+- **D-5.** `implementation.md` gets a short round-3 note. Commit the tester's Round 2
+  `test-report.md` and this file unchanged, in a records commit. Nothing else changes.
+- **Tester, Round 3:**
+  - `git diff <550868878f40…>..<new head> --stat` shows only those files;
+  - the three wording points (a) to (c) are present and true against the test;
+  - `PublicFormsPermissionTests` gives 31 of 31 on the new head.
+- **Gate 2, Round 3:** if only D-4 and D-5 changed, I approve on that evidence. If this
+  delivery is rejected again, the pipeline stops and goes to the owner (README, Loops).
+
+### Changes to the follow-ups and the PR draft
+
+- **F-ISO3-2** now also covers m-5:
+  - ALTER, CONTROL and TAKE OWNERSHIP on database principals;
+  - non-object securables (types, XML schema collections, assemblies, certificates, keys);
+  - ALTER and TRUNCATE probed on every table.
+
+  The intended form is still one exact, elevated assertion over `sys.database_permissions`
+  (every class), `sys.server_permissions` and `sys.server_role_members`.
+- **F-ISO3-1, F-ISO3-3 and F-ISO3-4** are unchanged.
+- **Merge note unchanged:** after the owner merges ISO-3, tell the ADM-12 session, so
+  ADM-12e can merge the new base and re-run ("ADM-12e waits").
+- **Push and merge conditions** are unchanged from Round 1, on the round-3 head.
+- **PR draft (Round 1 text above) changes:**
+  - "Tests and evidence": `<final head>` is the round-3 head.
+  - "Review findings accepted" adds: "m-5 (the doc's 'does not check' list was incomplete):
+    the note now gives examples, says the list is not complete, and says what the schema
+    probes cover; the complete check is F-ISO3-2."
+  - The m-1 line there reads: "the deployment note now says what the test checks and gives
+    examples of what it does not; widening is F-ISO3-2."
+  - Everything else stands. The "PR checks are green on the final head" box stays unticked
+    until CI finishes on the round-3 head.
+
+### Open items
+
+- O-1: CI on the final PR head (merge conditions), not yet run; nothing is pushed.
+- O-2: D-4 and D-5, tester Round 3, gate 2 Round 3.
+- O-3 and O-4 as in Round 1: local end-to-end, gitleaks and actionlint are NOT RUN locally;
+  CI covers them.
+
 Verdict: CHANGES NEEDED

@@ -288,4 +288,29 @@ Evidence at `14c6221` (22 Nov 2026 10:26 +02:00):
   `Passed! - Failed: 0, Passed: 31, Skipped: 0, Total: 31`.
 - **Database:** no database changes in this round.
 
+## 13. Round 3 (gate 2 return 2: `delivery-approval.md` Round 2, `Verdict: CHANGES NEEDED`, docs only)
+
+| Finding | Answer |
+|---|---|
+| D-4 (a) / m-5: the "does not check" list read as complete | `764578a` changes only the section "Database: the public forms login" of `docs/security-deployment.md`. The lead-in now says the test proves only the checks listed. It says an administrator must not make any grant beyond the six. It calls the list examples, not a complete list |
+| D-4 (b) / m-5: missing examples | Added: ALTER, CONTROL or TAKE OWNERSHIP on a user or a role (CONTROL on a user reaches as far as impersonating it, e.g. on `dh_content_app`); grants on types, XML schema collections, assemblies, certificates and keys |
+| D-4 (c) / m-5: schema probes | The bullet now reads: CREATE TABLE refused with 262; ALTER TABLE refused on `vacancies` only; TRUNCATE refused on `contact_requests` only |
+| D-4 (d) | Kept F-ISO3-2, and said its exact assertion would replace the examples |
+| D-5 | This note; `test-report.md` (Round 2) and `delivery-approval.md` (Round 2) committed unchanged in the records commit |
+
+**Sentences checked against `PublicFormsPermissionTests.cs`:**
+- **T-5, object grants:** `sys.objects` with `is_ms_shipped = 0 AND parent_object_id = 0`, all schemas; `fn_my_permissions(..., 'OBJECT')` with `subentity_name = N''`; assertion: exactly the six.
+- **T-5, schema and database:** `fn_my_permissions` on `dbo` (SCHEMA) and NULL (DATABASE), each equal to the set of a probe user created `WITHOUT LOGIN`.
+- **T-1, roles:** `IS_SRVROLEMEMBER('sysadmin')` is 0. `IS_ROLEMEMBER` is 0 for the six named roles and 1 for `dh_public_forms_role`. The elevated role list is exactly `dh_public_forms_role`.
+- **T-2, T-3 and T-4:** error 229 on every `dbo` table outside the six pairs.
+- **T-6, schema changes:** CREATE TABLE gives 262. ALTER TABLE on `vacancies` and TRUNCATE on `contact_requests` each give some SQL error.
+
+The section claims nothing beyond these.
+
+**Evidence at `764578a`** (22 Nov 2026 10:33 +02:00):
+- **L0:** 0 testhost/vstest processes and 0 other sessions on `DigitalHubContent_Test`.
+- **Build:** the public test project in Release, exit 0, 0 warnings.
+- **Permission tests:** `PublicFormsPermissionTests` exit 0, `Passed! - Failed: 0, Passed: 31, Skipped: 0, Total: 31`.
+- **Database:** no database change.
+
 Status: READY FOR TEST

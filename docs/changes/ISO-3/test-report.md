@@ -399,4 +399,99 @@ There is no Blocker and no Major. Four Minors, most severe first.
 | Admin suite and ISO-2's 71 tests unchanged | README | Verified locally | C3 names identical to base CI run 44554202307; C2 includes all 71. CI on the PR head is pending |
 | Docs: deployment notes, README, S-8 | S-8 | Verified, with m-1 and m-4 | `ba948b1` diff read |
 
+Round 1 result (superseded by Round 2 below): APPROVED. Gate 2 then returned the change for docs only (`delivery-approval.md`, D-1 to D-3).
+
+## Round 2
+
+- **Commit tested:** `550868878f40da8a6a16444020c078ef699acfdc` (`5508688 ISO-3: Record test round 1,
+  gate 2 return 1 and the developer's answer`). It adds two commits on `6ffff50`: `14c6221`
+  (`docs/security-deployment.md` only) and `5508688` (the records).
+- **Where:** a new detached worktree, `D:\work\DigitalHub\dh-platform-claude-iso-3-test`, made with
+  `git -C D:\work\DigitalHub\dh-platform worktree add --detach ... 5508688...` and removed at the end.
+- **Databases:** no database change. The only queries were read-only checks, plus the test run.
+
+### R2-1. Scope
+
+| Check | Command | Result |
+|---|---|---|
+| Files changed | `git diff --stat 6ffff50..5508688` | `docs/changes/ISO-3/delivery-approval.md` (+277), `docs/changes/ISO-3/implementation.md` (+17), `docs/changes/ISO-3/test-report.md` (+402), `docs/security-deployment.md` (+26 −5). Nothing else |
+| No code, test, migration or workflow change | `git diff --quiet 6ffff50 HEAD -- api .github studio website packages` | Exit 0: none |
+| Round 1 report committed unchanged (D-3) | `diff` of the committed `test-report.md` against my Round 1 working copy, with CR removed | Identical. `cmp` differs only by CRLF line endings from checkout |
+| `implementation.md` | Read the diff | Adds only section 12, the Round 2 answer table and the developer's evidence |
+
+### R2-2. Are the two corrected statements true?
+
+`PublicFormsPermissionTests.cs` is unchanged since Round 1 (R2-1). I checked each statement in the
+new "What `PublicFormsPermissionTests` checks" and "What it does not check" lists against it.
+
+| Statement in `docs/security-deployment.md` | In the test | True? |
+|---|---|---|
+| Object grants on every user object, any schema, with constraints and triggers excluded, must be exactly the six | T-5 (a). `sys.objects WHERE is_ms_shipped = 0 AND parent_object_id = 0`, every schema; `fn_my_permissions(..., 'OBJECT')` with `subentity_name = N''`; `Assert.Equal(Granted, host.Objects)` | Yes |
+| Schema `dbo` and database permissions are no more than a fresh user holds | T-5 (b). `fn_my_permissions(N'dbo', 'SCHEMA')` and `(NULL, 'DATABASE')` must equal those of an `iso3_probe_*` user created `WITHOUT LOGIN` | Yes. The test checks equality, which implies "no more" |
+| Not `sysadmin`, not in the six named fixed roles, only role `dh_public_forms_role` | T-1. `IS_SRVROLEMEMBER('sysadmin')`, then `IS_ROLEMEMBER` for `db_owner`, `db_datareader`, `db_datawriter`, `db_ddladmin`, `db_securityadmin`, `db_accessadmin`; then an elevated `sys.database_role_members` list that must equal `[dh_public_forms_role]` | Yes |
+| SELECT, INSERT, UPDATE and DELETE on every `dbo` table outside the six pairs fail with 229 | T-4. Every `sys.tables` row in schema `dbo`, including `__EFMigrationsHistory`, against the `Granted` set | Yes |
+| CREATE TABLE, ALTER TABLE and TRUNCATE are refused | T-6. `CREATE TABLE` must give 262. ALTER TABLE (on `vacancies` only) and TRUNCATE (on `contact_requests` only) must give any SQL error | Yes. One table each is probed (see m-5) |
+| Not checked: IMPERSONATE on a user or login; server roles other than `sysadmin`; server-level permissions; schemas other than `dbo`; column-level grants, with the table-wide probes unverified for them | No test tries `EXECUTE AS`. T-1 checks only `sysadmin` at server level. T-5 measures only the OBJECT, `dbo` SCHEMA and DATABASE scopes, and drops rows whose `subentity_name` is not empty | Yes. This is Round 1 m-1, stated accurately, with F-ISO3-2 named |
+| CI runs the same statements, with a workflow-only password and `CHECK_POLICY = OFF` on `CREATE LOGIN` | `ci.yml:97`: `CREATE LOGIN [$FORMS_LOGIN] WITH PASSWORD = N'$FORMS_PASSWORD', CHECK_POLICY = OFF;`. `ci.yml` (new step): `CREATE USER [$FORMS_LOGIN] FOR LOGIN [$FORMS_LOGIN]; ALTER ROLE [dh_public_forms_role] ADD MEMBER [$FORMS_LOGIN];`. These are the documented three statements, with no `DEFAULT_DATABASE` on either side | Yes. Round 1 m-4 is resolved |
+
+Round 1 **m-1** (the docs part) and **m-4** are resolved. The test itself is still as limited as
+before; gate 2 carries the widening as F-ISO3-2. m-2 and m-3 were accepted by gate 2 as F-ISO3-3
+and F-ISO3-4.
+
+### R2-3. No secret in the diff
+
+`git diff 6ffff50..5508688 | grep -iE "password *[=:]|Pf1!" | grep -v CiOnly` returns only three
+quotations:
+
+- the owner's words "Yes, reset it";
+- the `ci.yml` line quoted with its `$FORMS_PASSWORD` placeholder;
+- my Round 1 sentence "`password=` is 0".
+
+There is no password value.
+
+### R2-4. Permission tests
+
+| Step | Command | Exit | Output |
+|---|---|---|---|
+| Install | `npm ci` (`website/`) | 0 | |
+| Build | `dotnet build DigitalHub.slnx -c Release` (`api/`) | 0 | 0 errors, 13 warnings (the existing ones) |
+| L0 | process check (`l0.ps1`) and `sys.dm_exec_sessions` on `DigitalHubContent_Test` | | `testhost/vstest: 0`, `other sessions: 0` |
+| C1 | `dotnet test api/tests/DigitalHub.PublicApi.Tests/DigitalHub.PublicApi.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~PublicFormsPermissionTests"` | 0 | `Passed!  - Failed: 0, Passed: 31, Skipped: 0, Total: 31`. 0 `password=` in the log |
+| After the run, read-only | `sys.database_permissions` for the user and the role; `iso3_%` principals | | 7 rows (CONNECT plus the six); 0 probe principals |
+
+The other suites were not re-run. No code, test or migration changed since Round 1, where they
+passed: public 102 of 102, admin 596 of 596.
+
+### Findings, Round 2
+
+There is no Blocker and no Major.
+
+**m-5 (Minor, docs; for F-ISO3-2): the "does not check" list is true but not complete.**
+
+- **What is missing:** besides the classes the note lists, T-5 also does not measure:
+  - ALTER, CONTROL or TAKE OWNERSHIP on database principals. For example,
+    `GRANT CONTROL ON USER::dh_content_app` implies impersonation but is not literally an
+    "IMPERSONATE grant".
+  - Grants on non-object securables: types, XML schema collections, assemblies, certificates,
+    keys.
+- **A wording point:** "CREATE TABLE, ALTER TABLE and TRUNCATE are refused" is checked on one table
+  each (`vacancies`, `contact_requests`), not on every table.
+- **Steps:** read T-5's three scopes and T-6 in `PublicFormsPermissionTests.cs`.
+- **Expected:** the list names every grant class that would leave the test green, or says the list
+  is not exhaustive.
+- **Actual:** it names five classes and reads as complete.
+- **Suggested:** carry this into F-ISO3-2. That change's exact elevated `sys.database_permissions`
+  assertion would cover all classes. No change is asked for in ISO-3.
+
+### Coverage table rows verified, Round 2
+
+| Item | Source | Status | Evidence |
+|---|---|---|---|
+| D-1: the note says what the test does and does not catch | `delivery-approval.md` D-1; test-report m-1 | Verified (one non-blocking omission, m-5) | R2-2 |
+| D-1: the CI difference (`CHECK_POLICY = OFF`) is stated | D-1; m-4 | Verified | R2-2, `ci.yml:97` |
+| D-2: no other change | D-2 | Verified | R2-1 |
+| D-3: Round 1 report committed unchanged | D-3 | Verified | R2-1 |
+| `PublicFormsPermissionTests` still 31 of 31 | Caller | Verified | R2-4 |
+| No secret in the diff | S-6 | Verified | R2-3 |
+
 Verdict: APPROVED
