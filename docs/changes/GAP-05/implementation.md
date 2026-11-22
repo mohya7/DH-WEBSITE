@@ -232,4 +232,106 @@ section 4.
 | Gate shown to fire | C-6 | Done locally | Broken copy: exit 1, `differs: /careers/apply.html #section` |
 | No overlap with PR #78; `ci.yml` only after ISO-3 merged | C-2, C-5 | Holding | `ci.yml` untouched; ISO-3 unmerged |
 
-Status: BLOCKED (waiting on ISO-3)
+Status (round 2): BLOCKED (waiting on ISO-3)
+
+---
+
+# Round 3: the `ci.yml` edit after ISO-3 merged
+
+ISO-3 merged as `266b124` (#79). I ran `git fetch origin` and
+`git merge --no-edit origin/rebuild/dotnet-platform`, a merge and not a rebase.
+The result is merge commit `afac55f`, with no conflicts. Then I made the
+`ci.yml` edit in `74fd862`.
+
+## The three checks of plan section 4 (C-2)
+
+1. `git log --oneline origin/rebuild/dotnet-platform -- .github/workflows/ci.yml`
+   shows `266b124 ISO-3: Give the public forms API its own dh_public_forms login,
+   limited to four tables (#79)`, then `0a55da4` (ISO-2) and `8d8e01d` (GAP-09).
+2. `git diff origin/rebuild/dotnet-platform change/ISO-3 -- .github/workflows/ci.yml`
+   prints nothing. All of ISO-3's `ci.yml` change is on the base.
+3. I listed the branches with `git branch -a --format='%(refname:short)'` and
+   ran `git diff --stat origin/rebuild/dotnet-platform...<branch> --
+   .github/workflows/ci.yml` for each `change/*` branch that is not an ancestor
+   of the base. These branches show a `ci.yml` stat: `change/GAP-09`,
+   `change/ISO-2`, `change/ISO-3`, `origin/change/ADM-02`,
+   `origin/change/GAP-04`, `origin/change/GAP-06`, `origin/change/GAP-09`,
+   `origin/change/ISO-2`, `origin/change/ISO-3` and `origin/change/ci-runner-pin`.
+   Each one is already squash-merged into the base: #68, #76, #79, #54, #43,
+   #42 and #38, all seen in `git log --oneline origin/rebuild/dotnet-platform`.
+   A squash merge leaves the branch tip outside the base's history, so the
+   three-dot stat shows that work again. No unmerged branch changes `ci.yml`.
+
+## The `ci.yml` edit (C-5), commit `74fd862`
+
+After ISO-3, the line numbers moved by 16. The diff is 6 lines added and 8
+removed, and it touches only these places:
+- the `section-compare` job comment (lines 320-324). It now says that the step
+  blocks, and that a difference must be fixed or added to
+  `accepted-differences.json` with the owner's decision quoted.
+- `continue-on-error: true` on "Compare sections" (line 354). Removed.
+- the `screenshot-parity` comment (line 386). It now cites D-001 in
+  `docs/deferred-items.md` (GAP-05, O-21), says that it expires 2026-12-14,
+  and says that the step must then block or be renewed.
+
+`continue-on-error` on "Compare screenshots" stays. No `uses:`, `image:` or
+version line changed. No `*_BLOCKING_FROM` was added, as the plan's report-mode
+reasoning requires.
+
+## Commands
+
+Run in `website/`, after `rm -rf artifacts`.
+
+- **Parity-gates tests:** `npx vitest run test/parity-gates.test.ts` gave
+  exit 0, `Tests 5 passed (5)`. The old-page part of test 2 **ran** (C-8),
+  because `feature/interviewer-portal` is present.
+- **Typecheck:** `npm run typecheck` gave exit 0.
+- **Full suite:** `npx vitest run` gave exit 1:
+  `Test Files 4 failed | 21 passed (25)`,
+  `Tests 26 failed | 458 passed | 1 skipped (485)`. The failures:
+  - `screenshot-parity-browser.test.ts`: Chromium register-guard cases.
+  - `design.test.ts` "match origin/feature/interviewer-portal ...": timed out
+    in 5000ms.
+  - `sources.test.ts` "reads the build endpoint once ...": timed out.
+  - `no-hiring-system.test.ts`: timed out.
+- **Re-run of those four files:** `npx vitest run test/no-hiring-system.test.ts
+  test/sources.test.ts test/design.test.ts test/screenshot-parity-browser.test.ts`
+  gave `Test Files 1 failed | 3 passed (4)`,
+  `Tests 27 failed | 40 passed | 1 skipped (68)`.
+  - Three files now pass: `design`, `sources` and `no-hiring-system`. Their
+    failures in the full run were timeouts under load.
+  - Every failure left is in `screenshot-parity-browser.test.ts`, with
+    `Error: listen EADDRINUSE: address already in use 127.0.0.1:4284`. That
+    test's baseline port is hard-coded at line 189. `netstat -ano` shows
+    `127.0.0.1:4284 LISTENING` owned by PID 11968 (`node.exe`), which I did not
+    start. I did not stop it, because CLAUDE.md says "Never stop a process you
+    did not start".
+  - GAP-05 does not change that test or anything it reads. This is NOT RUN
+    locally because of the port conflict. The CI step "Chromium regression
+    tests" in the `screenshot-parity` job covers it, and so does the `website`
+    job. The tester should re-run it once port 4284 is free.
+- **actionlint:** NOT RUN, because it is not installed on this machine. The CI
+  job "Workflow lint" (GAP-08) covers it.
+- **Section comparison:** run in Round 2 against the same website sources
+  (`0 failures`, exit 0, port 4291). The merge changed no file it reads, so I
+  did not run it again.
+- **C-6, the gate fires:** proven locally in Round 2 (exit 1,
+  `differs: /careers/apply.html #section`). The proof in CI, on the pull
+  request, is still to come: it needs the owner to confirm the push.
+- **CI on the pull request:** NOT RUN, because nothing is pushed.
+
+## Coverage table (final)
+
+| Item | Source | Status | Evidence |
+| --- | --- | --- | --- |
+| Careers apply section accepted, "(a) Accept current form" (O-11) | Plan line 155; risk 262 | Done | `dc8cc13`; local compare `accepted: /careers/apply.html #section (apply-form)` |
+| `continue-on-error` gone from the section comparison | Plan line 155 | Done | `74fd862`; test 1 passes |
+| Section comparison reports 0 failures | Register line 69; plan line 155 | Done locally | Round 2 local run on port 4291: `0 failures`, exit 0. CI is pending the push |
+| Screenshot step has a D-NNN entry expiring 2026-12-14 (O-21) | Register line 69; plan line 155 | Done | D-001 (`dc8cc13`), cited in the `ci.yml` comment (`74fd862`); test 4 passes |
+| Report-mode rule stated and applied | Standard section 3 | Done | No `*_BLOCKING_FROM`; the step blocks at once |
+| Failing tests 1-4 committed first and shown failing | B-6; C-1 | Done | `3cd972e`, `Tests 5 failed (5)` |
+| Test 2 old-page assertions ran (C-8) | C-8 | Done | Ran in the red, Round 2 and Round 3 runs |
+| Gate shown to fire | C-6 | Done locally | Round 2 broken copy: exit 1. CI is pending the push |
+| `ci.yml` edited only after ISO-3 merged, with no other line changed; no overlap with #78 | C-2, C-5 | Done | Merge `afac55f`, three checks above, 6+/8- diff in `74fd862` |
+
+Status: READY FOR TEST
