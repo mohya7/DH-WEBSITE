@@ -494,4 +494,77 @@ There is no Blocker and no Major.
 | `PublicFormsPermissionTests` still 31 of 31 | Caller | Verified | R2-4 |
 | No secret in the diff | S-6 | Verified | R2-3 |
 
+Round 2 result (superseded by Round 3 below): APPROVED. Gate 2 Round 2 then asked for D-4 and D-5, docs wording only.
+
+## Round 3
+
+- **Commit tested:** `0ead226ec7702989813aa55caeb90d7ae179b707` (`0ead226`, the records). It sits
+  on `764578a ISO-3: Say the permission test's blind spots are examples, not a full list`, which
+  sits on `5508688`.
+- **Where:** a new detached worktree, `D:\work\DigitalHub\dh-platform-claude-iso-3-test`, removed
+  at the end.
+- **Databases:** no database change. The only queries were read-only checks, plus the test run.
+
+### R3-1. Scope and secrets
+
+| Check | Command | Result |
+|---|---|---|
+| Files changed | `git diff --stat 5508688..0ead226` | `docs/changes/ISO-3/delivery-approval.md` (+99), `implementation.md` (+25), `test-report.md` (+95), `docs/security-deployment.md` (+16 −8). Nothing else |
+| No code, test, migration or workflow change | `git diff --quiet 5508688 HEAD -- api .github studio website packages` | Exit 0: none |
+| Round 2 report committed unchanged | `diff` against my working copy, with CR removed | Identical |
+| No secret | `git diff 5508688..0ead226 \| grep -iE "password *[=:]\|Pf1!" \| grep -v CiOnly` | Only quotations from my own reports (the `ci.yml:97` line with its `$FORMS_PASSWORD` placeholder, "`password=` is 0", and a test command line). No value |
+
+### R3-2. Every sentence of "Database: the public forms login" against the test and `ci.yml`
+
+`PublicFormsPermissionTests.cs` and `ci.yml` are unchanged since Round 1.
+
+| Sentence (in short) | Evidence | Verdict |
+|---|---|---|
+| The migration creates `dh_public_forms_role` with exactly the four grants; the login and its membership are outside migrations; the three elevated statements | `20261119155407_AddPublicFormsRole.cs` `CreateRoleSql`; Round 1, section 4 | True |
+| Never add the login to another role; its only role is `dh_public_forms_role` | A rule. T-1 enforces the only-role part | True |
+| "It proves these checks, and only these" | Matches the five bullets below | True |
+| Object grants on every user object, in any schema, are exactly the six. **Objects that have a parent object, such as constraints and triggers, are not measured** | T-5: `sys.objects WHERE o.is_ms_shipped = 0 AND o.parent_object_id = 0` (line 456), every schema; `Assert.Equal(Granted, host.Objects)` | True. The tightened line is accurate |
+| Schema `dbo` and database permissions **are the same as those of a fresh user created without a login** | T-5 (b): `Assert.Equal(empty.Schema, host.Schema)` and `Assert.Equal(empty.Database, host.Database)`. The probe is made with `CREATE USER ... WITHOUT LOGIN` (line 374) | True. The tightened line is accurate, and "the same" matches the equality assertion |
+| Not `sysadmin`; not in the six named fixed roles; only role `dh_public_forms_role` | T-1 | True |
+| SELECT, INSERT, UPDATE and DELETE on every `dbo` table, outside the six pairs, fail with error 229 | T-4 | True |
+| **Schema changes probed:** CREATE TABLE refused with error 262; ALTER TABLE on one table, `vacancies`; TRUNCATE on one table, `contact_requests` | T-6: `create == DatabasePermissionDenied` (262). `"ALTER TABLE"` → `ALTER TABLE dbo.vacancies ADD iso3_probe`; `"TRUNCATE TABLE"` → `TRUNCATE TABLE dbo.contact_requests`; both must give a `SqlException` (1088 seen) | True. "One table each" and "262" are both stated (D-5 / m-5) |
+| **Lead-in:** "The test proves only the checks above ... many mistaken grants would leave the test green. These are examples, not a complete list" | | True. The list is presented as examples, not complete (D-4) |
+| Examples: IMPERSONATE on a user or login; **ALTER, CONTROL or TAKE OWNERSHIP on a user or role, with CONTROL on `dh_content_app` reaching impersonation**; **grants on non-object securables (types, XML schema collections, assemblies, certificates, keys)**; server roles other than `sysadmin`; server-level permissions; schemas other than `dbo`; column-level grants, with the table-wide probes unverified | T-5 measures only the OBJECT (with `subentity_name = N''`), `dbo` SCHEMA and DATABASE scopes; T-1 checks only `sysadmin` at server level; no test tries `EXECUTE AS` | True. The m-5 examples are present. CONTROL on a user does imply IMPERSONATE |
+| F-ISO3-2 widens the test; its exact assertion would replace the examples | `delivery-approval.md` follow-up table | True. A plan statement, not a claim about the test |
+| CI runs the same statements, differing by a workflow-only password and `CHECK_POLICY = OFF` on `CREATE LOGIN`; locally the login lives in `DigitalHubContent_Test` only, read from `ConnectionStrings:PublicForms` | `ci.yml:97`; the new membership step; Round 1, section 1 (the user exists only in `_Test`) | True |
+| Re-applying after `Down`: Down removes the members and drops the role; "the user `dh_public_forms` stays, **with no permissions**, which is harmless"; a later `Up` re-creates the role with no member, so the forms fail until `ADD MEMBER` is run again | Down SQL (Round 1, section 4). The user's database-level `CONNECT` comes from `CREATE USER`, not from the role (Round 1, section 1: `DATABASE GRANT CONNECT` on the user) | **Not quite true: the user keeps CONNECT** (m-6). The rest is true |
+| The admin API's copies of the two routes still run on `dh_content_app` until ISO-4 | ISO-2 / ISO-4 scope | True |
+
+D-4 (the list presented as examples) and D-5 (the m-5 examples, one table each, 262) are met. Both
+tightened lines are accurate. Round 2's m-5 is resolved.
+
+### R3-3. Permission tests
+
+| Step | Command | Exit | Output |
+|---|---|---|---|
+| Install | `npm ci` (`website/`) | 0 | |
+| Build | `dotnet build DigitalHub.slnx -c Release` (`api/`) | 0 | 0 errors |
+| L0 | process check and `sys.dm_exec_sessions` on `DigitalHubContent_Test` | | `testhost/vstest: 0`, `other sessions: 0` |
+| C1 | `dotnet test api/tests/DigitalHub.PublicApi.Tests/DigitalHub.PublicApi.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~PublicFormsPermissionTests"` | 0 | `Passed!  - Failed: 0, Passed: 31, Skipped: 0, Total: 31`. 0 `password=` in the log |
+| After the run, read-only | grants for the user and the role; `iso3_%` principals | | 7 (CONNECT plus the six); 0 |
+
+### Findings, Round 3
+
+There is no Blocker and no Major.
+
+**m-6 (Minor, docs): the rollback bullet says the user stays "with no permissions", but it keeps CONNECT.**
+
+- **Where:** `docs/security-deployment.md`, the bullet "Re-applying the migration after its
+  `Down`".
+- **Steps:**
+  1. The Down SQL drops only the role and its grants.
+  2. The user's database-level `GRANT CONNECT` comes from `CREATE USER`. Round 1, section 1 shows it
+     on the user, not on the role.
+- **Expected:** for example, "stays, with only CONNECT: it can log in to the catalog but read or
+  write nothing, which is harmless".
+- **Actual:** "with no permissions".
+- **Note:** this sentence has been the same since `ba948b1`. I missed it in Round 1, when I checked
+  only its intent, which is correct. It overstates nothing about the test, and the harm is nil.
+  It can be fixed in a later docs change; I raise it as non-blocking.
+
 Verdict: APPROVED
