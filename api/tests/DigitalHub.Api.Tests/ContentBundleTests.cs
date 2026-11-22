@@ -501,6 +501,135 @@ public sealed class ContentBundleTests : IClassFixture<ApiFactory>, IDisposable
         });
     }
 
+    // ADM-12e: the media library's alt-in-use rule (ADM-12) applies to an import that blanks the
+    // alt of an image the target already has. Owner decision O-1: "A: refuse both", decorative or not.
+    private static readonly string BlanksAlt = $"media {MediaId} (team.webp): alt: the bundle removes this image's alt text";
+
+    /// <summary>The seeded image with no alt text, and every other table empty, so the target's rows stay in place.</summary>
+    private static byte[] BlankingBundle(byte[] exported, bool decorative) => Edit(exported, root =>
+    {
+        var tables = root["tables"]!.AsObject();
+        foreach (var name in tables.Select(pair => pair.Key).Where(name => name != "media").ToList())
+            tables[name] = new JsonArray();
+        tables["media"]![0]!["alt"] = "";
+        tables["media"]![0]!["decorative"] = decorative;
+    });
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task An_import_that_blanks_an_alt_a_target_card_relies_on_is_refused(bool decorative)
+    {
+        await InTransactionAsync(async db =>
+        {
+            // The target's published case study uses the image as its card with no override, and its working copy too.
+            await SeedAsync(db);
+            var bundle = BlankingBundle(await ExportAsync(db, _source), decorative);
+
+            // Without --force: the media row differs, a conflict, as before.
+            var refused = await ImportAsync(db, _source, bundle);
+            Assert.False(refused.Ok);
+            Assert.Contains(refused.Conflicts, conflict => conflict.StartsWith($"media {MediaId}", StringComparison.Ordinal));
+
+            // With --force, as a dry run: still refused.
+            var dry = await ImportAsync(db, _source, bundle, dryRun: true, force: true);
+            Assert.False(dry.Ok);
+            Assert.Contains(dry.Problems, problem => problem.StartsWith(BlanksAlt, StringComparison.Ordinal));
+
+            // With --force: refused, and rolled back.
+            var forced = await ImportAsync(db, _source, bundle, force: true);
+            Assert.False(forced.Ok);
+            Assert.NotEmpty(forced.Conflicts);
+            var problem = Assert.Single(forced.Problems, item => item.StartsWith(BlanksAlt, StringComparison.Ordinal));
+            Assert.Contains($"case-studies {CaseId:D} image", problem);
+            Assert.Equal("The team at work", (await db.Media.AsNoTracking().SingleAsync()).Alt);
+        });
+    }
+
+    [Fact]
+    public async Task An_import_with_no_settings_row_that_blanks_the_default_share_image_alt_is_refused()
+    {
+        await InTransactionAsync(async db =>
+        {
+            await SeedAsync(db);
+            var settings = await db.SiteSettings.SingleAsync();
+            settings.DefaultShareImageId = MediaId;
+            settings.DefaultShareImageAltOverride = null;
+            await db.SaveChangesAsync();
+            db.ChangeTracker.Clear();
+            // Decorative: the case that gets no note today. The bundle's settings table is empty.
+            var bundle = BlankingBundle(await ExportAsync(db, _source), decorative: true);
+
+            var forced = await ImportAsync(db, _source, bundle, force: true);
+            Assert.False(forced.Ok);
+            var problem = Assert.Single(forced.Problems, item => item.StartsWith(BlanksAlt, StringComparison.Ordinal));
+            Assert.Contains("site-settings 80000000-0000-0000-0000-000000000001 default share image", problem);
+            Assert.Equal(MediaId, (await db.SiteSettings.AsNoTracking().SingleAsync()).DefaultShareImageId);
+            Assert.Equal("The team at work", (await db.Media.AsNoTracking().SingleAsync()).Alt);
+        });
+    }
+
+    [Fact]
+    public async Task An_import_that_blanks_an_alt_a_target_page_section_relies_on_is_refused()
+    {
+        await InTransactionAsync(async db =>
+        {
+            await SeedAsync(db);
+            var section = await db.Sections.SingleAsync(item => item.Id == SectionId);
+            section.Type = "case_cards";
+            section.Fields = JsonSerializer.Serialize(new { items = new[] { new { title = "T", image = new { mediaId = MediaId, alt = "", decorative = false } } } });
+            await db.SaveChangesAsync();
+            db.ChangeTracker.Clear();
+            var bundle = BlankingBundle(await ExportAsync(db, _source), decorative: true);
+
+            var forced = await ImportAsync(db, _source, bundle, force: true);
+            Assert.False(forced.Ok);
+            var problem = Assert.Single(forced.Problems, item => item.StartsWith(BlanksAlt, StringComparison.Ordinal));
+            Assert.Contains($"pages {PageId:D} section {SectionId:D}", problem);
+        });
+    }
+
+    [Fact]
+    public async Task An_import_that_blanks_an_alt_no_target_use_relies_on_still_imports()
+    {
+        await InTransactionAsync(async db =>
+        {
+            await SeedAsync(db);
+            var study = await db.CaseStudies.SingleAsync();
+            study.ImageAltOverride = "Case card";
+            await db.SaveChangesAsync();
+            await db.WorkingCopies.ExecuteDeleteAsync();
+            db.ChangeTracker.Clear();
+            var bundle = BlankingBundle(await ExportAsync(db, _source), decorative: false);
+
+            var forced = await ImportAsync(db, _source, bundle, force: true);
+            Assert.True(forced.Ok, string.Join("\n", forced.Problems));
+            Assert.Contains($"media {MediaId} (team.webp): Alt text is required unless the image is decorative.", forced.Warnings);
+            Assert.Equal("", (await db.Media.AsNoTracking().SingleAsync()).Alt);
+        });
+    }
+
+    [Fact]
+    public async Task A_first_import_of_an_image_without_alt_text_still_imports_with_a_note()
+    {
+        await InTransactionAsync(async db =>
+        {
+            // The bundle's own published case study and working copy rely on the image; the target is empty.
+            await SeedAsync(db);
+            var bundle = Edit(await ExportAsync(db, _source), root =>
+            {
+                root["tables"]!["media"]![0]!["alt"] = "";
+                root["tables"]!["media"]![0]!["decorative"] = false;
+            });
+            await EmptyAsync(db);
+
+            var result = await ImportAsync(db, _target, bundle);
+            Assert.True(result.Ok, string.Join("\n", result.Problems));
+            Assert.Contains($"media {MediaId} (team.webp): Alt text is required unless the image is decorative.", result.Warnings);
+            Assert.Equal(CaseId, (await db.CaseStudies.AsNoTracking().SingleAsync()).Id);
+        });
+    }
+
     [Fact]
     public async Task A_credential_key_inside_json_text_is_refused_with_and_without_force()
     {
